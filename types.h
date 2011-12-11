@@ -112,10 +112,13 @@ int       is_word          (Boxed reference);
 Unboxed   quotation_alloc   (int size);
 void      quotation_append  (Boxed destination, Boxed source);
 void      quotation_apply   (Boxed destination, Boxed source);
+void      quotation_clear   (Boxed quotation);
 int       quotation_compare (Boxed a, Boxed b);
+Boxed*    quotation_data    (Boxed quotation);
 Boxed     quotation_new     (int size, ...);
 void      quotation_push    (Boxed quotation, Boxed reference);
 Boxed     quotation_pop     (Boxed quotation);
+int       quotation_size    (Boxed quotation);
 Boxed     quotation_top     (Boxed quotation);
 
 void      unboxed_free     (Unboxed reference);

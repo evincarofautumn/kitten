@@ -102,6 +102,8 @@ void boxed_free(Boxed reference) {
   if (--reference->count > 0)
     return;
   assert(reference->count == 0);
+  if (boxed_type(reference) == QUOTATION)
+    quotation_clear(reference);
   unboxed_free(reference->value);
   free(reference);
 }
@@ -269,59 +271,79 @@ Unboxed quotation_alloc(int size) {
 }
 
 /* Copy all values from one quotation to the end of another. */
-void quotation_append(Boxed destination_reference, Boxed source_reference) {
-  assert(destination_reference);
-  assert(source_reference);
-  assert(is_quotation(destination_reference));
-  assert(is_quotation(source_reference));
-  Quotation *source = &source_reference->value->data.as_quotation;
+void quotation_append(Boxed destination, Boxed source) {
+  assert(destination);
+  assert(source);
+  assert(is_quotation(destination));
+  assert(is_quotation(source));
   int i;
-  for (i = 0; i < source->size; ++i)
-    quotation_push(destination_reference, boxed_copy(source->data[i]));
+  for (i = 0; i < quotation_size(source); ++i)
+    quotation_push(destination, boxed_copy(quotation_data(source)[i]));
 }
 
 /* Apply one quotation to another. */
-void quotation_apply(Boxed destination_reference, Boxed source_reference) {
-  assert(destination_reference);
-  assert(source_reference);
-  assert(is_quotation(destination_reference));
-  assert(is_quotation(source_reference));
-  Quotation *source = &source_reference->value->data.as_quotation;
+void quotation_apply(Boxed destination, Boxed source) {
+  assert(destination);
+  assert(source);
+  assert(is_quotation(destination));
+  assert(is_quotation(source));
   int i;
-  for (i = 0; i < source->size; ++i) {
-    if (is_word(source->data[i]))
-      word_apply(word_value(source->data[i]), destination_reference);
+  for (i = 0; i < quotation_size(source); ++i) {
+    if (is_word(quotation_data(source)[i]))
+      word_apply(word_value(quotation_data(source)[i]), destination);
     else
-      quotation_push(destination_reference, boxed_copy(source->data[i]));
+      quotation_push(destination, boxed_copy(quotation_data(source)[i]));
   }
 }
 
+/* Empty the contents of a quotation. */
+void quotation_clear(Boxed quotation) {
+  assert(quotation);
+  assert(is_quotation(quotation));
+  int i;
+  for (i = 0; i < quotation_size(quotation); ++i)
+    boxed_free(quotation_data(quotation)[i]);
+  free(quotation_data(quotation));
+  quotation->value->data.as_quotation.size = 0;
+  quotation->value->data.as_quotation.capacity = 0;
+  quotation->value->data.as_quotation.data = NULL;
+}
+
 /* Determine the lexicographic ordering of two quotations. */
-int quotation_compare(Boxed reference_a, Boxed reference_b) {
-  if (!reference_a && reference_b) {
-    assert(is_quotation(reference_b));
+int quotation_compare(Boxed a, Boxed b) {
+  if (!a && b) {
+    assert(is_quotation(b));
     return -1;
   }
-  if (reference_a == reference_b)
+  if (a == b)
     return 0;
-  assert(is_quotation(reference_a));
-  assert(is_quotation(reference_b));
-  Quotation *a = &reference_a->value->data.as_quotation;
-  Quotation *b = &reference_b->value->data.as_quotation;
-  int minimum = a->size < b->size ? a->size : b->size;
+  assert(is_quotation(a));
+  assert(is_quotation(b));
+  int a_size = quotation_size(a);
+  int b_size = quotation_size(b);
+  Boxed *a_data = quotation_data(a);
+  Boxed *b_data = quotation_data(b);
+  int minimum = a_size < b_size ? a_size : b_size;
   int i;
   for (i = 0; i < minimum; ++i) {
-    int test = boxed_compare(a->data[i], b->data[i]);
+    int test = boxed_compare(a_data[i], b_data[i]);
     if (test < 0)
       return -1;
     if (test > 0)
       return +1;
   }
-  return a->size == b->size
+  return a_size == b_size
     ? 0
-    : a->size < b->size
+    : a_size < b_size
       ? -1
       : +1;
+}
+
+/* Retrieve the data from a quotation. */
+Boxed *quotation_data(Boxed quotation) {
+  assert(quotation);
+  assert(is_quotation(quotation));
+  return quotation->value->data.as_quotation.data;
 }
 
 /* Create a boxed quotation. */
@@ -370,6 +392,13 @@ Boxed quotation_pop(Boxed quotation_reference) {
   return quotation->data[--quotation->size];
 }
 
+/* Retrieve the size of a quotation. */
+int quotation_size(Boxed quotation) {
+  assert(quotation);
+  assert(is_quotation(quotation));
+  return quotation->value->data.as_quotation.size;
+}
+
 /* Retrieve the last reference from a quotation. NOTE: Does not automatically
    call boxed_copy(). */
 Boxed quotation_top(Boxed quotation_reference) {
@@ -388,14 +417,6 @@ Unboxed unboxed_alloc(void) {
 
 /* Free an unboxed reference. */
 void unboxed_free(Unboxed reference) {
-  if (!reference)
-    return;
-  if (reference->type == QUOTATION) {
-    int i;
-    for (i = 0; i < reference->data.as_quotation.size; ++i)
-      boxed_free(reference->data.as_quotation.data[i]);
-    free(reference->data.as_quotation.data);
-  }
   free(reference);
 }
 
