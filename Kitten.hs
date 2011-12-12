@@ -5,7 +5,6 @@ import Value (Value)
 import Control.Applicative ((<*), (*>), (<$>))
 import Control.Arrow ((>>>))
 import Control.Monad (liftM2)
-import Data.Char (isSpace, isAlphaNum)
 import Data.List (intercalate)
 import Text.ParserCombinators.Parsec as Parsec
 
@@ -17,14 +16,10 @@ instance Show Program where
 data CompileError = CompileError String deriving (Show)
 
 word :: Parser Value
-word = Value.Word <$> (normal <|> symbolic) <?> "word"
+word = Value.Word <$> (liftM2 (:) first rest) <?> "word"
   where
-    normal = liftM2 (:) first rest
     first = letter <|> char '_'
     rest = many $ letter <|> digit <|> char '_'
-    symbolic = many1 . satisfy $ \c ->
-      (c /= '[') && (c /= ']') && (c /= '_')
-        && not (isSpace c) && not (isAlphaNum c)
 
 integer :: Parser Value
 integer = (read >>> Value.Integer) <$> (many1 digit <?> "integer")
@@ -49,5 +44,7 @@ parse = Parsec.parse program []
 
 compile :: String -> Either CompileError String
 compile source = case Kitten.parse source of
-  Left parseError -> Left . CompileError . show $ parseError
-  Right parseResult -> Right . show $ parseResult
+  Left parseError -> (show >>> CompileError >>> Left) parseError
+  Right parseResult ->
+    (show >>> ("#include \"kitten.h\"\nKITTEN_PROGRAM(" ++) >>> (++ ")")
+      >>> Right) parseResult
