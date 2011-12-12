@@ -30,6 +30,7 @@ Implementation map[WORD_COUNT] = {
   kitten_ge,      /* GE */
   kitten_gt,      /* GT */
   kitten_le,      /* LE */
+  kitten_if,      /* IF */
   /* I/O. */
   kitten_write    /* WRITE */
 };

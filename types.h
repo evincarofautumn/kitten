@@ -28,6 +28,7 @@ typedef enum Word {
   WORD_GE,
   WORD_GT,
   WORD_LE,
+  WORD_IF,
   /* I/O. */
   WORD_WRITE,
   /* Number of built-in words. */

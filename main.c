@@ -4,9 +4,12 @@
 #include "types.h"
 
 /* Literals. */
-#define PUSHF(a)      push(stack, float_new(a));
-#define PUSHI(a)      push(stack, integer_new(a));
-#define PUSHQ(n, ...) push(stack, quotation_new(n, __VA_ARGS__));
+#define MKF(a)        float_new(a)
+#define MKI(a)        integer_new(a)
+#define MKQ(n, ...)   quotation_new(n, __VA_ARGS__)
+#define PUSHF(a)      push(stack, MKF(a));
+#define PUSHI(a)      push(stack, MKI(a));
+#define PUSHQ(n, ...) push(stack, MKQ(n, __VA_ARGS__));
 /* Built-in words. */
 #define DUP         map[WORD_DUP]       (stack);
 #define SWAP        map[WORD_SWAP]      (stack);
@@ -29,6 +32,7 @@
 #define GE          map[WORD_GE]        (stack);
 #define GT          map[WORD_GT]        (stack);
 #define LE          map[WORD_LE]        (stack);
+#define IF          map[WORD_IF]        (stack);
 #define WRITE       map[WORD_WRITE]     (stack);
 /* Word literals. */
 #define WDUP        word_new(WORD_DUP)
@@ -52,11 +56,12 @@
 #define WGE         word_new(WORD_GE)
 #define WGT         word_new(WORD_GT)
 #define WLE         word_new(WORD_LE)
+#define WIF         word_new(WORD_IF)
 #define WWRITE      word_new(WORD_WRITE)
 
 int main(int argc, char** argv) {
   Boxed stack = quotation_new(0);
-  PUSHF(10.0) PUSHF(8.0) DIV WRITE
+  PUSHI(1) PUSHI(2) GT PUSHQ(1, MKI(100)) PUSHQ(1, MKI(-100)) IF WRITE
   printf("\n");
   boxed_free(stack);
   return 0;

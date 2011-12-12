@@ -103,6 +103,24 @@ void kitten_gt(Boxed stack) {
   push(stack, integer_new(boxed_compare(a, b) > 0));
 }
 
+void kitten_if(Boxed stack) {
+  assert(stack);
+  assert(is_quotation(stack));
+  Boxed else_branch = pop(stack);
+  Boxed then_branch = pop(stack);
+  Boxed condition = pop(stack);
+  assert(is_integer(condition));
+  if (integer_unbox(condition)) {
+    boxed_free(else_branch);
+    push(stack, then_branch);
+    kitten_apply(stack);
+  } else {
+    boxed_free(then_branch);
+    push(stack, else_branch);
+    kitten_apply(stack);
+  }
+}
+
 void kitten_isf(Boxed stack) {
   assert(stack);
   assert(is_quotation(stack));

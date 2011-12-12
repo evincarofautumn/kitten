@@ -19,6 +19,7 @@ void  kitten_dup     (Boxed stack);
 void  kitten_eq      (Boxed stack);
 void  kitten_ge      (Boxed stack);
 void  kitten_gt      (Boxed stack);
+void  kitten_if      (Boxed stack);
 void  kitten_isf     (Boxed stack);
 void  kitten_isi     (Boxed stack);
 void  kitten_isq     (Boxed stack);
