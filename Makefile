@@ -1,18 +1,29 @@
-HASKELL = Main.hs Kitten.hs Value.hs
-OBJECTS = types.o debug.o kitten.o
-LIBRARY = libkitten.a
 COMPILER = kitten
+COMPILER_INTERMEDIATE = Main.hi Kitten.hi Value.hi
+COMPILER_OBJECTS = Main.o Kitten.o Value.o
+COMPILER_SOURCES = Main.hs Kitten.hs Value.hs
+LIBRARY = libkitten.a
+LIBRARY_OBJECTS = types.o debug.o kitten.o
 
-all : clean $(LIBRARY) $(COMPILER)
+all : library compiler
 
-clean :
-	rm -f $(OBJECTS) $(LIBRARY)
+clean : clean_library clean_compiler
 
-$(LIBRARY) : $(OBJECTS)
+clean_library :
+	rm -f $(LIBRARY_OBJECTS) $(LIBRARY)
+
+clean_compiler :
+	rm -f $(COMPILER_OBJECTS) $(COMPILER_INTERMEDIATE) $(COMPILER)
+
+library : clean_library $(LIBRARY)
+
+compiler : clean_compiler $(COMPILER)
+
+$(LIBRARY) : $(LIBRARY_OBJECTS)
 	ar qc $@ $^
 
 %.o : %.c
 	gcc -c $^ -Wall -Werror -DDEBUG -o $@
 
-$(COMPILER) : $(HASKELL)
-	ghc --make Main -package parsec -Wall -Werror -o $@
+$(COMPILER) : $(COMPILER_SOURCES)
+	ghc --make $^ -package parsec -Wall -Werror -o $@
