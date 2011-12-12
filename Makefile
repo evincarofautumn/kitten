@@ -5,6 +5,12 @@ COMPILER_SOURCES = Main.hs Kitten.hs Value.hs
 LIBRARY = libkitten.a
 LIBRARY_OBJECTS = types.o debug.o kitten.o
 
+ifdef DEBUG
+  DEBUG_LIBRARY = -DDEBUG
+else
+  DEBUG_LIBRARY =
+endif
+
 all : library compiler
 
 clean : clean_library clean_compiler
@@ -23,7 +29,11 @@ $(LIBRARY) : $(LIBRARY_OBJECTS)
 	ar qc $@ $^
 
 %.o : %.c
-	gcc -c $^ -Wall -Werror -DDEBUG -o $@
+	gcc -c $^ -Wall -Werror $(DEBUG_LIBRARY) -o $@
+
+debug.c : debug.h
+kitten.c : debug.h kitten.h
+types.c : debug.h kitten.h types.h
 
 $(COMPILER) : $(COMPILER_SOURCES)
 	ghc --make $^ -package parsec -Wall -Werror -o $@
