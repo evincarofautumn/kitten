@@ -12,16 +12,11 @@ typedef enum Word {
   WORD_COMPOSE,
   WORD_APPLY,
   /* Arithmetic. */
-  WORD_ADDF,
-  WORD_SUBF,
-  WORD_MULF,
-  WORD_DIVF,
-  WORD_MODF,
-  WORD_ADDI,
-  WORD_SUBI,
-  WORD_MULI,
-  WORD_DIVI,
-  WORD_MODI,
+  WORD_ADD,
+  WORD_SUB,
+  WORD_MUL,
+  WORD_DIV,
+  WORD_MOD,
   /* Conditionals. */
   WORD_ISF,
   WORD_ISI,
@@ -107,6 +102,7 @@ Integer   integer_value    (Boxed reference);
 
 int       is_integer       (Boxed reference);
 int       is_float         (Boxed reference);
+int       is_numeric       (Boxed reference);
 int       is_quotation     (Boxed reference);
 int       is_word          (Boxed reference);
 

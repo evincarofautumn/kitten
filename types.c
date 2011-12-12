@@ -14,16 +14,11 @@ Implementation map[WORD_COUNT] = {
   kitten_compose, /* COMPOSE */
   kitten_apply,   /* APPLY */
   /* Arithmetic. */
-  kitten_addf,    /* ADDF */
-  kitten_subf,    /* SUBF */
-  kitten_mulf,    /* MULF */
-  kitten_divf,    /* DIVF */
-  kitten_modf,    /* MODF */
-  kitten_addi,    /* ADDI */
-  kitten_subi,    /* SUBI */
-  kitten_muli,    /* MULI */
-  kitten_divi,    /* DIVI */
-  kitten_modi,    /* MODI */
+  kitten_add,     /* ADD */
+  kitten_sub,     /* SUB */
+  kitten_mul,     /* MUL */
+  kitten_div,     /* DIV */
+  kitten_mod,     /* MOD */
   /* Conditionals. */
   kitten_isi,     /* ISI */
   kitten_isf,     /* ISF */
@@ -313,6 +308,11 @@ int is_integer(Boxed reference) {
 /* Test whether a value is a float. */
 int is_float(Boxed reference) {
   return reference && boxed_type(reference) == FLOAT;
+}
+
+/* Test whether a value is numeric. */
+int is_numeric(Boxed reference) {
+  return is_integer(reference) || is_float(reference);
 }
 
 /* Test whether a value is a quotation. */

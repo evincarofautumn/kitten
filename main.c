@@ -8,33 +8,28 @@
 #define PUSHI(a)      push(stack, integer_new(a));
 #define PUSHQ(n, ...) push(stack, quotation_new(n, __VA_ARGS__));
 /* Built-in words. */
-#define DUP         map[WORD_DUP]		(stack);
-#define SWAP        map[WORD_SWAP]		(stack);
-#define POP         map[WORD_POP]		(stack);
-#define QUOTE       map[WORD_QUOTE]		(stack);
-#define COMPOSE     map[WORD_COMPOSE]	(stack);
-#define APPLY       map[WORD_APPLY]		(stack);
-#define ADDF        map[WORD_ADDF]		(stack);
-#define SUBF        map[WORD_SUBF]		(stack);
-#define MULF        map[WORD_MULF]		(stack);
-#define DIVF        map[WORD_DIVF]		(stack);
-#define MODF        map[WORD_MODF]		(stack);
-#define ADDI        map[WORD_ADDI]		(stack);
-#define SUBI        map[WORD_SUBI]		(stack);
-#define MULI        map[WORD_MULI]		(stack);
-#define DIVI        map[WORD_DIVI]		(stack);
-#define MODI        map[WORD_MODI]		(stack);
-#define ISF         map[WORD_ISF]		(stack);
-#define ISI         map[WORD_ISI]		(stack);
-#define ISQ         map[WORD_ISQ]		(stack);
-#define ISW         map[WORD_ISW]		(stack);
-#define EQ          map[WORD_EQ]		(stack);
-#define NE          map[WORD_NE]		(stack);
-#define LT          map[WORD_LT]		(stack);
-#define GE          map[WORD_GE]		(stack);
-#define GT          map[WORD_GT]		(stack);
-#define LE          map[WORD_LE]		(stack);
-#define WRITE       map[WORD_WRITE]		(stack);
+#define DUP         map[WORD_DUP]       (stack);
+#define SWAP        map[WORD_SWAP]      (stack);
+#define POP         map[WORD_POP]       (stack);
+#define QUOTE       map[WORD_QUOTE]     (stack);
+#define COMPOSE     map[WORD_COMPOSE]   (stack);
+#define APPLY       map[WORD_APPLY]     (stack);
+#define ADD         map[WORD_ADD]       (stack);
+#define SUB         map[WORD_SUB]       (stack);
+#define MUL         map[WORD_MUL]       (stack);
+#define DIV         map[WORD_DIV]       (stack);
+#define MOD         map[WORD_MOD]       (stack);
+#define ISF         map[WORD_ISF]       (stack);
+#define ISI         map[WORD_ISI]       (stack);
+#define ISQ         map[WORD_ISQ]       (stack);
+#define ISW         map[WORD_ISW]       (stack);
+#define EQ          map[WORD_EQ]        (stack);
+#define NE          map[WORD_NE]        (stack);
+#define LT          map[WORD_LT]        (stack);
+#define GE          map[WORD_GE]        (stack);
+#define GT          map[WORD_GT]        (stack);
+#define LE          map[WORD_LE]        (stack);
+#define WRITE       map[WORD_WRITE]     (stack);
 /* Word literals. */
 #define WDUP        word_new(WORD_DUP)
 #define WSWAP       word_new(WORD_SWAP)
@@ -42,16 +37,11 @@
 #define WQUOTE      word_new(WORD_QUOTE)
 #define WCOMPOSE    word_new(WORD_COMPOSE)
 #define WAPPLY      word_new(WORD_APPLY)
-#define WADDF       word_new(WORD_ADDF)
-#define WSUBF       word_new(WORD_SUBF)
-#define WMULF       word_new(WORD_MULF)
-#define WDIVF       word_new(WORD_DIVF)
-#define WMODF       word_new(WORD_MODF)
-#define WADDI       word_new(WORD_ADDI)
-#define WSUBI       word_new(WORD_SUBI)
-#define WMULI       word_new(WORD_MULI)
-#define WDIVI       word_new(WORD_DIVI)
-#define WMODI       word_new(WORD_MODI)
+#define WADD        word_new(WORD_ADD)
+#define WSUB        word_new(WORD_SUB)
+#define WMUL        word_new(WORD_MUL)
+#define WDIV        word_new(WORD_DIV)
+#define WMOD        word_new(WORD_MOD)
 #define WISF        word_new(WORD_ISF)
 #define WISI        word_new(WORD_ISI)
 #define WISQ        word_new(WORD_ISQ)
@@ -66,7 +56,7 @@
 
 int main(int argc, char** argv) {
   Boxed stack = quotation_new(0);
-  PUSHI(10) PUSHF(8.0) GT WRITE
+  PUSHF(10.0) PUSHF(8.0) DIV WRITE
   printf("\n");
   boxed_free(stack);
   return 0;

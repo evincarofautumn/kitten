@@ -7,48 +7,52 @@ Boxed pop  (Boxed stack);
 void  push (Boxed stack, Boxed reference);
 Boxed top  (Boxed stack);
 
-#define OPERATOR_IMPLEMENTATION(NAME, SYMBOL, TYPE) \
-void kitten_##NAME(Boxed stack) { \
-  Boxed b = pop(stack); \
-  Boxed a = pop(stack); \
-  if (a->count == 1) { \
-    assert(is_##TYPE(a)); \
-    assert(is_##TYPE(b)); \
-    a->value->data.as_##TYPE SYMBOL##= b->value->data.as_##TYPE; \
-    boxed_free(b); \
-    push(stack, a); \
-  } else { \
-    push(stack, TYPE##_new(TYPE##_unbox(a) SYMBOL TYPE##_unbox(b))); \
-  } \
+#define OPERATOR_IMPLEMENTATION(NAME, SYMBOL)                               \
+void kitten_##NAME(Boxed stack) {                                           \
+  Boxed unpromoted_b = pop(stack);                                          \
+  Boxed unpromoted_a = pop(stack);                                          \
+  Boxed a;                                                                  \
+  Boxed b;                                                                  \
+  int compatible_types = boxed_promote(unpromoted_a, unpromoted_b, &a, &b); \
+  assert(compatible_types);                                                 \
+  assert(is_numeric(a) && is_numeric(b));                                   \
+  switch (boxed_type(a)) {                                                  \
+  case FLOAT:                                                               \
+    push(stack, float_new(float_unbox(a) SYMBOL float_unbox(b)));           \
+    break;                                                                  \
+  case INTEGER:                                                             \
+    push(stack, integer_new(integer_unbox(a) SYMBOL integer_unbox(b)));     \
+    break;                                                                  \
+  default:                                                                  \
+    break;                                                                  \
+  }                                                                         \
 }
 
-OPERATOR_IMPLEMENTATION(addf, +, float)
-OPERATOR_IMPLEMENTATION(addi, +, integer)
-OPERATOR_IMPLEMENTATION(subf, -, float)
-OPERATOR_IMPLEMENTATION(subi, -, integer)
-OPERATOR_IMPLEMENTATION(mulf, *, float)
-OPERATOR_IMPLEMENTATION(muli, *, integer)
-OPERATOR_IMPLEMENTATION(divf, /, float)
-OPERATOR_IMPLEMENTATION(divi, /, integer)
-OPERATOR_IMPLEMENTATION(modi, %, integer)
+OPERATOR_IMPLEMENTATION(add, +)
+OPERATOR_IMPLEMENTATION(sub, -)
+OPERATOR_IMPLEMENTATION(mul, *)
+OPERATOR_IMPLEMENTATION(div, /)
 
 #undef OPERATOR_IMPLEMENTATION
 
 /* Unfortunate specialization for floating-point modulus. */
-void kitten_modf(Boxed stack) {
-  assert(stack);
-  assert(is_quotation(stack));
-  Boxed b = pop(stack);
-  Boxed a = pop(stack);
-  if (a->count == 1) {
-    assert(is_float(a));
-    assert(is_float(b));
-    a->value->data.as_float = fmod
-      (a->value->data.as_float, b->value->data.as_float);
-    boxed_free(b);
-    push(stack, a);
-  } else {
+void kitten_mod(Boxed stack) {
+  Boxed unpromoted_b = pop(stack);
+  Boxed unpromoted_a = pop(stack);
+  Boxed a;
+  Boxed b;
+  int compatible_types = boxed_promote(unpromoted_a, unpromoted_b, &a, &b);
+  assert(compatible_types);
+  assert(is_numeric(a) && is_numeric(b));
+  switch (boxed_type(a)) {
+  case FLOAT:
     push(stack, float_new(fmod(float_unbox(a), float_unbox(b))));
+    break;
+  case INTEGER:
+    push(stack, integer_new(integer_unbox(a) % integer_unbox(b)));
+    break;
+  default:
+    break;
   }
 }
 

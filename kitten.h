@@ -3,8 +3,7 @@
 #include "types.h"
 
 #define OPERATOR_DECLARATION(NAME) \
-void kitten_##NAME##f(Boxed stack); \
-void kitten_##NAME##i(Boxed stack)
+void kitten_##NAME(Boxed stack)
 
 OPERATOR_DECLARATION(add);
 OPERATOR_DECLARATION(div);
