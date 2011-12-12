@@ -5,6 +5,7 @@
 
 /* Literals. */
 #define PUSHF(a)      push(stack, float_new(a));
+#define PUSHI(a)      push(stack, integer_new(a));
 #define PUSHQ(n, ...) push(stack, quotation_new(n, __VA_ARGS__));
 /* Built-in words. */
 #define DUP         map[WORD_DUP]		(stack);
@@ -65,10 +66,7 @@
 
 int main(int argc, char** argv) {
   Boxed stack = quotation_new(0);
-  /* 8.0 [dup write write] apply */
-  PUSHF(8.0)
-  PUSHQ(3, WDUP, WWRITE, WWRITE)
-  APPLY
+  PUSHI(10) PUSHF(8.0) GT WRITE
   printf("\n");
   boxed_free(stack);
   return 0;

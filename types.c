@@ -40,18 +40,20 @@ Implementation map[WORD_COUNT] = {
 };
 
 /* Test two boxed values for typewise and value-wise equality. */
-int boxed_compare(Boxed a, Boxed b) {
-  if (!a && b)
+int boxed_compare(Boxed unpromoted_a, Boxed unpromoted_b) {
+  if (!unpromoted_a && unpromoted_b)
     return -1;
-  if (a == b)
+  if (unpromoted_a == unpromoted_b)
     return 0;
-  if (boxed_type(a) != boxed_type(b))
-    return boxed_type(a) < boxed_type(b) ? -1 : +1;
+  Boxed a;
+  Boxed b;
+  int compatible_types = boxed_promote(unpromoted_a, unpromoted_b, &a, &b);
+  assert(compatible_types);
   switch (boxed_type(a)) {
   case FLOAT:
     {
-      Float value_a = float_value(a);
-      Float value_b = float_value(b);
+      Float value_a = float_unbox(a);
+      Float value_b = float_unbox(b);
       return value_a < value_b
         ? -1
         : value_a > value_b
@@ -60,8 +62,8 @@ int boxed_compare(Boxed a, Boxed b) {
     }
   case INTEGER:
     {
-      Integer value_a = integer_value(a);
-      Integer value_b = integer_value(b);
+      Integer value_a = integer_unbox(a);
+      Integer value_b = integer_unbox(b);
       return value_a < value_b
         ? -1
         : value_a > value_b
@@ -69,20 +71,24 @@ int boxed_compare(Boxed a, Boxed b) {
           : 0;
     }
   case QUOTATION:
-    return quotation_compare(a, b) == 0;
+    {
+      int result = quotation_compare(a, b);
+      boxed_free(a);
+      boxed_free(b);
+      return result;
+    }
   case WORD:
     {
-      Word value_a = word_value(a);
-      Word value_b = word_value(b);
+      Word value_a = word_unbox(a);
+      Word value_b = word_unbox(b);
       return value_a < value_b
         ? -1
         : value_a > value_b
           ? +1
           : 0;
     }
-  default:
-    return 0;
   }
+  return 0;
 }
 
 /* Copy a boxed reference. */
@@ -125,9 +131,8 @@ int boxed_lt(Boxed a, Boxed b) {
     return quotation_compare(a, b) < 0;
   case WORD:
     return word_value(a) < word_value(b);
-  default:
-    return 0;
   }
+  return 0;
 }
 
 /* Create a boxed reference from an unboxed reference. */
@@ -143,6 +148,79 @@ Boxed boxed_new(Unboxed unboxed) {
   return reference;
  memory_error:
   return NULL;
+}
+
+/* Perform type promotion of boxed values according to the following rules:
+
+     First     Second       First     Second
+     float     float     -> float     float
+     float     integer   -> float     float
+     integer   float     -> float     float
+     integer   integer   -> integer   integer
+     quotation quotation -> quotation quotation
+     quotation *         ->
+     word      word      -> word
+     word      *         ->
+     *         quotation ->
+     *         word      ->
+
+   Supplies promoted values as out parameters, either as new values or as boxed
+   copies. Returns whether the given values are of compatible type. */
+int boxed_promote(Boxed unpromoted_a, Boxed unpromoted_b, Boxed *promoted_a,
+  Boxed *promoted_b) {
+  assert(unpromoted_a);
+  assert(unpromoted_b);
+  assert(promoted_a);
+  assert(promoted_b);
+  switch (boxed_type(unpromoted_a)) {
+  case FLOAT:
+    switch (boxed_type(unpromoted_b)) {
+    case FLOAT:
+      *promoted_a = boxed_copy(unpromoted_a);
+      *promoted_b = boxed_copy(unpromoted_b);
+      return 1;
+    case INTEGER:
+      *promoted_a = boxed_copy(unpromoted_a);
+      *promoted_b = float_new(integer_value(unpromoted_b));
+      return 1;
+    case QUOTATION:
+    case WORD:
+      return 0;
+    }
+  case INTEGER:
+    switch (boxed_type(unpromoted_b)) {
+    case FLOAT:
+      *promoted_a = float_new(integer_value(unpromoted_a));
+      *promoted_b = boxed_copy(unpromoted_b);
+      return 1;
+    case INTEGER:
+      *promoted_a = boxed_copy(unpromoted_a);
+      *promoted_b = boxed_copy(unpromoted_b);
+      return 1;
+    case QUOTATION:
+    case WORD:
+      return 0;
+    }
+  case QUOTATION:
+    switch (boxed_type(unpromoted_b)) {
+    case QUOTATION:
+      *promoted_a = boxed_copy(unpromoted_a);
+      *promoted_b = boxed_copy(unpromoted_b);
+      return 1;
+    default:
+      return 0;
+    }
+  case WORD:
+    switch (boxed_type(unpromoted_b)) {
+    case WORD:
+      *promoted_a = boxed_copy(unpromoted_a);
+      *promoted_b = boxed_copy(unpromoted_b);
+      return 1;
+    default:
+      return 0;
+    }
+  }
+  return 0;
 }
 
 /* Retrieve the type of a reference. */

@@ -92,6 +92,7 @@ int       boxed_compare    (Boxed a, Boxed b);
 Boxed     boxed_copy       (Boxed reference);
 void      boxed_free       (Boxed reference);
 Boxed     boxed_new        (Unboxed unboxed);
+int       boxed_promote    (Boxed a, Boxed b, Boxed *da, Boxed *db);
 Type      boxed_type       (Boxed reference);
 
 Unboxed   float_alloc      (Float value);
