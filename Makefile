@@ -1,12 +1,13 @@
-OBJECTS = main.o types.o debug.o kitten.o
+OBJECTS = types.o debug.o kitten.o
+LIBRARY = libkitten.a
 
-all : clean kitten
+all : clean $(LIBRARY)
 
 clean :
-	rm -f *.o kitten
+	rm -f $(OBJECTS) $(LIBRARY)
 
-kitten : $(OBJECTS)
-	gcc $(OBJECTS) -o $@ -lm
+$(LIBRARY) : $(OBJECTS)
+	ar qc $@ $^
 
 %.o : %.c
 	gcc -c $^ -Wall -Werror -DDEBUG -o $@
