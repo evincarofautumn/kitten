@@ -350,28 +350,28 @@ Unboxed quotation_alloc(int size) {
 }
 
 /* Copy all values from one quotation to the end of another. */
-void quotation_append(Boxed destination, Boxed source) {
-  assert(destination);
+void quotation_append(Boxed target, Boxed source) {
+  assert(target);
   assert(source);
-  assert(is_quotation(destination));
+  assert(is_quotation(target));
   assert(is_quotation(source));
   int i;
   for (i = 0; i < quotation_size(source); ++i)
-    quotation_push(destination, boxed_copy(quotation_data(source)[i]));
+    quotation_push(target, boxed_copy(quotation_data(source)[i]));
 }
 
 /* Apply one quotation to another. */
-void quotation_apply(Boxed destination, Boxed source) {
-  assert(destination);
+void quotation_apply(Boxed target, Boxed source, Boxed definitions) {
+  assert(target);
   assert(source);
-  assert(is_quotation(destination));
+  assert(is_quotation(target));
   assert(is_quotation(source));
   int i;
   for (i = 0; i < quotation_size(source); ++i) {
     if (is_word(quotation_data(source)[i]))
-      word_apply(word_value(quotation_data(source)[i]), destination);
+      word_apply(word_value(quotation_data(source)[i]), target, definitions);
     else
-      quotation_push(destination, boxed_copy(quotation_data(source)[i]));
+      quotation_push(target, boxed_copy(quotation_data(source)[i]));
   }
 }
 
@@ -511,10 +511,16 @@ Unboxed word_alloc(Word value) {
   return NULL;
 }
 
-void word_apply(Word word, Boxed stack) {
+void word_apply(Word word, Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
-  map[word](stack);
+  if (word < 0) {
+    assert(-word - 1 < quotation_size(definitions));
+    quotation_apply
+      (stack, quotation_data(definitions)[-word - 1], definitions);
+  } else {
+    map[word](stack, definitions);
+  }
 }
 
 /* Create a boxed word. */

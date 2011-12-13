@@ -1,9 +1,10 @@
 #ifndef KITTEN_H
 #define KITTEN_H
+#include "debug.h"
 #include "types.h"
 
 #define OPERATOR_DECLARATION(NAME) \
-void kitten_##NAME(Boxed stack)
+	void kitten_##NAME(Boxed stack, Boxed definitions)
 
 OPERATOR_DECLARATION(add);
 OPERATOR_DECLARATION(div);
@@ -13,32 +14,31 @@ OPERATOR_DECLARATION(sub);
 
 #undef OPERATOR_DECLARATION
 
-void  kitten_apply   (Boxed stack);
-void  kitten_compose (Boxed stack);
-void  kitten_dup     (Boxed stack);
-void  kitten_eq      (Boxed stack);
-void  kitten_ge      (Boxed stack);
-void  kitten_gt      (Boxed stack);
-void  kitten_if      (Boxed stack);
-void  kitten_isf     (Boxed stack);
-void  kitten_isi     (Boxed stack);
-void  kitten_isq     (Boxed stack);
-void  kitten_isw     (Boxed stack);
-void  kitten_le      (Boxed stack);
-void  kitten_lt      (Boxed stack);
-void  kitten_ne      (Boxed stack);
-void  kitten_pop     (Boxed stack);
-void  kitten_quote   (Boxed stack);
-void  kitten_swap    (Boxed stack);
-Boxed kitten_top     (Boxed stack);
-void  kitten_write   (Boxed stack);
-
+void  kitten_apply   (Boxed stack, Boxed definitions);
+void  kitten_compose (Boxed stack, Boxed definitions);
+void  kitten_dup     (Boxed stack, Boxed definitions);
+void  kitten_eq      (Boxed stack, Boxed definitions);
+void  kitten_ge      (Boxed stack, Boxed definitions);
+void  kitten_gt      (Boxed stack, Boxed definitions);
+void  kitten_if      (Boxed stack, Boxed definitions);
+void  kitten_isf     (Boxed stack, Boxed definitions);
+void  kitten_isi     (Boxed stack, Boxed definitions);
+void  kitten_isq     (Boxed stack, Boxed definitions);
+void  kitten_isw     (Boxed stack, Boxed definitions);
+void  kitten_le      (Boxed stack, Boxed definitions);
+void  kitten_lt      (Boxed stack, Boxed definitions);
+void  kitten_ne      (Boxed stack, Boxed definitions);
+void  kitten_pop     (Boxed stack, Boxed definitions);
+void  kitten_quote   (Boxed stack, Boxed definitions);
+void  kitten_swap    (Boxed stack, Boxed definitions);
+void  kitten_write   (Boxed stack, Boxed definitions);
 void  push           (Boxed stack, Boxed reference);
 
 /* Literals. */
 #define MKF(a)        float_new(a)
 #define MKI(a)        integer_new(a)
 #define MKQ(n, ...)   quotation_new(n, __VA_ARGS__)
+#define MKW(a)        word_new(-a - 1)
 #define PUSHF(a)      push(stack, MKF(a));
 #define PUSHI(a)      push(stack, MKI(a));
 #define PUSHQ(n, ...) push(stack, MKQ(n, __VA_ARGS__));
@@ -91,12 +91,25 @@ void  push           (Boxed stack, Boxed reference);
 #define WIF         word_new(WORD_IF)
 #define WWRITE      word_new(WORD_WRITE)
 
-#define KITTEN_PROGRAM(...)         \
-int main(int argc, char** argv) {   \
-  Boxed stack = quotation_new(0);   \
-  __VA_ARGS__                       \
-  boxed_free(stack);                \
-  return 0;                         \
+/* Definitions. */
+
+#define DEF(a) quotation_push(definitions, a);
+
+#define DO(a) do {                        \
+  assert(a >= 0);                         \
+  word_apply(-a - 1, stack, definitions); \
+} while (0);
+
+/* Skeleton program. */
+
+#define KITTEN_PROGRAM(...)             \
+int main(int argc, char** argv) {       \
+  Boxed stack = quotation_new(0);       \
+  Boxed definitions = quotation_new(0); \
+  __VA_ARGS__                           \
+  boxed_free(definitions);              \
+  boxed_free(stack);                    \
+  return 0;                             \
 }
 
 #endif

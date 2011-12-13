@@ -8,7 +8,7 @@ void  push (Boxed stack, Boxed reference);
 Boxed top  (Boxed stack);
 
 #define OPERATOR_IMPLEMENTATION(NAME, SYMBOL)                               \
-void kitten_##NAME(Boxed stack) {                                           \
+void kitten_##NAME(Boxed stack, Boxed definitions) {                        \
   Boxed unpromoted_b = pop(stack);                                          \
   Boxed unpromoted_a = pop(stack);                                          \
   Boxed a;                                                                  \
@@ -36,7 +36,7 @@ OPERATOR_IMPLEMENTATION(div, /)
 #undef OPERATOR_IMPLEMENTATION
 
 /* Unfortunate specialization for floating-point modulus. */
-void kitten_mod(Boxed stack) {
+void kitten_mod(Boxed stack, Boxed definitions) {
   Boxed unpromoted_b = pop(stack);
   Boxed unpromoted_a = pop(stack);
   Boxed a;
@@ -56,15 +56,15 @@ void kitten_mod(Boxed stack) {
   }
 }
 
-void kitten_apply(Boxed stack) {
+void kitten_apply(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
   Boxed a = pop(stack);
-  quotation_apply(stack, a);
+  quotation_apply(stack, a, definitions);
   boxed_free(a);
 }
 
-void kitten_compose(Boxed stack) {
+void kitten_compose(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
   Boxed a = pop(stack);
@@ -72,14 +72,14 @@ void kitten_compose(Boxed stack) {
   boxed_free(a);
 }
 
-void kitten_dup(Boxed stack) {
+void kitten_dup(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
   Boxed a = boxed_copy(top(stack));
   quotation_push(stack, a);
 }
 
-void kitten_eq(Boxed stack) {
+void kitten_eq(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
   Boxed b = pop(stack);
@@ -87,7 +87,7 @@ void kitten_eq(Boxed stack) {
   push(stack, integer_new(boxed_compare(a, b) == 0));
 }
 
-void kitten_ge(Boxed stack) {
+void kitten_ge(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
   Boxed b = pop(stack);
@@ -95,7 +95,7 @@ void kitten_ge(Boxed stack) {
   push(stack, integer_new(boxed_compare(a, b) >= 0));
 }
 
-void kitten_gt(Boxed stack) {
+void kitten_gt(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
   Boxed b = pop(stack);
@@ -103,7 +103,7 @@ void kitten_gt(Boxed stack) {
   push(stack, integer_new(boxed_compare(a, b) > 0));
 }
 
-void kitten_if(Boxed stack) {
+void kitten_if(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
   Boxed else_branch = pop(stack);
@@ -113,15 +113,15 @@ void kitten_if(Boxed stack) {
   if (integer_unbox(condition)) {
     boxed_free(else_branch);
     push(stack, then_branch);
-    kitten_apply(stack);
+    kitten_apply(stack, definitions);
   } else {
     boxed_free(then_branch);
     push(stack, else_branch);
-    kitten_apply(stack);
+    kitten_apply(stack, definitions);
   }
 }
 
-void kitten_isf(Boxed stack) {
+void kitten_isf(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
   Boxed a = pop(stack);
@@ -129,7 +129,7 @@ void kitten_isf(Boxed stack) {
   boxed_free(a);
 }
 
-void kitten_isi(Boxed stack) {
+void kitten_isi(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
   Boxed a = pop(stack);
@@ -137,7 +137,7 @@ void kitten_isi(Boxed stack) {
   boxed_free(a);
 }
 
-void kitten_isq(Boxed stack) {
+void kitten_isq(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
   Boxed a = pop(stack);
@@ -145,7 +145,7 @@ void kitten_isq(Boxed stack) {
   boxed_free(a);
 }
 
-void kitten_isw(Boxed stack) {
+void kitten_isw(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
   Boxed a = pop(stack);
@@ -153,7 +153,7 @@ void kitten_isw(Boxed stack) {
   boxed_free(a);
 }
 
-void kitten_le(Boxed stack) {
+void kitten_le(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
   Boxed b = pop(stack);
@@ -161,7 +161,7 @@ void kitten_le(Boxed stack) {
   push(stack, integer_new(boxed_compare(a, b) <= 0));
 }
 
-void kitten_lt(Boxed stack) {
+void kitten_lt(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
   Boxed b = pop(stack);
@@ -169,7 +169,7 @@ void kitten_lt(Boxed stack) {
   push(stack, integer_new(boxed_compare(a, b) < 0));
 }
 
-void kitten_ne(Boxed stack) {
+void kitten_ne(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
   Boxed b = pop(stack);
@@ -177,20 +177,20 @@ void kitten_ne(Boxed stack) {
   push(stack, integer_new(boxed_compare(a, b) != 0));
 }
 
-void kitten_pop(Boxed stack) {
+void kitten_pop(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
   boxed_free(quotation_pop(stack));
 }
 
-void kitten_quote(Boxed stack) {
+void kitten_quote(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
   Boxed a = pop(stack);
   push(stack, quotation_new(1, a));
 }
 
-void kitten_swap(Boxed stack) {
+void kitten_swap(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
   Boxed b = pop(stack);
@@ -199,7 +199,7 @@ void kitten_swap(Boxed stack) {
   push(stack, a);
 }
 
-void kitten_write(Boxed stack) {
+void kitten_write(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
   if (is_integer(top(stack))) {

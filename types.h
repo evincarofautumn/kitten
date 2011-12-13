@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 /* A built-in word. */
-typedef enum Word {
+enum Word {
   /* Combinators. */
   WORD_DUP,
   WORD_SWAP,
@@ -33,7 +33,7 @@ typedef enum Word {
   WORD_WRITE,
   /* Number of built-in words. */
   WORD_COUNT
-} Word;
+};
 
 /* A built-in type. */
 typedef enum Type {
@@ -49,9 +49,11 @@ struct Value;
 /* Type aliases. */
 typedef struct Box   *Boxed;
 typedef struct Value *Unboxed;
+typedef int          Definition;
+typedef void         (*Implementation)(Boxed stack, Boxed definitions);
 typedef int64_t      Integer;
 typedef double       Float;
-typedef void         (*Implementation)(Boxed stack);
+typedef int          Word;
 
 /* A vector of references. */
 typedef struct Quotation {
@@ -108,8 +110,8 @@ int       is_quotation     (Boxed reference);
 int       is_word          (Boxed reference);
 
 Unboxed   quotation_alloc   (int size);
-void      quotation_append  (Boxed destination, Boxed source);
-void      quotation_apply   (Boxed destination, Boxed source);
+void      quotation_append  (Boxed target, Boxed source);
+void      quotation_apply   (Boxed target, Boxed source, Boxed definitions);
 void      quotation_clear   (Boxed quotation);
 int       quotation_compare (Boxed a, Boxed b);
 Boxed*    quotation_data    (Boxed quotation);
@@ -123,7 +125,7 @@ void      unboxed_free     (Unboxed reference);
 Unboxed   unboxed_alloc    (void);
 
 Unboxed   word_alloc       (Word value);
-void      word_apply       (Word word, Boxed stack);
+void      word_apply       (Word word, Boxed stack, Boxed definitions);
 Boxed     word_new         (Word value);
 Word      word_unbox       (Boxed reference);
 Word      word_value       (Boxed reference);
