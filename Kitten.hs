@@ -1,17 +1,15 @@
 module Kitten (compile) where
 
 import qualified Value
-import Value (Value)
+import Value (Value, compileValue)
 import Control.Applicative ((<*), (*>), (<$>))
 import Control.Arrow ((>>>))
-import Control.Monad (liftM2)
+import Control.Monad (liftM, liftM2, liftM3)
+import Data.Char (ord)
 import Data.List (intercalate)
 import Text.ParserCombinators.Parsec as Parsec
 
 data Program = Program [Value]
-instance Show Program where
-  show (Program terms) =
-    map show >>> intercalate " " $ terms
 
 data CompileError = CompileError String deriving (Show)
 
@@ -25,16 +23,27 @@ integer :: Parser Value
 integer = (read >>> Value.Integer) <$> (many1 digit <?> "integer")
 
 float :: Parser Value
-float = (read >>> Value.Float) <$> (many1 $ digit <|> char '_') <?> "float"
+float = (read >>> Value.Float) <$> (do { whole <- many1 digit;
+  separator <- char '.'; fractional <- many1 digit; return $ whole
+  ++ [separator] ++ fractional }) <?> "float"
 
 quotation :: Parser Value
 quotation = Value.Quotation <$> (left *> many term <* right)
   where
-   left  = char '[' <* spaces
-   right = (char ']' <* spaces) <?> "end of quotation"
+    left  = char '[' <* spaces
+    right = (char ']' <* spaces) <?> "end of quotation"
+
+text :: Parser Value
+text = Value.Quotation <$> (left *> many character <* right)
+  where
+    left      = char '"'
+    right     = char '"' <?> "end of string"
+    character = Value.Integer . fromIntegral . ord <$>
+      (noneOf "\\\"" <|> (char '\\' *> (char '\\' <|> char '\"')))
 
 term :: Parser Value
-term = ((quotation <|> word <|> try float <|> integer) <* spaces) <?> "term"
+term = ((quotation <|> word <|> try float <|> integer <|> text) <* spaces)
+  <?> "term"
 
 program :: Parser Program
 program = Program <$> many term <* eof
@@ -45,6 +54,7 @@ parse = Parsec.parse program []
 compile :: String -> Either CompileError String
 compile source = case Kitten.parse source of
   Left parseError -> (show >>> CompileError >>> Left) parseError
-  Right parseResult ->
-    (show >>> ("#include \"kitten.h\"\nKITTEN_PROGRAM(" ++) >>> (++ ")")
+  Right (Program parseResult) ->
+    (map compileValue >>> intercalate " "
+      >>> ("#include \"kitten.h\"\nKITTEN_PROGRAM(" ++) >>> (++ ")")
       >>> Right) parseResult

@@ -1,6 +1,6 @@
-module Value(Value(..)) where
+module Value(Value(..), compileValue) where
 
-import Control.Arrow ((>>>))
+import Data.Char (toUpper)
 import Data.List (intercalate)
 
 data Value = Word String
@@ -8,9 +8,33 @@ data Value = Word String
            | Float Double
            | Quotation [Value]
 
-instance Show Value where
-  show (Word w) = w
-  show (Integer i) = show i
-  show (Float f) = show f
-  show (Quotation q) =
-    map show >>> intercalate " " >>> ("[" ++) >>> (++ "]") $ q
+data Environment = Environment {
+  inQuotation :: Bool,
+  definitions :: [String]
+}
+
+compileValue :: Value -> String
+compileValue = compileValue' defaultEnvironment
+  where
+    compileValue' environment value =
+      case value of
+        Float f ->
+          if inQuotation environment
+            then "MKF(" ++ show f ++ ")"
+            else "PUSHF(" ++ show f ++ ")"
+        Integer i ->
+          if inQuotation environment
+            then "MKI(" ++ show i ++ ")"
+            else "PUSHI(" ++ show i ++ ")"
+        Quotation q ->
+          if inQuotation environment
+            then "MKQ(" ++ showQuotationContents environment q ++ ")"
+            else "PUSHQ(" ++ showQuotationContents environment q ++ ")"
+        Word w ->
+          if inQuotation environment
+            then "W" ++ (map toUpper $ w)
+            else map toUpper $ w
+    defaultEnvironment = Environment False []
+    showQuotationContents environment values = (show . length $ values) ++ ", "
+      ++ (intercalate ", " . map (compileValue' environment
+      { inQuotation = True }) $ values)
