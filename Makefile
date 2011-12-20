@@ -37,4 +37,4 @@ types.c : debug.h kitten.h types.h
 kitten.h : debug.h
 
 $(COMPILER) : $(COMPILER_SOURCES)
-	ghc --make $^ -package parsec -Wall -Werror -o $@
+	ghc --make Main -package parsec -Wall -o $@
