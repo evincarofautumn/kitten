@@ -4,14 +4,19 @@ import qualified Value
 import Value (Value, compileValue)
 import Control.Applicative ((<*), (*>), (<$>))
 import Control.Arrow ((>>>))
-import Control.Monad (liftM, liftM2, liftM3)
-import Data.Char (ord)
+import Control.Monad (liftM2)
+import Data.Char (ord, isSpace)
 import Data.List (intercalate)
-import Text.ParserCombinators.Parsec as Parsec
+import Text.ParserCombinators.Parsec as Parsec hiding (spaces)
 
 data Program = Program [Value]
 
 data CompileError = CompileError String deriving (Show)
+
+spaces :: Parser ()
+spaces = (((many1 . satisfy $ isSpace) >> return ()) <|> comment) >> return ()
+  where
+    comment = char '(' >> (many1 $ noneOf ")") >> char ')' >> return ()
 
 word :: Parser Value
 word = Value.Word <$> (liftM2 (:) first rest) <?> "word"
