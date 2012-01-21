@@ -110,27 +110,6 @@ void boxed_free(Boxed reference) {
   free(reference);
 }
 
-/* Test two boxed values for ordering. */
-int boxed_lt(Boxed a, Boxed b) {
-  if (!a && b)
-    return boxed_type(a) == boxed_type(b);
-  if (a == b)
-    return 0;
-  if (boxed_type(a) != boxed_type(b))
-    return 0;
-  switch (boxed_type(a)) {
-  case FLOAT:
-    return float_value(a) < float_value(b);
-  case INTEGER:
-    return integer_value(a) < integer_value(b);
-  case QUOTATION:
-    return quotation_compare(a, b) < 0;
-  case WORD:
-    return word_value(a) < word_value(b);
-  }
-  return 0;
-}
-
 /* Create a boxed reference from an unboxed reference. */
 Boxed boxed_new(Unboxed unboxed) {
   if (!unboxed)
