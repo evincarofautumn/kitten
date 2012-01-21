@@ -3,7 +3,6 @@ module Kitten (compile) where
 import qualified Value
 import Value (Value, compileValue)
 import Control.Applicative ((<*), (*>), (<$>))
-import Control.Arrow ((>>>))
 import Control.Monad (liftM2)
 import Data.Char (ord, isSpace)
 import Data.List (intercalate)
@@ -11,55 +10,65 @@ import Text.ParserCombinators.Parsec as Parsec hiding (spaces)
 
 data Program = Program [Value]
 
-data CompileError = CompileError String deriving (Show)
+data CompileError = CompileError String
+
+instance Show CompileError where
+  show (CompileError message) = message
+
+ignoreP :: Parser a -> Parser ()
+ignoreP parser = parser >> return ()
 
 spaces :: Parser ()
-spaces = (((many1 . satisfy $ isSpace) >> return ()) <|> comment) >> return ()
+spaces = ignoreP . many $ (ignoreP . many1 . satisfy $ isSpace) <|> commentP
   where
-    comment = char '(' >> (many1 $ noneOf ")") >> char ')' >> return ()
+    commentP = ignoreP $ ((char '(' >> (many . noneOf $ ")") >> char ')')
+      <?> "comment")
 
-word :: Parser Value
-word = Value.Word <$> (liftM2 (:) first rest) <?> "word"
+wordP :: Parser Value
+wordP = Value.Word <$> (liftM2 (:) firstP restP) <?> "word"
   where
-    first = letter <|> char '_'
-    rest = many $ letter <|> digit <|> char '_'
+    firstP = letter <|> char '_'
+    restP = many $ letter <|> digit <|> char '_'
 
-integer :: Parser Value
-integer = (read >>> Value.Integer) <$> (many1 digit <?> "integer")
+integerP :: Parser Value
+integerP = (Value.Integer . read) <$> (many1 digit <?> "integer")
 
-float :: Parser Value
-float = (read >>> Value.Float) <$> (do { whole <- many1 digit;
-  separator <- char '.'; fractional <- many1 digit; return $ whole
-  ++ [separator] ++ fractional }) <?> "float"
+floatP :: Parser Value
+floatP = (Value.Float . read) <$> (bodyP <?> "float") where
+  bodyP = do
+    whole <- many1 digit
+    separator <- char '.'
+    fractional <- many1 digit
+    return $ whole ++ [separator] ++ fractional
 
-quotation :: Parser Value
-quotation = Value.Quotation <$> (left *> many term <* right)
+quotationP :: Parser Value
+quotationP = Value.Quotation <$> (left *> many termP <* right)
   where
     left  = char '[' <* spaces
-    right = (char ']' <* spaces) <?> "end of quotation"
+    right = char ']' <?> "end of quotation"
 
-text :: Parser Value
-text = Value.Quotation <$> (left *> many character <* right)
+textP :: Parser Value
+textP = Value.Quotation <$> (left *> many character <* right)
   where
     left      = char '"'
     right     = char '"' <?> "end of string"
     character = Value.Integer . fromIntegral . ord <$>
       (noneOf "\\\"" <|> (char '\\' *> (char '\\' <|> char '\"')))
+      <?> "character or escape"
 
-term :: Parser Value
-term = ((quotation <|> word <|> try float <|> integer <|> text) <* spaces)
-  <?> "term"
+termP :: Parser Value
+termP = ((quotationP <|> wordP <|> try floatP <|> integerP <|> textP)
+  <* spaces) <?> "term"
 
-program :: Parser Program
-program = Program <$> many term <* eof
+programP :: Parser Program
+programP = Program <$> (spaces *> many termP <* spaces <* eof)
 
 parse :: String -> Either ParseError Program
-parse = Parsec.parse program []
+parse = Parsec.parse programP []
 
 compile :: String -> Either CompileError String
 compile source = case Kitten.parse source of
-  Left parseError -> (show >>> CompileError >>> Left) parseError
-  Right (Program parseResult) ->
-    (map compileValue >>> intercalate " "
-      >>> ("#include \"kitten.h\"\nKITTEN_PROGRAM(" ++) >>> (++ ")")
-      >>> Right) parseResult
+  Left parseError -> Left . CompileError . show $ parseError
+  Right (Program parseResult) -> Right
+    . ("#include \"kitten.h\"\nKITTEN_PROGRAM(" ++) . (++ ")")
+    . intercalate " " . map compileValue $ parseResult
