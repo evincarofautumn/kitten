@@ -36,7 +36,7 @@ void  push           (Boxed stack, Boxed reference);
 
 /* Literals. */
 #define MKF(a)        float_new(a)
-#define MKI(a)        integer_new(a)
+#define MKI(a)        integer_new(INT64_C(a))
 #define MKQ(n, ...)   quotation_new(n, __VA_ARGS__)
 #define MKW(a)        word_new(-a - 1)
 #define PUSHF(a)      push(stack, MKF(a));
