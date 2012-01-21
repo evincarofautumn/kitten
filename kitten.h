@@ -91,7 +91,7 @@ void  push           (Boxed stack, Boxed reference);
 #define WIF         word_new(WORD_IF)
 #define WWRITE      word_new(WORD_WRITE)
 
-/* Definitions. */
+/* Create and invoke definitions. */
 
 #define DEF(a) quotation_push(definitions, a);
 
