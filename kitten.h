@@ -14,25 +14,32 @@ OPERATOR_DECLARATION(sub);
 
 #undef OPERATOR_DECLARATION
 
-void  kitten_apply   (Boxed stack, Boxed definitions);
-void  kitten_compose (Boxed stack, Boxed definitions);
-void  kitten_dup     (Boxed stack, Boxed definitions);
-void  kitten_eq      (Boxed stack, Boxed definitions);
-void  kitten_ge      (Boxed stack, Boxed definitions);
-void  kitten_gt      (Boxed stack, Boxed definitions);
-void  kitten_if      (Boxed stack, Boxed definitions);
-void  kitten_isf     (Boxed stack, Boxed definitions);
-void  kitten_isi     (Boxed stack, Boxed definitions);
-void  kitten_isq     (Boxed stack, Boxed definitions);
-void  kitten_isw     (Boxed stack, Boxed definitions);
-void  kitten_le      (Boxed stack, Boxed definitions);
-void  kitten_lt      (Boxed stack, Boxed definitions);
-void  kitten_ne      (Boxed stack, Boxed definitions);
-void  kitten_pop     (Boxed stack, Boxed definitions);
-void  kitten_quote   (Boxed stack, Boxed definitions);
-void  kitten_swap    (Boxed stack, Boxed definitions);
-void  kitten_write   (Boxed stack, Boxed definitions);
-void  push           (Boxed stack, Boxed reference);
+#define BUILTIN_DECLARATION(name) \
+void kitten_##name(Boxed stack, Boxed definitions)
+
+BUILTIN_DECLARATION(apply);
+BUILTIN_DECLARATION(apply);
+BUILTIN_DECLARATION(compose);
+BUILTIN_DECLARATION(dup);
+BUILTIN_DECLARATION(eq);
+BUILTIN_DECLARATION(ge);
+BUILTIN_DECLARATION(gt);
+BUILTIN_DECLARATION(if);
+BUILTIN_DECLARATION(isf);
+BUILTIN_DECLARATION(isi);
+BUILTIN_DECLARATION(isq);
+BUILTIN_DECLARATION(isw);
+BUILTIN_DECLARATION(le);
+BUILTIN_DECLARATION(lt);
+BUILTIN_DECLARATION(ne);
+BUILTIN_DECLARATION(pop);
+BUILTIN_DECLARATION(quote);
+BUILTIN_DECLARATION(swap);
+BUILTIN_DECLARATION(write);
+
+#undef BUILTIN_DECLARATION
+
+void push(Boxed stack, Boxed reference);
 
 /* Literals. */
 #define MKF(a)        float_new(a)
@@ -43,29 +50,30 @@ void  push           (Boxed stack, Boxed reference);
 #define PUSHI(a)      push(stack, MKI(a));
 #define PUSHQ(n, ...) push(stack, MKQ(n, __VA_ARGS__));
 /* Built-in words. */
-#define DUP         map[WORD_DUP]       (stack, definitions);
-#define SWAP        map[WORD_SWAP]      (stack, definitions);
-#define POP         map[WORD_POP]       (stack, definitions);
-#define QUOTE       map[WORD_QUOTE]     (stack, definitions);
-#define COMPOSE     map[WORD_COMPOSE]   (stack, definitions);
-#define APPLY       map[WORD_APPLY]     (stack, definitions);
-#define ADD         map[WORD_ADD]       (stack, definitions);
-#define SUB         map[WORD_SUB]       (stack, definitions);
-#define MUL         map[WORD_MUL]       (stack, definitions);
-#define DIV         map[WORD_DIV]       (stack, definitions);
-#define MOD         map[WORD_MOD]       (stack, definitions);
-#define ISF         map[WORD_ISF]       (stack, definitions);
-#define ISI         map[WORD_ISI]       (stack, definitions);
-#define ISQ         map[WORD_ISQ]       (stack, definitions);
-#define ISW         map[WORD_ISW]       (stack, definitions);
-#define EQ          map[WORD_EQ]        (stack, definitions);
-#define NE          map[WORD_NE]        (stack, definitions);
-#define LT          map[WORD_LT]        (stack, definitions);
-#define GE          map[WORD_GE]        (stack, definitions);
-#define GT          map[WORD_GT]        (stack, definitions);
-#define LE          map[WORD_LE]        (stack, definitions);
-#define IF          map[WORD_IF]        (stack, definitions);
-#define WRITE       map[WORD_WRITE]     (stack, definitions);
+#define BUILTIN(w)  map[WORD_##w](stack, definitions);
+#define DUP         BUILTIN(DUP)
+#define SWAP        BUILTIN(SWAP)
+#define POP         BUILTIN(POP)
+#define QUOTE       BUILTIN(QUOTE)
+#define COMPOSE     BUILTIN(COMPOSE)
+#define APPLY       BUILTIN(APPLY)
+#define ADD         BUILTIN(ADD)
+#define SUB         BUILTIN(SUB)
+#define MUL         BUILTIN(MUL)
+#define DIV         BUILTIN(DIV)
+#define MOD         BUILTIN(MOD)
+#define ISF         BUILTIN(ISF)
+#define ISI         BUILTIN(ISI)
+#define ISQ         BUILTIN(ISQ)
+#define ISW         BUILTIN(ISW)
+#define EQ          BUILTIN(EQ)
+#define NE          BUILTIN(NE)
+#define LT          BUILTIN(LT)
+#define GE          BUILTIN(GE)
+#define GT          BUILTIN(GT)
+#define LE          BUILTIN(LE)
+#define IF          BUILTIN(IF)
+#define WRITE       BUILTIN(WRITE)
 /* Word literals. */
 #define WDUP        word_new(WORD_DUP)
 #define WSWAP       word_new(WORD_SWAP)
