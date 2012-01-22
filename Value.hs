@@ -1,40 +1,111 @@
-module Value(Value(..), compileValue) where
+module Value(Value(..), compile) where
+
+import CompileError
 
 import Data.Char (toUpper)
-import Data.List (intercalate)
+import Data.List (elemIndex, intercalate)
 
 data Value = Word String
            | Integer Integer
            | Float Double
            | Quotation [Value]
+           | Definition Value Value
 
-data Environment = Environment {
-  inQuotation :: Bool,
+data Context = Context {
+  quotation :: Bool,
   definitions :: [String]
 }
 
-compileValue :: Value -> String
-compileValue = compileValue' defaultEnvironment
+quoted :: Context -> Context
+quoted e = e { quotation = True }
+
+defining :: Context -> String -> Context
+e `defining` s = e { definitions = definitions e ++ [s] }
+
+builtins :: [String]
+builtins =
+  ["dup",
+  "swap",
+  "pop",
+  "quote",
+  "compose",
+  "apply",
+  "add",
+  "sub",
+  "mul",
+  "div",
+  "mod",
+  "isf",
+  "isi",
+  "isq",
+  "isw",
+  "eq",
+  "ne",
+  "lt",
+  "ge",
+  "gt",
+  "le",
+  "if",
+  "write"]
+
+compile :: [Value] -> Either CompileError [String]
+compile = compileWith emptyContext
   where
-    compileValue' environment value =
+    emptyContext = Context False []
+    compileWith :: Context -> [Value] -> Either CompileError [String]
+    compileWith _ [] = Right []
+    compileWith here values = case compileValue here (head values) of
+      Right (first, next) -> case compileWith next (tail values) of
+        Right rest -> Right $ first : rest
+        compileError -> compileError
+      Left compileError -> Left compileError
+    compileValue :: Context -> Value -> Either CompileError (String, Context)
+    compileValue here value =
       case value of
         Float f ->
-          if inQuotation environment
-            then "MKF(" ++ show f ++ ")"
-            else "PUSHF(" ++ show f ++ ")"
+          if quotation here
+            then Right ("MKF(" ++ show f ++ ")", here)
+            else Right ("PUSHF(" ++ show f ++ ")", here)
         Integer i ->
-          if inQuotation environment
-            then "MKI(" ++ show i ++ ")"
-            else "PUSHI(" ++ show i ++ ")"
+          if quotation here
+            then Right ("MKI(" ++ show i ++ ")", here)
+            else Right ("PUSHI(" ++ show i ++ ")", here)
         Quotation q ->
-          if inQuotation environment
-            then "MKQ(" ++ showQuotationContents environment q ++ ")"
-            else "PUSHQ(" ++ showQuotationContents environment q ++ ")"
+          if quotation here
+            then case compileQuotation here q of
+              Right result -> Right ("MKQ(" ++ result ++ ")", here)
+              Left compileError -> Left compileError
+            else case compileQuotation here q of
+              Right result -> Right ("PUSHQ(" ++ result ++ ")", here)
+              Left compileError -> Left compileError
         Word w ->
-          if inQuotation environment
-            then "W" ++ (map toUpper $ w)
-            else map toUpper $ w
-    defaultEnvironment = Environment False []
-    showQuotationContents environment values = (show . length $ values) ++ ", "
-      ++ (intercalate ", " . map (compileValue' environment
-      { inQuotation = True }) $ values)
+          if quotation here
+            then case w `elemIndex` (definitions here) of
+              Just n -> Right ("MKW(" ++ show n ++ ")", here)
+              Nothing -> if w `elem` builtins
+                then Right ("W" ++ (map toUpper $ w), here)
+                else Left . CompileError $ "Undefined word \"" ++ w ++ "\""
+            else case w `elemIndex` (definitions here) of
+              Just n -> Right ("DO(" ++ show n ++ ")", here)
+              Nothing -> if w `elem` builtins
+                then Right (map toUpper $ w, here)
+                else Left . CompileError $ "Undefined word \"" ++ w ++ "\""
+        Definition (Word name) body@(Quotation _) ->
+          if quotation here
+            then Left . CompileError $
+              "A definition cannot appear inside a quotation."
+            else case compiledBody of
+              Right values -> Right
+                (("DEF(" ++) . (++ ")") . intercalate " " $ values, next)
+              Left compileError -> Left compileError
+              where
+                compiledBody = compileWith (quoted next) [body]
+                next = here `defining` name
+        _ -> Left . CompileError $ "Unable to compile malformed value."
+    compileQuotation :: Context -> [Value] -> Either CompileError String
+    compileQuotation here values = case compiledBody of
+      Right compiledValues -> Right $ (show . length $ values) ++ ", "
+        ++ (intercalate ", " compiledValues)
+      Left compileError -> Left compileError
+      where
+        compiledBody = compileWith (quoted here) values
