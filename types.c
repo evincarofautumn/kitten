@@ -33,7 +33,8 @@ Implementation map[WORD_COUNT] = {
   kitten_if,      /* IF */
   /* I/O. */
   kitten_write,   /* WRITE */
-  kitten_putc     /* PUTC */
+  kitten_putc,    /* PUTC */
+  kitten_trace    /* TRACE */
 };
 
 /* Make a deeper copy of a boxed reference. References within quotations are
@@ -68,7 +69,12 @@ int boxed_compare(Boxed unpromoted_a, Boxed unpromoted_b) {
   Boxed a;
   Boxed b;
   int compatible_types = boxed_promote(unpromoted_a, unpromoted_b, &a, &b);
-  assert(compatible_types);
+  if (!compatible_types)
+    return boxed_type(unpromoted_a) < boxed_type(unpromoted_b)
+      ? -1
+      : boxed_type(unpromoted_b) < boxed_type(unpromoted_a)
+        ? +1
+        : 0;
   switch (boxed_type(a)) {
   case FLOAT:
     {

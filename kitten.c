@@ -212,13 +212,39 @@ void kitten_swap(Boxed stack, Boxed definitions) {
   push(stack, a);
 }
 
+void kitten_trace(Boxed stack, Boxed definitions) {
+  assert(stack);
+  assert(is_quotation(stack));
+  printf("[ ");
+  int i;
+  for (i = 0; i < quotation_size(stack); ++i) {
+    Boxed current = quotation_data(stack)[i];
+    switch (boxed_type(current)) {
+    case FLOAT:
+      printf("%p:%fF ", current, float_value(current));
+      break;
+    case INTEGER:
+      printf("%p:%ldI ", current, integer_value(current));
+      break;
+    case WORD:
+      printf("%p:%dW ", current, word_value(current));
+      break;
+    case QUOTATION:
+      printf("%p:", current);
+      kitten_trace(current, definitions);
+      break;
+    }
+  }
+  printf("] ");
+}
+
 void kitten_write(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
   if (is_integer(top(stack))) {
     Boxed a = pop(stack);
     Integer value = integer_unbox(a);
-    printf("%li", value);
+    printf("%ld", value);
   } else if (is_float(top(stack))) {
     Boxed a = pop(stack);
     Float value = float_unbox(a);

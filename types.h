@@ -32,6 +32,7 @@ enum Word {
   /* I/O. */
   WORD_WRITE,
   WORD_PUTC,
+  WORD_TRACE,
   /* Number of built-in words. */
   WORD_COUNT
 };
