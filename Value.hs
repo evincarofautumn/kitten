@@ -46,7 +46,8 @@ builtins =
   "gt",
   "le",
   "if",
-  "write"]
+  "write",
+  "putc"]
 
 compile :: [Value] -> Either CompileError [String]
 compile = compileWith emptyContext
@@ -104,7 +105,8 @@ compile = compileWith emptyContext
         _ -> Left . CompileError $ "Unable to compile malformed value."
     compileQuotation :: Context -> [Value] -> Either CompileError String
     compileQuotation here values = case compiledBody of
-      Right compiledValues -> Right $ (show . length $ values) ++ ", "
+      Right compiledValues -> Right $
+        (if null values then "0, 0" else (show . length $ values) ++ ", ")
         ++ (intercalate ", " compiledValues)
       Left compileError -> Left compileError
       where
