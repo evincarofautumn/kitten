@@ -47,7 +47,8 @@ builtins =
   "le",
   "if",
   "write",
-  "putc"]
+  "putc",
+  "trace"]
 
 compile :: [Value] -> Either CompileError [String]
 compile = compileWith emptyContext
