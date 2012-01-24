@@ -32,8 +32,32 @@ Implementation map[WORD_COUNT] = {
   kitten_le,      /* LE */
   kitten_if,      /* IF */
   /* I/O. */
-  kitten_write    /* WRITE */
+  kitten_write,   /* WRITE */
+  kitten_putc     /* PUTC */
 };
+
+/* Make a deeper copy of a boxed reference. References within quotations are
+   cloned using boxed_copy() rather than boxed_clone(). */
+Boxed boxed_clone(Boxed reference) {
+  trace("boxed_clone(%p)\n", reference);
+  if (!reference)
+    return NULL;
+  switch (boxed_type(reference)) {
+  case FLOAT:
+    return float_new(float_value(reference));
+  case INTEGER:
+    return integer_new(integer_value(reference));
+  case QUOTATION:
+    {
+      Boxed result = quotation_new(0);
+      quotation_append(result, reference);
+      return result;
+    }
+  case WORD:
+    return word_new(word_value(reference));
+  }
+  return NULL;
+}
 
 /* Test two boxed values for typewise and value-wise equality. */
 int boxed_compare(Boxed unpromoted_a, Boxed unpromoted_b) {
@@ -87,8 +111,9 @@ int boxed_compare(Boxed unpromoted_a, Boxed unpromoted_b) {
   return 0;
 }
 
-/* Copy a boxed reference. */
+/* Make a shallow copy of a boxed reference. */
 Boxed boxed_copy(Boxed reference) {
+  trace("boxed_copy(%p)\n", reference);
   if (!reference)
     return NULL;
   ++reference->count;
@@ -330,12 +355,14 @@ Unboxed quotation_alloc(int size) {
 
 /* Copy all values from one quotation to the end of another. */
 void quotation_append(Boxed target, Boxed source) {
+  trace("quotation_append()\n");
   assert(target);
   assert(source);
   assert(is_quotation(target));
   assert(is_quotation(source));
+  const int size = quotation_size(source);
   int i;
-  for (i = 0; i < quotation_size(source); ++i)
+  for (i = 0; i < size; ++i)
     quotation_push(target, boxed_copy(quotation_data(source)[i]));
 }
 
@@ -423,6 +450,7 @@ Boxed quotation_new(int size, ...) {
 /* Add a reference to the end of a quotation. NOTE: Takes ownership of the
    reference, i.e., does not automatically call boxed_copy(). */
 void quotation_push(Boxed quotation_reference, Boxed reference) {
+  trace("quotation_push()\n");
   assert(quotation_reference);
   assert(is_quotation(quotation_reference));
   Quotation *quotation = &quotation_reference->value->data.as_quotation;

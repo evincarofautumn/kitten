@@ -31,6 +31,7 @@ enum Word {
   WORD_IF,
   /* I/O. */
   WORD_WRITE,
+  WORD_PUTC,
   /* Number of built-in words. */
   WORD_COUNT
 };
@@ -86,6 +87,7 @@ typedef struct Box {
    *_new:   Create boxed values.
    *_unbox: Free and return boxed values. */
 
+Boxed     boxed_clone      (Boxed reference);
 int       boxed_compare    (Boxed a, Boxed b);
 Boxed     boxed_copy       (Boxed reference);
 void      boxed_free       (Boxed reference);

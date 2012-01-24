@@ -7,6 +7,8 @@ Boxed pop  (Boxed stack);
 void  push (Boxed stack, Boxed reference);
 Boxed top  (Boxed stack);
 
+void utf8_append(uint32_t character, uint8_t *buffer);
+
 #define OPERATOR_IMPLEMENTATION(NAME, SYMBOL)                               \
 void kitten_##NAME(Boxed stack, Boxed definitions) {                        \
   Boxed unpromoted_b = pop(stack);                                          \
@@ -65,14 +67,25 @@ void kitten_apply(Boxed stack, Boxed definitions) {
 }
 
 void kitten_compose(Boxed stack, Boxed definitions) {
+  trace("kitten_compose()\n");
   assert(stack);
   assert(is_quotation(stack));
   Boxed a = pop(stack);
-  quotation_append(top(stack), a);
+  if (top(stack)->count == 1) {
+    quotation_append(top(stack), a);
+  } else {
+    Boxed b = pop(stack);
+    assert(is_quotation(b));
+    Boxed c = boxed_clone(b);
+    boxed_free(b);
+    quotation_append(c, a);
+    push(stack, c);
+  }
   boxed_free(a);
 }
 
 void kitten_dup(Boxed stack, Boxed definitions) {
+  trace("kitten_dup()\n");
   assert(stack);
   assert(is_quotation(stack));
   Boxed a = boxed_copy(top(stack));
@@ -213,6 +226,19 @@ void kitten_write(Boxed stack, Boxed definitions) {
   }
 }
 
+void kitten_putc(Boxed stack, Boxed definitions) {
+  trace("kitten_putc()\n");
+  assert(stack);
+  assert(is_quotation(stack));
+  assert(is_integer(top(stack)));
+  Boxed a = pop(stack);
+  Integer character = integer_unbox(a);
+  assert(character >= 0 && character <= UINT32_MAX);
+  char buffer[5] = { 0 };
+  utf8_append(character, (uint8_t*)buffer);
+  printf("%s", buffer);
+}
+
 Boxed pop(Boxed stack) {
   assert(stack);
   assert(is_quotation(stack));
@@ -229,4 +255,22 @@ Boxed top(Boxed stack) {
   assert(stack);
   assert(is_quotation(stack));
   return quotation_top(stack);
+}
+
+void utf8_append(uint32_t code_point, uint8_t *result) {
+  if (code_point < 0x80) {
+    *result++ = (uint8_t)(code_point);
+  } else if (code_point < 0x800) {
+    *result++ = (uint8_t)(((code_point >>  6)       ) | 0xc0);
+    *result++ = (uint8_t)(((code_point      ) & 0x3f) | 0x80);
+  } else if (code_point < 0x10000) {
+    *result++ = (uint8_t)(((code_point >> 12)       ) | 0xe0);
+    *result++ = (uint8_t)(((code_point >>  6) & 0x3f) | 0x80);
+    *result++ = (uint8_t)(((code_point      ) & 0x3f) | 0x80);
+  } else {
+    *result++ = (uint8_t)(((code_point >> 18)       ) | 0xf0);
+    *result++ = (uint8_t)(((code_point >> 12) & 0x3f) | 0x80);
+    *result++ = (uint8_t)(((code_point >>  6) & 0x3f) | 0x80);
+    *result++ = (uint8_t)(((code_point      ) & 0x3f) | 0x80);
+  }
 }

@@ -36,6 +36,7 @@ BUILTIN_DECLARATION(pop);
 BUILTIN_DECLARATION(quote);
 BUILTIN_DECLARATION(swap);
 BUILTIN_DECLARATION(write);
+BUILTIN_DECLARATION(putc);
 
 #undef BUILTIN_DECLARATION
 
@@ -74,6 +75,7 @@ void push(Boxed stack, Boxed reference);
 #define LE          BUILTIN(LE)
 #define IF          BUILTIN(IF)
 #define WRITE       BUILTIN(WRITE)
+#define PUTC        BUILTIN(PUTC)
 /* Word literals. */
 #define WDUP        word_new(WORD_DUP)
 #define WSWAP       word_new(WORD_SWAP)
@@ -98,6 +100,7 @@ void push(Boxed stack, Boxed reference);
 #define WLE         word_new(WORD_LE)
 #define WIF         word_new(WORD_IF)
 #define WWRITE      word_new(WORD_WRITE)
+#define WPUTC       word_new(WORD_PUTC)
 
 /* Create and invoke definitions. */
 
