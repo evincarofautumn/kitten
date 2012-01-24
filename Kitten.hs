@@ -32,7 +32,7 @@ wordP = Value.Word <$> liftM2 (:) firstP restP <?> "word"
     restP = many wordCharacterP
 
 symbolP :: Parser Char
-symbolP = oneOf "!#$%&*+-./:;<=>?@^_|~"
+symbolP = oneOf "!#$%&'*+-./:;<=>?@\\^_|~"
 
 wordCharacterP :: Parser Char
 wordCharacterP = letter <|> digit <|> symbolP
