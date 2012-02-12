@@ -1,13 +1,18 @@
 # Overview
 
 **Kitten** is a minimalistic, dynamically typed, concatenative programming
-language intended primarily for Web development. It is inspired by the Cat
-programming language. The Kitten compiler (`kitten`) compiles Kitten programs
-into C, which can be compiled and linked against the Kitten runtime library
-(`libkitten`) to produce a standalone executable. Thus a Kitten program can be
-built anywhere you can find a C compiler, making it ideal for shared hosts,
-where installing development tools may not be possible. Kitten also includes a
-standard prelude of definitions to make your development life easier.
+language intended primarily for Web development. (This is an in-progress
+implementation of that language.) Kitten is inspired by the Cat programming
+language. The Kitten compiler (`kitten`) compiles Kitten programs into C, which
+can be compiled and linked against the Kitten runtime library (`libkitten`) to
+produce a standalone executable. Thus a Kitten program can be built anywhere you
+can find a C compiler, making it ideal for shared hosts, where installing
+development tools may not be possible. Kitten will eventually come with a
+standard prelude of definitions to make your development life easier. To build
+the compiler, you need GHC and Parsec; the runtime, GCC. Just download the
+sources and run `make` with your fingers crossed. The sources also include a
+shell script named `kittenc` that you can use to compile a Kitten program
+`meow.kitten` into an executable named `meow`.
 
 Kitten has three built-in types:
 
@@ -15,8 +20,8 @@ Kitten has three built-in types:
 
   * **Float**: a double-precision floating-point number.
 
-  * **Quotation**: a contiguous vector of values, used to represent strings,
-    arrays, and anonymous functions.
+  * **Quotation**: a vector of boxed values, used to represent UTF-32 strings,
+    heterogeneous arrays and structures, and anonymous functions.
 
 The Kitten language itself is very simple:
 
