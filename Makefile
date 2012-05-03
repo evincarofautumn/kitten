@@ -1,7 +1,7 @@
 COMPILER = kitten
-COMPILER_INTERMEDIATE = Main.hi Kitten.hi Value.hi
-COMPILER_OBJECTS = Main.o Kitten.o Value.o
-COMPILER_SOURCES = Main.hs Kitten.hs Value.hs
+COMPILER_SOURCES = Main.hs Kitten.hs Value.hs CompileError.hs
+COMPILER_INTERMEDIATE = $(COMPILER_SOURCES:.hs=.hi)
+COMPILER_OBJECTS = $(COMPILER_SOURCES:.hs=.o)
 LIBRARY = libkitten.a
 LIBRARY_OBJECTS = types.o debug.o kitten.o
 
