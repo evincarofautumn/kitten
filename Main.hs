@@ -2,6 +2,8 @@ module Main where
 
 import qualified Kitten
 import qualified System (getArgs)
+import System.IO
+import System.Exit
 
 main :: IO ()
 main = do
@@ -11,8 +13,13 @@ main = do
       file <- readFile . head $ args
       case Kitten.compile file of
         Left compileError ->
-          putStrLn $ show compileError
+          die $ show compileError
         Right compileResult -> do
           putStrLn $ compileResult
     _ -> do
-      putStrLn "Usage: kitten FILENAME\n"
+      die "Usage: kitten FILENAME\n"
+
+die :: String -> IO ()
+die msg = do
+  hPutStrLn stderr msg
+  exitFailure
