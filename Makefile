@@ -29,7 +29,7 @@ $(LIBRARY) : $(LIBRARY_OBJECTS)
 	ar qc $@ $^
 
 %.o : %.c
-	gcc -c $^ -Wall -Werror $(DEBUG_LIBRARY) -o $@
+	gcc -std=c99 -c $^ -Wall -Werror $(DEBUG_LIBRARY) -o $@
 
 debug.c : debug.h
 kitten.c : debug.h kitten.h

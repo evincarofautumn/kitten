@@ -242,15 +242,7 @@ void kitten_trace(Boxed stack, Boxed definitions) {
 void kitten_write(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
-  if (is_integer(top(stack))) {
-    Boxed a = pop(stack);
-    Integer value = integer_unbox(a);
-    printf("%" PRId64, value);
-  } else if (is_float(top(stack))) {
-    Boxed a = pop(stack);
-    Float value = float_unbox(a);
-    printf("%f", value);
-  }
+  boxed_write(pop(stack));
 }
 
 void kitten_putc(Boxed stack, Boxed definitions) {

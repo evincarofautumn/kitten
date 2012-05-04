@@ -95,6 +95,7 @@ void      boxed_free       (Boxed reference);
 Boxed     boxed_new        (Unboxed unboxed);
 int       boxed_promote    (Boxed a, Boxed b, Boxed *da, Boxed *db);
 Type      boxed_type       (Boxed reference);
+void      boxed_write      (Boxed reference);
 
 Unboxed   float_alloc      (Float value);
 Boxed     float_new        (Float value);
