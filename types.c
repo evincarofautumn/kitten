@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <inttypes.h>
 
+void utf8_append(uint32_t character, uint8_t *buffer);
+
 /* A mapping from words to implementations. */
 Implementation map[WORD_COUNT] = {
   /* Combinators. */
@@ -230,27 +232,43 @@ int boxed_promote(Boxed unpromoted_a, Boxed unpromoted_b, Boxed *promoted_a,
   return 0;
 }
 
+/* Write a character to standard output. */
+void boxed_putc(Boxed reference) {
+  assert(reference);
+  assert(is_integer(reference));
+  Integer character = integer_value(reference);
+  assert(character >= 0 && character <= UINT32_MAX);
+  char buffer[5] = { 0 };
+  utf8_append(character, (uint8_t*)buffer);
+  printf("%s", buffer);
+}
+
 /* Retrieve the type of a reference. */
 Type boxed_type(Boxed reference) {
   assert(reference);
   return reference->value->type;
 }
 
-/* print a boxed value to stdout. */
-void boxed_write(Boxed a) {
-  if (is_integer(a)) {
-    printf("%" PRId64, integer_unbox(a));
-  } else if (is_float(a)) {
-    printf("%f", float_unbox(a));
-  } else if (is_word(a)){
-    printf("Error: tried to print a word\n");
-  } else {
-    Boxed* quoted = quotation_data(a);
-    int len = quotation_size(a);
-    for (int i=0; i<len; ++i) {
-      // boxed_write(quoted[i]);
-      printf("%c", (char)integer_unbox(quoted[i]));
+/* Write a boxed value to standard output. */
+void boxed_write(Boxed reference) {
+  assert(reference);
+  switch (boxed_type(reference)) {
+  case INTEGER:
+    printf("%" PRId64, integer_value(reference));
+    break;
+  case FLOAT:
+    printf("%f", float_value(reference));
+    break;
+  case QUOTATION:
+    {
+      Boxed* data = quotation_data(reference);
+      int size = quotation_size(reference);
+      for (int i = 0; i < size; ++i)
+        boxed_putc(data[i]);
     }
+    break;
+  default:
+    break;
   }
 }
 
@@ -579,4 +597,22 @@ Word word_value(Boxed reference) {
   assert(reference);
   assert(is_word(reference));
   return reference->value->data.as_word;
+}
+
+void utf8_append(uint32_t code_point, uint8_t *result) {
+  if (code_point < 0x80) {
+    *result++ = (uint8_t)(code_point);
+  } else if (code_point < 0x800) {
+    *result++ = (uint8_t)(((code_point >>  6)       ) | 0xc0);
+    *result++ = (uint8_t)(((code_point      ) & 0x3f) | 0x80);
+  } else if (code_point < 0x10000) {
+    *result++ = (uint8_t)(((code_point >> 12)       ) | 0xe0);
+    *result++ = (uint8_t)(((code_point >>  6) & 0x3f) | 0x80);
+    *result++ = (uint8_t)(((code_point      ) & 0x3f) | 0x80);
+  } else {
+    *result++ = (uint8_t)(((code_point >> 18)       ) | 0xf0);
+    *result++ = (uint8_t)(((code_point >> 12) & 0x3f) | 0x80);
+    *result++ = (uint8_t)(((code_point >>  6) & 0x3f) | 0x80);
+    *result++ = (uint8_t)(((code_point      ) & 0x3f) | 0x80);
+  }
 }

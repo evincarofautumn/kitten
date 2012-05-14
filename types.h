@@ -94,6 +94,7 @@ Boxed     boxed_copy       (Boxed reference);
 void      boxed_free       (Boxed reference);
 Boxed     boxed_new        (Unboxed unboxed);
 int       boxed_promote    (Boxed a, Boxed b, Boxed *da, Boxed *db);
+void      boxed_putc       (Boxed reference);
 Type      boxed_type       (Boxed reference);
 void      boxed_write      (Boxed reference);
 
