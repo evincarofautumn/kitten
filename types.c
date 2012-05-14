@@ -3,6 +3,7 @@
 #include "kitten.h"
 #include <stdarg.h>
 #include <stdlib.h>
+#include <inttypes.h>
 
 /* A mapping from words to implementations. */
 Implementation map[WORD_COUNT] = {
@@ -233,6 +234,24 @@ int boxed_promote(Boxed unpromoted_a, Boxed unpromoted_b, Boxed *promoted_a,
 Type boxed_type(Boxed reference) {
   assert(reference);
   return reference->value->type;
+}
+
+/* print a boxed value to stdout. */
+void boxed_write(Boxed a) {
+  if (is_integer(a)) {
+    printf("%" PRId64, integer_unbox(a));
+  } else if (is_float(a)) {
+    printf("%f", float_unbox(a));
+  } else if (is_word(a)){
+    printf("Error: tried to print a word\n");
+  } else {
+    Boxed* quoted = quotation_data(a);
+    int len = quotation_size(a);
+    for (int i=0; i<len; ++i) {
+      // boxed_write(quoted[i]);
+      printf("%c", (char)integer_unbox(quoted[i]));
+    }
+  }
 }
 
 /* Allocate an unboxed float. */
