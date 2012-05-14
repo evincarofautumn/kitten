@@ -60,8 +60,19 @@ textP = Value.Quotation <$> (left *> many character <* right) <?> "string"
     left      = char '"'
     right     = char '"' <?> "end of string"
     character = Value.Integer . fromIntegral . ord <$>
-      (noneOf "\\\"" <|> (char '\\' *> (char '\\' <|> char '\"')))
-      <?> "character or escape"
+      (noneOf "\\\"" <|> escape) <?> "character or escape"
+    escape = do
+      c <- char '\\' *> anyChar
+      case c of
+        'a'  -> return '\a'
+        'f'  -> return '\f'
+        'n'  -> return '\n'
+        'r'  -> return '\r'
+        't'  -> return '\t'
+        'v'  -> return '\v'
+        '\\' -> return '\\'
+        '\"' -> return '"'
+        _    -> fail $ "invalid escape: \\" ++ [c]
 
 definitionP :: Parser Value
 definitionP = do
