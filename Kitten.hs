@@ -19,8 +19,11 @@ silenceP :: Parser ()
 silenceP = ignoreP . many1 $ whitespaceP <|> commentP
 
 commentP :: Parser ()
-commentP = ignoreP $
-  ((char '(' >> (many . noneOf $ ")") >> char ')') <?> "comment")
+commentP = ignoreP . (<?> "comment") $ do
+  _ <- char '('
+  _ <- many $ try commentP <|> (ignoreP . noneOf $ "()")
+  _ <- char ')'
+  return ()
 
 whitespaceP :: Parser ()
 whitespaceP = (ignoreP . many1 . satisfy $ isSpace) <?> "whitespace"
