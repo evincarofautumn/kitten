@@ -1,29 +1,82 @@
 # Overview
 
 **Kitten** is a minimalistic, dynamically typed, concatenative programming
-language intended primarily for Web development. (This is an in-progress
-implementation of that language.) Kitten is inspired by the Cat programming
-language. The Kitten compiler (`kitten`) compiles Kitten programs into C, which
-can be compiled and linked against the Kitten runtime library (`libkitten`) to
-produce a standalone executable. Thus a Kitten program can be built anywhere you
-can find a C compiler, making it ideal for shared hosts, where installing
-development tools may not be possible. Kitten will eventually come with a
-standard prelude of definitions to make your development life easier. To build
-the compiler, you need GHC and Parsec; the runtime, GCC. Just download the
-sources and run `make` with your fingers crossed. The sources also include a
-shell script named `kittenc` that you can use to compile a Kitten program
-`meow.kitten` into an executable named `meow`.
+language intended primarily for Web development. This is an in-progress
+implementation of that language.
 
-Kitten has three built-in types:
+The Kitten compiler (`kitten`) compiles Kitten programs into C, which can be
+compiled and linked against the Kitten runtime library (`libkitten`) to produce
+a standalone executable. Thus a Kitten program can be built anywhere you can
+find a C compiler, making it ideal for shared hosts such as Bluehost, where
+installing development tools may be difficult or impossible.
 
-  * **Integer**: a signed 64-bit integral type.
+# Building
 
-  * **Float**: a double-precision floating-point number.
+To build the compiler, you need **GHC** and **Parsec**; for the runtime, **GCC**
+or another suitable **C compiler**. Just download the sources and run `make`
+with your fingers crossed. To build the compiler or runtime library
+individually, run `make compiler` or `make library`, respectively.
+
+Building a Kitten program is a two-step process. First, run through `kitten`:
+
+    $ cat > meow.kitten
+    "Meow\n" write
+
+    $ ./kitten meow.kitten > meow.c
+
+Next, run through a C compiler, linking against `libkitten` and `libm`.
+
+    $ gcc meow.c -o meow -lm -L. -lkitten
+    $ ./meow
+    Meow
+
+The sources include a shell script named `kittenc` that does this automatically:
+
+    $ ./kittenc meow.kitten
+    $ ./meow
+    Meow
+
+Kitten sources are stripped of any extension to produce the name of the final
+executable. In general, `.kitten` is preferred, but `.ktn` is also acceptable
+when extensions are limited.
+
+# The Language
+
+Kitten source files are expected to be in UTF-8; the I/O functions currently
+operate only in UTF-8. The language has three built-in data types:
+
+  * **Integer**: a signed 64-bit integral type. Integer literals consist of one
+    or more decimal digits. Characters in strings are represented as UTF-32 code
+    points using this type as well.
+
+  * **Float**: a double-precision (64-bit) floating-point number. Floating-point
+    literals consist of a decimal point preceded and followed by one or more
+    decimal digits.
 
   * **Quotation**: a vector of boxed values, used to represent UTF-32 strings,
-    heterogeneous arrays and structures, and anonymous functions.
+    heterogeneous arrays and structures, and anonymous functions. There are two
+    kinds of quotation literal: general quotations, given in square brackets
+    (`[]`), and text quotations, given in double quotes (`""`).
 
-The Kitten language itself is very simple:
+Text quotations support the following escape sequences:
+
+  * `\a` Alarm (BEL)
+
+  * `\f` Formfeed (FF)
+
+  * `\n` Linefeed/newline (LF)
+
+  * `\r` Carriage return (CR)
+
+  * `\t` Horizontal tab (TAB/HT)
+
+  * `\v` Vertical tab (VT)
+
+  * `\\` Backslash
+
+  * `\"` Double quote
+
+The Kitten grammar is very simple:
 
     <program>    ::= <term>*
     <term>       ::= <integer> | <float> | <quotation> | <word> | <string>
@@ -36,11 +89,14 @@ The Kitten language itself is very simple:
     <definition> ::= "define" <word> <quotation>
     <import>     ::= "import" <string>
 
-Comments are given in parentheses (`()`), and can be nested.
+Comments are given in parentheses (`()`), and can be nested:
+
+    (This is a comment (containing (nested) parentheses).)
 
 All terms essentially denote functions, and juxtaposition of terms denotes
 function composition. Thus all expressions are written in terms of data flow
-only, i.e., completely point-free.
+only, i.e., completely point-free. Values are immutable and boxed, so copies are
+cheap—they involve only copying a pointer and incrementing a reference count.
 
 There are only two special forms in the language: `define`, which introduces a
 new word definition, and `import`, which imports a Kitten file for compilation
@@ -56,13 +112,13 @@ Hello user:
     the expected inputs and outputs, of the form “inputs -- outputs”.)
 
     define join ([a] [b] -- [a b])
-      [compose]
+    [ compose ]
 
     define greet (name --)
-      ["Hello, " swap "!\n" join join]
+    [ "Hello, " swap "!\n" join join write ]
 
     define prompt (prompt -- input)
-      [write read_line]
+    [ write read_line ]
 
     "What is your name? " prompt greet
 
@@ -72,70 +128,70 @@ The following definitions are provided by the Kitten runtime library.
 
 ## Core Definitions
 
-  * `[A] apply`
+  * `apply ([A] -- A)`
     Evaluates the quotation at the top of the stack.
 
-  * `[A] [B] compose`
+  * `compose ([A] [B] -- [A B])`
     Returns the composition of the two quotations at the top of the stack.
 
-  * `A dup`
+  * `dup (A -- A A)`
     Duplicates the value at the top of the stack.
 
-  * `A [B] [C] if`
+  * `if (A [B] [C] -- X)`
     Applies `[B]` if `A` is true (nonzero); otherwise, applies `[C]`.
 
-  * `A pop`
+  * `pop (A -- )`
     Discards the top value on the stack.
 
-  * `A quote`
+  * `quote (A -- [A])`
     Returns `[A]`.
 
-  * `A B swap`
+  * `swap (A B -- B A)`
     Swaps the two topmost values on the stack.
 
-## Arithmetic and Conditional
+## Arithmetic
 
-  * `A B add`
-    Returns the sum of `A` and `B`.
+Integers are promoted to floats when used in arithmetic operations with floats,
+which may result in a loss of precision.
 
-  * `A B div`
-    Returns the quotient of `A` and `B`.
+  * `add (augend addend -- sum)`
+    Returns the sum of two numbers.
 
-  * `A B eq`
-    Returns whether `A` and `B` are equal.
+  * `div (divisor dividend -- quotient)`
+    Returns the quotient of two numbers.
 
-  * `A B ge`
+  * `mod (divisor dividend -- remainder)`
+    Returns the modulus (remainder of integer division) of two numbers.
+
+  * `mul (multiplier multiplicand -- product)`
+    Returns the product of two numbers.
+
+  * `sub (minuend subtrahend -- difference)`
+    Returns the difference of two numbers.
+
+## Conditional
+
+Value comparisons, like arithmetic operations, use type promotion. Since
+integers are promoted to floats when compared with floats, they may lose
+precision. Quotations use lexicographic (dictionary) ordering.
+
+  * `eq (A B -- Boolean)`
+    Returns whether two values are equal.
+
+  * `ge (A B -- Boolean)`
     Returns whether `A` is greater than or equal to `B`.
 
-  * `A B gt`
+  * `gt (A B -- Boolean)`
     Returns whether `A` is greater than `B`.
 
-  * `A isf`
-    Returns whether `A` is a float.
-
-  * `A isi`
-    Returns whether `A` is an integer.
-
-  * `A isq`
-    Returns whether `A` is a quotation.
-
-  * `A B le`
+  * `le (A B -- Boolean)`
     Returns whether `A` is less than or equal to `B`.
 
-  * `A B lt`
+  * `lt (A B -- Boolean)`
     Returns whether `A` is less than `B`.
 
-  * `A B mod`
-    Returns the modulus of `A` and `B`.
-
-  * `A B mul`
-    Returns the product of `A` and `B`.
-
-  * `A B ne`
+  * `ne (A B -- Boolean)`
     Returns whether `A` is not equal to `B`.
-
-  * `A B sub`
-    Returns the difference of `A` and `B`.
 
 ## I/O Definitions
 
@@ -145,9 +201,20 @@ The following definitions are provided by the Kitten runtime library.
   * `A write`
     Writes `A` to standard output as a formatted value.
 
+## Type Checking
+
+  * `isf (A -- Boolean)`
+    Returns whether `A` is a float.
+
+  * `isi (A -- Boolean)`
+    Returns whether `A` is an integer.
+
+  * `isq (A -- Boolean)`
+    Returns whether `A` is a quotation.
+
 # Standard Library
 
 The following definitions are provided by the Kitten standard library:
 
   * `read_line`
-    Reads a line of text into a quotation.
+    Reads a line of text from standard input into a quotation.
