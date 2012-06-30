@@ -1,25 +1,26 @@
 module Main where
 
 import qualified Kitten
-import qualified System (getArgs)
+import System.Environment (getArgs)
 import System.IO
 import System.Exit
 
 main :: IO ()
 main = do
-  args <- System.getArgs
+  args <- getArgs
   case length args of
     1 -> do
-      file <- readFile . head $ args
-      case Kitten.compile file of
+      let filename = head args
+      file <- readFile filename
+      case Kitten.compile filename file of
         Left compileError ->
-          die $ show compileError
-        Right compileResult -> do
-          putStrLn $ compileResult
-    _ -> do
+          die (show compileError)
+        Right compileResult ->
+          putStrLn compileResult
+    _ ->
       die "Usage: kitten FILENAME\n"
 
 die :: String -> IO ()
 die msg = do
-  hPutStrLn stderr msg
+  hPutStr stderr msg
   exitFailure

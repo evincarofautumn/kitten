@@ -30,6 +30,7 @@ BUILTIN_DECLARATION(isi);
 BUILTIN_DECLARATION(isq);
 BUILTIN_DECLARATION(isw);
 BUILTIN_DECLARATION(le);
+BUILTIN_DECLARATION(length);
 BUILTIN_DECLARATION(lt);
 BUILTIN_DECLARATION(ne);
 BUILTIN_DECLARATION(pop);
@@ -43,7 +44,11 @@ BUILTIN_DECLARATION(trace);
 
 void push(Boxed stack, Boxed reference);
 
-/* Literals. */
+/*
+ * Literals.
+ *
+ * TODO: Use static initialization for literals.
+ */
 #define MKF(a)        float_new(a)
 #define MKI(a)        integer_new(INT64_C(a))
 #define MKQ(n, ...)   quotation_new(n, __VA_ARGS__)
@@ -51,7 +56,11 @@ void push(Boxed stack, Boxed reference);
 #define PUSHF(a)      push(stack, MKF(a));
 #define PUSHI(a)      push(stack, MKI(a));
 #define PUSHQ(n, ...) push(stack, MKQ(n, __VA_ARGS__));
-/* Built-in words. */
+/*
+ * Built-in words.
+ *
+ * TODO: Eliminate repetition.
+ */
 #define BUILTIN(w)  map[WORD_##w](stack, definitions);
 #define DUP         BUILTIN(DUP)
 #define SWAP        BUILTIN(SWAP)
@@ -64,6 +73,7 @@ void push(Boxed stack, Boxed reference);
 #define MUL         BUILTIN(MUL)
 #define DIV         BUILTIN(DIV)
 #define MOD         BUILTIN(MOD)
+#define LENGTH      BUILTIN(LENGTH)
 #define ISF         BUILTIN(ISF)
 #define ISI         BUILTIN(ISI)
 #define ISQ         BUILTIN(ISQ)
@@ -85,6 +95,7 @@ void push(Boxed stack, Boxed reference);
 #define WQUOTE      word_new(WORD_QUOTE)
 #define WCOMPOSE    word_new(WORD_COMPOSE)
 #define WAPPLY      word_new(WORD_APPLY)
+#define WLENGTH     word_new(WORD_LENGTH)
 #define WADD        word_new(WORD_ADD)
 #define WSUB        word_new(WORD_SUB)
 #define WMUL        word_new(WORD_MUL)
@@ -105,7 +116,11 @@ void push(Boxed stack, Boxed reference);
 #define WPUTC       word_new(WORD_PUTC)
 #define WTRACE      word_new(WORD_TRACE)
 
-/* Create and invoke definitions. */
+/*
+ * Create and invoke definitions.
+ *
+ * TODO: Use a less fragile representation of definition bindings.
+ */
 
 #define DEF(a) quotation_push(definitions, a);
 

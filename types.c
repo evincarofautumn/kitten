@@ -7,7 +7,11 @@
 
 void utf8_append(uint32_t character, uint8_t *buffer);
 
-/* A mapping from words to implementations. */
+/*
+ * A mapping from words to implementations.
+ *
+ * TODO: Remove repetition.
+ */
 Implementation map[WORD_COUNT] = {
   /* Combinators. */
   kitten_dup,     /* DUP */
@@ -40,10 +44,17 @@ Implementation map[WORD_COUNT] = {
   kitten_trace    /* TRACE */
 };
 
-/* Make a deeper copy of a boxed reference. References within quotations are
-   cloned using boxed_copy() rather than boxed_clone(). */
+/*
+ * Makes a (single-level-) deep copy of a boxed reference.
+ *
+ * OWNERSHIP: GIVE
+ *
+ * NOTE: References within quotations are cloned using boxed_copy() rather than
+ * boxed_clone(), so that the cloned quotations are distinct but share elements.
+ *
+ * TODO: Assess whether single-level-deep copying is in fact desirable.
+ */
 Boxed boxed_clone(Boxed reference) {
-  trace("boxed_clone(%p)\n", reference);
   if (!reference)
     return NULL;
   switch (boxed_type(reference)) {
@@ -63,7 +74,11 @@ Boxed boxed_clone(Boxed reference) {
   return NULL;
 }
 
-/* Test two boxed values for typewise and value-wise equality. */
+/*
+ * Tests two boxed values for typewise and value-wise equality.
+ *
+ * OWNERSHIP: TAKE
+ */
 int boxed_compare(Boxed unpromoted_a, Boxed unpromoted_b) {
   if (!unpromoted_a && unpromoted_b)
     return -1;
@@ -120,7 +135,12 @@ int boxed_compare(Boxed unpromoted_a, Boxed unpromoted_b) {
   return 0;
 }
 
-/* Make a shallow copy of a boxed reference. */
+/*
+ * Makes a shallow copy of a boxed reference by simply incrementing its
+ * reference count.
+ *
+ * OWNERSHIP: GIVE
+ */
 Boxed boxed_copy(Boxed reference) {
   trace("boxed_copy(%p)\n", reference);
   if (!reference)
@@ -130,7 +150,12 @@ Boxed boxed_copy(Boxed reference) {
   return reference;
 }
 
-/* Free a boxed reference. Free the unboxed reference if necessary. */
+/*
+ * Frees a boxed reference by decrementing its reference count and freeing the
+ * unboxed reference if necessary.
+ *
+ * OWNERSHIP: TAKE
+ */
 void boxed_free(Boxed reference) {
   if (!reference)
     return;
@@ -144,7 +169,12 @@ void boxed_free(Boxed reference) {
   free(reference);
 }
 
-/* Create a boxed reference from an unboxed reference. */
+/*
+ * Creates a boxed reference from an unboxed reference. Returns NULL if its
+ * argument is NULL or if allocation of a boxed reference fails.
+ *
+ * OWNERSHIP: GIVE
+ */
 Boxed boxed_new(Unboxed unboxed) {
   if (!unboxed)
     return NULL;
@@ -159,22 +189,28 @@ Boxed boxed_new(Unboxed unboxed) {
   return NULL;
 }
 
-/* Perform type promotion of boxed values according to the following rules:
-
-     First     Second       First     Second
-     float     float     -> float     float
-     float     integer   -> float     float
-     integer   float     -> float     float
-     integer   integer   -> integer   integer
-     quotation quotation -> quotation quotation
-     quotation *         ->
-     word      word      -> word
-     word      *         ->
-     *         quotation ->
-     *         word      ->
-
-   Supplies promoted values as out parameters, either as new values or as boxed
-   copies. Returns whether the given values are of compatible type. */
+/*
+ * Performs type promotion of boxed values according to the following rules:
+ *
+ *   First     Second       First     Second
+ *   float     float     -> float     float
+ *   float     integer   -> float     float
+ *   integer   float     -> float     float
+ *   integer   integer   -> integer   integer
+ *   quotation quotation -> quotation quotation
+ *   quotation *         ->
+ *   word      word      -> word
+ *   word      *         ->
+ *   *         quotation ->
+ *   *         word      ->
+ *
+ * Supplies promoted values as out parameters, either as new values or as boxed
+ * copies. Returns whether the given values are of compatible type.
+ *
+ * OWNERSHIP: GIVE
+ *
+ * TODO: Make this function obsolete by removing implicit conversions.
+ */
 int boxed_promote(Boxed unpromoted_a, Boxed unpromoted_b, Boxed *promoted_a,
   Boxed *promoted_b) {
   assert(unpromoted_a);
@@ -232,7 +268,11 @@ int boxed_promote(Boxed unpromoted_a, Boxed unpromoted_b, Boxed *promoted_a,
   return 0;
 }
 
-/* Write a character to standard output. */
+/*
+ * Write a UTF-32 code point to standard output as UTF-8.
+ *
+ * OWNERSHIP: NONE
+ */
 void boxed_putc(Boxed reference) {
   assert(reference);
   assert(is_integer(reference));
@@ -243,13 +283,25 @@ void boxed_putc(Boxed reference) {
   printf("%s", buffer);
 }
 
-/* Retrieve the type of a reference. */
+/*
+ * Retrieve the type of a boxed reference.
+ *
+ * OWNERSHIP: NONE
+ */
 Type boxed_type(Boxed reference) {
   assert(reference);
   return reference->value->type;
 }
 
-/* Write a boxed value to standard output. */
+/*
+ * Writes a boxed value to standard output. Integers and floats are written as
+ * such, while quotations are always interpreted as strings.
+ *
+ * OWNERSHIP: NONE
+ *
+ * TODO: Split this up into type-specific functions to avoid interpreting
+ * non-strings as strings.
+ */
 void boxed_write(Boxed reference) {
   assert(reference);
   switch (boxed_type(reference)) {
@@ -272,7 +324,11 @@ void boxed_write(Boxed reference) {
   }
 }
 
-/* Allocate an unboxed float. */
+/*
+ * Allocate an unboxed float.
+ *
+ * OWNERSHIP: NONE
+ */
 Unboxed float_alloc(Float value) {
   Unboxed reference = unboxed_alloc();
   if (!reference)
@@ -284,7 +340,11 @@ Unboxed float_alloc(Float value) {
   return NULL;
 }
 
-/* Create a boxed float. */
+/*
+ * Create a boxed float.
+ *
+ * OWNERSHIP: GIVE
+ */
 Boxed float_new(Float value) {
   Boxed reference = boxed_new(float_alloc(value));
   if (!reference)
@@ -294,7 +354,11 @@ Boxed float_new(Float value) {
   return NULL;
 }
 
-/* Unbox a float. */
+/*
+ * Unbox a float and return its value.
+ *
+ * OWNERSHIP: TAKE
+ */
 Float float_unbox(Boxed reference) {
   assert(reference);
   assert(is_float(reference));
@@ -303,14 +367,22 @@ Float float_unbox(Boxed reference) {
   return value;
 }
 
-/* Retrieve the value of a float. */
+/*
+ * Retrieve a copy of the value of a float.
+ *
+ * OWNERSHIP: NONE
+ */
 Float float_value(Boxed reference) {
   assert(reference);
   assert(is_float(reference));
   return reference->value->data.as_float;
 }
 
-/* Allocate an unboxed integer. */
+/*
+ * Allocate an unboxed integer.
+ *
+ * OWNERSHIP: NONE
+ */
 Unboxed integer_alloc(Integer value) {
   Unboxed reference = unboxed_alloc();
   if (!reference)
@@ -322,7 +394,11 @@ Unboxed integer_alloc(Integer value) {
   return NULL;
 }
 
-/* Create a boxed integer. */
+/*
+ * Create a boxed integer.
+ *
+ * OWNERSHIP: GIVE
+ */
 Boxed integer_new(Integer value) {
   Boxed reference = boxed_new(integer_alloc(value));
   if (!reference)
@@ -332,7 +408,11 @@ Boxed integer_new(Integer value) {
   return NULL;
 }
 
-/* Unbox an integer. */
+/*
+ * Unbox an integer and return its value.
+ *
+ * OWNERSHIP: TAKE
+ */
 Integer integer_unbox(Boxed reference) {
   assert(reference);
   assert(is_integer(reference));
@@ -341,39 +421,67 @@ Integer integer_unbox(Boxed reference) {
   return value;
 }
 
-/* Retrieve the value of an integer. */
+/*
+ * Retrieve a copy of the value of an integer.
+ *
+ * OWNERSHIP: NONE
+ */
 Integer integer_value(Boxed reference) {
   assert(reference);
   assert(is_integer(reference));
   return reference->value->data.as_integer;
 }
 
-/* Test whether a value is an integer. */
+/*
+ * Tests whether a value is an integer.
+ *
+ * OWNERSHIP: NONE
+ */
 int is_integer(Boxed reference) {
   return reference && boxed_type(reference) == INTEGER;
 }
 
-/* Test whether a value is a float. */
+/*
+ * Tests whether a value is a float.
+ *
+ * OWNERSHIP: NONE
+ */
 int is_float(Boxed reference) {
   return reference && boxed_type(reference) == FLOAT;
 }
 
-/* Test whether a value is numeric. */
+/*
+ * Tests whether a value is numeric.
+ *
+ * OWNERSHIP: NONE
+ */
 int is_numeric(Boxed reference) {
   return is_integer(reference) || is_float(reference);
 }
 
-/* Test whether a value is a quotation. */
+/*
+ * Tests whether a value is a quotation.
+ *
+ * OWNERSHIP: NONE
+ */
 int is_quotation(Boxed reference) {
   return reference && boxed_type(reference) == QUOTATION;
 }
 
-/* Test whether a value is a word. */
+/*
+ * Tests whether a value is a word.
+ *
+ * OWNERSHIP: NONE
+ */
 int is_word(Boxed reference) {
   return reference && boxed_type(reference) == WORD;
 }
 
-/* Allocate an unboxed quotation. */
+/*
+ * Allocate an unboxed quotation.
+ *
+ * OWNERSHIP: NONE
+ */
 Unboxed quotation_alloc(int size) {
   assert(size >= 0);
   Unboxed reference = unboxed_alloc();
@@ -396,7 +504,12 @@ Unboxed quotation_alloc(int size) {
   return NULL;
 }
 
-/* Copy all values from one quotation to the end of another. */
+/*
+ * Make shallow copies of all values in one quotation and append them to
+ * another quotation.
+ *
+ * OWNERSHIP: NONE
+ */
 void quotation_append(Boxed target, Boxed source) {
   trace("quotation_append()\n");
   assert(target);
@@ -409,7 +522,11 @@ void quotation_append(Boxed target, Boxed source) {
     quotation_push(target, boxed_copy(quotation_data(source)[i]));
 }
 
-/* Apply one quotation to another. */
+/*
+ * Apply one quotation to another.
+ *
+ * OWNERSHIP: NONE
+ */
 void quotation_apply(Boxed target, Boxed source, Boxed definitions) {
   assert(target);
   assert(source);
@@ -424,7 +541,12 @@ void quotation_apply(Boxed target, Boxed source, Boxed definitions) {
   }
 }
 
-/* Empty the contents of a quotation. */
+/*
+ * Empty a quotation, freeing all of its contents, deallocating its buffer, and
+ * setting its size and capacity to zero.
+ *
+ * OWNERSHIP: TAKE
+ */
 void quotation_clear(Boxed quotation) {
   assert(quotation);
   assert(is_quotation(quotation));
@@ -437,7 +559,9 @@ void quotation_clear(Boxed quotation) {
   quotation->value->data.as_quotation.data = NULL;
 }
 
-/* Determine the lexicographic ordering of two quotations. */
+/*
+ * Determine the lexicographic ordering of two quotations using boxed_compare().
+ */
 int quotation_compare(Boxed a, Boxed b) {
   if (!a && b) {
     assert(is_quotation(b));
@@ -467,14 +591,22 @@ int quotation_compare(Boxed a, Boxed b) {
       : +1;
 }
 
-/* Retrieve the data from a quotation. */
+/*
+ * Retrieve the data from a quotation.
+ *
+ * OWNERSHIP: NONE
+ */
 Boxed *quotation_data(Boxed quotation) {
   assert(quotation);
   assert(is_quotation(quotation));
   return quotation->value->data.as_quotation.data;
 }
 
-/* Create a boxed quotation. */
+/*
+ * Create a boxed quotation from an initial size and set of values.
+ *
+ * OWNERSHIP: GIVE
+ */
 Boxed quotation_new(int size, ...) {
   Boxed reference = boxed_new(quotation_alloc(size));
   if (!reference)
@@ -490,10 +622,12 @@ Boxed quotation_new(int size, ...) {
   return NULL;
 }
 
-/* Add a reference to the end of a quotation. NOTE: Takes ownership of the
-   reference, i.e., does not automatically call boxed_copy(). */
+/*
+ * Add a reference to the end of a quotation.
+ *
+ * OWNERSHIP: TAKE
+ */
 void quotation_push(Boxed quotation_reference, Boxed reference) {
-  trace("quotation_push()\n");
   assert(quotation_reference);
   assert(is_quotation(quotation_reference));
   Quotation *quotation = &quotation_reference->value->data.as_quotation;
@@ -512,7 +646,11 @@ void quotation_push(Boxed quotation_reference, Boxed reference) {
   quotation->data[quotation->size++] = reference;
 }
 
-/* Remove and retrieve the last reference in a quotation. */
+/*
+ * Remove and return the last reference in a quotation.
+ *
+ * OWNERSHIP: GIVE
+ */
 Boxed quotation_pop(Boxed quotation_reference) {
   assert(quotation_reference);
   assert(is_quotation(quotation_reference));
@@ -521,15 +659,23 @@ Boxed quotation_pop(Boxed quotation_reference) {
   return quotation->data[--quotation->size];
 }
 
-/* Retrieve the size of a quotation. */
+/*
+ * Retrieve the size of a quotation.
+ *
+ * OWNERSHIP: NONE
+ */
 int quotation_size(Boxed quotation) {
   assert(quotation);
   assert(is_quotation(quotation));
   return quotation->value->data.as_quotation.size;
 }
 
-/* Retrieve the last reference from a quotation. NOTE: Does not automatically
-   call boxed_copy(). */
+/*
+ * A convenience function to retrieve the last reference in a quotation without
+ * altering its reference count.
+ *
+ * OWNERSHIP: NONE
+ */
 Boxed quotation_top(Boxed quotation_reference) {
   assert(quotation_reference);
   assert(is_quotation(quotation_reference));
@@ -539,17 +685,23 @@ Boxed quotation_top(Boxed quotation_reference) {
   return quotation->data[quotation->size - 1];
 }
 
-/* Create a raw unboxed reference. */
+/*
+ * Create a raw unboxed reference.
+ */
 Unboxed unboxed_alloc(void) {
   return malloc(sizeof(Value));
 }
 
-/* Free an unboxed reference. */
+/*
+ * Free an unboxed reference.
+ */
 void unboxed_free(Unboxed reference) {
   free(reference);
 }
 
-/* Allocate an unboxed word. */
+/*
+ * Allocate an unboxed word.
+ */
 Unboxed word_alloc(Word value) {
   Unboxed reference = unboxed_alloc();
   if (!reference)
@@ -561,6 +713,9 @@ Unboxed word_alloc(Word value) {
   return NULL;
 }
 
+/*
+ * Apply a word to a quotation.
+ */
 void word_apply(Word word, Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
@@ -573,7 +728,11 @@ void word_apply(Word word, Boxed stack, Boxed definitions) {
   }
 }
 
-/* Create a boxed word. */
+/*
+ * Create a boxed word.
+ *
+ * OWNERSHIP: GIVE
+ */
 Boxed word_new(Word value) {
   Boxed reference = boxed_new(word_alloc(value));
   if (!reference)
@@ -583,7 +742,11 @@ Boxed word_new(Word value) {
   return NULL;
 }
 
-/* Unbox a word. */
+/*
+ * Unbox a word and return a copy of its value.
+ *
+ * OWNERSHIP: TAKE
+ */
 Word word_unbox(Boxed reference) {
   assert(reference);
   assert(is_word(reference));
@@ -592,13 +755,22 @@ Word word_unbox(Boxed reference) {
   return value;
 }
 
-/* Retrieve the value of a word. */
+/*
+ * Retrieve a copy of the value of a word.
+ *
+ * OWNERSHIP: NONE
+ */
 Word word_value(Boxed reference) {
   assert(reference);
   assert(is_word(reference));
   return reference->value->data.as_word;
 }
 
+/*
+ * Append a UTF-32 code point to a buffer as UTF-8.
+ *
+ * TODO: Migrate to a more sensible location.
+ */
 void utf8_append(uint32_t code_point, uint8_t *result) {
   if (code_point < 0x80) {
     *result++ = (uint8_t)(code_point);

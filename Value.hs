@@ -5,16 +5,17 @@ import CompileError
 import Data.Char (toUpper)
 import Data.List (elemIndex, intercalate)
 
-data Value = Word String
-           | Integer Integer
-           | Float Double
-           | Quotation [Value]
-           | Definition Value Value
+data Value
+  = Word String
+  | Integer Integer
+  | Float Double
+  | Quotation [Value]
+  | Definition Value Value
 
-data Context = Context {
-  quotation :: Bool,
-  definitions :: [String]
-}
+data Context = Context
+  { quotation :: Bool
+  , definitions :: [String]
+  }
 
 quoted :: Context -> Context
 quoted e = e { quotation = True }
@@ -82,15 +83,15 @@ compile = compileWith emptyContext
               Left compileError -> Left compileError
         Word w ->
           if quotation here
-            then case w `elemIndex` (definitions here) of
+            then case w `elemIndex` definitions here of
               Just n -> Right ("MKW(" ++ show n ++ ")", here)
               Nothing -> if w `elem` builtins
-                then Right ("W" ++ (map toUpper $ w), here)
+                then Right ('W' : map toUpper w, here)
                 else Left . CompileError $ "Undefined word \"" ++ w ++ "\""
-            else case w `elemIndex` (definitions here) of
+            else case w `elemIndex` definitions here of
               Just n -> Right ("DO(" ++ show n ++ ")", here)
               Nothing -> if w `elem` builtins
-                then Right (map toUpper $ w, here)
+                then Right (map toUpper w, here)
                 else Left . CompileError $ "Undefined word \"" ++ w ++ "\""
         Definition (Word name) body@(Quotation _) ->
           if quotation here
@@ -98,7 +99,7 @@ compile = compileWith emptyContext
               "A definition cannot appear inside a quotation."
             else case compiledBody of
               Right values -> Right
-                (("DEF(" ++) . (++ ")") . intercalate " " $ values, next)
+                (("DEF(" ++) . (++ ")") $ unwords values, next)
               Left compileError -> Left compileError
               where
                 compiledBody = compileWith (quoted next) [body]
@@ -106,9 +107,9 @@ compile = compileWith emptyContext
         _ -> Left . CompileError $ "Unable to compile malformed value."
     compileQuotation :: Context -> [Value] -> Either CompileError String
     compileQuotation here values = case compiledBody of
-      Right compiledValues -> Right $
-        (if null values then "0, 0" else (show . length $ values) ++ ", ")
-        ++ (intercalate ", " compiledValues)
+      Right compiledValues ->
+        Right $ (if null values then "0, 0" else show (length values) ++ ", ")
+          ++ intercalate ", " compiledValues
       Left compileError -> Left compileError
       where
         compiledBody = compileWith (quoted here) values

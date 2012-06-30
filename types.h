@@ -2,7 +2,11 @@
 #define TYPES_H
 #include <stdint.h>
 
-/* A built-in word. */
+/*
+ * A built-in word.
+ *
+ * TODO: Remove repetition.
+ */
 enum Word {
   /* Combinators. */
   WORD_DUP,
@@ -11,7 +15,10 @@ enum Word {
   WORD_QUOTE,
   WORD_COMPOSE,
   WORD_APPLY,
-  /* Arithmetic. */
+  /* Arithmetic and Basic Operations. */
+  WORD_LENGTH,
+  WORD_FIRST,
+  WORD_REST,
   WORD_ADD,
   WORD_SUB,
   WORD_MUL,

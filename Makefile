@@ -1,40 +1,125 @@
-COMPILER = kitten
-COMPILER_SOURCES = Main.hs Kitten.hs Value.hs CompileError.hs
-COMPILER_INTERMEDIATE = $(COMPILER_SOURCES:.hs=.hi)
-COMPILER_OBJECTS = $(COMPILER_SOURCES:.hs=.o)
-LIBRARY = libkitten.a
-LIBRARY_OBJECTS = types.o debug.o kitten.o
+#
+# Constants for use in rules. The abbreviations "Comp", "Lib", "Src", "Inter",
+# and "Obj" are used to differentiate those constants related to the compiler
+# and runtime library, as well as source files, intermediate files, and object
+# files, respectively. Constants ending with "Dir" refer to directories only
+# (without trailing slashes); "Flags", to commandline options for individual
+# build tools; "Name(s)", to bare filenames with no extensions or directories,
+# and "Path(s)", to full paths including filenames, extensions, and directories.
+#
+# TODO: Add constants for build tools that may differ between platforms.
+#
+
+HC := ghc
+HLINT := ~/.cabal/bin/hlint
+
+TargetDir := ./build
+
+CompTargetFile := kitten
+CompTargetPath := $(TargetDir)/$(CompTargetFile)
+CompSrcNames := Main Kitten Value CompileError
+CompSrcFiles := $(addsuffix .hs, $(CompSrcNames))
+CompInterDir := $(TargetDir)/hi
+CompInterFiles := $(addsuffix .hi, $(CompSrcNames))
+CompInterPaths := $(addprefix $(CompInterDir)/, $(CompInterFiles))
+CompObjDir := $(TargetDir)/obj
+CompObjFiles := $(addsuffix .o, $(CompSrcNames))
+CompObjPaths := $(addprefix $(CompObjDir)/, $(CompObjFiles))
+
+LibTargetName := kitten
+LibTargetFile := lib$(LibTargetName).a
+LibTargetPath := $(TargetDir)/$(LibTargetFile)
+LibSrcNames := types debug kitten
+LibSrcPaths := $(wildcard ./*.c) $(wildcard ./*.h)
+LibObjFiles := $(addsuffix .o, $(LibSrcNames))
+LibObjPaths := $(addprefix $(TargetDir)/, $(LibObjFiles))
+
+TestSrcDir := test
+TestTargetDir := $(TargetDir)/test
+TestSrcPaths := $(wildcard $(TestSrcDir)/*.ktn)
+TestSrcNames := $(basename $(notdir $(TestSrcPaths)))
+TestTargetPaths := $(addprefix $(TestTargetDir)/, $(TestSrcNames))
 
 ifdef DEBUG
-  DEBUG_LIBRARY = -DDEBUG -g
+  LibDebugFlags := -DDEBUG -g
 else
-  DEBUG_LIBRARY =
+  LibDebugFlags :=
 endif
 
-all : library compiler
+LibFlags := -std=c99 -Wall -Werror
 
-clean : clean_library clean_compiler
+CompFlags := -odir $(CompObjDir) -hidir $(CompInterDir)
+
+#
+# Rules. The vast majority of these are phony.
+#
+
+MAKEFLAGS += --warn-undefined-variables
+
+.PHONY : all paths tests clean clean_library clean_compiler clean_tests \
+    library compiler lint tests build_tests run_tests
+
+all : paths library compiler lint tests
+
+clean : clean_library clean_compiler clean_tests
+
+paths :
+	@ echo 'Making sure paths are sane ...'
+	@ mkdir -p $(TargetDir)
+	@ mkdir -p $(TestTargetDir)
+	@ mkdir -p $(CompObjDir)
+	@ mkdir -p $(CompInterDir)
+
+clean_depend :
+	@ echo 'Cleaning dependency information ...'
+	@ rm -f .depend
 
 clean_library :
-	rm -f $(LIBRARY_OBJECTS) $(LIBRARY)
+	@ echo 'Cleaning library build files ...'
+	@ rm -f $(LibObjPaths) $(LibTargetPath)
 
 clean_compiler :
-	rm -f $(COMPILER_OBJECTS) $(COMPILER_INTERMEDIATE) $(COMPILER)
+	@ echo 'Cleaning compiler build files ...'
+	@ rm -f $(CompObjPaths) $(CompInterPaths) $(CompTargetPath)
 
-library : clean_library $(LIBRARY)
+clean_tests :
+	@ echo 'Cleaning test build files ...'
+	@ rm -f $(TestTargetDir)/*
 
-compiler : clean_compiler $(COMPILER)
+library : .depend $(LibTargetPath)
+compiler : $(CompTargetPath)
+tests : build_tests run_tests
 
-$(LIBRARY) : $(LIBRARY_OBJECTS)
-	ar qc $@ $^
+lint : $(CompSrcFiles)
+	@ echo 'Linting ( $(CompSrcNames) ) ...'
+	-@ $(HLINT) .
 
-%.o : %.c
-	gcc -std=c99 -c $^ -Wall -Werror $(DEBUG_LIBRARY) -o $@
+run_tests : build_tests $(TestTargetPaths)
+	@ echo 'TODO: Run tests.'
 
-debug.c : debug.h
-kitten.c : debug.h kitten.h
-types.c : debug.h kitten.h types.h
-kitten.h : debug.h
+$(TestTargetDir)/%.c : $(TestSrcDir)/%.ktn $(CompTargetPath)
+	@ echo 'Building test $< ...'
+	-@ $(CompTargetPath) $< > $@ 2> $(@:.c=.warn)
 
-$(COMPILER) : $(COMPILER_SOURCES)
-	ghc --make Main -package parsec -Wall -o $@
+$(TestTargetDir)/% : $(TestTargetDir)/%.c
+	@ echo 'Building test $@ ...'
+	-@ $(CC) -std=c99 $< -L$(TargetDir) -l$(LibTargetName) -lm -I. -o $@ \
+		2> $(<:.c=.fail)
+
+.depend : $(LibSrcPaths)
+	@ $(CC) -MM -o $@ $^ $(LibFlags)
+
+include .depend
+
+$(LibTargetPath) : $(LibObjPaths) .depend
+	@ echo 'Linking runtime library ...'
+	@ ar qc $@ $^
+
+$(TargetDir)/%.o : ./%.c .depend
+	@ echo 'Building $< ...'
+	@ $(CC) -c $< $(LibFlags) $(LibDebugFlags) -o $@
+
+# TODO: Move to cabal.
+$(CompTargetPath) : $(CompObjPath)
+	@ echo 'Building compiler ...'
+	@ $(HC) --make Main -package parsec -Wall -o $@ $(CompFlags)

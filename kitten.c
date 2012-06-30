@@ -66,7 +66,6 @@ void kitten_apply(Boxed stack, Boxed definitions) {
 }
 
 void kitten_compose(Boxed stack, Boxed definitions) {
-  trace("kitten_compose()\n");
   assert(stack);
   assert(is_quotation(stack));
   Boxed a = pop(stack);
@@ -84,7 +83,6 @@ void kitten_compose(Boxed stack, Boxed definitions) {
 }
 
 void kitten_dup(Boxed stack, Boxed definitions) {
-  trace("kitten_dup()\n");
   assert(stack);
   assert(is_quotation(stack));
   Boxed a = boxed_copy(top(stack));
@@ -181,6 +179,14 @@ void kitten_lt(Boxed stack, Boxed definitions) {
   push(stack, integer_new(boxed_compare(a, b) < 0));
 }
 
+void kitten_length(Boxed stack, Boxed definitions) {
+  assert(stack);
+  assert(is_quotation(stack));
+  Boxed a = pop(stack);
+  push(stack, integer_new(quotation_size(a)));
+  boxed_free(a);
+}
+
 void kitten_ne(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
@@ -246,7 +252,6 @@ void kitten_write(Boxed stack, Boxed definitions) {
 }
 
 void kitten_putc(Boxed stack, Boxed definitions) {
-  trace("kitten_putc()\n");
   assert(stack);
   assert(is_quotation(stack));
   assert(is_integer(top(stack)));

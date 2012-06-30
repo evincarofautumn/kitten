@@ -5,28 +5,21 @@ import Value (Value)
 import CompileError
 
 import Control.Applicative ((<*), (*>), (<$>))
-import Control.Monad (liftM2)
+import Control.Monad (liftM2, void)
 import Data.Char (ord, isSpace)
-import Data.List (intercalate)
-import Text.ParserCombinators.Parsec as Parsec
+import Text.Parsec as Parsec
+import Text.Parsec.String as Parsec
 
 data Program = Program [Value]
 
-ignoreP :: Parser a -> Parser ()
-ignoreP parser = parser >> return ()
-
 silenceP :: Parser ()
-silenceP = ignoreP . many1 $ whitespaceP <|> commentP
+silenceP = void . many1 $ whitespaceP <|> commentP
 
 commentP :: Parser ()
-commentP = ignoreP . (<?> "comment") $ do
-  _ <- char '('
-  _ <- many $ try commentP <|> (ignoreP . noneOf $ "()")
-  _ <- char ')'
-  return ()
+commentP = void $ char '(' *> many (try commentP <|> void (noneOf "()")) *> char ')'
 
 whitespaceP :: Parser ()
-whitespaceP = (ignoreP . many1 . satisfy $ isSpace) <?> "whitespace"
+whitespaceP = (void . many1 $ satisfy isSpace) <?> "whitespace"
 
 wordP :: Parser Value
 wordP = Value.Word <$> liftM2 (:) firstP restP <?> "word"
@@ -54,38 +47,38 @@ floatP = (Value.Float . read) <$> (bodyP <?> "float") where
 quotationP :: Parser Value
 quotationP = Value.Quotation <$> (left *> many termP <* right) <?> "quotation"
   where
-    left  = char '[' <* optional silenceP
+    left = char '[' <* optional silenceP
     right = char ']' <?> "end of quotation"
 
 textP :: Parser Value
 textP = Value.Quotation <$> (left *> many character <* right) <?> "string"
   where
-    left      = char '"'
-    right     = char '"' <?> "end of string"
+    left = char '"'
+    right = char '"' <?> "end of string"
     character = Value.Integer . fromIntegral . ord <$>
       (noneOf "\\\"" <|> escape) <?> "character or escape"
     escape = do
       c <- char '\\' *> anyChar
       case c of
-        'a'  -> return '\a'
-        'f'  -> return '\f'
-        'n'  -> return '\n'
-        'r'  -> return '\r'
-        't'  -> return '\t'
-        'v'  -> return '\v'
+        'a' -> return '\a'
+        'f' -> return '\f'
+        'n' -> return '\n'
+        'r' -> return '\r'
+        't' -> return '\t'
+        'v' -> return '\v'
         '\\' -> return '\\'
         '\"' -> return '"'
-        _    -> fail $ "invalid escape: \\" ++ [c]
+        _ -> fail $ "Invalid escape \"\\" ++ [c] ++ "\""
 
 definitionP :: Parser Value
 definitionP = do
-  name <- (try $ string "define") *> silenceP *> wordP <* optional silenceP
+  name <- try (string "define") *> silenceP *> wordP <* optional silenceP
   term <- quotationP <|> wordP <|> try floatP <|> integerP <|> textP
   body <- case term of
-    (Value.Word _)         -> return $ Value.Quotation [term]
-    (Value.Integer _)      -> return $ Value.Quotation [term]
-    (Value.Float _)        -> return $ Value.Quotation [term]
-    (Value.Quotation _)    -> return term
+    (Value.Word _) -> return $ Value.Quotation [term]
+    (Value.Integer _) -> return $ Value.Quotation [term]
+    (Value.Float _) -> return $ Value.Quotation [term]
+    (Value.Quotation _) -> return term
     (Value.Definition _ _) -> unexpected "definition"
   return $ Value.Definition name body
 
@@ -94,17 +87,17 @@ termP = ((quotationP <|> definitionP <|> wordP <|> try floatP
   <|> integerP <|> textP) <* optional silenceP) <?> "term"
 
 programP :: Parser Program
-programP = Program <$>
-  (optional silenceP *> many termP <* optional silenceP <* eof)
+programP = Program
+  <$> (optional silenceP *> many termP <* optional silenceP <* eof)
 
-parse :: String -> Either ParseError Program
-parse = Parsec.parse programP []
+parse :: String -> String -> Either ParseError Program
+parse = Parsec.parse programP
 
-compile :: String -> Either CompileError String
-compile source = case Kitten.parse source of
-  Left parseError -> Left . CompileError . show $ parseError
+compile :: String -> String -> Either CompileError String
+compile name source = case Kitten.parse name source of
+  Left parseError -> Left (ParseError parseError)
   Right (Program parseResult) -> case Value.compile parseResult of
-    Right compiledProgram -> Right
-      . ("#include \"kitten.h\"\nKITTEN_PROGRAM(" ++) . (++ ")")
-      . intercalate " " $ compiledProgram
+    Right compiledProgram ->
+      Right . ("#include <kitten.h>\nKITTEN_PROGRAM(" ++) . (++ ")")
+        $ unwords compiledProgram
     Left compileError -> Left compileError
