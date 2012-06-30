@@ -1,5 +1,8 @@
 #ifndef TYPES_H
 #define TYPES_H
+
+#include "builtins.h"
+
 #include <stdint.h>
 
 /*
@@ -8,32 +11,9 @@
  * TODO: Remove repetition.
  */
 enum Word {
-  WORD_ADD,
-  WORD_APPLY,
-  WORD_COMPOSE,
-  WORD_DIV,
-  WORD_DUP,
-  WORD_EQ,
-  WORD_GE,
-  WORD_GT,
-  WORD_IF,
-  WORD_ISF,
-  WORD_ISI,
-  WORD_ISQ,
-  WORD_ISW,
-  WORD_LE,
-  WORD_LENGTH,
-  WORD_LT,
-  WORD_MOD,
-  WORD_MUL,
-  WORD_NE,
-  WORD_POP,
-  WORD_PUTC,
-  WORD_QUOTE,
-  WORD_SUB,
-  WORD_SWAP,
-  WORD_TRACE,
-  WORD_WRITE,
+# define WORD(NAME) WORD_##NAME,
+  KITTEN_BUILTINS(WORD, WORD)
+# undef WORD
   WORD_COUNT
 };
 

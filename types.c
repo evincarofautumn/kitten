@@ -1,6 +1,9 @@
 #include "types.h"
+
+#include "builtins.h"
 #include "debug.h"
 #include "kitten.h"
+
 #include <stdarg.h>
 #include <stdlib.h>
 #include <inttypes.h>
@@ -13,32 +16,13 @@ void utf8_append(uint32_t character, uint8_t *buffer);
  * TODO: Remove repetition.
  */
 Implementation map[WORD_COUNT] = {
-  kitten_add,
-  kitten_apply,
-  kitten_compose,
-  kitten_div,
-  kitten_dup,
-  kitten_eq,
-  kitten_ge,
-  kitten_gt,
-  kitten_if,
-  kitten_isf,
-  kitten_isi,
-  kitten_isq,
-  kitten_isw,
-  kitten_le,
-  kitten_length,
-  kitten_lt,
-  kitten_mod,
-  kitten_mul,
-  kitten_ne,
-  kitten_pop,
-  kitten_putc,
-  kitten_quote,
-  kitten_sub,
-  kitten_swap,
-  kitten_trace,
-  kitten_write
+# define INIT(NAME) kitten_##NAME,
+# define LAST(NAME) kitten_##NAME
+
+  KITTEN_BUILTINS(INIT, LAST)
+
+# undef LAST
+# undef INIT
 };
 
 /*

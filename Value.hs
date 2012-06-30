@@ -1,3 +1,5 @@
+{-# OPTIONS -cpp -pgmPcpphs -optP--cpp #-}
+ 
 module Value(Value(..), compile) where
 
 import CompileError
@@ -23,35 +25,15 @@ quoted e = e { quotation = True }
 defining :: Context -> String -> Context
 e `defining` s = e { definitions = definitions e ++ [s] }
 
+#include "builtins.h"
+#define INIT(NAME) #NAME,
+#define LAST(NAME) #NAME
 builtins :: [String]
-builtins =
-  [ "add"
-  , "apply"
-  , "compose"
-  , "div"
-  , "dup"
-  , "eq"
-  , "ge"
-  , "gt"
-  , "if"
-  , "isf"
-  , "isi"
-  , "isq"
-  , "isw"
-  , "le"
-  , "length"
-  , "lt"
-  , "mod"
-  , "mul"
-  , "ne"
-  , "pop"
-  , "putc"
-  , "quote"
-  , "sub"
-  , "swap"
-  , "trace"
-  , "write"
+builtins = [
+  KITTEN_BUILTINS(INIT, LAST)
   ]
+#undef LAST
+#undef INIT
 
 compile :: [Value] -> Either CompileError [String]
 compile = compileWith emptyContext
@@ -88,12 +70,12 @@ compile = compileWith emptyContext
             then case w `elemIndex` definitions here of
               Just n -> Right ("MKW(" ++ show n ++ ")", here)
               Nothing -> if w `elem` builtins
-                then Right ('W' : map toUpper w, here)
+                then Right ("MKW(WORD_" ++ w ++ ")", here)
                 else Left . CompileError $ "Undefined word \"" ++ w ++ "\""
             else case w `elemIndex` definitions here of
               Just n -> Right ("DO(" ++ show n ++ ")", here)
               Nothing -> if w `elem` builtins
-                then Right (map toUpper w, here)
+                then Right ("BUILTIN(" ++ w ++ ")", here)
                 else Left . CompileError $ "Undefined word \"" ++ w ++ "\""
         Definition (Word name) body@(Quotation _) ->
           if quotation here
