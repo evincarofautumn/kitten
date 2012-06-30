@@ -42,8 +42,10 @@ TestTargetPaths := $(addprefix $(TestTargetDir)/, $(TestSrcNames))
 
 ifdef DEBUG
   LibDebugFlags := -DDEBUG -g
+  TestDebugFlags := -DDEBUG -g
 else
   LibDebugFlags :=
+  TestDebugFlags :=
 endif
 
 LibFlags := -std=c99 -Wall -Werror
@@ -104,7 +106,7 @@ $(TestTargetDir)/%.c : $(TestSrcDir)/%.ktn $(CompTargetPath)
 $(TestTargetDir)/% : $(TestTargetDir)/%.c
 	@ echo 'Building test $@ ...'
 	-@ $(CC) -std=c99 $< -L$(TargetDir) -l$(LibTargetName) -lm -I. -o $@ \
-		2> $(<:.c=.fail)
+		2> $(<:.c=.fail) $(TestDebugFlags)
 
 .depend : $(LibSrcPaths)
 	@ $(CC) -MM -o $@ $^ $(LibFlags)
