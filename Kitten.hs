@@ -16,7 +16,10 @@ silenceP :: Parser ()
 silenceP = void . many1 $ whitespaceP <|> commentP
 
 commentP :: Parser ()
-commentP = void $ char '(' *> many (try commentP <|> void (noneOf "()")) *> char ')'
+commentP = void
+  $ char '('
+  *> many (try commentP <|> void (noneOf "()"))
+  *> char ')'
 
 whitespaceP :: Parser ()
 whitespaceP = (void . many1 $ satisfy isSpace) <?> "whitespace"
@@ -83,8 +86,14 @@ definitionP = do
   return $ Value.Definition name body
 
 termP :: Parser Value
-termP = ((quotationP <|> definitionP <|> wordP <|> try floatP
-  <|> integerP <|> textP) <* optional silenceP) <?> "term"
+termP = choice
+  [ quotationP
+  , definitionP
+  , wordP
+  , try floatP
+  , integerP
+  , textP
+  ] <* optional silenceP <?> "term"
 
 programP :: Parser Program
 programP = Program

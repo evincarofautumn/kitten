@@ -8,37 +8,32 @@
  * TODO: Remove repetition.
  */
 enum Word {
-  /* Combinators. */
-  WORD_DUP,
-  WORD_SWAP,
-  WORD_POP,
-  WORD_QUOTE,
-  WORD_COMPOSE,
-  WORD_APPLY,
-  /* Arithmetic and Basic Operations. */
-  WORD_LENGTH,
   WORD_ADD,
-  WORD_SUB,
-  WORD_MUL,
+  WORD_APPLY,
+  WORD_COMPOSE,
   WORD_DIV,
-  WORD_MOD,
-  /* Conditionals. */
+  WORD_DUP,
+  WORD_EQ,
+  WORD_GE,
+  WORD_GT,
+  WORD_IF,
   WORD_ISF,
   WORD_ISI,
   WORD_ISQ,
   WORD_ISW,
-  WORD_EQ,
-  WORD_NE,
-  WORD_LT,
-  WORD_GE,
-  WORD_GT,
   WORD_LE,
-  WORD_IF,
-  /* I/O. */
-  WORD_WRITE,
+  WORD_LENGTH,
+  WORD_LT,
+  WORD_MOD,
+  WORD_MUL,
+  WORD_NE,
+  WORD_POP,
   WORD_PUTC,
+  WORD_QUOTE,
+  WORD_SUB,
+  WORD_SWAP,
   WORD_TRACE,
-  /* Number of built-in words. */
+  WORD_WRITE,
   WORD_COUNT
 };
 

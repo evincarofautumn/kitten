@@ -13,36 +13,32 @@ void utf8_append(uint32_t character, uint8_t *buffer);
  * TODO: Remove repetition.
  */
 Implementation map[WORD_COUNT] = {
-  /* Combinators. */
-  kitten_dup,     /* DUP */
-  kitten_swap,    /* SWAP */
-  kitten_pop,     /* POP */
-  kitten_quote,   /* QUOTE */
-  kitten_compose, /* COMPOSE */
-  kitten_apply,   /* APPLY */
-  /* Arithmetic. */
+  kitten_add,
+  kitten_apply,
+  kitten_compose,
+  kitten_div,
+  kitten_dup,
+  kitten_eq,
+  kitten_ge,
+  kitten_gt,
+  kitten_if,
+  kitten_isf,
+  kitten_isi,
+  kitten_isq,
+  kitten_isw,
+  kitten_le,
   kitten_length,
-  kitten_add,     /* ADD */
-  kitten_sub,     /* SUB */
-  kitten_mul,     /* MUL */
-  kitten_div,     /* DIV */
-  kitten_mod,     /* MOD */
-  /* Conditionals. */
-  kitten_isi,     /* ISI */
-  kitten_isf,     /* ISF */
-  kitten_isq,     /* ISQ */
-  kitten_isw,     /* ISW */
-  kitten_eq,      /* EQ */
-  kitten_ne,      /* NE */
-  kitten_lt,      /* LT */
-  kitten_ge,      /* GE */
-  kitten_gt,      /* GT */
-  kitten_le,      /* LE */
-  kitten_if,      /* IF */
-  /* I/O. */
-  kitten_write,   /* WRITE */
-  kitten_putc,    /* PUTC */
-  kitten_trace    /* TRACE */
+  kitten_lt,
+  kitten_mod,
+  kitten_mul,
+  kitten_ne,
+  kitten_pop,
+  kitten_putc,
+  kitten_quote,
+  kitten_sub,
+  kitten_swap,
+  kitten_trace,
+  kitten_write
 };
 
 /*
@@ -699,6 +695,29 @@ void unboxed_free(Unboxed reference) {
 }
 
 /*
+ * Append a UTF-32 code point to a buffer as UTF-8.
+ *
+ * TODO: Migrate to a more sensible location.
+ */
+void utf8_append(uint32_t code_point, uint8_t *result) {
+  if (code_point < 0x80) {
+    *result++ = (uint8_t)(code_point);
+  } else if (code_point < 0x800) {
+    *result++ = (uint8_t)(((code_point >> 6)       ) | 0xc0);
+    *result++ = (uint8_t)(((code_point     ) & 0x3f) | 0x80);
+  } else if (code_point < 0x10000) {
+    *result++ = (uint8_t)(((code_point >> 12)       ) | 0xe0);
+    *result++ = (uint8_t)(((code_point >>  6) & 0x3f) | 0x80);
+    *result++ = (uint8_t)(((code_point      ) & 0x3f) | 0x80);
+  } else {
+    *result++ = (uint8_t)(((code_point >> 18)       ) | 0xf0);
+    *result++ = (uint8_t)(((code_point >> 12) & 0x3f) | 0x80);
+    *result++ = (uint8_t)(((code_point >>  6) & 0x3f) | 0x80);
+    *result++ = (uint8_t)(((code_point      ) & 0x3f) | 0x80);
+  }
+}
+
+/*
  * Allocate an unboxed word.
  */
 Unboxed word_alloc(Word value) {
@@ -763,27 +782,4 @@ Word word_value(Boxed reference) {
   assert(reference);
   assert(is_word(reference));
   return reference->value->data.as_word;
-}
-
-/*
- * Append a UTF-32 code point to a buffer as UTF-8.
- *
- * TODO: Migrate to a more sensible location.
- */
-void utf8_append(uint32_t code_point, uint8_t *result) {
-  if (code_point < 0x80) {
-    *result++ = (uint8_t)(code_point);
-  } else if (code_point < 0x800) {
-    *result++ = (uint8_t)(((code_point >> 6)       ) | 0xc0);
-    *result++ = (uint8_t)(((code_point     ) & 0x3f) | 0x80);
-  } else if (code_point < 0x10000) {
-    *result++ = (uint8_t)(((code_point >> 12)       ) | 0xe0);
-    *result++ = (uint8_t)(((code_point >>  6) & 0x3f) | 0x80);
-    *result++ = (uint8_t)(((code_point      ) & 0x3f) | 0x80);
-  } else {
-    *result++ = (uint8_t)(((code_point >> 18)       ) | 0xf0);
-    *result++ = (uint8_t)(((code_point >> 12) & 0x3f) | 0x80);
-    *result++ = (uint8_t)(((code_point >>  6) & 0x3f) | 0x80);
-    *result++ = (uint8_t)(((code_point      ) & 0x3f) | 0x80);
-  }
 }
