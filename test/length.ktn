@@ -1,0 +1,4 @@
+[] length write "\n" write
+[1] length write "\n" write
+[1 2] length write "\n" write
+[1] [2] compose length write "\n" write

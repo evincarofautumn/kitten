@@ -17,8 +17,6 @@ enum Word {
   WORD_APPLY,
   /* Arithmetic and Basic Operations. */
   WORD_LENGTH,
-  WORD_FIRST,
-  WORD_REST,
   WORD_ADD,
   WORD_SUB,
   WORD_MUL,

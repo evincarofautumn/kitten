@@ -6,7 +6,6 @@
 
 Boxed pop  (Boxed stack);
 void  push (Boxed stack, Boxed reference);
-Boxed top  (Boxed stack);
 
 #define OPERATOR_IMPLEMENTATION(NAME, SYMBOL)                               \
 void kitten_##NAME(Boxed stack, Boxed definitions) {                        \
@@ -69,8 +68,8 @@ void kitten_compose(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
   Boxed a = pop(stack);
-  if (top(stack)->count == 1) {
-    quotation_append(top(stack), a);
+  if (quotation_top(stack)->count == 1) {
+    quotation_append(quotation_top(stack), a);
   } else {
     Boxed b = pop(stack);
     assert(is_quotation(b));
@@ -85,7 +84,7 @@ void kitten_compose(Boxed stack, Boxed definitions) {
 void kitten_dup(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
-  Boxed a = boxed_copy(top(stack));
+  Boxed a = boxed_copy(quotation_top(stack));
   quotation_push(stack, a);
 }
 
@@ -254,7 +253,7 @@ void kitten_write(Boxed stack, Boxed definitions) {
 void kitten_putc(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
-  assert(is_integer(top(stack)));
+  assert(is_integer(quotation_top(stack)));
   Boxed a = pop(stack);
   boxed_putc(a);
   boxed_free(a);
@@ -270,10 +269,4 @@ void push(Boxed stack, Boxed reference) {
   assert(stack);
   assert(is_quotation(stack));
   quotation_push(stack, reference);
-}
-
-Boxed top(Boxed stack) {
-  assert(stack);
-  assert(is_quotation(stack));
-  return quotation_top(stack);
 }

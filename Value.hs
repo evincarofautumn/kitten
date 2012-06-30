@@ -25,31 +25,33 @@ e `defining` s = e { definitions = definitions e ++ [s] }
 
 builtins :: [String]
 builtins =
-  ["dup",
-  "swap",
-  "pop",
-  "quote",
-  "compose",
-  "apply",
-  "add",
-  "sub",
-  "mul",
-  "div",
-  "mod",
-  "isf",
-  "isi",
-  "isq",
-  "isw",
-  "eq",
-  "ne",
-  "lt",
-  "ge",
-  "gt",
-  "le",
-  "if",
-  "write",
-  "putc",
-  "trace"]
+  [ "dup"
+  , "swap"
+  , "pop"
+  , "quote"
+  , "compose"
+  , "apply"
+  , "add"
+  , "sub"
+  , "mul"
+  , "div"
+  , "length"
+  , "mod"
+  , "isf"
+  , "isi"
+  , "isq"
+  , "isw"
+  , "eq"
+  , "ne"
+  , "lt"
+  , "ge"
+  , "gt"
+  , "le"
+  , "if"
+  , "write"
+  , "putc"
+  , "trace"
+  ]
 
 compile :: [Value] -> Either CompileError [String]
 compile = compileWith emptyContext

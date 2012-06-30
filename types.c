@@ -21,6 +21,7 @@ Implementation map[WORD_COUNT] = {
   kitten_compose, /* COMPOSE */
   kitten_apply,   /* APPLY */
   /* Arithmetic. */
+  kitten_length,
   kitten_add,     /* ADD */
   kitten_sub,     /* SUB */
   kitten_mul,     /* MUL */
@@ -142,7 +143,6 @@ int boxed_compare(Boxed unpromoted_a, Boxed unpromoted_b) {
  * OWNERSHIP: GIVE
  */
 Boxed boxed_copy(Boxed reference) {
-  trace("boxed_copy(%p)\n", reference);
   if (!reference)
     return NULL;
   ++reference->count;
@@ -511,7 +511,6 @@ Unboxed quotation_alloc(int size) {
  * OWNERSHIP: NONE
  */
 void quotation_append(Boxed target, Boxed source) {
-  trace("quotation_append()\n");
   assert(target);
   assert(source);
   assert(is_quotation(target));
@@ -775,8 +774,8 @@ void utf8_append(uint32_t code_point, uint8_t *result) {
   if (code_point < 0x80) {
     *result++ = (uint8_t)(code_point);
   } else if (code_point < 0x800) {
-    *result++ = (uint8_t)(((code_point >>  6)       ) | 0xc0);
-    *result++ = (uint8_t)(((code_point      ) & 0x3f) | 0x80);
+    *result++ = (uint8_t)(((code_point >> 6)       ) | 0xc0);
+    *result++ = (uint8_t)(((code_point     ) & 0x3f) | 0x80);
   } else if (code_point < 0x10000) {
     *result++ = (uint8_t)(((code_point >> 12)       ) | 0xe0);
     *result++ = (uint8_t)(((code_point >>  6) & 0x3f) | 0x80);
