@@ -1,8 +1,7 @@
 # Overview
 
 **Kitten** is a minimalistic, dynamically typed, concatenative programming
-language intended primarily for Web development. This is an in-progress
-implementation of that language.
+language. This is an in-progress implementation of that language.
 
 The Kitten compiler (`kitten`) compiles Kitten programs into C, which can be
 compiled and linked against the Kitten runtime library (`libkitten`) to produce
@@ -19,10 +18,10 @@ individually, run `make compiler` or `make library`, respectively.
 
 Building a Kitten program is a two-step process. First, run through `kitten`:
 
-    $ cat > meow.kitten
+    $ cat > meow.ktn
     "Meow\n" write
 
-    $ ./kitten meow.kitten > meow.c
+    $ ./kitten meow.ktn > meow.c
 
 Next, run through a C compiler, linking against `libkitten` and `libm`.
 
@@ -32,22 +31,21 @@ Next, run through a C compiler, linking against `libkitten` and `libm`.
 
 The sources include a shell script named `kittenc` that does this automatically:
 
-    $ ./kittenc meow.kitten
+    $ ./kittenc meow.ktn
     $ ./meow
     Meow
 
 Kitten sources are stripped of any extension to produce the name of the final
-executable. In general, `.kitten` is preferred, but `.ktn` is also acceptable
-when extensions are limited.
+executable. In general, `.ktn` is preferred.
 
 # The Language
 
 Kitten source files are expected to be in UTF-8; the I/O functions currently
-operate only in UTF-8. The language has three built-in data types:
+operate only in UTF-8 as well. The language has three built-in data types:
 
   * **Integer**: a signed 64-bit integral type. Integer literals consist of one
-    or more decimal digits. Characters in strings are represented as UTF-32 code
-    points using this type as well.
+    or more decimal digits. For the time being, characters in strings are
+    represented as UTF-32 code points using this type.
 
   * **Float**: a double-precision (64-bit) floating-point number. Floating-point
     literals consist of a decimal point preceded and followed by one or more
@@ -148,6 +146,9 @@ The following definitions are provided by the Kitten runtime library.
 
   * `swap (A B -- B A)`
     Swaps the two topmost values on the stack.
+
+  * `length (quotation -- length)`
+    Returns the length of the quotation atop the stack.
 
 ## Arithmetic
 
