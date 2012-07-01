@@ -78,8 +78,8 @@ compile = compileWith emptyContext
                 else Left . CompileError $ "Undefined word \"" ++ w ++ "\""
         Definition (Word name) body@(Quotation _) ->
           if quotation here
-            then Left . CompileError $
-              "A definition cannot appear inside a quotation."
+            then Left . CompileError
+              $ "A definition cannot appear inside a quotation."
             else case compiledBody of
               Right values -> Right
                 (("DEF(" ++) . (++ ")") $ unwords values, next)
