@@ -4,7 +4,6 @@ module Value(Value(..), compile) where
 
 import CompileError
 
-import Data.Char (toUpper)
 import Data.List (elemIndex, intercalate)
 
 data Value

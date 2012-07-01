@@ -36,6 +36,10 @@ LibObjPaths := $(addprefix $(TargetDir)/, $(LibObjFiles))
 
 TestSrcDir := test
 TestTargetDir := $(TargetDir)/test
+TestInterDir := $(TestTargetDir).inter
+TestWarnDir := $(TestTargetDir).warn
+TestOutDir := $(TestTargetDir).out
+TestErrDir := $(TestTargetDir).err
 TestSrcPaths := $(wildcard $(TestSrcDir)/*.ktn)
 TestSrcNames := $(basename $(notdir $(TestSrcPaths)))
 TestTargetPaths := $(addprefix $(TestTargetDir)/, $(TestSrcNames))
@@ -56,21 +60,24 @@ CompFlags := -odir $(CompObjDir) -hidir $(CompInterDir)
 # Rules. The vast majority of these are phony.
 #
 
-MAKEFLAGS += --warn-undefined-variables
+MAKEFLAGS += --warn-undefined-variables --silent
 
 .PHONY : all paths tests clean clean_library clean_compiler clean_tests \
     library compiler lint tests build_tests run_tests
 
-all : paths library compiler lint tests
+all : paths library compiler tests
 
 clean : clean_library clean_compiler clean_tests
 
 paths :
 	@ echo 'Making sure paths are sane ...'
 	@ mkdir -p $(TargetDir)
-	@ mkdir -p $(TestTargetDir)
 	@ mkdir -p $(CompObjDir)
 	@ mkdir -p $(CompInterDir)
+	@ mkdir -p $(TestTargetDir)
+	@ mkdir -p $(TestInterDir)
+	@ mkdir -p $(TestOutDir)
+	@ mkdir -p $(TestErrDir)
 
 clean_depend :
 	@ echo 'Cleaning dependency information ...'
@@ -86,7 +93,8 @@ clean_compiler :
 
 clean_tests :
 	@ echo 'Cleaning test build files ...'
-	@ rm -f $(TestTargetDir)/*
+	@ rm -f $(TestTargetDir)/* $(TestInterDir)/* $(TestOutDir)/* \
+		$(TestErrDir)/*
 
 library : .depend $(LibTargetPath)
 compiler : $(CompTargetPath)
@@ -97,16 +105,16 @@ lint : $(CompSrcFiles)
 	-@ $(HLINT) .
 
 run_tests : build_tests $(TestTargetPaths)
-	@ echo 'TODO: Run tests.'
+	@ echo 'Running tests ...'
+	@ ./run-tests.sh
 
-$(TestTargetDir)/%.c : $(TestSrcDir)/%.ktn $(CompTargetPath)
-	@ echo 'Building test $< ...'
-	-@ $(CompTargetPath) $< > $@ 2> $(@:.c=.warn)
+$(TestInterDir)/%.c : $(TestSrcDir)/%.ktn $(CompTargetPath)
+	-@ $(CompTargetPath) $< > $@ 2> $(TestWarnDir)/$(basename $(notdir $@))
 
-$(TestTargetDir)/% : $(TestTargetDir)/%.c
-	@ echo 'Building test $@ ...'
+$(TestTargetDir)/% : $(TestInterDir)/%.c
+	@ echo 'Building test $(notdir $@) ...'
 	-@ $(CC) -std=c99 $< -L$(TargetDir) -l$(LibTargetName) -lm -I. -o $@ \
-		2> $(<:.c=.fail) $(TestDebugFlags)
+		2> /dev/null $(TestDebugFlags)
 
 .depend : $(LibSrcPaths)
 	@ $(CC) -MM -o $@ $^ $(LibFlags)
