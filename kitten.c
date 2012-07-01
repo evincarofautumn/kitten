@@ -230,8 +230,7 @@ void kitten_trace(Boxed stack, Boxed definitions) {
   assert(stack);
   assert(is_quotation(stack));
   printf("[ ");
-  int i;
-  for (i = 0; i < quotation_size(stack); ++i) {
+  for (int i = 0; i < quotation_size(stack); ++i) {
     Boxed current = quotation_data(stack)[i];
     switch (boxed_type(current)) {
     case FLOAT:
