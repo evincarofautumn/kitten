@@ -293,7 +293,7 @@ void boxed_write(Boxed reference) {
     break;
   case QUOTATION:
     {
-      Boxed* data = quotation_data(reference);
+      Boxed *data = quotation_data(reference);
       int size = quotation_size(reference);
       for (int i = 0; i < size; ++i)
         boxed_putc(data[i]);
@@ -496,8 +496,7 @@ void quotation_append(Boxed target, Boxed source) {
   assert(is_quotation(target));
   assert(is_quotation(source));
   const int size = quotation_size(source);
-  int i;
-  for (i = 0; i < size; ++i)
+  for (int i = 0; i < size; ++i)
     quotation_push(target, boxed_copy(quotation_data(source)[i]));
 }
 
@@ -511,8 +510,7 @@ void quotation_apply(Boxed target, Boxed source, Boxed definitions) {
   assert(source);
   assert(is_quotation(target));
   assert(is_quotation(source));
-  int i;
-  for (i = 0; i < quotation_size(source); ++i) {
+  for (int i = 0; i < quotation_size(source); ++i) {
     if (is_word(quotation_data(source)[i]))
       word_apply(word_value(quotation_data(source)[i]), target, definitions);
     else
@@ -529,8 +527,7 @@ void quotation_apply(Boxed target, Boxed source, Boxed definitions) {
 void quotation_clear(Boxed quotation) {
   assert(quotation);
   assert(is_quotation(quotation));
-  int i;
-  for (i = 0; i < quotation_size(quotation); ++i)
+  for (int i = 0; i < quotation_size(quotation); ++i)
     boxed_free(quotation_data(quotation)[i]);
   free(quotation_data(quotation));
   quotation->value->data.as_quotation.size = 0;
@@ -555,8 +552,7 @@ int quotation_compare(Boxed a, Boxed b) {
   Boxed *a_data = quotation_data(a);
   Boxed *b_data = quotation_data(b);
   int minimum = a_size < b_size ? a_size : b_size;
-  int i;
-  for (i = 0; i < minimum; ++i) {
+  for (int i = 0; i < minimum; ++i) {
     int test = boxed_compare(a_data[i], b_data[i]);
     if (test < 0)
       return -1;
@@ -592,8 +588,7 @@ Boxed quotation_new(int size, ...) {
     goto error_allocating_reference;
   va_list arguments;
   va_start(arguments, size);
-  int i;
-  for (i = 0; i < size; ++i)
+  for (int i = 0; i < size; ++i)
     reference->value->data.as_quotation.data[i] = va_arg(arguments, Boxed);
   va_end(arguments);
   return reference;
