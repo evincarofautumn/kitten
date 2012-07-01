@@ -246,6 +246,8 @@ void kitten_trace(Boxed stack, Boxed definitions) {
       printf("%p:", current);
       kitten_trace(current, definitions);
       break;
+    default:
+      break;
     }
   }
   printf("] ");

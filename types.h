@@ -19,7 +19,13 @@ enum Word {
 
 /* A built-in type. */
 typedef enum Type {
-  INTEGER, FLOAT, WORD, QUOTATION
+  INTEGER,
+  FLOAT,
+  WORD,
+  QUOTATION,
+  INTEGER_QUOTATION,
+  FLOAT_QUOTATION,
+  CHARACTER_QUOTATION
 } Type;
 
 /* Forward declarations. */

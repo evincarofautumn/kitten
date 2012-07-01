@@ -51,6 +51,8 @@ Boxed boxed_clone(Boxed reference) {
     }
   case WORD:
     return word_new(word_value(reference));
+  default:
+    break;
   }
   return NULL;
 }
@@ -112,6 +114,8 @@ int boxed_compare(Boxed unpromoted_a, Boxed unpromoted_b) {
           ? +1
           : 0;
     }
+  default:
+    break;
   }
   return 0;
 }
@@ -208,8 +212,7 @@ int boxed_promote(Boxed unpromoted_a, Boxed unpromoted_b, Boxed *promoted_a,
       *promoted_a = boxed_copy(unpromoted_a);
       *promoted_b = float_new(integer_value(unpromoted_b));
       return 1;
-    case QUOTATION:
-    case WORD:
+    default:
       return 0;
     }
   case INTEGER:
@@ -222,8 +225,7 @@ int boxed_promote(Boxed unpromoted_a, Boxed unpromoted_b, Boxed *promoted_a,
       *promoted_a = boxed_copy(unpromoted_a);
       *promoted_b = boxed_copy(unpromoted_b);
       return 1;
-    case QUOTATION:
-    case WORD:
+    default:
       return 0;
     }
   case QUOTATION:
@@ -244,6 +246,8 @@ int boxed_promote(Boxed unpromoted_a, Boxed unpromoted_b, Boxed *promoted_a,
     default:
       return 0;
     }
+  default:
+    break;
   }
   return 0;
 }
