@@ -77,6 +77,7 @@ paths :
 	@ mkdir -p $(TestTargetDir)
 	@ mkdir -p $(TestInterDir)
 	@ mkdir -p $(TestOutDir)
+	@ mkdir -p $(TestWarnDir)
 	@ mkdir -p $(TestErrDir)
 
 clean_depend :

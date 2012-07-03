@@ -7,7 +7,7 @@ function run_warn {
     diff -u --strip-trailing-cr -- "./test/$1.warn" "./build/test.warn/$1"
     if [ "$?" != 0 ] ; then pass=false; fi
 
-    if [ ! $pass ] ; then
+    if ! $pass ; then
 	echo "[FAILED] $1"
 	exit 1
     fi
@@ -27,7 +27,7 @@ function run_test {
     diff -u --strip-trailing-cr -- "./test/$1.err" "./build/test.err/$1"
     if [ "$?" != 0 ] ; then pass=false; fi
 
-    if [ ! $pass ] ; then
+    if ! $pass ; then
 	echo "[FAILED] $1" >&2
 	exit 1
     fi
