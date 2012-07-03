@@ -69,7 +69,7 @@ compile = compileWith emptyContext
             then case w `elemIndex` definitions here of
               Just n -> Right ("MKW(" ++ show n ++ ")", here)
               Nothing -> if w `elem` builtins
-                then Right ("MKW(WORD_" ++ w ++ ")", here)
+                then Right ("word_new(WORD_" ++ w ++ ")", here)
                 else Left . CompileError $ "Undefined word \"" ++ w ++ "\""
             else case w `elemIndex` definitions here of
               Just n -> Right ("DO(" ++ show n ++ ")", here)
