@@ -11,7 +11,8 @@ installing development tools may be difficult or impossible.
 
 # Building
 
-To build the compiler, you need **GHC** and **Parsec**; for the runtime, **GCC**
+To build the compiler, you need **GHC** with the **Parsec** and **cpphs**
+libraries installed (available via cabal). For the runtime, use **GCC**
 or another suitable **C compiler**. Just download the sources and run `make`
 with your fingers crossed. To build the compiler or runtime library
 individually, run `make compiler` or `make library`, respectively.
