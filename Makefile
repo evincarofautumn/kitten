@@ -77,6 +77,7 @@ paths :
 	@ mkdir -p $(TestTargetDir)
 	@ mkdir -p $(TestInterDir)
 	@ mkdir -p $(TestOutDir)
+	@ mkdir -p $(TestWarnDir)
 	@ mkdir -p $(TestErrDir)
 
 clean_depend :
@@ -108,11 +109,8 @@ run_tests : build_tests $(TestTargetPaths)
 	@ echo 'Running tests ...'
 	@ ./run-tests.sh
 
-$(TestInterDir)/%.c : $(TestSrcDir)/%.ktn $(CompTargetPath) $(TestWarnDir)
+$(TestInterDir)/%.c : $(TestSrcDir)/%.ktn $(CompTargetPath)
 	-@ $(CompTargetPath) $< > $@ 2> $(TestWarnDir)/$(basename $(notdir $@))
-
-$(TestWarnDir) :
-	-@ mkdir $(TestWarnDir)
 
 $(TestTargetDir)/% : $(TestInterDir)/%.c
 	@ echo 'Building test $(notdir $@) ...'
