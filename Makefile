@@ -108,8 +108,11 @@ run_tests : build_tests $(TestTargetPaths)
 	@ echo 'Running tests ...'
 	@ ./run-tests.sh
 
-$(TestInterDir)/%.c : $(TestSrcDir)/%.ktn $(CompTargetPath)
+$(TestInterDir)/%.c : $(TestSrcDir)/%.ktn $(CompTargetPath) $(TestWarnDir)
 	-@ $(CompTargetPath) $< > $@ 2> $(TestWarnDir)/$(basename $(notdir $@))
+
+$(TestWarnDir) :
+	-@ mkdir $(TestWarnDir)
 
 $(TestTargetDir)/% : $(TestInterDir)/%.c
 	@ echo 'Building test $(notdir $@) ...'
