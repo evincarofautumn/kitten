@@ -46,14 +46,14 @@ Kitten source files are expected to be in UTF-8; the I/O functions currently
 operate only in UTF-8 as well. The language has three built-in data types:
 
   * **Integer**: a signed 64-bit integral type. Integer literals consist of one
-    or more decimal digits. For the time being, characters in strings are
-    represented as UTF-32 code points using this type.
+    or more decimal digits. For the time being, characters in text quotations
+    are represented as UTF-32 code points using this type.
 
   * **Float**: a double-precision (64-bit) floating-point number. Floating-point
     literals consist of a decimal point preceded and followed by one or more
     decimal digits.
 
-  * **Quotation**: a vector of boxed values, used to represent UTF-32 strings,
+  * **Quotation**: a vector of boxed values, used to represent text,
     heterogeneous arrays and structures, and anonymous functions. There are two
     kinds of quotation literal: general quotations, given in square brackets
     (`[]`), and text quotations, given in double quotes (`""`).
@@ -78,16 +78,31 @@ Text quotations support the following escape sequences:
 
 The Kitten grammar is very simple:
 
-    <program>    ::= <term>*
-    <term>       ::= <integer> | <float> | <quotation> | <word> | <string>
-                   | <definition> | <import>
-    <integer>    ::= [0-9]+
-    <float>      ::= [0-9]+ '.' [0-9]+
-    <quotation>  ::= '[' <term>* ']'
-    <word>       ::= [A-Za-z_][0-9A-Za-z_]*
-    <string>     ::= '"' [^"]* '"'
-    <definition> ::= "define" <word> <quotation>
-    <import>     ::= "import" <string>
+<pre>
+    <i>program</i>    = <i>term</i>*
+
+    <i>term</i>       = <i>integer</i>
+               | <i>float</i>
+               | <i>quotation</i>
+               | <i>word</i>
+               | <i>text</i>
+               | <i>definition</i>
+
+    <i>integer</i>    = <i>digit+</i>
+    <i>float</i>      = <i>digit+</i> . <i>digit+</i>
+    <i>quotation</i>  = [ <i>term*</i> ]
+    <i>word</i>       = <i>symbol</i> (<i>digit</i> | <i>symbol</i>)*
+    <i>text</i>       = "..."
+    <i>definition</i> = define <i>word</i> <i>quotation</i>
+
+    <i>symbol</i>     = {A-Za-z!#$%&amp;'*+-./:;&lt;=&gt;?@\\^_|~}
+    <i>digit</i>      = {0-9}
+
+    {...} = one of
+    +     = one or more
+    *     = zero or more
+    |     = either
+</pre>
 
 Comments are given in parentheses (`()`), and can be nested:
 
