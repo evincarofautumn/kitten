@@ -15,7 +15,8 @@ To build the compiler, you need **GHC** with the **Parsec** and **cpphs**
 libraries installed (available via cabal). For the runtime, use **GCC**
 or another suitable **C compiler**. Just download the sources and run `make`
 with your fingers crossed. To build the compiler or runtime library
-individually, run `make compiler` or `make library`, respectively.
+individually, run `make compiler` or `make library`, respectively. For more
+information, try `make help`.
 
 Building a Kitten program is a two-step process. First, run through `kitten`:
 
