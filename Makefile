@@ -18,7 +18,7 @@ TargetDir := ./build
 
 CompTargetFile := kitten
 CompTargetPath := $(TargetDir)/$(CompTargetFile)
-CompSrcNames := Main Kitten Value CompileError
+CompSrcNames := $(basename $(wildcard ./*.hs))
 CompSrcFiles := $(addsuffix .hs, $(CompSrcNames))
 CompInterDir := $(TargetDir)/hi
 CompInterFiles := $(addsuffix .hi, $(CompSrcNames))
@@ -113,7 +113,7 @@ library : .depend $(LibTargetPath)
 compiler : $(CompTargetPath)
 
 .PHONY : tests
-tests : $(TestTargetPaths)
+tests : compiler $(TestTargetPaths)
 	@ echo 'Running tests ...'
 	@ ./run-tests.sh
 
@@ -124,7 +124,7 @@ lint : $(CompSrcFiles)
 
 # Begin non-phony rules.
 
-$(TestInterDir)/%.c : $(TestSrcDir)/%.ktn $(CompTargetPath)
+$(TestInterDir)/%.c : $(TestSrcDir)/%.ktn
 	-@ $(CompTargetPath) $< > $@ 2> $(TestWarnDir)/$(basename $(notdir $@))
 
 $(TestTargetDir)/% : $(TestInterDir)/%.c
@@ -146,6 +146,6 @@ $(TargetDir)/%.o : ./%.c .depend
 	@ $(CC) -c $< $(LibFlags) $(LibDebugFlags) -o $@
 
 # TODO: Move to cabal.
-$(CompTargetPath) : $(CompObjPath)
+$(CompTargetPath) : $(CompSrcPaths)
 	@ echo 'Building compiler ...'
 	@ $(HC) --make Main -package parsec -Wall -o $@ $(CompFlags)
