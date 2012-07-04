@@ -62,13 +62,13 @@ CompFlags := -odir $(CompObjDir) -hidir $(CompInterDir)
 
 MAKEFLAGS += --warn-undefined-variables --silent
 
-.PHONY : all paths tests clean clean_library clean_compiler clean_tests \
-    library compiler lint tests build_tests run_tests
-
+.PHONY : all
 all : paths library compiler tests
 
+.PHONY : clean
 clean : clean_library clean_compiler clean_tests
 
+.PHONY : paths
 paths :
 	@ echo 'Making sure paths are sane ...'
 	@ mkdir -p $(TargetDir)
@@ -80,34 +80,44 @@ paths :
 	@ mkdir -p $(TestWarnDir)
 	@ mkdir -p $(TestErrDir)
 
+.PHONY : clean_depend
 clean_depend :
 	@ echo 'Cleaning dependency information ...'
 	@ rm -f .depend
 
+.PHONY : clean_library
 clean_library :
 	@ echo 'Cleaning library build files ...'
 	@ rm -f $(LibObjPaths) $(LibTargetPath)
 
+.PHONY : clean_compiler
 clean_compiler :
 	@ echo 'Cleaning compiler build files ...'
 	@ rm -f $(CompObjPaths) $(CompInterPaths) $(CompTargetPath)
 
+.PHONY : clean_tests
 clean_tests :
 	@ echo 'Cleaning test build files ...'
 	@ rm -f $(TestTargetDir)/* $(TestInterDir)/* $(TestOutDir)/* \
 		$(TestErrDir)/* $(TestWarnDir)/*
 
+.PHONY : library
 library : .depend $(LibTargetPath)
-compiler : $(CompTargetPath)
-tests : build_tests run_tests
 
+.PHONY : compiler
+compiler : $(CompTargetPath)
+
+.PHONY : tests
+tests : $(TestTargetPaths)
+	@ echo 'Running tests ...'
+	@ ./run-tests.sh
+
+.PHONY : lint
 lint : $(CompSrcFiles)
 	@ echo 'Linting ( $(CompSrcNames) ) ...'
 	-@ $(HLINT) .
 
-run_tests : build_tests $(TestTargetPaths)
-	@ echo 'Running tests ...'
-	@ ./run-tests.sh
+# Begin non-phony rules.
 
 $(TestInterDir)/%.c : $(TestSrcDir)/%.ktn $(CompTargetPath)
 	-@ $(CompTargetPath) $< > $@ 2> $(TestWarnDir)/$(basename $(notdir $@))
