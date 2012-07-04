@@ -79,29 +79,29 @@ Text quotations support the following escape sequences:
 The Kitten grammar is very simple:
 
 <pre>
-    <i>program</i>    = <i>term</i>*
+<i>program</i>    = <i>term</i>*
 
-    <i>term</i>       = <i>integer</i>
-               | <i>float</i>
-               | <i>quotation</i>
-               | <i>word</i>
-               | <i>text</i>
-               | <i>definition</i>
+<i>term</i>       = <i>integer</i>
+           | <i>float</i>
+           | <i>quotation</i>
+           | <i>word</i>
+           | <i>text</i>
+           | <i>definition</i>
 
-    <i>integer</i>    = <i>digit+</i>
-    <i>float</i>      = <i>digit+</i> . <i>digit+</i>
-    <i>quotation</i>  = [ <i>term*</i> ]
-    <i>word</i>       = <i>symbol</i> (<i>digit</i> | <i>symbol</i>)*
-    <i>text</i>       = "..."
-    <i>definition</i> = define <i>word</i> <i>quotation</i>
+<i>integer</i>    = <i>digit+</i>
+<i>float</i>      = <i>digit+</i> . <i>digit+</i>
+<i>quotation</i>  = [ <i>term*</i> ]
+<i>word</i>       = <i>symbol</i> (<i>digit</i> | <i>symbol</i>)*
+<i>text</i>       = "..."
+<i>definition</i> = define <i>word</i> <i>quotation</i>
 
-    <i>symbol</i>     = {A-Za-z!#$%&amp;'*+-./:;&lt;=&gt;?@\\^_|~}
-    <i>digit</i>      = {0-9}
+<i>symbol</i>     = {A-Za-z!#$%&amp;'*+-./:;&lt;=&gt;?@\\^_|~}
+<i>digit</i>      = {0-9}
 
-    {...} = one of
-    +     = one or more
-    *     = zero or more
-    |     = either
+{...} = one of
++     = one or more
+*     = zero or more
+|     = either
 </pre>
 
 Comments are given in parentheses (`()`), and can be nested:
