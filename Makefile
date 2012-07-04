@@ -95,7 +95,7 @@ clean_compiler :
 clean_tests :
 	@ echo 'Cleaning test build files ...'
 	@ rm -f $(TestTargetDir)/* $(TestInterDir)/* $(TestOutDir)/* \
-		$(TestErrDir)/*
+		$(TestErrDir)/* $(TestWarnDir)/*
 
 library : .depend $(LibTargetPath)
 compiler : $(CompTargetPath)
