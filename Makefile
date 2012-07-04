@@ -66,7 +66,7 @@ MAKEFLAGS += --warn-undefined-variables --silent
 all : paths library compiler tests
 
 .PHONY : clean
-clean : clean_library clean_compiler clean_tests
+clean : clean-library clean-compiler clean-tests
 
 .PHONY : paths
 paths :
@@ -80,23 +80,23 @@ paths :
 	@ mkdir -p $(TestWarnDir)
 	@ mkdir -p $(TestErrDir)
 
-.PHONY : clean_depend
-clean_depend :
+.PHONY : clean-depend
+clean-depend :
 	@ echo 'Cleaning dependency information ...'
 	@ rm -f .depend
 
-.PHONY : clean_library
-clean_library :
+.PHONY : clean-library
+clean-library :
 	@ echo 'Cleaning library build files ...'
 	@ rm -f $(LibObjPaths) $(LibTargetPath)
 
-.PHONY : clean_compiler
-clean_compiler :
+.PHONY : clean-compiler
+clean-compiler :
 	@ echo 'Cleaning compiler build files ...'
 	@ rm -f $(CompObjPaths) $(CompInterPaths) $(CompTargetPath)
 
-.PHONY : clean_tests
-clean_tests :
+.PHONY : clean-tests
+clean-tests :
 	@ echo 'Cleaning test build files ...'
 	@ rm -f $(TestTargetDir)/* $(TestInterDir)/* $(TestOutDir)/* \
 		$(TestErrDir)/* $(TestWarnDir)/*
