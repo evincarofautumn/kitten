@@ -66,6 +66,10 @@ MAKEFLAGS += --warn-undefined-variables --silent
 .PHONY : all
 all : paths library compiler tests
 
+.PHONY : help
+help :
+	@ cat HELP
+
 .PHONY : clean
 clean : clean-library clean-compiler clean-tests
 
