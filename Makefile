@@ -10,6 +10,7 @@
 # TODO: Add constants for build tools that may differ between platforms.
 #
 
+AR := ar qc
 HC := ghc
 HLINT := ~/.cabal/bin/hlint
 
@@ -134,7 +135,7 @@ include .depend
 
 $(LibTargetPath) : $(LibObjPaths) .depend
 	@ echo 'Linking runtime library ...'
-	@ ar qc $@ $^
+	@ $(AR) $@ $^
 
 $(TargetDir)/%.o : ./%.c .depend
 	@ echo 'Building $< ...'
