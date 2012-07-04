@@ -1,15 +1,21 @@
-module CompileError (CompileError(..)) where
+module Error (Error(..), Error.Monad) where
 
-import Data.List (intercalate)
-import Text.Parsec as Parsec
-import Text.Parsec.Error as Parsec
+import qualified Control.Monad.Error as CME
+import Data.List
+import qualified Text.Parsec as Parsec
+import qualified Text.Parsec.Error as Parsec
 
-data CompileError
+data Error
   = CompileError String
+  | InternalError String
   | ParseError Parsec.ParseError
 
-instance Show CompileError where
+type Monad = Either Error
+
+instance Show Error where
   show (CompileError message) = message
+  show (InternalError message)
+    = if null message then "Internal error." else "Internal error: " ++ message
   show (ParseError message)
     = concatMap
       (\ x -> intercalate ":" locations ++ ": " ++ x ++ "\n") messages
@@ -25,3 +31,7 @@ instance Show CompileError where
           , show (Parsec.sourceLine pos)
           , show (Parsec.sourceColumn pos)
           ]
+
+instance CME.Error Error where
+  strMsg = InternalError
+  noMsg = InternalError ""

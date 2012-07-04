@@ -1,7 +1,8 @@
 module Main where
 
-import qualified Kitten
-import System.Environment (getArgs)
+import Kitten
+
+import System.Environment
 import System.IO
 import System.Exit
 
@@ -12,7 +13,7 @@ main = do
     1 -> do
       let filename = head args
       file <- readFile filename
-      case Kitten.compile filename file of
+      case compile filename file of
         Left compileError ->
           die (show compileError)
         Right compileResult ->
