@@ -10,6 +10,7 @@
 # TODO: Add constants for build tools that may differ between platforms.
 #
 
+AR := ar qc
 HC := ghc
 HLINT := ~/.cabal/bin/hlint
 
@@ -17,7 +18,7 @@ TargetDir := ./build
 
 CompTargetFile := kitten
 CompTargetPath := $(TargetDir)/$(CompTargetFile)
-CompSrcNames := Main Kitten Value CompileError
+CompSrcNames := $(basename $(wildcard ./*.hs))
 CompSrcFiles := $(addsuffix .hs, $(CompSrcNames))
 CompInterDir := $(TargetDir)/hi
 CompInterFiles := $(addsuffix .hi, $(CompSrcNames))
@@ -62,13 +63,17 @@ CompFlags := -odir $(CompObjDir) -hidir $(CompInterDir)
 
 MAKEFLAGS += --warn-undefined-variables --silent
 
-.PHONY : all paths tests clean clean_library clean_compiler clean_tests \
-    library compiler lint tests build_tests run_tests
-
+.PHONY : all
 all : paths library compiler tests
 
-clean : clean_library clean_compiler clean_tests
+.PHONY : help
+help :
+	@ cat HELP
 
+.PHONY : clean
+clean : clean-library clean-compiler clean-tests
+
+.PHONY : paths
 paths :
 	@ echo 'Making sure paths are sane ...'
 	@ mkdir -p $(TargetDir)
@@ -77,38 +82,49 @@ paths :
 	@ mkdir -p $(TestTargetDir)
 	@ mkdir -p $(TestInterDir)
 	@ mkdir -p $(TestOutDir)
+	@ mkdir -p $(TestWarnDir)
 	@ mkdir -p $(TestErrDir)
 
-clean_depend :
+.PHONY : clean-depend
+clean-depend :
 	@ echo 'Cleaning dependency information ...'
 	@ rm -f .depend
 
-clean_library :
+.PHONY : clean-library
+clean-library :
 	@ echo 'Cleaning library build files ...'
 	@ rm -f $(LibObjPaths) $(LibTargetPath)
 
-clean_compiler :
+.PHONY : clean-compiler
+clean-compiler :
 	@ echo 'Cleaning compiler build files ...'
 	@ rm -f $(CompObjPaths) $(CompInterPaths) $(CompTargetPath)
 
-clean_tests :
+.PHONY : clean-tests
+clean-tests :
 	@ echo 'Cleaning test build files ...'
 	@ rm -f $(TestTargetDir)/* $(TestInterDir)/* $(TestOutDir)/* \
-		$(TestErrDir)/*
+		$(TestErrDir)/* $(TestWarnDir)/*
 
+.PHONY : library
 library : .depend $(LibTargetPath)
-compiler : $(CompTargetPath)
-tests : build_tests run_tests
 
+.PHONY : compiler
+compiler : $(CompTargetPath)
+
+.PHONY : tests
+tests : compiler $(TestTargetPaths)
+	@ echo 'Running tests ...'
+	@ ./run-tests.sh
+
+.PHONY : lint
 lint : $(CompSrcFiles)
 	@ echo 'Linting ( $(CompSrcNames) ) ...'
 	-@ $(HLINT) .
 
-run_tests : build_tests $(TestTargetPaths)
-	@ echo 'Running tests ...'
-	@ ./run-tests.sh
+# Begin non-phony rules.
 
-$(TestInterDir)/%.c : $(TestSrcDir)/%.ktn $(CompTargetPath)
+$(TestInterDir)/%.c : $(TestSrcDir)/%.ktn
 	-@ $(CompTargetPath) $< > $@ 2> $(TestWarnDir)/$(basename $(notdir $@))
 
 $(TestTargetDir)/% : $(TestInterDir)/%.c
@@ -123,13 +139,13 @@ include .depend
 
 $(LibTargetPath) : $(LibObjPaths) .depend
 	@ echo 'Linking runtime library ...'
-	@ ar qc $@ $^
+	@ $(AR) $@ $^
 
 $(TargetDir)/%.o : ./%.c .depend
 	@ echo 'Building $< ...'
 	@ $(CC) -c $< $(LibFlags) $(LibDebugFlags) -o $@
 
 # TODO: Move to cabal.
-$(CompTargetPath) : $(CompObjPath)
+$(CompTargetPath) : $(CompSrcPaths)
 	@ echo 'Building compiler ...'
 	@ $(HC) --make Main -package parsec -Wall -o $@ $(CompFlags)

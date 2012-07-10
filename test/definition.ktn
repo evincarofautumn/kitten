@@ -1,0 +1,4 @@
+define greet (name --)
+[ "Hello, " swap "!\n" compose compose write ]
+
+"World" greet
