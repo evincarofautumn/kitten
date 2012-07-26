@@ -22,20 +22,20 @@ termP :: Parser Term
 termP = choice
   [ quotationP
   , definitionP
-  , wordP
   , try floatP
   , integerP
+  , wordP
   , textP
   ] <* optional silenceP <?> "term"
 
 definitionP :: Parser Term
 definitionP = do
   name <- try (string "define") *> silenceP *> wordP <* optional silenceP
-  term <- quotationP <|> wordP <|> try floatP <|> integerP <|> textP
+  term <- quotationP <|> try floatP <|> integerP <|> wordP <|> textP
   body <- case term of
-    (Term.Word _) -> return $ Term.Quotation [term]
     (Term.Integer _) -> return $ Term.Quotation [term]
     (Term.Float _) -> return $ Term.Quotation [term]
+    (Term.Word _) -> return $ Term.Quotation [term]
     (Term.Quotation _) -> return term
     (Term.Definition _ _) -> unexpected "definition"
   return $ Term.Definition name body
@@ -47,10 +47,7 @@ quotationP = Term.Quotation <$> (left *> many termP <* right) <?> "quotation"
     right = char ']' <?> "end of quotation"
 
 wordP :: Parser Term
-wordP = Term.Word <$> liftM2 (:) firstP restP <?> "word"
-  where
-    firstP = letter <|> symbolP
-    restP = many wordCharacterP
+wordP = Term.Word <$> many1 wordCharacterP <?> "word"
 
 floatP :: Parser Term
 floatP = (Term.Float . read) <$> (bodyP <?> "float") where
@@ -83,11 +80,8 @@ textP = Term.Quotation <$> (left *> many character <* right) <?> "string"
         '\"' -> return '"'
         _ -> fail $ "Invalid escape \"\\" ++ [c] ++ "\""
 
-symbolP :: Parser Char
-symbolP = oneOf "!#$%&'*+-./:;<=>?@\\^_|~"
-
 wordCharacterP :: Parser Char
-wordCharacterP = letter <|> digit <|> symbolP
+wordCharacterP = noneOf "()[]\" \a\f\n\r\t\v"
 
 silenceP :: Parser ()
 silenceP = void . many1 $ whitespaceP <|> commentP

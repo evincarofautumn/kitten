@@ -1,0 +1,11 @@
+
+define π ( -- pi)
+[ 3.1415926535 ]
+
+define ≠ (a b -- boolean)
+[ ne ]
+
+define ¬ (boolean -- !boolean)
+[ [1] [0] if ]
+
+π 5 ≠ ¬ [ "success\n" write ] [ "failure\n" write ] if
