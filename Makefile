@@ -103,7 +103,7 @@ clean-compiler :
 .PHONY : clean-tests
 clean-tests :
 	@ echo 'Cleaning test build files ...'
-	@ rm -f $(TestTargetDir)/* $(TestInterDir)/* $(TestOutDir)/* \
+	@ rm -rf $(TestTargetDir)/* $(TestInterDir)/* $(TestOutDir)/* \
 		$(TestErrDir)/* $(TestWarnDir)/*
 
 .PHONY : library

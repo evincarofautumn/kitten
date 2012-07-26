@@ -36,11 +36,15 @@ function run_test {
 }
 
 for file in ./build/test.warn/* ; do
-    run_warn $(basename "$file")
+    if [ -f "$file" ]; then
+        run_warn $(basename "$file")
+    fi
 done
 
 for file in ./build/test/* ; do
-    run_test $(basename "$file")
+    if [ -f "$file" ]; then
+        run_test $(basename "$file")
+    fi
 done
 
 echo 'All tests passed! :)'
