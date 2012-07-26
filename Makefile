@@ -17,7 +17,7 @@ HLINT := ~/.cabal/bin/hlint
 TargetDir := ./build
 
 CompTargetFile := kitten
-CompTargetPath := $(TargetDir)/$(CompTargetFile)
+CompTargetPath := $(TargetDir)/build/kitten/$(CompTargetFile)
 CompSrcNames := $(basename $(wildcard ./*.hs))
 CompSrcFiles := $(addsuffix .hs, $(CompSrcNames))
 CompInterDir := $(TargetDir)/hi
@@ -66,6 +66,10 @@ MAKEFLAGS += --warn-undefined-variables --silent
 .PHONY : all
 all : paths library compiler tests
 
+.PHONY : configure
+configure :
+	cabal configure --builddir=$(TargetDir)
+
 .PHONY : help
 help :
 	@ cat HELP
@@ -98,7 +102,7 @@ clean-library :
 .PHONY : clean-compiler
 clean-compiler :
 	@ echo 'Cleaning compiler build files ...'
-	@ rm -f $(CompObjPaths) $(CompInterPaths) $(CompTargetPath)
+	@ cabal clean --builddir=$(TargetDir)
 
 .PHONY : clean-tests
 clean-tests :
@@ -110,10 +114,11 @@ clean-tests :
 library : .depend $(LibTargetPath)
 
 .PHONY : compiler
-compiler : $(CompTargetPath)
+compiler :
+	cabal build --builddir=$(TargetDir)
 
 .PHONY : tests
-tests : compiler $(TestTargetPaths)
+tests : $(CompTargetPath) $(TestTargetPaths)
 	@ echo 'Running tests ...'
 	@ ./run-tests.sh
 
@@ -144,8 +149,3 @@ $(LibTargetPath) : $(LibObjPaths) .depend
 $(TargetDir)/%.o : ./%.c .depend
 	@ echo 'Building $< ...'
 	@ $(CC) -c $< $(LibFlags) $(LibDebugFlags) -o $@
-
-# TODO: Move to cabal.
-$(CompTargetPath) : $(CompSrcPaths)
-	@ echo 'Building compiler ...'
-	@ $(HC) --make Main -package parsec -Wall -o $@ $(CompFlags)
