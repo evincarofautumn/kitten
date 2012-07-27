@@ -93,9 +93,10 @@ float = (Term.Float . read) <$> (body <?> "float") where
 integer :: TokenParser Term
 integer = toTerm <$> satisfy isInteger
   where
-    toTerm (Token.Integer i) = Term.Integer i
     isInteger (Token.Integer _) = True
     isInteger _ = False
+    toTerm (Token.Integer i) = Term.Integer i
+    toTerm _ = undefined
 
 text :: TokenParser Term
 text = toTerm <$> satisfy isText
