@@ -25,14 +25,14 @@ token :: Parser Token.Located
 token = located $ choice
   [ quotationOpen
   , quotationClose
-  , word
-  , definition
+  , definition  
 --, layout
   , textQuotation
-  , symbol
-  , integer
+  , try integer
 --, rational
---, inexact
+  , inexact
+  , word
+  , symbol
   ]
 
 whitespace = skipMany $ comment <|> literalWhitespace
@@ -114,14 +114,26 @@ textQuotation = do
         '\'' -> return "\'"
         _ -> fail $ "Invalid escape \"\\" ++ [c] ++ "\""
 
-word = Token.Word <$> word'
-word' = letter <++> many1 (letter <|> digit)
---   where
---     symbol = noneOf "\"“”\'‘’[](){}\\#."
+word = Token.Word <$> word' <?> "word"
+
+-- word' = letter <++> many1 (letter <|> digit)
+
+word' = Text.pack <$> many1 wordCharacter 
+  where
+    wordCharacter = noneOf "{}()[]\"\'“”‘’ \a\f\n\r\t\v"
+
+-- (many1 . choice)
+  -- [try $ char '-' <* notFollowedBy (char '-'), wordCharacter]
 
 symbol = Token.Symbol <$> (char '.' *> word')
 
-integer = Token.Integer . read <$> many1 digit
+integer = Token.Integer . read
+  <$> (many1 digit <* notFollowedBy (char '.') <?> "integer")
 
 -- rational
--- inexact
+inexact = Token.Inexact . read <$> (body <?> "inexact") where
+  body = do
+    whole <- many1 digit
+    separator <- char '.'
+    fractional <- many1 digit
+    return $ whole ++ separator : fractional

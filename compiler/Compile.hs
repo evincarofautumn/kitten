@@ -55,7 +55,7 @@ compileWith here terms = case compileTerm here (head terms) of
 compileTerm :: Context -> Term -> Error.Monad (Text.Text, Context)
 compileTerm here value =
   case value of
-    Float f ->
+    Inexact f ->
       if quotation here
         then Right ("MKF(" +++ Text.show f +++ ")", here)
         else Right ("PUSHF(" +++ Text.show f +++ ")", here)

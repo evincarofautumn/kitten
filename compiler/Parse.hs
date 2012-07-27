@@ -47,8 +47,8 @@ term = choice
   , word
   , quotation
   , text
---, try float
   , integer
+  , inexact
   ] <?> "term"
 
 token :: Token.Token -> TokenParser ()
@@ -57,11 +57,11 @@ token t = void $ satisfy (== t)
 definition :: TokenParser Term
 definition = do
   name <- word <* token Token.Definition
-  body <- choice [quotation, word {- , try float, integer, text -} ]
+  body <- choice [word, quotation, text, integer, inexact]
   body' <- case body of
     (Term.Word _) -> return $ Term.Quotation [body]
     (Term.Integer _) -> return $ Term.Quotation [body]
-    (Term.Float _) -> return $ Term.Quotation [body]
+    (Term.Inexact _) -> return $ Term.Quotation [body]
     (Term.Quotation _) -> return body
     (Term.Definition _ _) -> unexpected "definition"
   return $ Term.Definition name body'
@@ -80,15 +80,13 @@ word = toTerm <$> satisfy isWord
     toTerm (Token.Word w) = Term.Word w
     toTerm _ = undefined
 
-{-
-float :: TokenParser Term
-float = (Term.Float . read) <$> (body <?> "float") where
-  body = do
-    whole <- many1 digit
-    separator <- char '.'
-    fractional <- many1 digit
-    return $ whole ++ [separator] ++ fractional
--}
+inexact :: TokenParser Term
+inexact = toTerm <$> satisfy isInexact
+  where
+    isInexact (Token.Inexact _) = True
+    isInexact _ = False
+    toTerm (Token.Inexact f) = Term.Inexact f
+    toTerm _ = undefined
 
 integer :: TokenParser Term
 integer = toTerm <$> satisfy isInteger

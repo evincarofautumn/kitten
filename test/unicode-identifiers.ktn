@@ -1,0 +1,12 @@
+π =>
+[ 3.1415926535 ]
+
+-- a b -- boolean
+≠ =>
+[ ne ]
+
+-- boolean -- logical inverse
+¬ =>
+[ [1] [0] if ]
+
+π 5 ≠ ¬ [ "success\n" write ] [ "failure\n" write ] if
