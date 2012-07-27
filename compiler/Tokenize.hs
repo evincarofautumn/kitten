@@ -41,7 +41,7 @@ literalWhitespace = void . many1 $ satisfy isSpace
 
 comment = singleLineComment <|> multiLineComment
 
-singleLineComment = void $ string "--" *> (anyChar `skipManyTill` char '\n')
+singleLineComment = string "--" *> (anyChar `skipManyTill` char '\n')
 
 multiLineComment = void $ start *> contents <* end
   where
