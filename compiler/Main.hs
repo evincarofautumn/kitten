@@ -13,11 +13,12 @@ main = do
     1 -> do
       let filename = head args
       file <- readFile filename
+      putStrLn file
       case compile filename file of
         Left compileError ->
           die (show compileError)
         Right compileResult ->
-          putStrLn compileResult
+          putStrLn $ show compileResult
     _ ->
       die "Usage: kitten FILENAME\n"
 

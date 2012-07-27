@@ -5,98 +5,111 @@ module Parse
 import Program
 import Term
 
+import qualified Token
+import Tokenize
+import Utils
+
 import Control.Applicative ((<$>), (<*), (*>))
 import Control.Monad
+import Control.Monad.Identity
 import Data.Char
-import Text.Parsec as Parsec
-import Text.Parsec.String as Parsec
+import qualified Text as Text
+import Text.Parsec.Error as Parsec
+import Text.Parsec.Pos as Parsec
+import Text.Parsec.Prim as Parsec hiding (token, tokens)
+import Text.Parsec.Combinator as Parsec
+
+advance :: SourcePos -> t -> [Token.Located] -> SourcePos
+advance _ _ (Token.Located sourcePos _ : _) = sourcePos
+advance sourcePos _ _ = sourcePos
+
+satisfy
+  :: (Monad m)
+  => (Token.Token -> Bool)
+  -> ParsecT [Token.Located] u m Token.Token
+satisfy predicate = tokenPrim show advance
+  $ \ (Token.Located _ tok) -> boolToMaybe (predicate tok) tok
+
+type TokenParser a = ParsecT [Token.Located] () Identity a
 
 parse :: String -> String -> Either ParseError Program
-parse = Parsec.parse programP
+parse source name
+  = case tokenize source name of
+      Right result -> Parsec.runParser program () name result
+      Left err -> Left err
 
-programP :: Parser Program
-programP = Program
-  <$> (optional silenceP *> many termP <* optional silenceP <* eof)
+program :: TokenParser Program
+program = Program <$> many term <* eof
 
-termP :: Parser Term
-termP = choice
-  [ quotationP
-  , definitionP
-  , wordP
-  , try floatP
-  , integerP
-  , textP
-  ] <* optional silenceP <?> "term"
+term :: TokenParser Term
+term = choice
+  [ try definition  
+  , word
+  , quotation
+  , text
+--, try float
+  , integer
+  ] <?> "term"
 
-definitionP :: Parser Term
-definitionP = do
-  name <- try (string "define") *> silenceP *> wordP <* optional silenceP
-  term <- quotationP <|> wordP <|> try floatP <|> integerP <|> textP
-  body <- case term of
-    (Term.Word _) -> return $ Term.Quotation [term]
-    (Term.Integer _) -> return $ Term.Quotation [term]
-    (Term.Float _) -> return $ Term.Quotation [term]
-    (Term.Quotation _) -> return term
+token :: Token.Token -> TokenParser ()
+token t = void $ satisfy (== t)
+
+definition :: TokenParser Term
+definition = do
+  name <- word <* token Token.Definition
+  body <- choice [quotation, word {- , try float, integer, text -} ]
+  body' <- case body of
+    (Term.Word _) -> return $ Term.Quotation [body]
+    (Term.Integer _) -> return $ Term.Quotation [body]
+    (Term.Float _) -> return $ Term.Quotation [body]
+    (Term.Quotation _) -> return body
     (Term.Definition _ _) -> unexpected "definition"
-  return $ Term.Definition name body
+  return $ Term.Definition name body'
 
-quotationP :: Parser Term
-quotationP = Term.Quotation <$> (left *> many termP <* right) <?> "quotation"
+quotation :: TokenParser Term
+quotation = Term.Quotation <$> (left *> many term <* right) <?> "quotation"
   where
-    left = char '[' <* optional silenceP
-    right = char ']' <?> "end of quotation"
+    left = token Token.QuotationOpen
+    right = token Token.QuotationClose <?> "end of quotation"
 
-wordP :: Parser Term
-wordP = Term.Word <$> liftM2 (:) firstP restP <?> "word"
+word :: TokenParser Term
+word = toTerm <$> satisfy isWord
   where
-    firstP = letter <|> symbolP
-    restP = many wordCharacterP
+    isWord (Token.Word _) = True
+    isWord _ = False
+    toTerm (Token.Word w) = Term.Word w
+    toTerm _ = undefined
 
-floatP :: Parser Term
-floatP = (Term.Float . read) <$> (bodyP <?> "float") where
-  bodyP = do
+{-
+float :: TokenParser Term
+float = (Term.Float . read) <$> (body <?> "float") where
+  body = do
     whole <- many1 digit
     separator <- char '.'
     fractional <- many1 digit
     return $ whole ++ [separator] ++ fractional
+-}
 
-integerP :: Parser Term
-integerP = (Term.Integer . read) <$> (many1 digit <?> "integer")
-
-textP :: Parser Term
-textP = Term.Quotation <$> (left *> many character <* right) <?> "string"
+integer :: TokenParser Term
+integer = toTerm <$> satisfy isInteger
   where
-    left = char '"'
-    right = char '"' <?> "end of string"
-    character = Term.Integer . fromIntegral . ord <$>
-      (noneOf "\\\"" <|> escape) <?> "character or escape"
-    escape = do
-      c <- char '\\' *> anyChar
-      case c of
-        'a' -> return '\a'
-        'f' -> return '\f'
-        'n' -> return '\n'
-        'r' -> return '\r'
-        't' -> return '\t'
-        'v' -> return '\v'
-        '\\' -> return '\\'
-        '\"' -> return '"'
-        _ -> fail $ "Invalid escape \"\\" ++ [c] ++ "\""
+    toTerm (Token.Integer i) = Term.Integer i
+    isInteger (Token.Integer _) = True
+    isInteger _ = False
 
-symbolP :: Parser Char
-symbolP = oneOf "!#$%&'*+-./:;<=>?@\\^_|~"
+text :: TokenParser Term
+text = toTerm <$> satisfy isText
+  where
+    isText (Token.Text _) = True
+    isText _ = False
+    toTerm (Token.Text t)
+      = Term.Quotation . map (Term.Integer . fromIntegral . ord) $ Text.unpack t
+    toTerm _ = undefined
 
-wordCharacterP :: Parser Char
-wordCharacterP = letter <|> digit <|> symbolP
+{-
+symbol :: TokenParser Char
+symbol = oneOf "!#$%&'*+-./:;<=>?@\\^_|~"
 
-silenceP :: Parser ()
-silenceP = void . many1 $ whitespaceP <|> commentP
-
-whitespaceP :: Parser ()
-whitespaceP = (void . many1 $ satisfy isSpace) <?> "whitespace"
-
-commentP :: Parser ()
-commentP = void
-  $ char '('
-  *> many (try commentP <|> void (noneOf "()"))
-  *> char ')'
+wordCharacter :: TokenParser Char
+wordCharacter = letter <|> digit <|> symbol
+-}
