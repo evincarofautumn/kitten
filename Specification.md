@@ -264,7 +264,7 @@ superscripts.
 
     +10.0#8*10^+3
 
-> +10.0<sub>8</sub>×10<sup>+3</sup>
+> +10.0<sub>8</sub> × 10<sup>+3</sup>
 
 ##### Notes
 
