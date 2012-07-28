@@ -16,7 +16,10 @@ import Data.Char
 import Text.Parsec as Parsec hiding (token, tokens)
 import Text.Parsec.String as Parsec
 
-tokenize :: String -> String -> Either ParseError [Token.Located]
+tokenize
+  :: String
+  -> String
+  -> Either ParseError [Token.Located]
 tokenize = Parsec.parse tokens
 
 tokens :: Parser [Token.Located]
@@ -67,17 +70,18 @@ layout = char ':' *> return Token.Layout
 textQuotation :: Parser Token.Token
 textQuotation = do
   quote <- open
-  text <- body quote
+  text  <- body quote
   void (close quote) <?> "end of text quotation"
   return $ Token.Text text
   where
     open = oneOf "\"“\'‘"
+
     close '\"' = char '\"'
     close '\'' = char '\''
-    close '“' = char '”'
-    close '‘' = char '’'
-    close _ = undefined
-    body :: Char -> Parser Text.Text
+    close '“'  = char '”'
+    close '‘'  = char '’'
+    close _    = undefined
+
     body quote
       | isNestable quote
       = Text.concat <$> (many . choice)
@@ -90,23 +94,24 @@ textQuotation = do
       [ toText <$> noneOf (quote : "\\")
       , escape
       ]
+
     isNestable c = c `elem` "“‘"
-    escape :: Parser Text.Text
+
     escape = (<?> "escape") $ do 
       c <- char '\\' *> anyChar
       case c of
-        'a' -> return "\a"
-        'b' -> return "\b"
-        'e' -> return "\ESC"
-        'f' -> return "\f"
-        'n' -> return "\n"
-        'r' -> return "\r"
-        't' -> return "\t"
-        'v' -> return "\v"
+        'a'  -> return "\a"
+        'b'  -> return "\b"
+        'e'  -> return "\ESC"
+        'f'  -> return "\f"
+        'n'  -> return "\n"
+        'r'  -> return "\r"
+        't'  -> return "\t"
+        'v'  -> return "\v"
         '\\' -> return "\\"
         '\"' -> return "\""
         '\'' -> return "\'"
-        _ -> fail $ "Invalid escape \"\\" ++ [c] ++ "\""
+        _    -> fail $ "Invalid escape \"\\" ++ [c] ++ "\""
 
 word :: Parser Token.Token
 word = Token.Word <$> word' <?> "word"
@@ -120,8 +125,8 @@ word' = Text.pack <$> many1 wordCharacter
 
 number :: Parser Token.Token
 number = (<?> "number") $ do
-  start <- many1 digit
+  start        <- many1 digit
   maybeInexact <- optionMaybe $ (:) <$> char '.' <*> many1 digit
   return $ case maybeInexact of
     Just inexact -> Token.Inexact . read $ start ++ inexact
-    Nothing -> Token.Integer $ read start
+    Nothing      -> Token.Integer $ read start
