@@ -106,11 +106,3 @@ text = toTerm <$> satisfy isText
     toTerm (Token.Text t)
       = Term.Quotation . map (Term.Integer . fromIntegral . ord) $ Text.unpack t
     toTerm _ = undefined
-
-{-
-symbol :: TokenParser Char
-symbol = oneOf "!#$%&'*+-./:;<=>?@\\^_|~"
-
-wordCharacter :: TokenParser Char
-wordCharacter = letter <|> digit <|> symbol
--}
