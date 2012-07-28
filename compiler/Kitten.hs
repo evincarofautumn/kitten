@@ -7,7 +7,7 @@ import Error
 import Parse
 import qualified Text
 
-compile :: String -> String -> Error.Monad Text.Text
+compile :: String -> String -> ErrorMonad Text.Text
 compile name source
   = case parse name source of
     Right parseResult -> Compile.compile parseResult

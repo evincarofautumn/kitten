@@ -13,12 +13,16 @@ bug-reports: https://github.com/evincarofautumn/kitten/issues
 synopsis: A high-performance concatenative programming language.
 
 executable kitten
-  main-is: Main.hs
+
   build-depends:
     base >= 2,
+    file-location == 0.4.*,
     mtl == 2.0.* || == 2.1.*,
     parsec >= 3.1.2 && < 3.2,
+    template-haskell,
     text == 0.11.*
+
+  extensions: TemplateHaskell
 
   ghc-options:
     -Wall
@@ -28,3 +32,5 @@ executable kitten
 
   include-dirs:
     library
+
+  main-is: Main.hs

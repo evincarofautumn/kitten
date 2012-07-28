@@ -2,9 +2,10 @@ module Parse
   ( Parse.parse
   ) where
 
+import Error
 import Program
 import Term
-
+import qualified Text as Text
 import qualified Token
 import Tokenize
 import Utils
@@ -13,7 +14,6 @@ import Control.Applicative ((<$>), (<*), (*>))
 import Control.Monad
 import Control.Monad.Identity
 import Data.Char
-import qualified Text as Text
 import Text.Parsec.Error as Parsec
 import Text.Parsec.Pos as Parsec
 import Text.Parsec.Prim as Parsec hiding (token, tokens)
@@ -87,7 +87,7 @@ word = toTerm <$> satisfy isWord
     isWord (Token.Word _) = True
     isWord _              = False
     toTerm (Token.Word w) = Term.Word w
-    toTerm _              = undefined
+    toTerm _              = $(impossible)
 
 inexact :: TokenParser Term
 inexact = toTerm <$> satisfy isInexact
@@ -95,7 +95,7 @@ inexact = toTerm <$> satisfy isInexact
     isInexact (Token.Inexact _) = True
     isInexact _                 = False
     toTerm (Token.Inexact f)    = Term.Inexact f
-    toTerm _                    = undefined
+    toTerm _                    = $(impossible)
 
 integer :: TokenParser Term
 integer = toTerm <$> satisfy isInteger
@@ -103,14 +103,14 @@ integer = toTerm <$> satisfy isInteger
     isInteger (Token.Integer _) = True
     isInteger _                 = False
     toTerm (Token.Integer i)    = Term.Integer i
-    toTerm _                    = undefined
+    toTerm _                    = $(impossible)
 
 text :: TokenParser Term
 text = toTerm <$> satisfy isText
   where
     isText (Token.Text _) = True
     isText _              = False
-    toTerm (Token.Text t) = Term.Quotation
-                          . map (Term.Integer . fromIntegral . ord)
-                          $ Text.unpack t
-    toTerm _              = undefined
+    toTerm (Token.Text t)
+      = Term.Quotation . map (Term.Integer . fromIntegral . ord)
+      $ Text.unpack t
+    toTerm _ = $(impossible)

@@ -35,7 +35,7 @@ builtins = [ KITTEN_BUILTINS(INIT, LAST) ]
 emptyContext :: Context
 emptyContext = Context False []
 
-compile :: Program -> Error.Monad Text.Text
+compile :: Program -> ErrorMonad Text.Text
 compile (Program terms) = do
   result <- compileWith emptyContext terms
   return $ Text.concat 
@@ -44,7 +44,7 @@ compile (Program terms) = do
     , ")"
     ]
 
-compileWith :: Context -> [Term] -> Error.Monad [Text.Text]
+compileWith :: Context -> [Term] -> ErrorMonad [Text.Text]
 compileWith _ [] = Right []
 compileWith here terms = case compileTerm here (head terms) of
   Right (first, next) -> case compileWith next (tail terms) of
@@ -52,7 +52,7 @@ compileWith here terms = case compileTerm here (head terms) of
     compileError -> compileError
   Left compileError -> Left compileError
 
-compileTerm :: Context -> Term -> Error.Monad (Text.Text, Context)
+compileTerm :: Context -> Term -> ErrorMonad (Text.Text, Context)
 compileTerm here value =
   case value of
     Inexact f ->
@@ -96,7 +96,7 @@ compileTerm here value =
             next = here `defining` name
     _ -> Left . CompileError $ "Unable to compile malformed term."
 
-compileQuotation :: Context -> [Term] -> Error.Monad Text.Text
+compileQuotation :: Context -> [Term] -> ErrorMonad Text.Text
 compileQuotation here terms = case compiledBody of
   Right compiledTerms ->
     Right $ prefix +++ Text.intercalate ", " compiledTerms
