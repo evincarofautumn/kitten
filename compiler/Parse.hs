@@ -5,7 +5,7 @@ module Parse
 import Error
 import Program
 import Term
-import qualified Text as Text
+import qualified Text
 import qualified Token
 import Tokenize
 import Utils

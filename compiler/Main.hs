@@ -15,14 +15,15 @@ main = do
       file <- readFile filename
       putStrLn file
       case compile filename file of
-        Left compileError ->
-          die (show compileError)
-        Right compileResult ->
-          putStrLn $ show compileResult
+        Left compileError   -> die compileError
+        Right compileResult -> print compileResult
     _ ->
       die "Usage: kitten FILENAME\n"
 
-die :: String -> IO ()
+die
+  :: (Show a)
+  => a
+  -> IO ()
 die msg = do
-  hPutStr stderr msg
+  hPutStr stderr $ show msg
   exitFailure

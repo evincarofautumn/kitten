@@ -5,14 +5,14 @@ module Tokenize
   ( tokenize
   ) where
 
+import Text ((<++>), toText)
+import qualified Text
 import qualified Token
 import Utils
 
 import Control.Applicative (Applicative, (<$>), (<*), (<*>), (*>))
 import Control.Monad
 import Data.Char
-import Text ((<++>), toText)
-import qualified Text as Text
 import Text.Parsec as Parsec hiding (token, tokens)
 import Text.Parsec.String as Parsec
 

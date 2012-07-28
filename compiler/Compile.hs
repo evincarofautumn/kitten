@@ -1,5 +1,6 @@
-{-# OPTIONS -cpp -pgmPcpphs -optP--cpp #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS -pgmPcpphs -optP--cpp #-}
  
 module Compile
   ( compile
@@ -11,7 +12,7 @@ import Term
 
 import Data.List
 import Text ((+++))
-import qualified Text as Text
+import qualified Text
 
 data Context = Context
   { quotation   :: Bool

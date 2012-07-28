@@ -1,6 +1,7 @@
 module Token where
 
-import qualified Text as Text
+import qualified Text
+
 import Text.Parsec.Pos
 
 data Token
