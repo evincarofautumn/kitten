@@ -14,7 +14,7 @@ import Text ((+++))
 import qualified Text as Text
 
 data Context = Context
-  { quotation :: Bool
+  { quotation   :: Bool
   , definitions :: [Text.Text]
   }
 
@@ -44,66 +44,111 @@ compile (Program terms) = do
     , ")"
     ]
 
-compileWith :: Context -> [Term] -> ErrorMonad [Text.Text]
+compileWith
+  :: Context
+  -> [Term]
+  -> ErrorMonad [Text.Text]
 compileWith _ [] = Right []
 compileWith here terms = case compileTerm here (head terms) of
+  Left compileError   -> Left compileError
   Right (first, next) -> case compileWith next (tail terms) of
-    Right rest -> Right $ first : rest
+    Right rest   -> Right $ first : rest
     compileError -> compileError
-  Left compileError -> Left compileError
 
-compileTerm :: Context -> Term -> ErrorMonad (Text.Text, Context)
+compileTerm
+  :: Context
+  -> Term
+  -> ErrorMonad (Text.Text, Context)
 compileTerm here value =
   case value of
-    Inexact f ->
-      if quotation here
-        then Right ("MKF(" +++ Text.show f +++ ")", here)
-        else Right ("PUSHF(" +++ Text.show f +++ ")", here)
-    Integer i ->
-      if quotation here
-        then Right ("MKI(" +++ Text.show i +++ ")", here)
-        else Right ("PUSHI(" +++ Text.show i +++ ")", here)
-    Quotation q ->
-      if quotation here
-        then case compileQuotation here q of
-          Right result -> Right ("MKQ(" +++ result +++ ")", here)
-          Left compileError -> Left compileError
-        else case compileQuotation here q of
-          Right result -> Right ("PUSHQ(" +++ result +++ ")", here)
-          Left compileError -> Left compileError
-    Word w ->
-      if quotation here
-        then case w `elemIndex` definitions here of
-          Just n -> Right ("MKW(" +++ Text.show n +++ ")", here)
-          Nothing -> if w `elem` builtins
-            then Right ("word_new(WORD_" +++ w +++ ")", here)
-            else Left . CompileError $ "Undefined word \"" +++ w +++ "\""
-        else case w `elemIndex` definitions here of
-          Just n -> Right ("DO(" +++ Text.show n +++ ")", here)
-          Nothing -> if w `elem` builtins
-            then Right ("BUILTIN(" +++ w +++ ")", here)
-            else Left . CompileError $ "Undefined word \"" +++ w +++ "\""
-    Definition (Word name) body@(Quotation _) ->
-      if quotation here
-        then Left . CompileError
-          $ "A definition cannot appear inside a quotation."
-        else case compiledBody of
-          Right terms -> Right
-            ("DEF(" +++ Text.unwords terms +++ ")", next)
-          Left compileError -> Left compileError
-          where
-            compiledBody = compileWith (quoted next) [body]
-            next = here `defining` name
-    _ -> Left . CompileError $ "Unable to compile malformed term."
+    Inexact f   -> Right $ (compileInexact here f, here)
+    Integer i   -> Right $ (compileInteger here i, here)
+    Quotation q -> compileQuotation here q
+    Word w      -> compileWord here w
+    Definition (Word name) body@(Quotation _)
+      -> compileDefinition here name body
+    _ -> Left $ CompileError "Unable to compile malformed term."
 
-compileQuotation :: Context -> [Term] -> ErrorMonad Text.Text
-compileQuotation here terms = case compiledBody of
-  Right compiledTerms ->
-    Right $ prefix +++ Text.intercalate ", " compiledTerms
-  Left compileError -> Left compileError
+compileQuotation
+  :: Context
+  -> [Term]
+  -> ErrorMonad (Text.Text, Context)
+compileQuotation here terms
+  = if quotation here then compileInside else compileOutside
   where
+    compileInside
+      = case compileQuotation' of
+        Right result      -> Right ("MKQ(" +++ result +++ ")", here)
+        Left compileError -> Left compileError
+
+    compileOutside
+      = case compileQuotation' of
+        Right result      -> Right ("PUSHQ(" +++ result +++ ")", here)
+        Left compileError -> Left compileError
+
     compiledBody = compileWith (quoted here) terms
+
+    compileQuotation'
+      = case compiledBody of
+          Right compiledTerms ->
+            Right $ prefix +++ Text.intercalate ", " compiledTerms
+          Left compileError -> Left compileError
+
     prefix
       = if null terms
           then "0, 0"
           else Text.show (length terms) +++ ", "
+
+compileInexact
+  :: Context
+  -> Double
+  -> Text.Text
+compileInexact here f
+  = if quotation here
+      then "MKF(" +++ Text.show f +++ ")"
+      else "PUSHF(" +++ Text.show f +++ ")"
+
+compileInteger
+  :: Context
+  -> Integer
+  -> Text.Text
+compileInteger here i
+  = if quotation here
+      then "MKI(" +++ Text.show i +++ ")"
+      else "PUSHI(" +++ Text.show i +++ ")"
+
+compileWord
+  :: Context
+  -> Text.Text
+  -> ErrorMonad (Text.Text, Context)
+compileWord here name
+  = if quotation here then compileInside else compileOutside
+  where
+    compileInside
+      = case name `elemIndex` definitions here of
+        Just index -> Right ("MKW(" +++ Text.show index +++ ")", here)
+        Nothing    -> if name `elem` builtins
+          then Right ("word_new(WORD_" +++ name +++ ")", here)
+          else Left . CompileError $ "Undefined word \"" +++ name +++ "\""
+    compileOutside
+      = case name `elemIndex` definitions here of
+        Just index -> Right ("DO(" +++ Text.show index +++ ")", here)
+        Nothing    -> if name `elem` builtins
+          then Right ("BUILTIN(" +++ name +++ ")", here)
+          else Left . CompileError $ "Undefined word \"" +++ name +++ "\""
+
+compileDefinition
+  :: Context
+  -> Text.Text
+  -> Term
+  -> ErrorMonad (Text.Text, Context)
+compileDefinition here name body
+  = if quotation here
+      then Left $ CompileError "A definition cannot appear inside a quotation."
+      else case compiledBody of
+        Right terms -> Right
+          ("DEF(" +++ Text.unwords terms +++ ")", next)
+        Left compileError -> Left compileError
+  where
+    compiledBody = compileWith (quoted next) [body]
+    next = here `defining` name
