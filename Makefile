@@ -35,12 +35,12 @@ LibSrcPaths := $(wildcard ./library/*.c) $(wildcard ./library/*.h)
 LibObjFiles := $(addsuffix .o, $(LibSrcNames))
 LibObjPaths := $(addprefix $(TargetDir)/, $(LibObjFiles))
 
-TestSrcDir := test
 TestTargetDir := $(TargetDir)/test
 TestInterDir := $(TestTargetDir).inter
 TestWarnDir := $(TestTargetDir).warn
 TestOutDir := $(TestTargetDir).out
 TestErrDir := $(TestTargetDir).err
+TestSrcDir := test
 TestSrcPaths := $(wildcard $(TestSrcDir)/*.ktn)
 TestSrcNames := $(basename $(notdir $(TestSrcPaths)))
 TestTargetPaths := $(addprefix $(TestTargetDir)/, $(TestSrcNames))
@@ -62,6 +62,7 @@ CompFlags := -odir $(CompObjDir) -hidir $(CompInterDir)
 #
 
 MAKEFLAGS += --warn-undefined-variables --silent
+.SECONDARY :
 
 .PHONY : all
 all : paths library compiler tests
@@ -134,7 +135,8 @@ $(TestInterDir)/%.c : $(TestSrcDir)/%.ktn
 
 $(TestTargetDir)/% : $(TestInterDir)/%.c
 	@ echo 'Building test $(notdir $@) ...'
-	-@ $(CC) -std=c99 $< -L$(TargetDir) -l$(LibTargetName) -lm -I. -o $@ \
+	-@ $(CC) -std=c99 $< \
+		-L$(TargetDir) -l$(LibTargetName) -lm -Ilibrary -o $@ \
 		2> /dev/null $(TestDebugFlags)
 
 .depend : $(LibSrcPaths)

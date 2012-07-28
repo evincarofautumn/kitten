@@ -5,6 +5,7 @@ module Tokenize
   ( tokenize
   ) where
 
+import Error
 import Text ((<++>), toText)
 import qualified Text
 import qualified Token
@@ -75,18 +76,19 @@ textQuotation = do
   return $ Token.Text text
   where
     open = oneOf "\"“\'‘"
+    close = char . matching
 
-    close '\"' = char '\"'
-    close '\'' = char '\''
-    close '“'  = char '”'
-    close '‘'  = char '’'
-    close _    = undefined
+    matching '\"' = '\"'
+    matching '\'' = '\''
+    matching '“'  = '”'
+    matching '‘'  = '’'
+    matching _    = $(impossible)
 
     body quote
       | isNestable quote
       = Text.concat <$> (many . choice)
-        [ toText <$> noneOf (quote : "\\")
-        , char quote <++> body quote <++> close quote
+        [ char quote <++> body quote <++> close quote
+        , toText <$> noneOf (quote : matching quote : "\\")
         , escape
         ]
     body quote = Text.concat

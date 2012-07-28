@@ -4,7 +4,6 @@
 module Text (module T, Text.show, toText, (+++), (<++>)) where
 
 import Control.Applicative (Applicative, (<$>), (<*>))
-import Data.Function
 import Data.Text as T
 import Prelude as P
 
@@ -22,7 +21,7 @@ instance Concatenable [String] where toText = T.concat . P.map T.pack
   => f a
   -> f b
   -> f T.Text
-f <++> g = (T.append `on` toText) <$> f <*> g
+f <++> g = (\ x y -> T.append (toText x) (toText y)) <$> f <*> g
 
 (+++)
   :: T.Text

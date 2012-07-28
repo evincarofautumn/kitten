@@ -1,0 +1,2 @@
+“foo”      "foo"      eq ["success"] ["failure"] if write "\n" write
+““nested”” "“nested”" eq ["success"] ["failure"] if write "\n" write

@@ -38,12 +38,16 @@ function run_test {
 for file in ./build/test.warn/* ; do
     if [ -f "$file" ]; then
         run_warn $(basename "$file")
+    else
+        echo "Skipping test $file ..."
     fi
 done
 
 for file in ./build/test/* ; do
     if [ -f "$file" ]; then
         run_test $(basename "$file")
+    else
+        echo "Skipping test $file ..."
     fi
 done
 
