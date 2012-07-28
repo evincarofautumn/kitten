@@ -50,9 +50,9 @@ compileWith
   -> ErrorMonad [Text.Text]
 compileWith _ [] = Right []
 compileWith here terms = case compileTerm here (head terms) of
-  Left compileError   -> Left compileError
+  Left compileError   -> throwError compileError
   Right (first, next) -> case compileWith next (tail terms) of
-    Right rest   -> Right $ first : rest
+    Right rest   -> return $ first : rest
     compileError -> compileError
 
 compileTerm
@@ -61,13 +61,13 @@ compileTerm
   -> ErrorMonad (Text.Text, Context)
 compileTerm here value =
   case value of
-    Inexact f   -> Right $ (compileInexact here f, here)
-    Integer i   -> Right $ (compileInteger here i, here)
+    Inexact f   -> return $ (compileInexact here f, here)
+    Integer i   -> return $ (compileInteger here i, here)
     Quotation q -> compileQuotation here q
     Word w      -> compileWord here w
     Definition (Word name) body@(Quotation _)
       -> compileDefinition here name body
-    _ -> Left $ CompileError "Unable to compile malformed term."
+    _ -> throwError $ CompileError "Unable to compile malformed term."
 
 compileQuotation
   :: Context
@@ -78,13 +78,13 @@ compileQuotation here terms
   where
     compileInside
       = case compileQuotation' of
-        Right result      -> Right ("MKQ(" +++ result +++ ")", here)
-        Left compileError -> Left compileError
+        Right result      -> return ("MKQ(" +++ result +++ ")", here)
+        Left compileError -> throwError compileError
 
     compileOutside
       = case compileQuotation' of
-        Right result      -> Right ("PUSHQ(" +++ result +++ ")", here)
-        Left compileError -> Left compileError
+        Right result      -> return ("PUSHQ(" +++ result +++ ")", here)
+        Left compileError -> throwError compileError
 
     compiledBody = compileWith (quoted here) terms
 
@@ -92,7 +92,8 @@ compileQuotation here terms
       = case compiledBody of
           Right compiledTerms ->
             Right $ prefix +++ Text.intercalate ", " compiledTerms
-          Left compileError -> Left compileError
+          Left compileError ->
+            throwError compileError
 
     prefix
       = if null terms
@@ -126,16 +127,23 @@ compileWord here name
   where
     compileInside
       = case name `elemIndex` definitions here of
-        Just index -> Right ("MKW(" +++ Text.show index +++ ")", here)
-        Nothing    -> if name `elem` builtins
-          then Right ("word_new(WORD_" +++ name +++ ")", here)
-          else Left . CompileError $ "Undefined word \"" +++ name +++ "\""
+        Just index ->
+          return ("MKW(" +++ Text.show index +++ ")", here)
+        Nothing ->
+          if name `elem` builtins
+            then return ("word_new(WORD_" +++ name +++ ")", here)
+            else throwError . CompileError
+              $ "Undefined word \"" +++ name +++ "\""
+
     compileOutside
       = case name `elemIndex` definitions here of
-        Just index -> Right ("DO(" +++ Text.show index +++ ")", here)
-        Nothing    -> if name `elem` builtins
-          then Right ("BUILTIN(" +++ name +++ ")", here)
-          else Left . CompileError $ "Undefined word \"" +++ name +++ "\""
+        Just index ->
+          return ("DO(" +++ Text.show index +++ ")", here)
+        Nothing ->
+          if name `elem` builtins
+            then return ("BUILTIN(" +++ name +++ ")", here)
+            else throwError . CompileError
+              $ "Undefined word \"" +++ name +++ "\""
 
 compileDefinition
   :: Context
@@ -144,11 +152,12 @@ compileDefinition
   -> ErrorMonad (Text.Text, Context)
 compileDefinition here name body
   = if quotation here
-      then Left $ CompileError "A definition cannot appear inside a quotation."
+      then throwError
+        $ CompileError "A definition cannot appear inside a quotation."
       else case compiledBody of
-        Right terms -> Right
+        Right terms -> return
           ("DEF(" +++ Text.unwords terms +++ ")", next)
-        Left compileError -> Left compileError
+        Left compileError -> throwError compileError
   where
     compiledBody = compileWith (quoted next) [body]
     next = here `defining` name

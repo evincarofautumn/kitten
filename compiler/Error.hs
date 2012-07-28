@@ -4,6 +4,7 @@ module Error
   ( Error(..)
   , ErrorMonad
   , impossible
+  , CME.throwError
   ) where
 
 import qualified Text
