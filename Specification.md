@@ -90,7 +90,7 @@ braces in text editors, and to give a visual indication of comment nesting.
        {— Inner comment begins and ends. —}
        Outer comment ends. —}
 
-Code points:
+##### Code Points
 
  1. `-` U+002D HYPHEN-MINUS
 
@@ -106,7 +106,7 @@ A number is either an integer, a rational, an inexact, or a complex. Regardless
 of its type, any number may be preceded by a sign character `+` (1), `-` (2), or
 `−` (3).
 
-Code points:
+##### Code Points
 
  1. `+` U+002B PLUS SIGN
 
@@ -123,7 +123,7 @@ decimal. Implementations must support at least decimal (`#10`), hexadecimal
 subset of digit characters `0`–`9` (2) and letters dependent on the base—for
 hexadecimal integers, `A`–`F` (3) and `a`–`f` (4).
 
-Examples:
+##### Examples
 
     0
     42
@@ -132,14 +132,14 @@ Examples:
     0777#8
     1010#2
 
-Regular expression:
+##### Regular Expression
 
       [0-9]+       (#10)?
     | [0-9A-Fa-f]+ #16
     | [0-7]+       #8
     | [01]+        #2
 
-Code points:
+##### Code Points
 
  1. `#` U+0023 NUMBER SIGN
 
@@ -149,7 +149,7 @@ Code points:
 
  4. `a` U+0061 LATIN SMALL LETTER A – `f` U+0066 LATIN SMALL LETTER F
 
-Notes:
+##### Notes
 
 The goal of a numeric literal syntax is to be legible and make the radix
 explicit, while remaining unambiguous with identifiers and other lexemes. The
@@ -168,7 +168,7 @@ or fraction slash `⁄` (2), one or more digits again, and an optional radix
 specifier. Implementations must support at least decimal (`#10`), hexadecimal
 (`#16`), octal (`#8`), and binary (`#2`) fraction literals.
 
-Examples:
+##### Examples
 
     1/2
     2/3
@@ -177,14 +177,14 @@ Examples:
     628318/10000
     8090A0/FFFFFF#16
 
-Regular expression:
+##### Regular Expression
 
       [0-9]+       [/⁄] [0-9]+       (#10)?
     | [0-9A-Fa-f]+ [/⁄] [0-9A-Fa-f]+ #16
     | [0-7]+       [/⁄] [0-7]+       #8
     | [01]+        [/⁄] [01]+        #2
 
-Code points:
+##### Code Points
 
  1. `/` U+002F SLASH
 
@@ -205,7 +205,7 @@ optional sign character `+`, `-`, or `−`, and the exponent proper of one or mo
 decimal digits. Implementations must support at least `10`, `16`, `8`, and `2`
 as base specifiers.
 
-Examples:
+##### Examples
 
     1.0
     0.25
@@ -223,7 +223,7 @@ Examples:
     +10.0#8*10^+3 -- 8000
     0.0628*10^2   -- 6.28
 
-Regular expression:
+##### Regular Expression
 
     ( [0-9]+       \. [0-9]+      (#10)?
     | [0-9A-Fa-f]+ \. [0-9A-Fa-f] #16
@@ -232,7 +232,7 @@ Regular expression:
     )
     ( \* (10|16|8|2) \^ [-+−]? [0-9]+ )?
 
-Code points:
+##### Code Points
 
  1. `.` U+002E PERIOD
 
@@ -242,7 +242,7 @@ Code points:
 
  4. `^` U+005E CARET
 
-Notes:
+##### Notes
 
 Exponents in alternate bases were considered and deemed not widely applicable
 enough for inclusion. The characters `e` and `E` were considered for exponent
@@ -262,12 +262,12 @@ literal. When the literal is prefixed with a sign character, it applies only to
 the real part, so `-2+3i` has a real part of `-2` and an imaginary part of
 `+3i`.
 
-Examples:
+##### Examples
 
     2+2i
     1/2−1/4j
 
-Code points:
+##### Code Points
 
  * `i` U+0069 LATIN SMALL LETTER I
 
@@ -286,7 +286,7 @@ Plain quotations consist of zero or more whitespace-separated terms surrounded
 by square brackets `[]` (1, 2). Terms within quotations are not evaluated, so a
 quotation can be used to construct anonymous functions.
 
-Code points:
+##### Code Points
 
  1. `[` U+005B LEFT SQUARE BRACKET
 
@@ -302,12 +302,12 @@ point quotation wrapped in straight single quotes `''` (3) or curved single
 quotes `‘’` (4). Thus a text quotation is syntactic sugar for a plain quotation
 of code point quotations.
 
-Examples:
+##### Examples
 
     "meow"
     ['m' 'e' 'o' 'w']
 
-Code points:
+##### Code Points
 
  1. `"` U+0022 QUOTATION MARK
 
@@ -475,7 +475,7 @@ case they are parsed in the order mentioned:
     This is the third.
     END-THIRD
 
-Notes:
+##### Notes
 
 It was considered to allow heredocs with blank identifiers, i.e., `\<>`, such
 that the heredoc would end at the first blank line. This was deemed excessively
@@ -537,7 +537,7 @@ punctuation except for the characters `:"“”'‘’[](){}\#.`.
 
 Words are case-sensitive and do not undergo Unicode normalization.
 
-Examples:
+##### Examples
 
     meow
     Purr
@@ -552,7 +552,7 @@ Examples:
 
 A symbol is a word preceded by a dot `.`.
 
-Examples:
+##### Examples
 
     .new
     .green
@@ -608,7 +608,7 @@ equality testing with `=`.
       [[dup False =] [drop True]]
       cond ]
 
-Notes:
+##### Notes
 
 The original syntax for definitions used a `define` keyword, i.e.:
 
@@ -634,7 +634,7 @@ for right-associative operators, and the pattern holds for the `prefix` and
 effect in normal concatenative mode; they are only relevant to applicative
 syntax.
 
-Examples:
+##### Examples
 
     prefix     9 ~
     infix-left 8 &
@@ -742,7 +742,7 @@ Layout quotations may be quasiquoted (see §2.3.5):
        \(n * 3)
        \(n * 4)
 
-Code points:
+##### Code Points
 
  * `:` U+003A COLON
 
