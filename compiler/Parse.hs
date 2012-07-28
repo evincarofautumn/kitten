@@ -42,14 +42,16 @@ program :: TokenParser Program
 program = Program <$> many term <* eof
 
 term :: TokenParser Term
-term = choice
-  [ try definition  
-  , word
-  , quotation
-  , text
-  , integer
-  , inexact
-  ] <?> "term"
+term = choice (try definition : normalTerm) <?> "term"
+
+normalTerm :: [TokenParser Term]
+normalTerm
+  = [ word
+    , quotation
+    , text
+    , integer
+    , inexact
+    ]
 
 token :: Token.Token -> TokenParser ()
 token t = void $ satisfy (== t)
@@ -57,7 +59,7 @@ token t = void $ satisfy (== t)
 definition :: TokenParser Term
 definition = do
   name <- word <* token Token.Definition
-  body <- choice [word, quotation, text, integer, inexact]
+  body <- choice normalTerm
   body' <- case body of
     (Term.Word _) -> return $ Term.Quotation [body]
     (Term.Integer _) -> return $ Term.Quotation [body]
