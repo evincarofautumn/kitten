@@ -49,25 +49,24 @@ compileWith
   -> [Term]
   -> ErrorMonad [Text.Text]
 compileWith _ [] = Right []
-compileWith here terms = case compileTerm here (head terms) of
-  Left compileError   -> throwError compileError
-  Right (first, next) -> case compileWith next (tail terms) of
-    Right rest   -> return $ first : rest
-    compileError -> compileError
+compileWith here terms = do
+  (first, next) <- compileTerm here $ head terms
+  rest <- compileWith next $ tail terms
+  return $ first : rest
 
 compileTerm
   :: Context
   -> Term
   -> ErrorMonad (Text.Text, Context)
-compileTerm here value =
-  case value of
-    Inexact f   -> return $ (compileInexact here f, here)
-    Integer i   -> return $ (compileInteger here i, here)
-    Quotation q -> compileQuotation here q
-    Word w      -> compileWord here w
-    Definition (Word name) body@(Quotation _)
-      -> compileDefinition here name body
-    _ -> throwError $ CompileError "Unable to compile malformed term."
+compileTerm here value
+  = case value of
+      Inexact f   -> return (compileInexact here f, here)
+      Integer i   -> return (compileInteger here i, here)
+      Quotation q -> compileQuotation here q
+      Word w      -> compileWord here w
+      Definition (Word name) body@(Quotation _)
+        -> compileDefinition here name body
+      _ -> throwError $ CompileError "Unable to compile malformed term."
 
 compileQuotation
   :: Context
@@ -76,24 +75,19 @@ compileQuotation
 compileQuotation here terms
   = if quotation here then compileInside else compileOutside
   where
-    compileInside
-      = case compileQuotation' of
-        Right result      -> return ("MKQ(" +++ result +++ ")", here)
-        Left compileError -> throwError compileError
+    compileInside = do
+      result <- compileQuotation'
+      return ("MKQ(" +++ result +++ ")", here)
 
-    compileOutside
-      = case compileQuotation' of
-        Right result      -> return ("PUSHQ(" +++ result +++ ")", here)
-        Left compileError -> throwError compileError
+    compileOutside = do
+      result <- compileQuotation'
+      return ("PUSHQ(" +++ result +++ ")", here)
 
     compiledBody = compileWith (quoted here) terms
 
-    compileQuotation'
-      = case compiledBody of
-          Right compiledTerms ->
-            Right $ prefix +++ Text.intercalate ", " compiledTerms
-          Left compileError ->
-            throwError compileError
+    compileQuotation' = do
+      compiledTerms <- compiledBody
+      return $ prefix +++ Text.intercalate ", " compiledTerms
 
     prefix
       = if null terms
@@ -154,10 +148,9 @@ compileDefinition here name body
   = if quotation here
       then throwError
         $ CompileError "A definition cannot appear inside a quotation."
-      else case compiledBody of
-        Right terms -> return
-          ("DEF(" +++ Text.unwords terms +++ ")", next)
-        Left compileError -> throwError compileError
+      else do
+        terms <- compiledBody
+        return ("DEF(" +++ Text.unwords terms +++ ")", next)
   where
     compiledBody = compileWith (quoted next) [body]
     next = here `defining` name
