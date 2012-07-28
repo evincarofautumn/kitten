@@ -341,7 +341,7 @@ of code point quotations.
 
  4. `‘` U+2018 LEFT SINGLE QUOTATION MARK – `’` U+2019 RIGHT SINGLE QUOTATION MARK
 
-####. 2.3.3 Character Literals and Character Escapes
+#### 2.3.3. Character Literals and Character Escapes
 
 A character literal is any Unicode character except for backslash `\`
 (U+005C). Line breaks are allowed within text quotations. Curved quotes may be
