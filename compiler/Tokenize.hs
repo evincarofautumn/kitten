@@ -26,29 +26,25 @@ token = located $ choice
   [ quotationOpen
   , quotationClose
   , definition  
---, layout
+  , layout
   , textQuotation
-  , try integer
---, rational
-  , inexact
+  , number
   , word
   , symbol
   ]
 
+whitespace :: Parser ()
 whitespace = skipMany $ comment <|> literalWhitespace
-
-literalWhitespace = void . many1 $ satisfy isSpace
-
-comment = singleLineComment <|> multiLineComment
-
-singleLineComment = string "--" *> (anyChar `skipManyTill` char '\n')
-
-multiLineComment = void $ start *> contents <* end
   where
-    contents = characters *> optional multiLineComment <* characters
-    characters = skipMany $ notFollowedBy (start <|> end) *> anyChar
-    start = string "{-"
-    end = string "-}"
+    literalWhitespace = void . many1 $ satisfy isSpace
+    comment           = singleLineComment <|> multiLineComment
+    singleLineComment = string "--" *> (anyChar `skipManyTill` char '\n')
+    multiLineComment  = void $ start *> contents <* end
+      where
+        contents   = characters *> optional multiLineComment <* characters
+        characters = skipMany $ notFollowedBy (start <|> end) *> anyChar
+        start      = string "{-"
+        end        = string "-}"
 
 skipManyTill
   :: Parser a
@@ -57,24 +53,27 @@ skipManyTill
 a `skipManyTill` b = void (try b) <|> (a *> (a `skipManyTill` b))
 
 located
-  :: (Monad m)
-  => ParsecT s u m Token.Token
-  -> ParsecT s u m Token.Located
+  :: Parser Token.Token
+  -> Parser Token.Located
 located parser = Token.Located <$> getPosition <*> parser
 
+quotationOpen :: Parser Token.Token
 quotationOpen = char '[' *> return Token.QuotationOpen
 
+quotationClose :: Parser Token.Token
 quotationClose = char ']' *> return Token.QuotationClose
 
+definition :: Parser Token.Token
 definition = string "=>" *> return Token.Definition
 
-layout :: (Monad m, Stream s m Char) => ParsecT s u m Token.Token
+layout :: Parser Token.Token
 layout = char ':' *> return Token.Layout
 
+textQuotation :: Parser Token.Token
 textQuotation = do
   quote <- open
   text <- body quote
-  end <- close quote <?> "end of text quotation"
+  void (close quote) <?> "end of text quotation"
   return $ Token.Text text
   where
     open = oneOf "\"“\'‘"
@@ -114,26 +113,20 @@ textQuotation = do
         '\'' -> return "\'"
         _ -> fail $ "Invalid escape \"\\" ++ [c] ++ "\""
 
+word :: Parser Token.Token
 word = Token.Word <$> word' <?> "word"
 
--- word' = letter <++> many1 (letter <|> digit)
-
-word' = Text.pack <$> many1 wordCharacter 
-  where
-    wordCharacter = noneOf "{}()[]\"\'“”‘’ \a\f\n\r\t\v"
-
--- (many1 . choice)
-  -- [try $ char '-' <* notFollowedBy (char '-'), wordCharacter]
-
+symbol :: Parser Token.Token
 symbol = Token.Symbol <$> (char '.' *> word')
 
-integer = Token.Integer . read
-  <$> (many1 digit <* notFollowedBy (char '.') <?> "integer")
+word' :: Parser Text.Text
+word' = Text.pack <$> many1 wordCharacter 
+  where wordCharacter = noneOf "\a\t\n\v\f\r \"\'():[]{}‘’“”"
 
--- rational
-inexact = Token.Inexact . read <$> (body <?> "inexact") where
-  body = do
-    whole <- many1 digit
-    separator <- char '.'
-    fractional <- many1 digit
-    return $ whole ++ separator : fractional
+number :: Parser Token.Token
+number = (<?> "number") $ do
+  start <- many1 digit
+  maybeInexact <- optionMaybe $ (:) <$> char '.' <*> many1 digit
+  return $ case maybeInexact of
+    Just inexact -> Token.Inexact . read $ start ++ inexact
+    Nothing -> Token.Integer $ read start
