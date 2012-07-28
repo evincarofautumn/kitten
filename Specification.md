@@ -149,6 +149,15 @@ hexadecimal integers, `A`–`F` (3) and `a`–`f` (4).
 
  4. `a` U+0061 LATIN SMALL LETTER A – `f` U+0066 LATIN SMALL LETTER F
 
+##### Typesetting
+
+Radix specifiers ought to be typeset as subscripts. Hexadecimal numbers should
+be set in capitals, or small capitals when typesetting with text figures.
+
+    deafbeef#16
+
+> DEAFBEEF<sub>16</sub>
+
 ##### Notes
 
 The goal of a numeric literal syntax is to be legible and make the radix
@@ -189,6 +198,12 @@ specifier. Implementations must support at least decimal (`#10`), hexadecimal
  1. `/` U+002F SLASH
 
  2. `⁄` U+2044 FRACTION SLASH
+
+##### Typesetting
+
+The whole literal should be set as a proper fraction with the numerator above
+the denominator. Radix specifiers ought to be typeset as subscripts following
+*both* the numerator and denominator.
 
 #### 2.2.3. Inexact Literals
 
@@ -241,6 +256,15 @@ as base specifiers.
  3. `×` U+00D7 MULTIPLICATION SIGN
 
  4. `^` U+005E CARET
+
+##### Typesetting
+
+Radix specifiers ought to be typeset as subscripts, and exponents as
+superscripts.
+
+    +10.0#8*10^+3
+
+> +10.0<sub>8</sub>×10<sup>+3</sup>
 
 ##### Notes
 
@@ -618,6 +642,14 @@ The original syntax for definitions used a `define` keyword, i.e.:
 
 However, this was considered too verbose, especially for the case of inline
 definitions.
+
+##### Typesetting
+
+`=>` should be typeset as a rightward double arrow.
+
+    not => [ True => False  False => True ]
+
+> *not* ⇒ [ *True* ⇒ *False* &emsp; *False* ⇒ *True* ]
 
 #### 2.6.2. Operators
 
