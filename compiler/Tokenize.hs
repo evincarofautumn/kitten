@@ -6,6 +6,7 @@ module Tokenize
   ) where
 
 import qualified Token
+import Utils
 
 import Control.Applicative (Applicative, (<$>), (<*), (<*>), (*>))
 import Control.Monad
@@ -33,6 +34,11 @@ token = located $ choice
   , symbol
   ]
 
+located
+  :: Parser Token.Token
+  -> Parser Token.Located
+located parser = Token.Located <$> getPosition <*> parser
+
 whitespace :: Parser ()
 whitespace = skipMany $ comment <|> literalWhitespace
   where
@@ -45,17 +51,6 @@ whitespace = skipMany $ comment <|> literalWhitespace
         characters = skipMany $ notFollowedBy (start <|> end) *> anyChar
         start      = string "{-"
         end        = string "-}"
-
-skipManyTill
-  :: Parser a
-  -> Parser b
-  -> Parser ()
-a `skipManyTill` b = void (try b) <|> (a *> (a `skipManyTill` b))
-
-located
-  :: Parser Token.Token
-  -> Parser Token.Located
-located parser = Token.Located <$> getPosition <*> parser
 
 quotationOpen :: Parser Token.Token
 quotationOpen = char '[' *> return Token.QuotationOpen
