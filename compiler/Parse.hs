@@ -11,28 +11,12 @@ import Tokenize
 import Utils
 
 import Control.Applicative ((<$>), (<*), (*>))
-import Control.Monad
 import Control.Monad.Identity
 import Data.Char
 import Text.Parsec.Error as Parsec
 import Text.Parsec.Pos as Parsec
 import Text.Parsec.Prim as Parsec hiding (token, tokens)
 import Text.Parsec.Combinator as Parsec
-
-advance
-  :: SourcePos
-  -> t
-  -> [Token.Located]
-  -> SourcePos
-advance _ _ (Token.Located sourcePos _ : _) = sourcePos
-advance sourcePos _ _ = sourcePos
-
-satisfy
-  :: (Monad m)
-  => (Token.Token -> Bool)
-  -> ParsecT [Token.Located] u m Token.Token
-satisfy predicate = tokenPrim show advance
-  $ \ (Token.Located _ tok) -> boolToMaybe (predicate tok) tok
 
 type TokenParser a = ParsecT [Token.Located] () Identity a
 
@@ -42,11 +26,22 @@ parse
   -> Either ParseError Program
 parse source name
   = case tokenize source name of
-      Right result -> Parsec.runParser program () name result
+      Right source' -> parse' program source' name
       Left err -> Left err
 
+parse'
+  :: TokenParser a
+  -> [Token.Located]
+  -> String
+  -> Either ParseError a
+parse' parser source name
+  = Parsec.runParser parser () name source
+
 program :: TokenParser Program
-program = Program <$> many term <* eof
+program = Program <$> program'
+
+program' :: TokenParser [Term]
+program' = many term <* eof
 
 term :: TokenParser Term
 term = choice (try definition : normalTerm) <?> "term"
@@ -59,9 +54,6 @@ normalTerm
     , integer
     , inexact
     ]
-
-token :: Token.Token -> TokenParser ()
-token t = void $ satisfy (== t)
 
 definition :: TokenParser Term
 definition = do
@@ -76,10 +68,18 @@ definition = do
   return $ Term.Definition name body'
 
 quotation :: TokenParser Term
-quotation = Term.Quotation <$> (left *> many term <* right) <?> "quotation"
+quotation = Term.Quotation <$> choice [plain, layout]
   where
-    left  = token Token.QuotationOpen
-    right = token Token.QuotationClose <?> "end of quotation"
+    plain  = left *> many term <* right <?> "plain quotation"
+    left   = token Token.QuotationOpen
+    right  = token Token.QuotationClose <?> "end of quotation"
+    layout = do
+      (Token.Located startLocation _) <- locatedToken Token.Layout
+      tokens <- many . locatedSatisfy $ \ (Token.Located location _) ->
+        sourceColumn location > sourceColumn startLocation
+      case parse' program' tokens "layout quotation" of
+        Right result -> return result
+        Left err     -> fail $ show err
 
 word :: TokenParser Term
 word = toTerm <$> satisfy isWord
@@ -114,3 +114,32 @@ text = toTerm <$> satisfy isText
       = Term.Quotation . map (Term.Integer . fromIntegral . ord)
       $ Text.unpack t
     toTerm _ = $(impossible)
+
+advance
+  :: SourcePos
+  -> t
+  -> [Token.Located]
+  -> SourcePos
+advance _ _ (Token.Located sourcePos _ : _) = sourcePos
+advance sourcePos _ _ = sourcePos
+
+satisfy
+  :: (Token.Token -> Bool)
+  -> TokenParser Token.Token
+satisfy predicate = tokenPrim show advance
+  $ \ (Token.Located _ tok) -> boolToMaybe (predicate tok) tok
+
+locatedSatisfy
+  :: (Token.Located -> Bool)
+  -> TokenParser Token.Located
+locatedSatisfy predicate = tokenPrim show advance
+  $ \ loc -> boolToMaybe (predicate loc) loc
+
+token :: Token.Token -> TokenParser Token.Token
+token tok = satisfy (== tok)
+
+locatedToken :: Token.Token -> TokenParser Token.Located
+locatedToken tok = locatedSatisfy (\ (Token.Located _ loc) -> loc == tok)
+
+anyLocatedToken :: TokenParser Token.Located
+anyLocatedToken = locatedSatisfy (const True)

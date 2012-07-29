@@ -1,0 +1,9 @@
+"test\n"
+message =>
+:"a"
+  "b"
+   "c\n"
+ compose
+  compose
+write
+message write
