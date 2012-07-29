@@ -31,7 +31,7 @@ token :: TokenParser Token.Located
 token = located $ choice
   [ quotationOpen
   , quotationClose
-  , definition  
+  , try definition
   , layout
   , textQuotation
   , number

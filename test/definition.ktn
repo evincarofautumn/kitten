@@ -1,4 +1,11 @@
-greet => {- name -}
+greet =>
 [ "Hello, " swap "!\n" compose compose write ]
 
 "World" greet
+
+= => eq
++ => add
+2 2 + 4 =
+["success"]
+["failure"]
+if write "\n" write
