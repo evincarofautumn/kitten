@@ -17,8 +17,8 @@ data Token
   | Inexact Double
   deriving (Eq, Show)
 
-data Located = Located SourcePos Token
+data Located = Located SourcePos Column Token
   deriving (Eq)
 
 instance Show Located where
-  show (Located _ token) = show token
+  show (Located _ _ token) = show token

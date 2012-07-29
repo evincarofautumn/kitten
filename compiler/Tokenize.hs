@@ -13,20 +13,21 @@ import Utils
 
 import Control.Applicative (Applicative, (<$>), (<*), (<*>), (*>))
 import Control.Monad
-import Data.Char
-import Text.Parsec as Parsec hiding (token, tokens)
-import Text.Parsec.String as Parsec
+import Control.Monad.Identity
+import Text.Parsec as Parsec hiding (newline, token, tokens)
+
+type TokenParser a = ParsecT String Column Identity a
 
 tokenize
   :: String
   -> String
   -> Either ParseError [Token.Located]
-tokenize = Parsec.parse tokens
+tokenize = Parsec.runParser tokens 0
 
-tokens :: Parser [Token.Located]
+tokens :: TokenParser [Token.Located]
 tokens = optional whitespace *> many (token <* whitespace) <* eof
 
-token :: Parser Token.Located
+token :: TokenParser Token.Located
 token = located $ choice
   [ quotationOpen
   , quotationClose
@@ -39,14 +40,24 @@ token = located $ choice
   ]
 
 located
-  :: Parser Token.Token
-  -> Parser Token.Located
-located parser = Token.Located <$> getPosition <*> parser
+  :: TokenParser Token.Token
+  -> TokenParser Token.Located
+located parser = do
+  indent <- getState
+  position <- getPosition
+  result <- parser
+  return $ Token.Located position indent result
 
-whitespace :: Parser ()
+whitespace :: TokenParser ()
 whitespace = skipMany $ comment <|> literalWhitespace
   where
-    literalWhitespace = void . many1 $ satisfy isSpace
+    literalWhitespace = skipMany1 $ choice [newline, nonNewline]
+    newline = do
+      void $ char '\n' *> many nonNewline
+      pos <- getPosition
+      putState $ sourceColumn pos
+
+    nonNewline        = void $ satisfy (`elem` "\t\v\f\r ")
     comment           = singleLineComment <|> multiLineComment
     singleLineComment = string "--" *> (anyChar `skipManyTill` char '\n')
     multiLineComment  = void $ start *> contents <* end
@@ -56,19 +67,19 @@ whitespace = skipMany $ comment <|> literalWhitespace
         start      = string "{-"
         end        = string "-}"
 
-quotationOpen :: Parser Token.Token
+quotationOpen :: TokenParser Token.Token
 quotationOpen = char '[' *> return Token.QuotationOpen
 
-quotationClose :: Parser Token.Token
+quotationClose :: TokenParser Token.Token
 quotationClose = char ']' *> return Token.QuotationClose
 
-definition :: Parser Token.Token
+definition :: TokenParser Token.Token
 definition = string "=>" *> return Token.Definition
 
-layout :: Parser Token.Token
+layout :: TokenParser Token.Token
 layout = char ':' *> return Token.Layout
 
-textQuotation :: Parser Token.Token
+textQuotation :: TokenParser Token.Token
 textQuotation = do
   quote <- open
   text  <- body quote
@@ -99,6 +110,7 @@ textQuotation = do
 
     isNestable c = c `elem` "“‘"
 
+    escape :: TokenParser Text.Text
     escape = (<?> "escape") $ do 
       c <- char '\\' *> anyChar
       case c of
@@ -115,17 +127,17 @@ textQuotation = do
         '\'' -> return "\'"
         _    -> fail $ "Invalid escape \"\\" ++ [c] ++ "\""
 
-word :: Parser Token.Token
+word :: TokenParser Token.Token
 word = Token.Word <$> word' <?> "word"
 
-symbol :: Parser Token.Token
+symbol :: TokenParser Token.Token
 symbol = Token.Symbol <$> (char '.' *> word')
 
-word' :: Parser Text.Text
+word' :: TokenParser Text.Text
 word' = Text.pack <$> many1 wordCharacter 
   where wordCharacter = noneOf "\a\t\n\v\f\r \"\'():[]{}‘’“”"
 
-number :: Parser Token.Token
+number :: TokenParser Token.Token
 number = (<?> "number") $ do
   start        <- many1 digit
   maybeInexact <- optionMaybe $ (:) <$> char '.' <*> many1 digit

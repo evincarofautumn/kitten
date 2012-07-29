@@ -34,8 +34,7 @@ parse'
   -> [Token.Located]
   -> String
   -> Either ParseError a
-parse' parser source name
-  = Parsec.runParser parser () name source
+parse' parser = flip $ Parsec.runParser parser ()
 
 program :: TokenParser Program
 program = Program <$> program'
@@ -74,10 +73,15 @@ quotation = Term.Quotation <$> choice [plain, layout]
     left   = token Token.QuotationOpen
     right  = token Token.QuotationClose <?> "end of quotation"
     layout = do
-      (Token.Located startLocation _) <- locatedToken Token.Layout
-      tokens <- many . locatedSatisfy $ \ (Token.Located location _) ->
-        sourceColumn location > sourceColumn startLocation
-      case parse' program' tokens "layout quotation" of
+      (Token.Located startLocation startIndent _) <- locatedToken Token.Layout
+      first@(Token.Located firstLocation _ _) <- anyLocatedToken
+      tokens <- many . locatedSatisfy
+        $ if sourceLine firstLocation == sourceLine startLocation
+            then \ (Token.Located location _ _) ->
+              sourceColumn location > sourceColumn startLocation
+            else \ (Token.Located location _ _) ->
+              sourceColumn location > startIndent
+      case parse' program' (first : tokens) "layout quotation" of
         Right result -> return result
         Left err     -> fail $ show err
 
@@ -120,14 +124,14 @@ advance
   -> t
   -> [Token.Located]
   -> SourcePos
-advance _ _ (Token.Located sourcePos _ : _) = sourcePos
+advance _ _ (Token.Located sourcePos _ _ : _) = sourcePos
 advance sourcePos _ _ = sourcePos
 
 satisfy
   :: (Token.Token -> Bool)
   -> TokenParser Token.Token
 satisfy predicate = tokenPrim show advance
-  $ \ (Token.Located _ tok) -> boolToMaybe (predicate tok) tok
+  $ \ (Token.Located _ _ tok) -> boolToMaybe (predicate tok) tok
 
 locatedSatisfy
   :: (Token.Located -> Bool)
@@ -139,7 +143,7 @@ token :: Token.Token -> TokenParser Token.Token
 token tok = satisfy (== tok)
 
 locatedToken :: Token.Token -> TokenParser Token.Located
-locatedToken tok = locatedSatisfy (\ (Token.Located _ loc) -> loc == tok)
+locatedToken tok = locatedSatisfy (\ (Token.Located _ _ loc) -> loc == tok)
 
 anyLocatedToken :: TokenParser Token.Located
 anyLocatedToken = locatedSatisfy (const True)
