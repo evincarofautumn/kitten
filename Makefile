@@ -13,6 +13,7 @@
 AR := ar qc
 HC := ghc
 HLINT := ~/.cabal/bin/hlint
+CABAL ?= cabal
 
 TargetDir := ./build
 
@@ -69,7 +70,7 @@ all : paths library compiler tests
 
 .PHONY : configure
 configure :
-	cabal configure --builddir=$(TargetDir)
+	$(CABAL) configure --builddir=$(TargetDir)
 
 .PHONY : help
 help :
@@ -103,7 +104,7 @@ clean-library :
 .PHONY : clean-compiler
 clean-compiler :
 	@ echo 'Cleaning compiler build files ...'
-	@ cabal clean --builddir=$(TargetDir)
+	@ $(CABAL) clean --builddir=$(TargetDir)
 
 .PHONY : clean-tests
 clean-tests :
@@ -116,7 +117,7 @@ library : .depend $(LibTargetPath)
 
 .PHONY : compiler
 compiler :
-	cabal build --builddir=$(TargetDir)
+	$(CABAL) build --builddir=$(TargetDir)
 
 .PHONY : tests
 tests : $(CompTargetPath) $(TestTargetPaths)
