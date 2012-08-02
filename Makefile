@@ -128,7 +128,7 @@ lint : $(CompSrcFiles)
 
 # Begin non-phony rules.
 
-$(TestInterDir)/%.c : $(TestSrcDir)/%.ktn
+$(TestInterDir)/%.c : $(TestSrcDir)/%.ktn $(CompTargetPath)
 	$(call ensure_buildable,$@)
 	@ mkdir -p $(TestWarnDir)
 	@ $(CompTargetPath) $< > $@ 2> $(TestWarnDir)/$(basename $(notdir $@))
