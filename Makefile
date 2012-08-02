@@ -91,7 +91,7 @@ clean-depend :
 .PHONY : clean-library
 clean-library :
 	@ echo 'Cleaning library build files ...'
-	@ rm -f $(LibObjPaths) $(LibTargetPath)
+	@ rm -f $(LibObjPaths) $(LibTargetPath) .depend
 
 .PHONY : clean-compiler
 clean-compiler :
