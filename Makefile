@@ -136,9 +136,9 @@ $(TestInterDir)/%.c : $(TestSrcDir)/%.ktn
 $(TestTargetDir)/% : $(TestInterDir)/%.c $(LibTargetPath)
 	$(call ensure_buildable,$@)
 	@ echo 'Building test $(notdir $@) ...'
-	-@ $(CC) -std=c99 $< \
+	@ $(CC) -std=c99 $< \
 		-L$(TargetDir) -l$(LibTargetName) -lm -Ilibrary -o $@ \
-		2> /dev/null $(TestDebugFlags)
+		$(TestDebugFlags)
 
 .depend : $(LibSrcPaths)
 	$(call ensure_buildable,$@)
