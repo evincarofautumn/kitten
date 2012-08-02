@@ -111,6 +111,8 @@ library : .depend $(LibTargetPath)
 compiler :
 	$(CABAL) build --builddir=$(TargetDir)
 
+$(CompTargetPath) : compiler
+
 .PHONY : tests
 tests : $(CompTargetPath) $(TestTargetPaths)
 	@ mkdir -p $(TestOutDir)
