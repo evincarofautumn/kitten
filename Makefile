@@ -58,6 +58,10 @@ LibFlags := -std=c99 -Wall -Werror -Ilibrary
 
 CompFlags := -odir $(CompObjDir) -hidir $(CompInterDir)
 
+define ensure_buildable
+@ mkdir -p $(dir $1)
+endef
+
 #
 # Rules. The vast majority of these are phony.
 #
@@ -66,7 +70,7 @@ MAKEFLAGS += --warn-undefined-variables --silent
 .SECONDARY :
 
 .PHONY : all
-all : paths library compiler tests
+all : library compiler tests
 
 .PHONY : configure
 configure :
@@ -78,18 +82,6 @@ help :
 
 .PHONY : clean
 clean : clean-library clean-compiler clean-tests
-
-.PHONY : paths
-paths :
-	@ echo 'Making sure paths are sane ...'
-	@ mkdir -p $(TargetDir)
-	@ mkdir -p $(CompObjDir)
-	@ mkdir -p $(CompInterDir)
-	@ mkdir -p $(TestTargetDir)
-	@ mkdir -p $(TestInterDir)
-	@ mkdir -p $(TestOutDir)
-	@ mkdir -p $(TestWarnDir)
-	@ mkdir -p $(TestErrDir)
 
 .PHONY : clean-depend
 clean-depend :
@@ -121,6 +113,9 @@ compiler :
 
 .PHONY : tests
 tests : $(CompTargetPath) $(TestTargetPaths)
+	@ mkdir -p $(TestOutDir)
+	@ mkdir -p $(TestWarnDir)
+	@ mkdir -p $(TestErrDir)
 	@ echo 'Running tests ...'
 	@ ./run-tests.sh
 
@@ -132,23 +127,29 @@ lint : $(CompSrcFiles)
 # Begin non-phony rules.
 
 $(TestInterDir)/%.c : $(TestSrcDir)/%.ktn
-	-@ $(CompTargetPath) $< > $@ 2> $(TestWarnDir)/$(basename $(notdir $@))
+	$(call ensure_buildable,$@)
+	@ mkdir -p $(TestWarnDir)
+	@ $(CompTargetPath) $< > $@ 2> $(TestWarnDir)/$(basename $(notdir $@))
 
-$(TestTargetDir)/% : $(TestInterDir)/%.c
+$(TestTargetDir)/% : $(TestInterDir)/%.c $(LibTargetPath)
+	$(call ensure_buildable,$@)
 	@ echo 'Building test $(notdir $@) ...'
 	-@ $(CC) -std=c99 $< \
 		-L$(TargetDir) -l$(LibTargetName) -lm -Ilibrary -o $@ \
 		2> /dev/null $(TestDebugFlags)
 
 .depend : $(LibSrcPaths)
+	$(call ensure_buildable,$@)
 	@ $(CC) -MM -o $@ $^ $(LibFlags)
 
 include .depend
 
 $(LibTargetPath) : $(LibObjPaths) .depend
+	$(call ensure_buildable,$@)
 	@ echo 'Linking runtime library ...'
 	@ $(AR) $@ $^
 
 $(TargetDir)/%.o : ./library/%.c .depend
+	$(call ensure_buildable,$@)
 	@ echo 'Building $< ...'
 	@ $(CC) -c $< $(LibFlags) $(LibDebugFlags) -o $@
