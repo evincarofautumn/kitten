@@ -1,0 +1,44 @@
+# Depends upon: Makefile.library, Makefile.compiler
+
+TestTargetDir := $(TargetDir)/test
+TestInterDir := $(TestTargetDir).inter
+TestWarnDir := $(TestTargetDir).warn
+TestOutDir := $(TestTargetDir).out
+TestErrDir := $(TestTargetDir).err
+TestSrcDir := test
+TestSrcPaths := $(wildcard $(TestSrcDir)/*.ktn)
+TestSrcNames := $(basename $(notdir $(TestSrcPaths)))
+TestTargetPaths := $(addprefix $(TestTargetDir)/, $(TestSrcNames))
+
+ifdef DEBUG
+  TestDebugFlags := -DDEBUG -g
+else
+  TestDebugFlags :=
+endif
+
+
+.PHONY : clean-tests
+clean-tests :
+	@ echo 'Cleaning test build files ...'
+	@ rm -rf $(TestTargetDir)/* $(TestInterDir)/* $(TestOutDir)/* \
+		$(TestErrDir)/* $(TestWarnDir)/*
+
+.PHONY : tests
+tests : $(CompTargetPath) $(TestTargetPaths)
+	@ mkdir -p $(TestOutDir)
+	@ mkdir -p $(TestWarnDir)
+	@ mkdir -p $(TestErrDir)
+	@ echo 'Running tests ...'
+	@ ./run-tests.sh
+
+$(TestInterDir)/%.c : $(TestSrcDir)/%.ktn $(CompTargetPath)
+	$(call ensure_buildable,$@)
+	@ mkdir -p $(TestWarnDir)
+	@ $(CompTargetPath) $< > $@ 2> $(TestWarnDir)/$(basename $(notdir $@))
+
+$(TestTargetDir)/% : $(TestInterDir)/%.c $(LibTargetPath)
+	$(call ensure_buildable,$@)
+	@ echo 'Building test $(notdir $@) ...'
+	@ $(CC) -std=c99 $< \
+		-L$(TargetDir) -l$(LibTargetName) -lm -Ilibrary -o $@ \
+		$(TestDebugFlags)
