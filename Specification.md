@@ -947,14 +947,14 @@ continues to propagate until a suitable handler is found.
 
     1 0 /
     "This is never executed." output-line
-    [[message >> ArgumentError] => ["Error: \[message]" output-line]] catch
+    catch [ [message] => ["Error: \[message]" output-line] ]
 
 The `throw` built-in word converts a value into an exceptional value, allowing
 you to throw your own exceptions.
 
     [a b subtract-naturals] =>
     : ["Natural subtraction \[a] - \[b] = \[] < 0!" throw]
-      a b - dup 0 < when
+      a b - dup  0 <  when
 
 When throwing exceptions from within word definitions, it is considered good
 practice to ensure that no arguments or other intermediate values remain on the
