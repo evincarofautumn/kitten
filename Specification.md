@@ -696,17 +696,20 @@ unconventional symbols.
 #### 2.6.5. Layout Quotations
 
 An explicit quotation may always be replaced with a layout quotation. A layout
-quotation consists of a colon `:` and a line break, followed by a region in
-which each line is indented more than the first lexeme of the line where the
-colon appeared.
+quotation consists of a colon `:` and a line break, followed by an indented
+region. If the colon appears at column *n*, then the indented region is one in
+which the first lexeme of each line has a column position greater than *n*.
+Blank lines are ignored.
 
-    define [ x y z  f  triapply ]
+    [ x y z  [...f] triapply ] =>
     [ x f  y f  z f ]
 
-    define [ x y z  f  triapply ]:
+    [ x y z  [...f] triapply ] =>:
       x f
       y f
       z f
+
+    --
 
     [ "alpha"
       "beta" ]
@@ -722,7 +725,7 @@ colon appeared.
       "delta"
     compose
 
-A layout region may begin on the same line as the colon, in which case
+The layout region may begin on the same line as the colon, in which case
 subsequent lines must only have greater indentation than the colon:
 
     : "alpha"
@@ -733,24 +736,22 @@ subsequent lines must only have greater indentation than the colon:
 
 Layout blocks may be nested.
 
-    define 3x3-identity-matrix
-    [ [ 1 0 0 ]
-      [ 0 1 0 ]
-      [ 0 0 1 ] ]
+    identity-matrix-3x3 =>
+    [[ 1 0 0 ]
+     [ 0 1 0 ]
+     [ 0 0 1 ]]
 
-    =
-
-    define 3x3-identity-matrix
+    identity-matrix-3x3 =>
     :: 1 0 0
      : 0 1 0
      : 0 0 1
 
-A kind of double-layout block was considered, which would begin with a
-double-colon `::` and produce a nested quotation by keeping track of line
-breaks. This was rejected on the basis of poor usability, because it would
-introduce a non-obvious distinction between `::` and `: :`.
+    identity-matrix-3x3 => :: 1 0 0
+                            : 0 1 0
+                            : 0 0 1
 
-Layout syntax may be used anywhere, including within patterns or other quotations.
+Layout syntax may be used anywhere, including within patterns or other
+quotations.
 
     -- 2x2 identity matrix multiplication.
     : :: 1 0
@@ -767,6 +768,13 @@ Layout quotations may be quasiquoted (see §2.3.5):
     `: \(n * 2)
        \(n * 3)
        \(n * 4)
+
+##### Notes
+
+A kind of double-layout block was considered, which would begin with a
+double-colon `::` and produce a nested quotation by keeping track of line
+breaks. This was rejected on the basis of poor usability, because it would
+introduce a non-obvious distinction between `::` and `: :`.
 
 ##### Code Points
 
