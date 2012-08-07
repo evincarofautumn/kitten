@@ -10,32 +10,26 @@ concatenative semantics. It is statically typed, with partial type inference and
 full type checking in the presence of type annotations. The language provides a
 small but powerful set of core features, including:
 
- * Extensible syntax through pattern matching and term rewriting
+ * Homoiconic syntax and free manipulation of code as data
 
- * User-defined algebraic data types (ADTs)
-
- * Higher-order functions
+ * User-defined algebraic data types (ADTs) and type classes
 
  * Optional non-strict evaluation semantics
 
- * A module system
+ * A hierarchical module system
 
  * A “batteries included” standard library with common data structures such as
    lists, maps, and sets
 
 The language has a rich set of built-in data types, including:
 
- * Unicode strings
+ * Unicode (UTF-32) strings
 
  * Homogeneous and heterogeneous arrays
 
- * Fixed- and arbitrary-precision exact integers
+ * Fixed- and arbitrary-precision integers
 
- * Arbitrary-precision exact rational numbers
-
- * Fixed-precision inexact floating-point numbers
-
- * Complex numbers
+ * Fixed-precision floating-point numbers
 
 Kitten is motivated by a desire for a powerful functional programming language
 with high performance and minimal runtime support. As a concatenative language,
