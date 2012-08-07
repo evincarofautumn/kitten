@@ -563,10 +563,10 @@ A symbol is a word preceded by a dot `.`.
 The definition directive `=>` (1, 2) binds a name to a pattern and
 substitution:
 
-    pattern name => substitution
+    [pattern] name => [substitution]
 
-A pattern is a quotation consisting of one or more pattern terms. A pattern term
-is a symbol, a quotation pattern, an ADT pattern, a scalar variable, a row
+A pattern is a quotation consisting of zero or more pattern terms. A pattern
+term is a symbol, a quotation pattern, an ADT pattern, a scalar variable, a row
 variable, or a literal. A quotation pattern has the same syntax as a whole
 pattern. An ADT pattern matches ADT quotations of a particular tag, but its
 contents are identical in form to a quotation pattern. A scalar variable is a
@@ -878,17 +878,17 @@ explicit type signature.
 
 Declaration syntax mirrors definition syntax:
 
-    [consumption word] >> [production]
+    [consumption] name -> [production]
 
 Declarations using C types are external, and automatically marshalled to and fro
 (insofar as this is possible).
 
-    [int int int uint32 SDL_SetVideoMode] >> pointer
+    [int int int uint32] SDL_SetVideoMode -> pointer
 
 Because Kitten words cannot have dynamic stack effects, variadic foreign
 functions accept quotations instead:
 
-    [... pointer printf] >> int
+    [variadic pointer] printf -> int
     ["text" 32] "%s %i" printf
 
 ## 4. Built-in Definitions
