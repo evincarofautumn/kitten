@@ -93,8 +93,8 @@ indication of comment nesting.
 
 ### 2.2. Numbers
 
-A number is either an integer, a rational, an inexact, or a complex. Regardless
-of its type, any number may be preceded by a sign character `+` (1) or `-` (2).
+A number is either an integer or an inexact. Regardless of its type, any number
+may be preceded by a sign character `+` (1) or `-` (2).
 
 ##### Code Points
 
@@ -137,15 +137,6 @@ hexadecimal integers, `A`–`F` (3) and `a`–`f` (4).
 
  4. `a` U+0061 LATIN SMALL LETTER A – `f` U+0066 LATIN SMALL LETTER F
 
-##### Typesetting
-
-Radix specifiers ought to be typeset as subscripts. Hexadecimal numbers should
-be set in capitals, or small capitals when typesetting with text figures.
-
-    deafbeef#16
-
-> DEAFBEEF<sub>16</sub>
-
 ##### Notes
 
 The goal of a numeric literal syntax is to be legible and make the radix
@@ -158,52 +149,12 @@ A more mathematically oriented subscript syntax was considered (with `_16` and
 digit characters, and likewise poor visual substitutes for true subscripts. The
 `#` sign is mnemonic, and much less likely to clash with desirable identifiers.
 
-#### 2.2.2. Fraction Literals
+#### 2.2.2. Inexact Literals
 
-A fraction literal consists of one or more digits, followed by a slash `/` (1),
-one or more digits again, and an optional radix specifier. Implementations must
-support at least decimal (`#10`), hexadecimal (`#16`), octal (`#8`), and binary
-(`#2`) fraction literals.
-
-##### Examples
-
-    1/2
-    2/3
-    22/7
-    101/010#2
-    628318/10000
-    8090A0/FFFFFF#16
-
-##### Regular Expression
-
-      [0-9]+       [/⁄] [0-9]+       (#10)?
-    | [0-9A-Fa-f]+ [/⁄] [0-9A-Fa-f]+ #16
-    | [0-7]+       [/⁄] [0-7]+       #8
-    | [01]+        [/⁄] [01]+        #2
-
-##### Code Points
-
- 1. `/` U+002F SLASH
-
-##### Typesetting
-
-The whole literal should be set as a proper fraction with the numerator above
-the denominator. Radix specifiers ought to be typeset as subscripts following
-*both* the numerator and denominator.
-
-#### 2.2.3. Inexact Literals
-
-Inexact literals consist of a significand and an optional exponent part.
-
-The significand comprises one or more digits, followed by a decimal point `.`
+Inexact literals consist of one or more digits, followed by a decimal point `.`
 (1), one or more digits again, and an optional radix specifier as previously
 defined. Implementations must support at least decimal (`#10`), hexadecimal
 (`#16`), octal (`#8`), and binary (`#2`) inexact literals.
-
-The exponent part comprises an asterisk `*` (2), one or more decimal digits
-constituting a base specifier, a caret `^` (3), an optional sign character `+`
-or `-`, and the exponent proper of one or more decimal digits. Implementations
-must support at least `10`, `16`, `8`, and `2` as base specifiers.
 
 ##### Examples
 
@@ -213,15 +164,8 @@ must support at least `10`, `16`, `8`, and `2` as base specifiers.
 
     10.5
     A.8#16
-    12.4#8
-    1010.1#2
-
-    1.0*2^16
-
-    −1.0×10^−5    -- −1/100000
-    A.0#16×16^2   -- A00.0#16
-    +10.0#8*10^+3 -- 8000
-    0.0628*10^2   -- 6.28
+    -12.4#8
+    +1010.1#2
 
 ##### Regular Expression
 
@@ -230,24 +174,10 @@ must support at least `10`, `16`, `8`, and `2` as base specifiers.
     | [0-7]+       \. [0-7]+      #8
     | [01]+        \. [01]+       #2
     )
-    ( \* (10|16|8|2) \^ [-+]? [0-9]+ )?
 
 ##### Code Points
 
  1. `.` U+002E PERIOD
-
- 2. `*` U+002A ASTERISK
-
- 3. `^` U+005E CARET
-
-##### Typesetting
-
-Radix specifiers ought to be typeset as subscripts, and exponents as
-superscripts.
-
-    +10.0#8*10^+3
-
-> +10.0<sub>8</sub> × 10<sup>+3</sup>
 
 ##### Notes
 
@@ -260,24 +190,6 @@ E) was considered as well, but Unicode small capital characters are poor
 substitutes for proper typographical small capitals. Similarly, Unicode
 superscript digits are poor substitutes for proper typographical superscripts,
 while `^` is already a common convention for superscripts.
-
-#### 2.2.4. Complex Literals
-
-Two number literals of any kind may be joined by a `+`, `-`, and suffixed with
-the imaginary unit `i` (1) or `j` (2). The result is a complex literal. When the
-literal is prefixed with a sign character, it applies only to the real part, so
-`-2+3i` has a real part of `-2` and an imaginary part of `+3i`.
-
-##### Examples
-
-    2+2i
-    1/2-1/4j
-
-##### Code Points
-
- * `i` U+0069 LATIN SMALL LETTER I
-
- * `j` U+006A LATIN SMALL LETTER J
 
 ### 2.3. Quotations
 
@@ -615,14 +527,6 @@ The original syntax for definitions used a `define` keyword, i.e.:
 
 However, this was considered too verbose, especially for the case of inline
 definitions.
-
-##### Typesetting
-
-`=>` should be typeset as a rightward double arrow.
-
-    [] not => [ True => False  False => True ]
-
-> *not* ⇒ [ *True* ⇒ *False* &emsp; *False* ⇒ *True* ]
 
 #### 2.6.2. Operators
 
