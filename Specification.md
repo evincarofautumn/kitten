@@ -462,7 +462,7 @@ The escape `\<WORD>` indicates the presence of a *here document*, abbreviated
 following the text quotation and ends when the `WORD` appears on a line by
 itself.
 
-    some_c_code => "// Here is my awesome program:\n\n\<END>"
+    [] some_c_code => "// Here is my awesome program:\n\n\<END>"
     #include <stdio.h>
     int main(int argc, char** argv) {
         printf("Hello, world!\n");
@@ -474,7 +474,7 @@ If the ending delimiter is indented, then all whitespace preceding its column
 position will be discarded. This allows for heredocs to be properly indented
 with the surrounding code.
 
-    my_paragraph => "\<END>"
+    [] my_paragraph => "\<END>"
       'Twas brillig, and the slithy toves
       did gyre and gimble in the wabe.
       All mimsy were the borogoves,
@@ -485,7 +485,7 @@ The body of a heredoc is spliced into the text quotation at the point where it
 appeared. Multiple here documents may be referenced in a single line, in which
 case they are parsed in the order mentioned:
 
-    paragraphs => ["\<END-FIRST>\n----\n\<END-SECOND>" "\<END-THIRD>"]
+    [] paragraphs => ["\<END-FIRST>\n----\n\<END-SECOND>" "\<END-THIRD>"]
     This is the first.
     END-FIRST
     This is the second.
@@ -534,13 +534,13 @@ function which, when evaluated on the correct number of arguments, produces the
 concatenated quotation. There is no distinction between square brackets and
 parentheses in this case.
 
-    intro => "Her name was \() and his was \[]."
+    [] intro => "Her name was \() and his was \[]."
     "Alice" "Bob" intro
 
 For named splices, you can use inline definitions. Then the order need not be
 fixed:
 
-    intro => [[hers his] => "His name was \[his] and hers was \(hers)."]
+    [] intro => [[hers his] => "His name was \[his] and hers was \(hers)."]
     "Alice" "Bob" intro
 
  1. <code>\`</code> U+0060 GRAVE ACCENT
@@ -580,11 +580,11 @@ A symbol is a word preceded by a dot `.`.
 
 #### 2.6.1. Definitions and Inline Definitions
 
-The definition directive `=>` (1, 2) or `⇒` (3) binds a pattern to a
+The definition directive `=>` (1, 2) or `⇒` (3) binds a name to a pattern and
 substitution:
 
-    pattern => substitution
-    pattern ⇒ substitution
+    pattern name => substitution
+    pattern name ⇒ substitution
 
 A pattern is a quotation consisting of one or more pattern terms. A pattern term
 is a symbol, a quotation pattern, an ADT pattern, a scalar variable, a row
@@ -598,11 +598,11 @@ is treated as the name of the definition. Inline definitions inside a quotation,
 however, are anonymous.
 
     -- Top-level definition of "not" function.
-    [True not] => [False]
-    [False not] => [True]
+    [True] not => [False]
+    [False] not => [True]
 
     -- Inline definition of "not" function bound to a top-level word.
-    [not] =>
+    [] not =>
     [ [True] => [False]
       [False] => [True] ]
 
@@ -614,14 +614,14 @@ however, are anonymous.
 Brackets may be omitted around a pattern or definition when it consists of a
 single term. Implementations ought to warn about redundant brackets.
 
-    not =>
+    [] not =>
     [ True => False
       False => True ]
 
 As with top-level bindings, this is rewritten internally to use explicit
 equality testing with `=`.
 
-    [not] =>
+    [] not =>
     [ [[dup True =] [drop False]]
       [[dup False =] [drop True]]
       cond ]
@@ -701,10 +701,10 @@ region. If the colon appears at column *n*, then the indented region is one in
 which the first lexeme of each line has a column position greater than *n*.
 Blank lines are ignored.
 
-    [ x y z  [...f] triapply ] =>
+    [ x y z  [...f] ] triapply =>
     [ x f  y f  z f ]
 
-    [ x y z  [...f] triapply ] =>:
+    [ x y z  [...f] ] triapply =>:
       x f
       y f
       z f
@@ -736,19 +736,19 @@ subsequent lines must only have greater indentation than the colon:
 
 Layout blocks may be nested.
 
-    identity-matrix-3x3 =>
+    [] identity-matrix-3x3 =>
     [[ 1 0 0 ]
      [ 0 1 0 ]
      [ 0 0 1 ]]
 
-    identity-matrix-3x3 =>
+    [] identity-matrix-3x3 =>
     :: 1 0 0
      : 0 1 0
      : 0 0 1
 
-    identity-matrix-3x3 => :: 1 0 0
-                            : 0 1 0
-                            : 0 0 1
+    [] identity-matrix-3x3 => :: 1 0 0
+                               : 0 1 0
+                               : 0 0 1
 
 Layout syntax may be used anywhere, including within patterns or other
 quotations.
@@ -758,8 +758,7 @@ quotations.
        : 0 1
       :: a b
        : c d
-      *
-    =>
+    * =>
     :: a b
      : c d
 
@@ -960,7 +959,7 @@ continues to propagate until a suitable handler is found.
 The `throw` built-in word converts a value into an exceptional value, allowing
 you to throw your own exceptions.
 
-    [a b subtract-naturals] =>
+    [a b] subtract-naturals =>
     : ["Natural subtraction \[a] - \[b] = \[] < 0!" throw]
       a b - dup  0 <  when
 
