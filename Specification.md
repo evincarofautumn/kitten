@@ -53,17 +53,16 @@ numbers, quotations, words, symbols, or directives.
 Whitespace may be literal whitespace or a comment. Literal whitespace is a
 sequence of one or more Unicode whitespace characters. A comment may be
 single-line or multi-line. A single-line comment begins with two hyphens `--`
-(1) or an em dash `—` (2) and continues till the following line break (or
-end-of-file).
+(1) and continues till the following line break (or end-of-file).
 
     meow  -- Demand attention.
-    meow? —  Ensure attention was received.
+    meow? -- Ensure attention was received.
 
 A multi-line comment begins with an opening curly brace followed by a hyphen
-`{-` (3) or em dash `{—` and ends with a closing curly brace preceded by a
-hyphen `-}` or em dash `—}` respectively (4). Multi-line comments may be
-nested. The brace syntax was chosen to allow easily jumping between matching
-braces in text editors, and to give a visual indication of comment nesting.
+`{-` (2) and ends with a closing curly brace preceded by a hyphen `-}`
+(3). Multi-line comments may be nested. The brace syntax was chosen to allow
+easily jumping between matching braces in text editors, and to give a visual
+indication of comment nesting.
 
     {-
     This is a multi-line comment. It can contain any text, including sequences
@@ -80,33 +79,28 @@ braces in text editors, and to give a visual indication of comment nesting.
     This text belongs to the outer comment.
     -}
 
-    {— Outer comment begins.
-       {— Inner comment begins and ends. —}
-       Outer comment ends. —}
+    {- Outer comment begins.
+       {- Inner comment begins and ends. -}
+       Outer comment ends. -}
 
 ##### Code Points
 
  1. `-` U+002D HYPHEN-MINUS
 
- 2. `—` U+2014 EM DASH
+ 2. `{` U+007B LEFT CURLY BRACKET
 
- 3. `{` U+007B LEFT CURLY BRACKET
-
- 4. `}` U+007D RIGHT CURLY BRACKET
+ 3. `}` U+007D RIGHT CURLY BRACKET
 
 ### 2.2. Numbers
 
 A number is either an integer, a rational, an inexact, or a complex. Regardless
-of its type, any number may be preceded by a sign character `+` (1), `-` (2), or
-`−` (3).
+of its type, any number may be preceded by a sign character `+` (1) or `-` (2).
 
 ##### Code Points
 
  1. `+` U+002B PLUS SIGN
 
  2. `-` U+002D HYPHEN-MINUS
-
- 3. `−` U+2212 MINUS SIGN
 
 #### 2.2.1. Integer Literals
 
@@ -166,10 +160,10 @@ digit characters, and likewise poor visual substitutes for true subscripts. The
 
 #### 2.2.2. Fraction Literals
 
-A fraction literal consists of one or more digits, followed by a slash `/` (1)
-or fraction slash `⁄` (2), one or more digits again, and an optional radix
-specifier. Implementations must support at least decimal (`#10`), hexadecimal
-(`#16`), octal (`#8`), and binary (`#2`) fraction literals.
+A fraction literal consists of one or more digits, followed by a slash `/` (1),
+one or more digits again, and an optional radix specifier. Implementations must
+support at least decimal (`#10`), hexadecimal (`#16`), octal (`#8`), and binary
+(`#2`) fraction literals.
 
 ##### Examples
 
@@ -191,8 +185,6 @@ specifier. Implementations must support at least decimal (`#10`), hexadecimal
 
  1. `/` U+002F SLASH
 
- 2. `⁄` U+2044 FRACTION SLASH
-
 ##### Typesetting
 
 The whole literal should be set as a proper fraction with the numerator above
@@ -208,11 +200,10 @@ The significand comprises one or more digits, followed by a decimal point `.`
 defined. Implementations must support at least decimal (`#10`), hexadecimal
 (`#16`), octal (`#8`), and binary (`#2`) inexact literals.
 
-The exponent part comprises an asterisk `*` (2) or multiplication sign `×` (3),
-one or more decimal digits constituting a base specifier, a caret `^` (4), an
-optional sign character `+`, `-`, or `−`, and the exponent proper of one or more
-decimal digits. Implementations must support at least `10`, `16`, `8`, and `2`
-as base specifiers.
+The exponent part comprises an asterisk `*` (2), one or more decimal digits
+constituting a base specifier, a caret `^` (3), an optional sign character `+`
+or `-`, and the exponent proper of one or more decimal digits. Implementations
+must support at least `10`, `16`, `8`, and `2` as base specifiers.
 
 ##### Examples
 
@@ -228,7 +219,7 @@ as base specifiers.
     1.0*2^16
 
     −1.0×10^−5    -- −1/100000
-    A.0×16^2      -- A00.0#16
+    A.0#16×16^2   -- A00.0#16
     +10.0#8*10^+3 -- 8000
     0.0628*10^2   -- 6.28
 
@@ -239,7 +230,7 @@ as base specifiers.
     | [0-7]+       \. [0-7]+      #8
     | [01]+        \. [01]+       #2
     )
-    ( \* (10|16|8|2) \^ [-+−]? [0-9]+ )?
+    ( \* (10|16|8|2) \^ [-+]? [0-9]+ )?
 
 ##### Code Points
 
@@ -247,9 +238,7 @@ as base specifiers.
 
  2. `*` U+002A ASTERISK
 
- 3. `×` U+00D7 MULTIPLICATION SIGN
-
- 4. `^` U+005E CARET
+ 3. `^` U+005E CARET
 
 ##### Typesetting
 
@@ -274,16 +263,15 @@ while `^` is already a common convention for superscripts.
 
 #### 2.2.4. Complex Literals
 
-Two number literals of any kind may be joined by a `+`, `-`, or `−`, and
-suffixed with the imaginary unit `i` (1) or `j` (2). The result is a complex
-literal. When the literal is prefixed with a sign character, it applies only to
-the real part, so `-2+3i` has a real part of `-2` and an imaginary part of
-`+3i`.
+Two number literals of any kind may be joined by a `+`, `-`, and suffixed with
+the imaginary unit `i` (1) or `j` (2). The result is a complex literal. When the
+literal is prefixed with a sign character, it applies only to the real part, so
+`-2+3i` has a real part of `-2` and an imaginary part of `+3i`.
 
 ##### Examples
 
     2+2i
-    1/2−1/4j
+    1/2-1/4j
 
 ##### Code Points
 
@@ -313,12 +301,11 @@ quotation can be used to construct anonymous functions.
 #### 2.3.2. Text and Code Point Quotations
 
 Text quotations consist of a series of zero or more character literals and
-character escapes wrapped in double quotes—either straight double quotes `""`
-(1) or curved double quotes `“”` (2). Each value in a text quotation is a
-Unicode code point; a single code point may be specified literally using a code
-point quotation wrapped in straight single quotes `''` (3) or curved single
-quotes `‘’` (4). Thus a text quotation is syntactic sugar for a plain quotation
-of code point quotations.
+character escapes wrapped in straight double quotes `""` (1). Each value in a
+text quotation is a Unicode code point; a single code point may be specified
+literally using a code point quotation wrapped in straight single quotes `''`
+(2). Thus a text quotation is syntactic sugar for a plain quotation of code
+point quotations.
 
 ##### Examples
 
@@ -329,21 +316,14 @@ of code point quotations.
 
  1. `"` U+0022 QUOTATION MARK
 
- 2. `“` U+201C LEFT DOUBLE QUOTATION MARK – `”` U+201D RIGHT DOUBLE QUOTATION MARK
-
- 3. `'` U+0027 APOSTROPHE
-
- 4. `‘` U+2018 LEFT SINGLE QUOTATION MARK – `’` U+2019 RIGHT SINGLE QUOTATION MARK
+ 2. `'` U+0027 APOSTROPHE
 
 #### 2.3.3. Character Literals and Character Escapes
 
-A character literal is any Unicode character except for backslash `\`
-(U+005C). Line breaks are allowed within text quotations. Curved quotes may be
-nested, so a text quotation using curved double quotes may itself contain curved
-double quote character literals, provided they are correctly matched. One using
-straight quotes, however, would not allow literal straight quotes. A character
-escape consists of a backslash `\` followed by a *character escape body*, which
-is translated to a particular character sequence:
+A character literal is any Unicode character except for backslash `\` (U+005C).
+Line breaks are allowed within text quotations. A character escape consists of a
+backslash `\` followed by a *character escape body*, which is translated to a
+particular character sequence:
 
  * `\\` → `\` U+005C BACKSLASH
 
@@ -580,18 +560,17 @@ A symbol is a word preceded by a dot `.`.
 
 #### 2.6.1. Definitions and Inline Definitions
 
-The definition directive `=>` (1, 2) or `⇒` (3) binds a name to a pattern and
+The definition directive `=>` (1, 2) binds a name to a pattern and
 substitution:
 
     pattern name => substitution
-    pattern name ⇒ substitution
 
 A pattern is a quotation consisting of one or more pattern terms. A pattern term
 is a symbol, a quotation pattern, an ADT pattern, a scalar variable, a row
 variable, or a literal. A quotation pattern has the same syntax as a whole
 pattern. An ADT pattern matches ADT quotations of a particular tag, but its
 contents are identical in form to a quotation pattern. A scalar variable is a
-word. A row variable is a word preceded by `...` or `…` (4).
+word. A row variable is a word preceded by `...`.
 
 The top (last) symbol in a top-level definition’s pattern must be a word, which
 is treated as the name of the definition. Inline definitions inside a quotation,
@@ -641,7 +620,7 @@ definitions.
 
 `=>` should be typeset as a rightward double arrow.
 
-    not => [ True => False  False => True ]
+    [] not => [ True => False  False => True ]
 
 > *not* ⇒ [ *True* ⇒ *False* &emsp; *False* ⇒ *True* ]
 
@@ -696,7 +675,7 @@ unconventional symbols.
 #### 2.6.5. Layout Quotations
 
 An explicit quotation may always be replaced with a layout quotation. A layout
-quotation consists of a colon `:` and a line break, followed by an indented
+quotation consists of a colon `:` (1) and a line break, followed by an indented
 region. If the colon appears at column *n*, then the indented region is one in
 which the first lexeme of each line has a column position greater than *n*.
 Blank lines are ignored.
