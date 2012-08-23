@@ -1,6 +1,7 @@
 module Main where
 
 import Kitten
+import qualified Text
 
 import System.Environment
 import System.IO
@@ -14,14 +15,15 @@ main = do
       let filename = head args
       file <- readFile filename
       case compile filename file of
-        Left compileError ->
-          die (show compileError)
-        Right compileResult ->
-          putStrLn compileResult
+        Left compileError   -> die compileError
+        Right compileResult -> putStrLn $ Text.unpack compileResult
     _ ->
       die "Usage: kitten FILENAME\n"
 
-die :: String -> IO ()
+die
+  :: (Show a)
+  => a
+  -> IO ()
 die msg = do
-  hPutStr stderr msg
+  hPutStr stderr $ show msg
   exitFailure

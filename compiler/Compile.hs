@@ -1,4 +1,6 @@
-{-# OPTIONS -cpp -pgmPcpphs -optP--cpp #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS -pgmPcpphs -optP--cpp #-}
  
 module Compile
   ( compile
@@ -9,22 +11,24 @@ import Program
 import Term
 
 import Data.List
+import Text ((+++))
+import qualified Text
 
 data Context = Context
-  { quotation :: Bool
-  , definitions :: [String]
+  { quotation   :: Bool
+  , definitions :: [Text.Text]
   }
 
 quoted :: Context -> Context
 quoted e = e { quotation = True }
 
-defining :: Context -> String -> Context
+defining :: Context -> Text.Text -> Context
 e `defining` s = e { definitions = definitions e ++ [s] }
 
 #include "builtins.h"
 #define INIT(NAME) #NAME,
 #define LAST(NAME) #NAME
-builtins :: [String]
+builtins :: [Text.Text]
 builtins = [ KITTEN_BUILTINS(INIT, LAST) ]
 #undef LAST
 #undef INIT
@@ -32,68 +36,122 @@ builtins = [ KITTEN_BUILTINS(INIT, LAST) ]
 emptyContext :: Context
 emptyContext = Context False []
 
-compile :: Program -> Error.Monad String
+compile :: Program -> ErrorMonad Text.Text
 compile (Program terms) = do
   result <- compileWith emptyContext terms
-  return $ "#include <kitten.h>\nKITTEN_PROGRAM(" ++ unwords result ++ ")"
+  return $ Text.concat 
+    [ "#include <kitten.h>\nKITTEN_PROGRAM("
+    , Text.unwords result
+    , ")"
+    ]
 
-compileWith :: Context -> [Term] -> Error.Monad [String]
+compileWith
+  :: Context
+  -> [Term]
+  -> ErrorMonad [Text.Text]
 compileWith _ [] = Right []
-compileWith here terms = case compileTerm here (head terms) of
-  Right (first, next) -> case compileWith next (tail terms) of
-    Right rest -> Right $ first : rest
-    compileError -> compileError
-  Left compileError -> Left compileError
+compileWith here terms = do
+  (first, next) <- compileTerm here $ head terms
+  rest <- compileWith next $ tail terms
+  return $ first : rest
 
-compileTerm :: Context -> Term -> Error.Monad (String, Context)
-compileTerm here value =
-  case value of
-    Float f ->
-      if quotation here
-        then Right ("MKF(" ++ show f ++ ")", here)
-        else Right ("PUSHF(" ++ show f ++ ")", here)
-    Integer i ->
-      if quotation here
-        then Right ("MKI(" ++ show i ++ ")", here)
-        else Right ("PUSHI(" ++ show i ++ ")", here)
-    Quotation q ->
-      if quotation here
-        then case compileQuotation here q of
-          Right result -> Right ("MKQ(" ++ result ++ ")", here)
-          Left compileError -> Left compileError
-        else case compileQuotation here q of
-          Right result -> Right ("PUSHQ(" ++ result ++ ")", here)
-          Left compileError -> Left compileError
-    Word w ->
-      if quotation here
-        then case w `elemIndex` definitions here of
-          Just n -> Right ("MKW(" ++ show n ++ ")", here)
-          Nothing -> if w `elem` builtins
-            then Right ("word_new(WORD_" ++ w ++ ")", here)
-            else Left . CompileError $ "Undefined word \"" ++ w ++ "\""
-        else case w `elemIndex` definitions here of
-          Just n -> Right ("DO(" ++ show n ++ ")", here)
-          Nothing -> if w `elem` builtins
-            then Right ("BUILTIN(" ++ w ++ ")", here)
-            else Left . CompileError $ "Undefined word \"" ++ w ++ "\""
-    Definition (Word name) body@(Quotation _) ->
-      if quotation here
-        then Left . CompileError
-          $ "A definition cannot appear inside a quotation."
-        else case compiledBody of
-          Right terms -> Right
-            (("DEF(" ++) . (++ ")") $ unwords terms, next)
-          Left compileError -> Left compileError
-          where
-            compiledBody = compileWith (quoted next) [body]
-            next = here `defining` name
-    _ -> Left . CompileError $ "Unable to compile malformed term."
+compileTerm
+  :: Context
+  -> Term
+  -> ErrorMonad (Text.Text, Context)
+compileTerm here value
+  = case value of
+      Inexact f   -> return (compileInexact here f, here)
+      Integer i   -> return (compileInteger here i, here)
+      Quotation q -> compileQuotation here q
+      Word w      -> compileWord here w
+      Definition (Word name) body@(Quotation _)
+        -> compileDefinition here name body
+      _ -> throwError $ CompileError "Unable to compile malformed term."
 
-compileQuotation :: Context -> [Term] -> Error.Monad String
-compileQuotation here terms = case compiledBody of
-  Right compiledTerms ->
-    Right $ (if null terms then "0, 0" else show (length terms) ++ ", ")
-      ++ intercalate ", " compiledTerms
-  Left compileError -> Left compileError
+compileQuotation
+  :: Context
+  -> [Term]
+  -> ErrorMonad (Text.Text, Context)
+compileQuotation here terms
+  = if quotation here then compileInside else compileOutside
   where
+    compileInside = do
+      result <- compileQuotation'
+      return ("MKQ(" +++ result +++ ")", here)
+
+    compileOutside = do
+      result <- compileQuotation'
+      return ("PUSHQ(" +++ result +++ ")", here)
+
     compiledBody = compileWith (quoted here) terms
+
+    compileQuotation' = do
+      compiledTerms <- compiledBody
+      return $ prefix +++ Text.intercalate ", " compiledTerms
+
+    prefix
+      = if null terms
+          then "0, 0"
+          else Text.show (length terms) +++ ", "
+
+compileInexact
+  :: Context
+  -> Double
+  -> Text.Text
+compileInexact here f
+  = if quotation here
+      then "MKF(" +++ Text.show f +++ ")"
+      else "PUSHF(" +++ Text.show f +++ ")"
+
+compileInteger
+  :: Context
+  -> Integer
+  -> Text.Text
+compileInteger here i
+  = if quotation here
+      then "MKI(" +++ Text.show i +++ ")"
+      else "PUSHI(" +++ Text.show i +++ ")"
+
+compileWord
+  :: Context
+  -> Text.Text
+  -> ErrorMonad (Text.Text, Context)
+compileWord here name
+  = if quotation here then compileInside else compileOutside
+  where
+    compileInside
+      = case name `elemIndex` definitions here of
+        Just index ->
+          return ("MKW(" +++ Text.show index +++ ")", here)
+        Nothing ->
+          if name `elem` builtins
+            then return ("word_new(WORD_" +++ name +++ ")", here)
+            else throwError . CompileError
+              $ "Undefined word \"" +++ name +++ "\""
+
+    compileOutside
+      = case name `elemIndex` definitions here of
+        Just index ->
+          return ("DO(" +++ Text.show index +++ ")", here)
+        Nothing ->
+          if name `elem` builtins
+            then return ("BUILTIN(" +++ name +++ ")", here)
+            else throwError . CompileError
+              $ "Undefined word \"" +++ name +++ "\""
+
+compileDefinition
+  :: Context
+  -> Text.Text
+  -> Term
+  -> ErrorMonad (Text.Text, Context)
+compileDefinition here name body
+  = if quotation here
+      then throwError
+        $ CompileError "A definition cannot appear inside a quotation."
+      else do
+        terms <- compiledBody
+        return ("DEF(" +++ Text.unwords terms +++ ")", next)
+  where
+    compiledBody = compileWith (quoted next) [body]
+    next = here `defining` name

@@ -1,21 +1,34 @@
-module Error (Error(..), Error.Monad) where
+{-# LANGUAGE OverloadedStrings #-}
+
+module Error
+  ( Error(..)
+  , ErrorMonad
+  , impossible
+  , CME.throwError
+  ) where
+
+import qualified Text
 
 import qualified Control.Monad.Error as CME
 import Data.List
+import FileLocation
+import Language.Haskell.TH.Syntax
 import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Error as Parsec
 
 data Error
-  = CompileError String
-  | InternalError String
+  = CompileError Text.Text
+  | InternalError Text.Text
   | ParseError Parsec.ParseError
 
-type Monad = Either Error
+type ErrorMonad = Either Error
 
 instance Show Error where
-  show (CompileError message) = message
+  show (CompileError message) = Text.unpack message
   show (InternalError message)
-    = if null message then "Internal error." else "Internal error: " ++ message
+    = if Text.null message
+        then "Internal error."
+        else "Internal error: " ++ show message
   show (ParseError message)
     = concatMap
       (\ x -> intercalate ":" locations ++ ": " ++ x ++ "\n") messages
@@ -33,5 +46,8 @@ instance Show Error where
           ]
 
 instance CME.Error Error where
-  strMsg = InternalError
+  strMsg = InternalError . Text.pack
   noMsg = InternalError ""
+
+impossible :: Q Exp
+impossible = err "The impossible has happened."

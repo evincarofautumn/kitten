@@ -1,0 +1,36 @@
+name: Kitten
+version: 0.1
+cabal-version: >= 1.8
+build-type: Simple
+license: MIT
+license-file: LICENSE
+copyright: 2012 (C) 2012 Jon Purdy
+author: Jon Purdy
+maintainer: evincarofautumn@gmail.com
+stability: alpha
+homepage: https://github.com/evincarofautumn/kitten
+bug-reports: https://github.com/evincarofautumn/kitten/issues
+synopsis: A high-performance concatenative programming language.
+
+executable kitten
+
+  build-depends:
+    base >= 2,
+    file-location == 0.4.*,
+    mtl == 2.0.* || == 2.1.*,
+    parsec >= 3.1.2 && < 3.2,
+    template-haskell,
+    text == 0.11.*
+
+  extensions: TemplateHaskell
+
+  ghc-options:
+    -Wall
+
+  hs-source-dirs:
+    compiler
+
+  include-dirs:
+    library
+
+  main-is: Main.hs

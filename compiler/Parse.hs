@@ -2,95 +2,148 @@ module Parse
   ( Parse.parse
   ) where
 
+import Error
 import Program
 import Term
+import qualified Text
+import qualified Token
+import Tokenize
+import Utils
 
 import Control.Applicative ((<$>), (<*), (*>))
-import Control.Monad
+import Control.Monad.Identity
 import Data.Char
-import Text.Parsec as Parsec
-import Text.Parsec.String as Parsec
+import Text.Parsec.Error as Parsec
+import Text.Parsec.Pos as Parsec
+import Text.Parsec.Prim as Parsec hiding (token, tokens)
+import Text.Parsec.Combinator as Parsec
 
-parse :: String -> String -> Either ParseError Program
-parse = Parsec.parse programP
+type TokenParser a = ParsecT [Token.Located] () Identity a
 
-programP :: Parser Program
-programP = Program
-  <$> (optional silenceP *> many termP <* optional silenceP <* eof)
+parse
+  :: String
+  -> String
+  -> Either ParseError Program
+parse source name
+  = case tokenize source name of
+      Right source' -> parse' program source' name
+      Left err -> Left err
 
-termP :: Parser Term
-termP = choice
-  [ quotationP
-  , definitionP
-  , try floatP
-  , integerP
-  , wordP
-  , textP
-  ] <* optional silenceP <?> "term"
+parse'
+  :: TokenParser a
+  -> [Token.Located]
+  -> String
+  -> Either ParseError a
+parse' parser = flip $ Parsec.runParser parser ()
 
-definitionP :: Parser Term
-definitionP = do
-  name <- try (string "define") *> silenceP *> wordP <* optional silenceP
-  term <- quotationP <|> try floatP <|> integerP <|> wordP <|> textP
-  body <- case term of
-    (Term.Integer _) -> return $ Term.Quotation [term]
-    (Term.Float _) -> return $ Term.Quotation [term]
-    (Term.Word _) -> return $ Term.Quotation [term]
-    (Term.Quotation _) -> return term
+program :: TokenParser Program
+program = Program <$> program'
+
+program' :: TokenParser [Term]
+program' = many term <* eof
+
+term :: TokenParser Term
+term = choice (try definition : normalTerm) <?> "term"
+
+normalTerm :: [TokenParser Term]
+normalTerm
+  = [ word
+    , quotation
+    , text
+    , integer
+    , inexact
+    ]
+
+definition :: TokenParser Term
+definition = do
+  name  <- word <* token Token.Definition
+  body  <- choice normalTerm
+  body' <- case body of
+    (Term.Word _)         -> return $ Term.Quotation [body]
+    (Term.Integer _)      -> return $ Term.Quotation [body]
+    (Term.Inexact _)      -> return $ Term.Quotation [body]
+    (Term.Quotation _)    -> return body
     (Term.Definition _ _) -> unexpected "definition"
-  return $ Term.Definition name body
+  return $ Term.Definition name body'
 
-quotationP :: Parser Term
-quotationP = Term.Quotation <$> (left *> many termP <* right) <?> "quotation"
+quotation :: TokenParser Term
+quotation = Term.Quotation <$> choice [plain, layout]
   where
-    left = char '[' <* optional silenceP
-    right = char ']' <?> "end of quotation"
+    plain  = left *> many term <* right <?> "plain quotation"
+    left   = token Token.QuotationOpen
+    right  = token Token.QuotationClose <?> "end of quotation"
+    layout = do
+      (Token.Located startLocation startIndent _) <- locatedToken Token.Layout
+      first@(Token.Located firstLocation _ _) <- anyLocatedToken
+      tokens <- many . locatedSatisfy
+        $ if sourceLine firstLocation == sourceLine startLocation
+            then \ (Token.Located location _ _) ->
+              sourceColumn location > sourceColumn startLocation
+            else \ (Token.Located location _ _) ->
+              sourceColumn location > startIndent
+      case parse' program' (first : tokens) "layout quotation" of
+        Right result -> return result
+        Left err     -> fail $ show err
 
-wordP :: Parser Term
-wordP = Term.Word <$> many1 wordCharacterP <?> "word"
-
-floatP :: Parser Term
-floatP = (Term.Float . read) <$> (bodyP <?> "float") where
-  bodyP = do
-    whole <- many1 digit
-    separator <- char '.'
-    fractional <- many1 digit
-    return $ whole ++ [separator] ++ fractional
-
-integerP :: Parser Term
-integerP = (Term.Integer . read) <$> (many1 digit <?> "integer")
-
-textP :: Parser Term
-textP = Term.Quotation <$> (left *> many character <* right) <?> "string"
+word :: TokenParser Term
+word = toTerm <$> satisfy isWord
   where
-    left = char '"'
-    right = char '"' <?> "end of string"
-    character = Term.Integer . fromIntegral . ord <$>
-      (noneOf "\\\"" <|> escape) <?> "character or escape"
-    escape = do
-      c <- char '\\' *> anyChar
-      case c of
-        'a' -> return '\a'
-        'f' -> return '\f'
-        'n' -> return '\n'
-        'r' -> return '\r'
-        't' -> return '\t'
-        'v' -> return '\v'
-        '\\' -> return '\\'
-        '\"' -> return '"'
-        _ -> fail $ "Invalid escape \"\\" ++ [c] ++ "\""
+    isWord (Token.Word _) = True
+    isWord _              = False
+    toTerm (Token.Word w) = Term.Word w
+    toTerm _              = $(impossible)
 
-wordCharacterP :: Parser Char
-wordCharacterP = noneOf "()[]\" \a\f\n\r\t\v"
+inexact :: TokenParser Term
+inexact = toTerm <$> satisfy isInexact
+  where
+    isInexact (Token.Inexact _) = True
+    isInexact _                 = False
+    toTerm (Token.Inexact f)    = Term.Inexact f
+    toTerm _                    = $(impossible)
 
-silenceP :: Parser ()
-silenceP = void . many1 $ whitespaceP <|> commentP
+integer :: TokenParser Term
+integer = toTerm <$> satisfy isInteger
+  where
+    isInteger (Token.Integer _) = True
+    isInteger _                 = False
+    toTerm (Token.Integer i)    = Term.Integer i
+    toTerm _                    = $(impossible)
 
-whitespaceP :: Parser ()
-whitespaceP = (void . many1 $ satisfy isSpace) <?> "whitespace"
+text :: TokenParser Term
+text = toTerm <$> satisfy isText
+  where
+    isText (Token.Text _) = True
+    isText _              = False
+    toTerm (Token.Text t)
+      = Term.Quotation . map (Term.Integer . fromIntegral . ord)
+      $ Text.unpack t
+    toTerm _ = $(impossible)
 
-commentP :: Parser ()
-commentP = void
-  $ char '('
-  *> many (try commentP <|> void (noneOf "()"))
-  *> char ')'
+advance
+  :: SourcePos
+  -> t
+  -> [Token.Located]
+  -> SourcePos
+advance _ _ (Token.Located sourcePos _ _ : _) = sourcePos
+advance sourcePos _ _ = sourcePos
+
+satisfy
+  :: (Token.Token -> Bool)
+  -> TokenParser Token.Token
+satisfy predicate = tokenPrim show advance
+  $ \ (Token.Located _ _ tok) -> boolToMaybe (predicate tok) tok
+
+locatedSatisfy
+  :: (Token.Located -> Bool)
+  -> TokenParser Token.Located
+locatedSatisfy predicate = tokenPrim show advance
+  $ \ loc -> boolToMaybe (predicate loc) loc
+
+token :: Token.Token -> TokenParser Token.Token
+token tok = satisfy (== tok)
+
+locatedToken :: Token.Token -> TokenParser Token.Located
+locatedToken tok = locatedSatisfy (\ (Token.Located _ _ loc) -> loc == tok)
+
+anyLocatedToken :: TokenParser Token.Located
+anyLocatedToken = locatedSatisfy (const True)
