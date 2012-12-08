@@ -31,11 +31,11 @@ data Term
   | Empty
 
 instance Show Term where
-  show (Word word) = word
+  show (Word name) = name
   show (Int value) = show value
   show (Lambda name body) = unwords ["\\", name, show body]
-  show (Vec terms) = "(" ++ unwords (map show terms) ++ ")"
-  show (Fun term) = "[" ++ show term ++ "]"
+  show (Vec body) = "(" ++ unwords (map show body) ++ ")"
+  show (Fun body) = "[" ++ show body ++ "]"
   show (Compose down top) = show down ++ ' ' : show top
   show Empty = ""
 
@@ -74,7 +74,7 @@ term = P.choice [word, int, lambda, vec, fun] <?> "term"
 word :: Parser Term
 word = mapOne toWord <?> "word"
   where
-  toWord (Token.Word word) = Just $ Word word
+  toWord (Token.Word name) = Just $ Word name
   toWord _ = Nothing
 
 advance :: P.SourcePos -> t -> [Located] -> P.SourcePos

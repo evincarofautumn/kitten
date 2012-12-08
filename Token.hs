@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Token
   ( Located(..)
@@ -41,7 +42,7 @@ data Located = Located
   }
 
 instance Show Located where
-  show (Located _ _ token) = show token
+  show Located {..} = show locatedToken
 
 tokenize :: String -> String -> Either P.ParseError [Located]
 tokenize name source = P.runParser file 0 name source
@@ -79,7 +80,7 @@ token = located $ P.choice
   funEnd = FunEnd <$ P.char ']'
   int = Int . read <$> P.many1 P.digit
   word = do
-    word <- P.many1 (P.letter <|> P.digit <|> P.char '_')
-    case word of
+    name <- P.many1 (P.letter <|> P.digit <|> P.char '_')
+    case name of
       "def" -> return Def
-      _ -> return $ Word word
+      _ -> return $ Word name

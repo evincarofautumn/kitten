@@ -2,10 +2,8 @@
 
 module Main where
 
-import Control.Applicative
 import Control.Monad
 import Data.Function
-import Data.List
 import System.IO
 
 import Error
@@ -13,8 +11,6 @@ import Resolve
 import Term
 
 import qualified Token
-
-import qualified Text.Parsec as P
 
 main :: IO ()
 main = fix $ \ loop -> do

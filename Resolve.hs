@@ -39,10 +39,12 @@ resolveProgram :: Program Term -> Either CompileError (Program Resolved)
 resolveProgram (Program defs term)
   = Program <$> resolveDefs defs <*> resolveTerm defs term
 
+resolveDefs :: [Def Term] -> Either CompileError [Def Resolved]
 resolveDefs defs = mapM resolveDef defs
-  where resolveDef (Term.Def name body) = Def name <$> resolveTerm defs body
+  where resolveDef (Def name body) = Def name <$> resolveTerm defs body
 
-resolveTerm defs term = case term of
+resolveTerm :: [Def Term] -> Term -> Either CompileError Resolved
+resolveTerm defs unresolved = case unresolved of
   Term.Word name -> case defIndex defs name of
     Just index -> Right $ Word name index
     Nothing -> Left . CompileError $ concat
