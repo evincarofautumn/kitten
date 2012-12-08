@@ -71,6 +71,7 @@ mapOne :: (Token -> Maybe a) -> Parser a
 mapOne f = P.tokenPrim show advance
   $ \ Located { Token.locatedToken = t } -> f t
 
+justIf :: Bool -> a -> Maybe a
 justIf c x = if c then Just x else Nothing
 
 locatedSatisfy
