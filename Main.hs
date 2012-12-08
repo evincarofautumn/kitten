@@ -3,6 +3,7 @@
 module Main where
 
 import Control.Applicative
+import Control.Monad
 import Data.Function
 import System.IO
 
@@ -31,9 +32,11 @@ instance Show CompileError where
   show (CompileError message) = message
 
 compile :: String -> String -> Either CompileError Program
-compile name source
-  = case tokenize name source of
-    Left error -> Left $ CompileError (show error)
-    Right tokens -> case parse name tokens of
-      Left error -> Left $ CompileError (show error)
-      Right program -> Right program
+compile name
+  = failIfError . tokenize name
+  >=> failIfError . parse name
+  where failIfError = mapLeft (CompileError . show)
+
+mapLeft :: (e1 -> e2) -> Either e1 a -> Either e2 a
+mapLeft f (Left e) = Left $ f e
+mapLeft _ (Right a) = Right a
