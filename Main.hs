@@ -21,7 +21,7 @@ main = fix $ \ loop -> do
     _ -> do
       putStrLn $ case compile "STDIN" line of
         Left compileError -> show compileError
-        Right compileResult -> unwords $ map show compileResult
+        Right compileResult -> show compileResult
       loop
 
 data CompileError
@@ -30,10 +30,10 @@ data CompileError
 instance Show CompileError where
   show (CompileError message) = message
 
-compile :: String -> String -> Either CompileError [Term]
+compile :: String -> String -> Either CompileError Program
 compile name source
   = case tokenize name source of
     Left error -> Left $ CompileError (show error)
     Right tokens -> case parse name tokens of
       Left error -> Left $ CompileError (show error)
-      Right terms -> Right terms
+      Right program -> Right program
