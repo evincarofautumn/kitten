@@ -18,7 +18,7 @@ main = fix $ \ loop -> do
     _ -> do
       putStrLn $ case compile "STDIN" line of
         Left compileError -> show compileError
-        Right compileResult -> show compileResult
+        Right compileResult -> unwords $ map show compileResult
       loop
 
 data CompileError
@@ -28,10 +28,22 @@ instance Show CompileError where
   show (CompileError message) = message
 
 data Token
-  = Token String
+  = Word String
+  | Def
+  | Lambda
+  | VecBegin
+  | VecEnd
+  | FunBegin
+  | FunEnd
 
 instance Show Token where
-  show (Token token) = token
+  show (Word word) = word
+  show Def = "def"
+  show Lambda = "\\"
+  show VecBegin = "("
+  show VecEnd = ")"
+  show FunBegin = "["
+  show FunEnd = "]"
 
 compile :: String -> String -> Either CompileError [Token]
 compile name source
@@ -49,5 +61,15 @@ tokens :: (P.Stream s m Char) => P.ParsecT s u m [Token]
 tokens = token `P.sepBy` P.spaces
 
 token :: (P.Stream s m Char) => P.ParsecT s u m Token
-token = Token <$> P.many1
-  (P.letter <|> P.digit <|> P.char '_')
+token = P.choice [lambda, vecBegin, vecEnd, funBegin, funEnd, word]
+  where
+  lambda = Lambda <$ P.char '\\'
+  vecBegin = VecBegin <$ P.char '('
+  vecEnd = VecEnd <$ P.char ')'
+  funBegin = FunBegin <$ P.char '['
+  funEnd = FunEnd <$ P.char ']'
+  word = do
+    word <- P.many1 (P.letter <|> P.digit <|> P.char '_')
+    case word of
+      "def" -> return Def
+      _ -> return $ Word word
