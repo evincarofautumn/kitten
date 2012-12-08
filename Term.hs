@@ -6,6 +6,7 @@ module Term
   ) where
 
 import Control.Applicative
+import Control.Arrow
 import Control.Monad.Identity
 import Data.Either
 import Text.Parsec ((<?>))
@@ -25,39 +26,44 @@ instance Show Def where
   show (Def name body) = unwords ["def", name, show body]
 
 data Term
-  = Word String
+  = Word String (Maybe Int)
   | Int Integer
   | Lambda String Term
   | Vec [Term]
   | Fun [Term]
+  | Compose Term Term
+  | Empty
 
 instance Show Term where
-  show (Word word) = word
+  show (Word word _) = word
   show (Int value) = show value
   show (Lambda name body) = unwords ["\\", name, show body]
   show (Vec terms) = unwords $ "(" : map show terms ++ [")"]
   show (Fun terms) = unwords $ "[" : map show terms ++ ["]"]
+  show (Compose down top) = show down ++ ' ' : show top
+  show Empty = ""
 
-data Program = Program [Def] [Term]
+data Program = Program [Def] Term
 
 instance Show Program where
-  show (Program defs terms) = unlines
+  show (Program defs term) = unlines
     [ "Definitions:"
     , unlines $ map show defs
     , "Terms:"
-    , unwords $ map show terms
+    , show term
     ]
 
 parse :: String -> [Located] -> Either P.ParseError Program
 parse name tokens = P.parse program name tokens
 
 program :: Parser Program
-program = uncurry Program . partitionEithers
+program = uncurry Program . second compose . partitionEithers
   <$> P.many ((Left <$> def) <|> (Right <$> term)) <* P.eof
+  where compose = foldr Compose Empty
 
 def :: Parser Def
 def = (<?> "definition") $ do
-  (Word name) <- token Token.Def *> word
+  (Word name _) <- token Token.Def *> word
   body <- term
   return $ Def name body
 
@@ -68,7 +74,7 @@ term = P.choice [word, int, lambda, vec, fun] <?> "term"
   toInt (Token.Int value) = Just (Int value)
   toInt _ = Nothing
   lambda = (<?> "lambda") $ do
-    (Word name) <- token Token.Lambda *> word
+    (Word name _) <- token Token.Lambda *> word
     body <- term
     return $ Lambda name body
   vec = Vec <$> (token Token.VecBegin *> many term <* token Token.VecEnd)
@@ -79,7 +85,7 @@ term = P.choice [word, int, lambda, vec, fun] <?> "term"
 word :: Parser Term
 word = mapOne toWord <?> "word"
   where
-  toWord (Token.Word word) = Just (Word word)
+  toWord (Token.Word word) = Just $ Word word Nothing
   toWord _ = Nothing
 
 advance :: P.SourcePos -> t -> [Located] -> P.SourcePos
