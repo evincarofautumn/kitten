@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Token
@@ -45,7 +44,7 @@ instance Show Located where
   show Located {..} = show locatedToken
 
 tokenize :: String -> String -> Either P.ParseError [Located]
-tokenize name source = P.runParser file 0 name source
+tokenize = P.runParser file 0
 
 located
   :: Parser Token.Token

@@ -17,7 +17,7 @@ import Def
 import Program
 import Token (Located(..), Token)
 
-import qualified Token as Token
+import qualified Token
 
 type Parser a = P.ParsecT [Located] () Identity a
 
@@ -40,7 +40,7 @@ instance Show Term where
   show Empty = ""
 
 parse :: String -> [Located] -> Either P.ParseError (Program Term)
-parse name tokens = P.parse program name tokens
+parse = P.parse program
 
 program :: Parser (Program Term)
 program = uncurry Program . second compose . partitionEithers
