@@ -14,7 +14,7 @@ import Term (Term)
 import qualified Term
 
 data Resolved
-  = Word String Int
+  = Word Int
   | Int Integer
   | Lambda String Resolved
   | Vec [Resolved]
@@ -23,7 +23,7 @@ data Resolved
   | Empty
 
 instance Show Resolved where
-  show (Word word _) = word
+  show (Word index) = show index
   show (Int value) = show value
   show (Lambda name body) = unwords ["\\", name, show body]
   show (Vec terms) = "(" ++ unwords (map show terms) ++ ")"
@@ -42,7 +42,7 @@ resolveDefs defs = mapM resolveDef defs
 resolveTerm :: [Def Term] -> Term -> Either CompileError Resolved
 resolveTerm defs unresolved = case unresolved of
   Term.Word name -> case defIndex defs name of
-    Just index -> Right $ Word name index
+    Just index -> Right $ Word index
     Nothing -> Left . CompileError $ concat
       ["Unable to resolve word '", name, "'"]
   Term.Fun term -> Fun <$> resolveTerm defs term

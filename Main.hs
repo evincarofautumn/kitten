@@ -7,6 +7,7 @@ import System.IO
 import Error
 import Resolve
 import Term
+import Type
 
 import qualified Token
 
@@ -23,13 +24,13 @@ main = fix $ \ loop -> do
         Right compileResult -> show compileResult
       loop
 
-compile :: String -> String -> Either CompileError (Program Resolved)
+compile :: String -> String -> Either CompileError (Program Typed)
 compile name
   = failIfError . Token.tokenize name
   >=> failIfError . parse name
   >=> resolveProgram
-  where
-  failIfError = mapLeft (CompileError . show)
+  >=> typeProgram
+  where failIfError = mapLeft (CompileError . show)
 
 mapLeft :: (e1 -> e2) -> Either e1 a -> Either e2 a
 mapLeft f (Left e) = Left $ f e

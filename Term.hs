@@ -9,6 +9,7 @@ import Control.Applicative
 import Control.Arrow
 import Control.Monad.Identity
 import Data.Either
+import Data.List
 import Text.Parsec ((<?>))
 
 import qualified Text.Parsec as P
@@ -47,7 +48,7 @@ program = uncurry Program . second compose . partitionEithers
   <$> P.many ((Left <$> def) <|> (Right <$> term)) <* P.eof
 
 compose :: [Term] -> Term
-compose = foldr Compose Empty
+compose = foldl' Compose Empty
 
 def :: Parser (Def Term)
 def = (<?> "definition") $ do
