@@ -5,6 +5,7 @@ module Term
 
 import Control.Applicative
 import Control.Monad.Identity
+import Text.Parsec ((<?>))
 
 import qualified Text.Parsec as P
 
@@ -37,24 +38,26 @@ program :: Parser [Term]
 program = P.many term <* P.eof
 
 term :: Parser Term
-term = P.choice [word, int, def, lambda, vec, fun]
+term = P.choice [word, int, def, lambda, vec, fun] <?> "term"
   where
-  word = mapOne toWord
+  word = mapOne toWord <?> "word"
   toWord (Token.Word word) = Just (Word word)
   toWord _ = Nothing
-  int = mapOne toInt
+  int = mapOne toInt <?> "int"
   toInt (Token.Int value) = Just (Int value)
   toInt _ = Nothing
-  def = do
+  def = (<?> "definition") $ do
     (Word name) <- token Token.Def *> word
     body <- term
     return $ Def name body
-  lambda = do
+  lambda = (<?> "lambda") $ do
     (Word name) <- token Token.Lambda *> word
     body <- term
     return $ Lambda name body
   vec = Vec <$> (token Token.VecBegin *> many term <* token Token.VecEnd)
+    <?> "vector"
   fun = Fun <$> (token Token.FunBegin *> many term <* token Token.FunEnd)
+    <?> "function"
 
 advance :: P.SourcePos -> t -> [Located] -> P.SourcePos
 advance _ _ (Located sourcePos _ _ : _) = sourcePos
