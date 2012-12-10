@@ -23,12 +23,12 @@ import qualified Token
 type Parser a = P.ParsecT [Located] () Identity a
 
 data Term
-  = Word String
-  | Int Integer
-  | Lambda String Term
-  | Vec [Term]
-  | Fun Term
-  | Compose Term Term
+  = Word !String
+  | Int !Integer
+  | Lambda !String !Term
+  | Vec ![Term]
+  | Fun !Term
+  | Compose !Term !Term
   | Empty
 
 instance Show Term where

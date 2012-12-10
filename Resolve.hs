@@ -1,59 +1,92 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Resolve
   ( Resolved(..)
   , resolveProgram
   ) where
 
 import Control.Applicative
+import Control.Monad.Trans.Class
+import Control.Monad.Trans.State
 import Data.List
 
 import Def
 import Error
+import Name
 import Program
 import Term (Term)
 
 import qualified Term
 
 data Resolved
-  = Word Int
-  | Int Integer
-  | Lambda String Resolved
-  | Vec [Resolved]
-  | Fun Resolved
-  | Compose Resolved Resolved
+  = Word !Name
+  | Int !Integer
+  | Scoped !Resolved
+  | Local !Name
+  | Vec ![Resolved]
+  | Fun !Resolved
+  | Compose !Resolved !Resolved
   | Empty
 
 instance Show Resolved where
   show (Word index) = show index
   show (Int value) = show value
-  show (Lambda name body) = unwords ["\\", name, show body]
+  show (Scoped term) = "scoped { " ++ show term ++ " }"
+  show (Local index) = "local#" ++ show index
   show (Vec terms) = "(" ++ unwords (map show terms) ++ ")"
   show (Fun term) = "[" ++ show term ++ "]"
   show (Compose down top) = show down ++ ' ' : show top
   show Empty = ""
 
+data Env = Env
+  { envDefs :: [Def Term]
+  , envScope :: [String]
+  }
+
+enter :: String -> Env -> Env
+enter name env = env { envScope = envScope env ++ [name] }
+
+leave :: Env -> Env
+leave env = env { envScope = init $ envScope env }
+
+type Resolution = StateT Env (Either CompileError)
+
 resolveProgram :: Program Term -> Either CompileError (Program Resolved)
 resolveProgram (Program defs term)
-  = Program <$> resolveDefs defs <*> resolveTerm defs term
+  = evalStateT (Program <$> resolveDefs defs <*> resolveTerm term) env0
+  where env0 = Env defs []
 
-resolveDefs :: [Def Term] -> Either CompileError [Def Resolved]
+resolveDefs :: [Def Term] -> Resolution [Def Resolved]
 resolveDefs defs = mapM resolveDef defs
-  where resolveDef (Def name body) = Def name <$> resolveTerm defs body
+  where resolveDef (Def name body) = Def name <$> resolveTerm body
 
-resolveTerm :: [Def Term] -> Term -> Either CompileError Resolved
-resolveTerm defs unresolved = case unresolved of
-  Term.Word name -> case defIndex defs name of
-    Just index -> Right $ Word index
-    Nothing -> Left . CompileError $ concat
-      ["Unable to resolve word '", name, "'"]
-  Term.Fun term -> Fun <$> resolveTerm defs term
-  Term.Vec terms -> Vec <$> resolveTerms terms
+resolveTerm :: Term -> Resolution Resolved
+resolveTerm unresolved = case unresolved of
+  Term.Word name -> do
+    mLocalIndex <- gets $ localIndex name
+    case mLocalIndex of
+      Just index -> return . Local $ Name index
+      Nothing -> do
+        mDefIndex <- gets $ defIndex name
+        case mDefIndex of
+          Just index -> return . Word $ Name index
+          Nothing -> lift . Left . CompileError $ concat
+            ["Unable to resolve word '", name, "'"]
+  Term.Fun term -> Fun <$> resolveTerm term
+  Term.Vec terms -> Vec <$> mapM resolveTerm terms
   Term.Compose down top
-    -> Resolve.Compose <$> resolveTerm defs down <*> resolveTerm defs top
-  Term.Int value -> Right $ Int value
-  Term.Lambda name term -> Lambda name <$> resolveTerm defs term
-  Term.Empty -> Right Empty
-  where resolveTerms = mapM (resolveTerm defs)
+    -> Resolve.Compose <$> resolveTerm down <*> resolveTerm top
+  Term.Int value -> return $ Int value
+  Term.Lambda name term -> do
+    modify $ enter name
+    resolved <- resolveTerm term
+    modify leave
+    return $ Scoped resolved
+  Term.Empty -> return Empty
 
-defIndex :: [Def a] -> String -> Maybe Int
-defIndex defs expected = findIndex ((== expected) . defName) defs
+localIndex :: String -> Env -> Maybe Int
+localIndex name = elemIndex name . envScope
+
+defIndex :: String -> Env -> Maybe Int
+defIndex expected = findIndex ((== expected) . defName) . envDefs
   where defName (Def name _) = name

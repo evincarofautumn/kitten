@@ -14,8 +14,8 @@ import qualified Text.Parsec as P
 type Parser a = P.ParsecT String P.Column Identity a
 
 data Token
-  = Word String
-  | Int Integer
+  = Word !String
+  | Int !Integer
   | Def
   | Lambda
   | VecBegin

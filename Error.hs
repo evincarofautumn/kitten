@@ -3,7 +3,7 @@ module Error
   ) where
 
 data CompileError
-  = CompileError String
+  = CompileError !String
 
 instance Show CompileError where
   show (CompileError message) = message

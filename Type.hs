@@ -7,31 +7,30 @@ module Type
   ) where
 
 import Control.Applicative
-import Control.Arrow
 import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.Function
-import Data.Maybe
 import Data.IntMap (IntMap)
 
 import qualified Data.IntMap as IntMap
 
 import Error
+import Name
 import Program
 import Resolve (Resolved)
-import Term (Term)
 
 import qualified Resolve
-import qualified Term
+
+import Debug.Trace
 
 data Type
   = IntType
-  | SVec Type Int
-  | DVec Type
-  | Type :> Type
-  | Var Name
-  | Type :. Type
+  | SVec !Type !Int
+  | DVec !Type
+  | !Type :> !Type
+  | Var !Name
+  | !Type :. !Type
   | EmptyType
   deriving (Eq, Ord)
 
@@ -39,9 +38,10 @@ infixl 4 :>
 infixl 5 :.
 
 data Typed
-  = Word Int Type
+  = Word Name Type
   | Int Integer Type
-  | Lambda String Typed Type
+  | Scoped Typed Type
+  | Local Name Type
   | Vec [Typed] Type
   | Fun Typed Type
   | Compose Typed Typed Type
@@ -56,15 +56,6 @@ instance Show Typed where
     ++ "}"
   show (Int value _)
     = show value
-  show (Lambda name body type_)
-    = "{"
-    ++ "\\"
-    ++ show name
-    ++ " "
-    ++ show body
-    ++ " :: "
-    ++ show type_
-    ++ "}"
   show (Vec body type_)
     = "{("
     ++ unwords (map show body)
@@ -77,6 +68,15 @@ instance Show Typed where
     ++ "] :: "
     ++ show type_
     ++ "}"
+  show (Scoped term type_)
+    = "{"
+    ++ show term
+    ++ " :: "
+    ++ show type_
+    ++ "}"
+  show (Local (Name index) _)
+    = "local"
+    ++ show index
   show row = show' row
     where
     show' (Compose (Empty _) top _)
@@ -88,11 +88,12 @@ instance Show Typed where
     show' (Empty _) = ""
     show' scalar = show scalar
 
-toTyped :: Resolved -> Inferred Typed
+toTyped :: Resolved -> Inference Typed
 toTyped resolved = case resolved of
   Resolve.Word index -> Word index <$> fresh
   Resolve.Int value -> Int value <$> fresh
-  Resolve.Lambda name term -> Lambda name <$> toTyped term <*> fresh
+  Resolve.Scoped term -> Scoped <$> toTyped term <*> fresh
+  Resolve.Local index -> Local index <$> fresh
   Resolve.Vec terms -> Vec <$> mapM toTyped terms <*> fresh
   Resolve.Fun term -> Fun <$> toTyped term <*> fresh
   Resolve.Compose down top
@@ -112,66 +113,67 @@ instance Show Type where
   show EmptyType = "()"
   show (a :. b) = show a ++ " " ++ show b
 
-both f = f *** f
-
-rowToList (a :. b) = b : rowToList a
-rowToList a = [a]
-
-rowFromList (a : b) = rowFromList b :. a
-rowFromList [a] = a
-rowFromList [] = EmptyType
-
-newtype Name = Name Int
-  deriving (Eq, Ord)
-
-instance Show Name where
-  show (Name name) = 't' : show name
-
 data Env = Env
-  { next  :: Name
-  , types :: IntMap.IntMap Type
-  }
+  { envNext  :: Name
+  , envTypes :: IntMap Type
+  , envLocals :: [Type]
+  } deriving (Show)
 
-type Inferred = StateT Env (Either CompileError)
+type Inference = StateT Env (Either CompileError)
 
-runInferred :: Inferred a -> Env -> Either CompileError (a, Env)
-runInferred = runStateT
-
-fresh :: Inferred Type
+fresh :: Inference Type
 fresh = Var <$> freshName
 
-freshName :: Inferred Name
+freshName :: Inference Name
 freshName = do
-  name@(Name x) <- gets next
-  modify $ \ e -> e { next = Name $ succ x }
+  name@(Name x) <- gets envNext
+  modify $ \ env -> env { envNext = Name $ succ x }
   return name
 
 declareType :: Name -> Type -> Env -> Env
-declareType (Name var) type_ env@Env{..} = env
-  { types = IntMap.insert var type_ types }
+declareType (Name var) type_ env@Env{..}
+  = env { envTypes = IntMap.insert var type_ envTypes }
 
 typeProgram :: (Program Resolved) -> Either CompileError (Program Typed)
 typeProgram (Program _defs term) = Program [] <$> typeTerm term
 
 typeTerm :: Resolved -> Either CompileError Typed
 typeTerm term = uncurry substTyped
-  <$> runInferred inference typeEnv0
+  <$> runStateT inference typeEnv0
   where
   inference = do
     typed <- toTyped term
     typed <$ infer typed
-  typeEnv0 = Env (Name 0) IntMap.empty
+  typeEnv0 = Env (Name 0) IntMap.empty []
 
-infer :: Typed -> Inferred Type
-infer term = do
+infer :: Typed -> Inference Type
+infer typedTerm = do
   r <- fresh
-  case term of
+  case typedTerm of
     Word _index _type -> error "TODO: word type"
-    Int _value type_ -> do
+    Int _ type_ -> do
       let result = r :> r :. IntType
       unifyM type_ result
       return result
-    Lambda _name _term _type -> error "TODO: lambda type"
+    Scoped (Fun term _) type_ -> do
+      result <- infer (Scoped term type_)
+      unifyM type_ result
+      return result
+    -- Note the similarity to composition here.
+    Scoped term type_ -> do
+      a <- fresh
+      enter a
+      (b :> c) <- infer term
+      unifyM r b
+      let result = r :. a :> c
+      unifyM type_ result
+      leave
+      return result
+    Local (Name index) type_ -> do
+      termType <- gets $ (!! index) . envLocals
+      let result = r :> r :. termType
+      unifyM type_ result
+      return result
     Compose x y type_ -> do
       (a :> b) <- infer x
       (c :> d) <- infer y
@@ -198,8 +200,11 @@ infer term = do
       let result = r :> r
       unifyM type_ result
       return result
+  where
+  enter type_ = modify $ \ env -> env { envLocals = envLocals env ++ [type_] }
+  leave = modify $ \ env -> env { envLocals = init $ envLocals env }
 
-unifyM :: Type -> Type -> Inferred ()
+unifyM :: Type -> Type -> Inference ()
 unifyM type1 type2 = do
   env <- gets $ unify type1 type2
   case env of
@@ -210,7 +215,7 @@ unifyM type1 type2 = do
 findType :: Name -> Env -> Either CompileError Type
 findType (Name var) Env{..} = maybeToEither
   (CompileError $ "Nonexistent type variable " ++ show var ++ "!")
-  $ IntMap.lookup var types
+  $ IntMap.lookup var envTypes
 
 maybeToEither :: e -> Maybe a -> Either e a
 maybeToEither _ (Just a) = Right a
@@ -275,8 +280,8 @@ substTyped :: Typed -> Env -> Typed
 substTyped typed env = case typed of
   Word index type_ -> Word index $ substType type_ env
   Int value type_ -> Int value $ substType type_ env
-  Lambda name body type_
-    -> Lambda name (substTyped body env) (substType type_ env)
+  Scoped term type_ -> Scoped (substTyped term env) (substType type_ env)
+  Local index type_ -> Local index $ substType type_ env
   Vec body type_ -> Vec (map (`substTyped` env) body) (substType type_ env)
   Fun body type_ -> Fun (substTyped body env) (substType type_ env)
   Compose down top type_
