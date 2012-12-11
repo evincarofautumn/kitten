@@ -15,14 +15,13 @@ import Data.IntMap (IntMap)
 
 import qualified Data.IntMap as IntMap
 
+import Def
 import Error
 import Name
 import Program
 import Resolve (Resolved)
 
 import qualified Resolve
-
-import Debug.Trace
 
 data Type
   = IntType
@@ -48,7 +47,7 @@ data Typed
   | Empty Type
 
 instance Show Typed where
-  show (Word index type_)
+  show (Word (Name index) type_)
     = "{@"
     ++ show index
     ++ " :: "
@@ -90,15 +89,16 @@ instance Show Typed where
 
 toTyped :: Resolved -> Inference Typed
 toTyped resolved = case resolved of
-  Resolve.Word index -> Word index <$> fresh
-  Resolve.Int value -> Int value <$> fresh
-  Resolve.Scoped term -> Scoped <$> toTyped term <*> fresh
-  Resolve.Local index -> Local index <$> fresh
-  Resolve.Vec terms -> Vec <$> mapM toTyped terms <*> fresh
-  Resolve.Fun term -> Fun <$> toTyped term <*> fresh
+  Resolve.Word index -> Word index <$> freshFunction
+  Resolve.Int value -> Int value <$> freshFunction
+  Resolve.Scoped term -> Scoped <$> toTyped term <*> freshFunction
+  Resolve.Local index -> Local index <$> freshFunction
+  Resolve.Vec terms -> Vec <$> mapM toTyped terms <*> freshFunction
+  Resolve.Fun term -> Fun <$> toTyped term <*> freshFunction
   Resolve.Compose down top
-    -> Compose <$> toTyped down <*> toTyped top <*> fresh
-  Resolve.Empty -> Empty <$> fresh
+    -> Compose <$> toTyped down <*> toTyped top <*> freshFunction
+  Resolve.Empty -> Empty <$> freshFunction
+  where freshFunction = (:>) <$> fresh <*> fresh
 
 instance Show Type where
   show IntType = "int"
@@ -117,6 +117,7 @@ data Env = Env
   { envNext  :: Name
   , envTypes :: IntMap Type
   , envLocals :: [Type]
+  , envDefs :: [Def Typed]
   } deriving (Show)
 
 type Inference = StateT Env (Either CompileError)
@@ -134,23 +135,38 @@ declareType :: Name -> Type -> Env -> Env
 declareType (Name var) type_ env@Env{..}
   = env { envTypes = IntMap.insert var type_ envTypes }
 
-typeProgram :: (Program Resolved) -> Either CompileError (Program Typed)
-typeProgram (Program _defs term) = Program [] <$> typeTerm term
+typeProgram :: Program Resolved -> Either CompileError (Program Typed)
+typeProgram program = fmap (uncurry substProgram) . flip runStateT env0 $ do
+  typedProgram@(Program defs _) <- toTypedProgram program
+  modify $ \ env -> env { envDefs = defs }
+  inferProgram typedProgram
+  where env0 = Env (Name 0) IntMap.empty [] []
 
-typeTerm :: Resolved -> Either CompileError Typed
-typeTerm term = uncurry substTyped
-  <$> runStateT inference typeEnv0
-  where
-  inference = do
-    typed <- toTyped term
-    typed <$ infer typed
-  typeEnv0 = Env (Name 0) IntMap.empty []
+toTypedProgram :: Program Resolved -> Inference (Program Typed)
+toTypedProgram (Program defs term)
+  = Program <$> mapM toTypedDef defs <*> toTyped term
+
+toTypedDef :: Def Resolved -> Inference (Def Typed)
+toTypedDef (Def name term) = Def name <$> toTyped term
+
+inferProgram :: Program Typed -> Inference (Program Typed)
+inferProgram (Program defs term) = do
+  mapM_ inferDef defs
+  void $ infer term
+  return $ Program defs term
+
+inferDef :: Def Typed -> Inference Type
+inferDef (Def _ term) = infer term
 
 infer :: Typed -> Inference Type
 infer typedTerm = do
   r <- fresh
   case typedTerm of
-    Word _index _type -> error "TODO: word type"
+    Word (Name index) _type -> do
+      (Def _ term) <- gets $ (!! index) . envDefs
+      let defType = manifestType term
+      unifyM _type defType
+      return defType
     Int _ type_ -> do
       let result = r :> r :. IntType
       unifyM type_ result
@@ -212,8 +228,8 @@ unifyM type1 type2 = do
     Left err -> lift . Left . CompileError
       $ "Unification error: " ++ show err
 
-findType :: Name -> Env -> Either CompileError Type
-findType (Name var) Env{..} = maybeToEither
+findType :: Env -> Name -> Either CompileError Type
+findType Env{..} (Name var) = maybeToEither
   (CompileError $ "Nonexistent type variable " ++ show var ++ "!")
   $ IntMap.lookup var envTypes
 
@@ -258,7 +274,7 @@ occurs _ IntType _ = False
 occurs _ EmptyType _ = False
 occurs var (SVec type_ _) env = occurs var type_ env
 occurs var (DVec type_) env = occurs var type_ env
-occurs var1 (Var var2) env = case findType var2 env of
+occurs var1 (Var var2) env = case findType env var2 of
   Left _ -> var1 == var2
   Right type_ -> occurs var1 type_ env
 occurs var (a :> b) env = occurs var a env || occurs var b env
@@ -266,24 +282,42 @@ occurs var (a :. b) env = occurs var a env || occurs var b env
 
 substChain :: Env -> Type -> Type
 substChain env (Var var)
-  | Right type_ <- findType var env = substChain env type_
+  | Right type_ <- findType env var = substChain env type_
 substChain _ type_ = type_
 
-substType :: Type -> Env -> Type
-substType (a :> b) env = substType a env :> substType b env
-substType (a :. b) env = substType a env :. substType b env
-substType (Var var) env
-  | Right type_ <- findType var env = substType type_ env
-substType type_ _ = type_
+substProgram :: Program Typed -> Env -> Program Typed
+substProgram (Program defs term) env
+  = Program (map (substDef env) defs) (substTerm env term)
 
-substTyped :: Typed -> Env -> Typed
-substTyped typed env = case typed of
-  Word index type_ -> Word index $ substType type_ env
-  Int value type_ -> Int value $ substType type_ env
-  Scoped term type_ -> Scoped (substTyped term env) (substType type_ env)
-  Local index type_ -> Local index $ substType type_ env
-  Vec body type_ -> Vec (map (`substTyped` env) body) (substType type_ env)
-  Fun body type_ -> Fun (substTyped body env) (substType type_ env)
+substDef :: Env -> Def Typed -> Def Typed
+substDef env (Def name term) = Def name $ substTerm env term
+
+substTerm :: Env -> Typed -> Typed
+substTerm env typed = case typed of
+  Word index type_ -> Word index $ substType env type_
+  Int value type_ -> Int value $ substType env type_
+  Scoped term type_ -> Scoped (substTerm env term) (substType env type_)
+  Local index type_ -> Local index $ substType env type_
+  Vec body type_ -> Vec (map (substTerm env) body) (substType env type_)
+  Fun body type_ -> Fun (substTerm env body) (substType env type_)
   Compose down top type_
-    -> Compose (substTyped down env) (substTyped top env) (substType type_ env)
-  Empty type_ -> Empty $ substType type_ env
+    -> Compose (substTerm env down) (substTerm env top) (substType env type_)
+  Empty type_ -> Empty $ substType env type_
+
+substType :: Env -> Type -> Type
+substType env (a :> b) = substType env a :> substType env b
+substType env (a :. b) = substType env a :. substType env b
+substType env (Var var)
+  | Right type_ <- findType env var = substType env type_
+substType _ type_ = type_
+
+manifestType :: Typed -> Type
+manifestType term = case term of
+  Word _ type_ -> type_
+  Int _ type_ -> type_
+  Scoped _ type_ -> type_
+  Local _ type_ -> type_
+  Vec _ type_ -> type_
+  Fun _ type_ -> type_
+  Compose _ _ type_ -> type_
+  Empty type_ -> type_
