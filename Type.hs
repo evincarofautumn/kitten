@@ -70,7 +70,7 @@ instance Show Typed where
     ++ "] :: "
     ++ show type_
     ++ "}"
-  show (Scoped term type_)
+  show (Scoped term _)
     = show term
   show (Local (Name index) _)
     = "local"
@@ -167,69 +167,52 @@ infer :: Typed -> Inference Type
 infer typedTerm = do
   r <- fresh
   case typedTerm of
-    Word (Name index) _type -> do
-      defType <- instantiate =<< gets ((!! index) . envDefs)
-      unifyM _type defType
-      return defType
-    Int _ type_ -> do
-      let result = r :> r :. IntType
-      unifyM type_ result
-      return result
-    Scoped (Fun term _) type_ -> do
-      result <- infer (Scoped term type_)
-      unifyM type_ result
-      return result
+    Word (Name index) _type
+      -> unifyM _type =<< instantiate =<< gets ((!! index) . envDefs)
+    Int _ type_
+      -> unifyM type_ $ r :> r :. IntType
+    Scoped (Fun term _) type_
+      -> unifyM type_ =<< infer (Scoped term type_)
     -- Note the similarity to composition here.
     Scoped term type_ -> do
       a <- fresh
-      enter (Forall [] a)
-      (b :> c) <- infer term
-      unifyM r b
-      let result = r :. a :> c
-      unifyM type_ result
-      leave
-      return result
+      local (Forall [] a) $ do
+        (b :> c) <- infer term
+        void $ unifyM r b
+        unifyM type_ $ r :. a :> c
     Local (Name index) type_ -> do
       termType <- instantiate =<< gets ((!! index) . envLocals)
-      let result = r :> r :. termType
-      unifyM type_ result
-      return result
+      unifyM type_ $ r :> r :. termType
     Compose x y type_ -> do
       (a :> b) <- infer x
       (c :> d) <- infer y
-      unifyM b c
-      let result = a :> d
-      unifyM type_ result
-      return result
+      void $ unifyM b c
+      unifyM type_ $ a :> d
     Vec terms type_ -> do
       termTypes <- mapM infer terms
       termType <- unifyEach termTypes
-      let result = r :> r :. SVec termType (length terms)
-      unifyM type_ result
-      return result
+      unifyM type_ $ r :> r :. SVec termType (length terms)
       where
       unifyEach (x:y:zs) = unifyM x y >> unifyEach (y:zs)
       unifyEach [x] = return x
       unifyEach [] = fresh
     Fun x type_ -> do
       a <- infer x
-      let result = r :> r :. a
-      unifyM type_ result
-      return result
-    Empty type_ -> do
-      let result = r :> r
-      unifyM type_ result
-      return result
+      unifyM type_ $ r :> r :. a
+    Empty type_
+      -> unifyM type_ $ r :> r
   where
-  enter scheme = modify
-    $ \ env -> env { envLocals = envLocals env ++ [scheme] }
-  leave = modify $ \ env -> env { envLocals = init $ envLocals env }
+  local scheme action = do
+    modify $ \ env -> env { envLocals = envLocals env ++ [scheme] }
+    result <- action
+    modify $ \ env -> env { envLocals = init $ envLocals env }
+    return result
 
-unifyM :: Type -> Type -> Inference ()
+unifyM :: Type -> Type -> Inference Type
 unifyM type1 type2 = do
   env <- gets $ unify type1 type2
   case env of
-    Right env' -> put env'
+    Right env' -> put env' >> return type2
     Left err -> lift . Left . CompileError
       $ "Unification error: " ++ show err
 
@@ -315,17 +298,6 @@ substType env (a :. b) = substType env a :. substType env b
 substType env (Var var)
   | Right type_ <- findType env var = substType env type_
 substType _ type_ = type_
-
-manifestType :: Typed -> Type
-manifestType term = case term of
-  Word _ type_ -> type_
-  Int _ type_ -> type_
-  Scoped _ type_ -> type_
-  Local _ type_ -> type_
-  Vec _ type_ -> type_
-  Fun _ type_ -> type_
-  Compose _ _ type_ -> type_
-  Empty type_ -> type_
 
 instantiate :: TypeScheme -> Inference Type
 instantiate (Forall vars type_) = do
