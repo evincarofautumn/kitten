@@ -9,9 +9,10 @@ module Type
 import Control.Applicative
 import Control.Monad
 import Control.Monad.Trans.Class
-import Control.Monad.Trans.State
+import Control.Monad.Trans.State.Strict
 import Data.Function
 import Data.IntMap (IntMap)
+import Data.List
 
 import qualified Data.IntMap as IntMap
 
@@ -25,12 +26,12 @@ import qualified Resolve
 
 data Type
   = IntType
+  | !Type :> !Type
+  | !Type :. !Type
   | SVec !Type !Int
   | DVec !Type
-  | !Type :> !Type
-  | Var !Name
-  | !Type :. !Type
   | EmptyType
+  | Var !Name
   deriving (Eq, Ord)
 
 infixl 4 :>
@@ -45,6 +46,8 @@ data Typed
   | Fun Typed Type
   | Compose Typed Typed Type
   | Empty Type
+
+data TypeScheme = Forall [Name] Type
 
 instance Show Typed where
   show (Word (Name index) type_)
@@ -68,11 +71,7 @@ instance Show Typed where
     ++ show type_
     ++ "}"
   show (Scoped term type_)
-    = "{"
-    ++ show term
-    ++ " :: "
-    ++ show type_
-    ++ "}"
+    = show term
   show (Local (Name index) _)
     = "local"
     ++ show index
@@ -113,11 +112,15 @@ instance Show Type where
   show EmptyType = "()"
   show (a :. b) = show a ++ " " ++ show b
 
+instance Show TypeScheme where
+  show (Forall vars term)
+    = "forall [" ++ unwords (map show vars) ++ "]. " ++ show term
+
 data Env = Env
   { envNext  :: Name
   , envTypes :: IntMap Type
-  , envLocals :: [Type]
-  , envDefs :: [Def Typed]
+  , envLocals :: [TypeScheme]
+  , envDefs :: [TypeScheme]
   } deriving (Show)
 
 type Inference = StateT Env (Either CompileError)
@@ -136,11 +139,12 @@ declareType (Name var) type_ env@Env{..}
   = env { envTypes = IntMap.insert var type_ envTypes }
 
 typeProgram :: Program Resolved -> Either CompileError (Program Typed)
-typeProgram program = fmap (uncurry substProgram) . flip runStateT env0 $ do
-  typedProgram@(Program defs _) <- toTypedProgram program
-  modify $ \ env -> env { envDefs = defs }
-  inferProgram typedProgram
-  where env0 = Env (Name 0) IntMap.empty [] []
+typeProgram program
+  = fmap (uncurry substProgram) . flip runStateT emptyEnv
+  $ inferProgram =<< toTypedProgram program
+
+emptyEnv :: Env
+emptyEnv = Env (Name 0) IntMap.empty [] []
 
 toTypedProgram :: Program Resolved -> Inference (Program Typed)
 toTypedProgram (Program defs term)
@@ -150,21 +154,21 @@ toTypedDef :: Def Resolved -> Inference (Def Typed)
 toTypedDef (Def name term) = Def name <$> toTyped term
 
 inferProgram :: Program Typed -> Inference (Program Typed)
-inferProgram (Program defs term) = do
-  mapM_ inferDef defs
+inferProgram program@(Program defs term) = do
+  defMap <- mapM inferDef defs
+  modify $ \ env -> env { envDefs = defMap }
   void $ infer term
-  return $ Program defs term
+  gets $ substProgram program
 
-inferDef :: Def Typed -> Inference Type
-inferDef (Def _ term) = infer term
+inferDef :: Def Typed -> Inference TypeScheme
+inferDef (Def _ term) = generalize $ infer term
 
 infer :: Typed -> Inference Type
 infer typedTerm = do
   r <- fresh
   case typedTerm of
     Word (Name index) _type -> do
-      (Def _ term) <- gets $ (!! index) . envDefs
-      let defType = manifestType term
+      defType <- instantiate =<< gets ((!! index) . envDefs)
       unifyM _type defType
       return defType
     Int _ type_ -> do
@@ -178,7 +182,7 @@ infer typedTerm = do
     -- Note the similarity to composition here.
     Scoped term type_ -> do
       a <- fresh
-      enter a
+      enter (Forall [] a)
       (b :> c) <- infer term
       unifyM r b
       let result = r :. a :> c
@@ -186,7 +190,7 @@ infer typedTerm = do
       leave
       return result
     Local (Name index) type_ -> do
-      termType <- gets $ (!! index) . envLocals
+      termType <- instantiate =<< gets ((!! index) . envLocals)
       let result = r :> r :. termType
       unifyM type_ result
       return result
@@ -217,7 +221,8 @@ infer typedTerm = do
       unifyM type_ result
       return result
   where
-  enter type_ = modify $ \ env -> env { envLocals = envLocals env ++ [type_] }
+  enter scheme = modify
+    $ \ env -> env { envLocals = envLocals env ++ [scheme] }
   leave = modify $ \ env -> env { envLocals = init $ envLocals env }
 
 unifyM :: Type -> Type -> Inference ()
@@ -321,3 +326,42 @@ manifestType term = case term of
   Fun _ type_ -> type_
   Compose _ _ type_ -> type_
   Empty type_ -> type_
+
+instantiate :: TypeScheme -> Inference Type
+instantiate (Forall vars type_) = do
+  env <- rename vars
+  return $ substType env type_
+  where
+  rename [] = return emptyEnv
+  rename (v:vs) = do
+    env <- rename vs
+    a <- fresh
+    return $ declareType v a env
+
+generalize :: Inference Type -> Inference TypeScheme
+generalize action = do
+  before <- get
+  type_ <- action
+  after <- get
+  let substituted = substType after type_
+  let dependent = dependentBetween before after
+  let vars = filter dependent . nub $ free substituted
+  return $ Forall vars substituted
+
+free :: Type -> [Name]
+free IntType = []
+free (a :> b) = free a ++ free b
+free (a :. b) = free a ++ free b
+free (SVec a _) = free a
+free (DVec a) = free a
+free (Var var) = [var]
+free EmptyType = []
+
+dependentBetween :: Env -> Env -> Name -> Bool
+dependentBetween before after var1
+  = any (bound after) (unbound before)
+  where bound env var2 = occurs var1 (Var var2) env
+
+unbound :: Env -> [Name]
+unbound Env{..} = filter (\ (Name var) -> not $ IntMap.member var envTypes)
+  [Name 0 .. pred envNext]
