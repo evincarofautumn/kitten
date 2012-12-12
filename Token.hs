@@ -29,10 +29,10 @@ instance Show Token where
   show (Int value) = show value
   show Def = "def"
   show Lambda = "\\"
-  show VecBegin = "("
-  show VecEnd = ")"
-  show FunBegin = "["
-  show FunEnd = "]"
+  show VecBegin = "["
+  show VecEnd = "]"
+  show FunBegin = "{"
+  show FunEnd = "}"
 
 data Located = Located
   { locatedLocation :: P.SourcePos
@@ -73,10 +73,10 @@ token = located $ P.choice
   ]
   where
   lambda = Lambda <$ P.char '\\'
-  vecBegin = VecBegin <$ P.char '('
-  vecEnd = VecEnd <$ P.char ')'
-  funBegin = FunBegin <$ P.char '['
-  funEnd = FunEnd <$ P.char ']'
+  vecBegin = VecBegin <$ P.char '['
+  vecEnd = VecEnd <$ P.char ']'
+  funBegin = FunBegin <$ P.char '{'
+  funEnd = FunEnd <$ P.char '}'
   int = Int . read <$> P.many1 P.digit
   word = do
     name <- P.many1 (P.letter <|> P.digit <|> P.char '_')
