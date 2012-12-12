@@ -14,6 +14,7 @@ import Text.Parsec ((<?>))
 
 import qualified Text.Parsec as P
 
+import Builtin (Builtin)
 import Def
 import Program
 import Token (Located(..), Token)
@@ -26,6 +27,7 @@ type Parser a = P.ParsecT [Located] () Identity a
 data Term
   = Word !String
   | Int !Integer
+  | Builtin !Builtin
   | Lambda !String !Term
   | Vec ![Term]
   | Fun !Term
@@ -35,6 +37,7 @@ data Term
 instance Show Term where
   show (Word name) = name
   show (Int value) = show value
+  show (Builtin name) = show name
   show (Lambda name body) = unwords ["\\", name, show body]
   show (Vec body) = "(" ++ unwords (map show body) ++ ")"
   show (Fun body) = "[" ++ show body ++ "]"
@@ -57,7 +60,7 @@ def = (<?> "definition") $ do
   Def name <$> grouped
 
 term :: Parser Term
-term = P.choice [word, int, lambda, vec, fun] <?> "term"
+term = P.choice [builtin, word, int, lambda, vec, fun] <?> "term"
   where
   int = mapOne toInt <?> "int"
   toInt (Token.Int value) = Just (Int value)
@@ -70,6 +73,12 @@ term = P.choice [word, int, lambda, vec, fun] <?> "term"
   fun = Fun . compose
     <$> (token Token.FunBegin *> many term <* token Token.FunEnd)
     <?> "function"
+
+builtin :: Parser Term
+builtin = mapOne toBuiltin <?> "builtin"
+  where
+  toBuiltin (Token.Builtin name) = Just $ Builtin name
+  toBuiltin _ = Nothing
 
 word :: Parser Term
 word = mapOne toWord <?> "word"

@@ -10,6 +10,7 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.List
 
+import Builtin (Builtin)
 import Def
 import Error
 import Name
@@ -20,6 +21,7 @@ import qualified Term
 
 data Resolved
   = Word !Name
+  | Builtin !Builtin
   | Int !Integer
   | Scoped !Resolved
   | Local !Name
@@ -30,6 +32,7 @@ data Resolved
 
 instance Show Resolved where
   show (Word index) = show index
+  show (Builtin name) = show name
   show (Int value) = show value
   show (Scoped term) = "scoped { " ++ show term ++ " }"
   show (Local index) = "local#" ++ show index
@@ -72,6 +75,7 @@ resolveTerm unresolved = case unresolved of
           Just index -> return . Word $ Name index
           Nothing -> lift . Left . CompileError $ concat
             ["Unable to resolve word '", name, "'"]
+  Term.Builtin name -> return $ Builtin name
   Term.Fun term -> Fun <$> resolveTerm term
   Term.Vec terms -> Vec <$> mapM resolveTerm terms
   Term.Compose down top

@@ -11,10 +11,16 @@ import Control.Monad.Identity
 
 import qualified Text.Parsec as P
 
+import Builtin (Builtin)
+import Util
+
+import qualified Builtin
+
 type Parser a = P.ParsecT String P.Column Identity a
 
 data Token
   = Word !String
+  | Builtin !Builtin
   | Int !Integer
   | Def
   | Lambda
@@ -26,6 +32,7 @@ data Token
 
 instance Show Token where
   show (Word word) = word
+  show (Builtin name) = show name
   show (Int value) = show value
   show Def = "def"
   show Lambda = "\\"
@@ -78,8 +85,9 @@ token = located $ P.choice
   funBegin = FunBegin <$ P.char '{'
   funEnd = FunEnd <$ P.char '}'
   int = Int . read <$> P.many1 P.digit
-  word = do
-    name <- P.many1 (P.letter <|> P.digit <|> P.char '_')
-    case name of
-      "def" -> return Def
-      _ -> return $ Word name
+  word = P.many1 (P.letter <|> P.digit <|> P.char '_')
+    <$$> \ name -> case name of
+      "def" -> Def
+      _ -> case Builtin.fromString name of
+        Just builtin -> Builtin builtin
+        _ -> Word name

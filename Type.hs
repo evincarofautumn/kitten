@@ -16,6 +16,7 @@ import Data.List
 
 import qualified Data.IntMap as IntMap
 
+import Builtin (Builtin)
 import Def
 import Error
 import Name
@@ -23,12 +24,14 @@ import Program
 import Resolve (Resolved)
 import Util
 
+import qualified Builtin
 import qualified Resolve
 
 ------------------------------------------------------------
 
 data Type
-  = IntType
+  = BoolType
+  | IntType
   | !Type :> !Type
   | !Type :. !Type
   | SVec !Type !Int
@@ -42,6 +45,7 @@ infixl 5 :.
 
 data Typed
   = Word Name Type
+  | Builtin Builtin Type
   | Int Integer Type
   | Scoped Typed Type
   | Local Name Type
@@ -54,6 +58,7 @@ data TypeScheme = Forall [Name] Type
 
 instance Show Type where
   show IntType = "int"
+  show BoolType = "bool"
   show (Var name) = show name
   show (SVec type_ size)
     = show type_ ++ "[" ++ show size ++ "]"
@@ -67,13 +72,15 @@ instance Show Type where
 
 instance Show Typed where
   show (Word (Name index) type_)
-    = "@" ++ show index ++ "::(" ++ show type_ ++ ")"
+    = "@" ++ show index ++ "::" ++ show type_
+  show (Builtin name type_)
+    = show name ++ "::" ++ show type_
   show (Int value _)
     = show value
   show (Vec body type_)
-    = "[" ++ unwords (map show body) ++ "]::(" ++ show type_ ++ ")"
+    = "[" ++ unwords (map show body) ++ "]::" ++ show type_
   show (Fun body type_)
-    = "{" ++ show body ++ "}::(" ++ show type_ ++ ")"
+    = "{" ++ show body ++ "}::" ++ show type_
   show (Scoped term _)
     = "\\(" ++ show term ++ ")"
   show (Local (Name index) _)
@@ -121,6 +128,7 @@ toTypedDef (Def name term) = Def name <$> toTyped term
 toTyped :: Resolved -> Inference Typed
 toTyped resolved = case resolved of
   Resolve.Word index -> Word index <$> freshFunction
+  Resolve.Builtin name -> Builtin name <$> freshFunction
   Resolve.Int value -> Int value <$> freshFunction
   Resolve.Scoped term -> Scoped <$> toTyped term <*> freshFunction
   Resolve.Local index -> Local index <$> freshFunction
@@ -151,6 +159,14 @@ inferDef (Def _ term) = generalize $ infer term
 infer :: Typed -> Inference Type
 infer typedTerm = do
   r <- fresh
+  let
+    boolToBool  = return $ r :. BoolType             :> r :. BoolType
+    boolsToBool = return $ r :. BoolType :. BoolType :> r :. BoolType
+    intToInt    = return $ r :. IntType              :> r :. IntType
+    intsToBool  = return $ r :. IntType :. IntType   :> r :. BoolType
+    intsToInt   = return $ r :. IntType :. IntType   :> r :. IntType
+    toBool      = return $ r                         :> r :. BoolType
+
   case typedTerm of
     Word (Name index) _type
       -> unifyM _type =<< instantiate =<< gets ((!! index) . envDefs)
@@ -184,6 +200,46 @@ infer typedTerm = do
       unifyM type_ $ r :> r :. a
     Empty type_
       -> unifyM type_ $ r :> r
+    Builtin name type_ -> unifyM type_ =<< case name of
+      Builtin.Dup
+        -> (\ a -> r :. a :> r :. a :. a)
+        <$> fresh
+      Builtin.Swap
+        -> (\ a b -> r :. a :. b :> r :. b :. a)
+        <$> fresh <*> fresh
+      Builtin.Drop
+        -> (\ a -> r :. a :> r)
+        <$> fresh
+      Builtin.Fun
+        -> (\ s a -> r :. a :> r :. (s :> s :. a))
+        <$> fresh <*> fresh
+      Builtin.Apply
+        -> (\ s -> r :. (r :> s) :> s)
+        <$> fresh
+      Builtin.Compose
+        -> (\ a b c -> r :. (a :> b) :. (b :> c) :> r :. (a :> c))
+        <$> fresh <*> fresh <*> fresh
+      Builtin.If
+        -> (\ s -> r :. (r :> s) :. (r :> s) :. BoolType :> s)
+        <$> fresh
+      Builtin.And -> boolsToBool
+      Builtin.Or  -> boolsToBool
+      Builtin.Xor -> boolsToBool
+      Builtin.Not -> boolToBool
+      Builtin.Add -> intsToInt
+      Builtin.Sub -> intsToInt
+      Builtin.Mul -> intsToInt
+      Builtin.Div -> intsToInt
+      Builtin.Mod -> intsToInt
+      Builtin.Neg -> intToInt
+      Builtin.Eq -> intsToBool
+      Builtin.Ne -> intsToBool
+      Builtin.Lt -> intsToBool
+      Builtin.Gt -> intsToBool
+      Builtin.Le -> intsToBool
+      Builtin.Ge -> intsToBool
+      Builtin.True -> toBool
+      Builtin.False -> toBool
   where
   local scheme action = do
     modify $ \ env -> env { envLocals = envLocals env ++ [scheme] }
@@ -227,7 +283,10 @@ unifyVar var1 (Var var2) env
   = return $ declareType var1 (Var var2) env
 unifyVar var type_ env | occurs var type_ env
   = Left . CompileError $ unwords
-  ["cannot construct infinite type", show var, "=", show type_]
+    ["cannot construct infinite type", varString, "=", typeString]
+  where
+  varString = show $ substType env (Var var)
+  typeString = show $ substType env type_
 unifyVar var type_ env
   = return $ declareType var type_ env
 
@@ -259,6 +318,7 @@ substDef env (Def name term) = Def name $ substTerm env term
 substTerm :: Env -> Typed -> Typed
 substTerm env typed = case typed of
   Word index type_ -> Word index $ substType env type_
+  Builtin builtin type_ -> Builtin builtin $ substType env type_
   Int value type_ -> Int value $ substType env type_
   Scoped term type_ -> Scoped (substTerm env term) (substType env type_)
   Local index type_ -> Local index $ substType env type_
@@ -304,6 +364,7 @@ generalize action = do
 -- | Enumerates free variables of a type.
 free :: Type -> [Name]
 free IntType = []
+free BoolType = []
 free (a :> b) = free a ++ free b
 free (a :. b) = free a ++ free b
 free (SVec a _) = free a
@@ -340,6 +401,7 @@ findType Env{..} (Name var) = maybeToEither
 -- | The famed "occurs check".
 occurs :: Name -> Type -> Env -> Bool
 occurs _ IntType _ = False
+occurs _ BoolType _ = False
 occurs _ EmptyType _ = False
 occurs var (SVec type_ _) env = occurs var type_ env
 occurs var (DVec type_) env = occurs var type_ env
