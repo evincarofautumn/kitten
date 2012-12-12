@@ -138,7 +138,9 @@ inferProgram :: Program Typed -> Inference (Program Typed)
 inferProgram program@(Program defs term) = do
   defMap <- mapM inferDef defs
   modify $ \ env -> env { envDefs = defMap }
-  void $ infer term
+  type_ <- infer term
+  r <- fresh
+  void . unifyM type_ $ EmptyType :> r
   gets $ substProgram program
 
 -- | Infers the type scheme of a definition.
