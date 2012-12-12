@@ -17,6 +17,7 @@ import qualified Text.Parsec as P
 import Def
 import Program
 import Token (Located(..), Token)
+import Util
 
 import qualified Token
 
@@ -53,8 +54,7 @@ compose = foldl' Compose Empty
 def :: Parser (Def Term)
 def = (<?> "definition") $ do
   Word name <- token Token.Def *> word
-  body <- term
-  return $ Def name body
+  Def name <$> grouped
 
 term :: Parser Term
 term = P.choice [word, int, lambda, vec, fun] <?> "term"
@@ -64,8 +64,7 @@ term = P.choice [word, int, lambda, vec, fun] <?> "term"
   toInt _ = Nothing
   lambda = (<?> "lambda") $ do
     Word name <- token Token.Lambda *> word
-    body <- term
-    return $ Lambda name body
+    Lambda name <$> grouped
   vec = Vec <$> (token Token.VecBegin *> many term <* token Token.VecEnd)
     <?> "vector"
   fun = Fun . compose
@@ -77,6 +76,11 @@ word = mapOne toWord <?> "word"
   where
   toWord (Token.Word name) = Just $ Word name
   toWord _ = Nothing
+
+grouped :: Parser Term
+grouped = term <$$> \ body -> case body of
+  Fun body' -> body'
+  _ -> body
 
 advance :: P.SourcePos -> t -> [Located] -> P.SourcePos
 advance _ _ (Located sourcePos _ _ : _) = sourcePos

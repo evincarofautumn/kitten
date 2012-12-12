@@ -21,8 +21,11 @@ import Error
 import Name
 import Program
 import Resolve (Resolved)
+import Util
 
 import qualified Resolve
+
+------------------------------------------------------------
 
 data Type
   = IntType
@@ -49,68 +52,40 @@ data Typed
 
 data TypeScheme = Forall [Name] Type
 
+instance Show Type where
+  show IntType = "int"
+  show (Var name) = show name
+  show (SVec type_ size)
+    = show type_ ++ "[" ++ show size ++ "]"
+  show (DVec type_)
+    = show type_ ++ "*"
+  show (a :> b)
+    = "(" ++ show a ++ " -> " ++ show b ++ ")"
+  show (EmptyType :. a) = show a
+  show EmptyType = "()"
+  show (a :. b) = show a ++ " " ++ show b
+
 instance Show Typed where
   show (Word (Name index) type_)
-    = "{@"
-    ++ show index
-    ++ " :: "
-    ++ show type_
-    ++ "}"
+    = "@" ++ show index ++ "::(" ++ show type_ ++ ")"
   show (Int value _)
     = show value
   show (Vec body type_)
-    = "{("
-    ++ unwords (map show body)
-    ++ ") :: "
-    ++ show type_
-    ++ "}"
+    = "[" ++ unwords (map show body) ++ "]::(" ++ show type_ ++ ")"
   show (Fun body type_)
-    = "{["
-    ++ show body
-    ++ "] :: "
-    ++ show type_
-    ++ "}"
+    = "{" ++ show body ++ "}::(" ++ show type_ ++ ")"
   show (Scoped term _)
-    = show term
+    = "\\(" ++ show term ++ ")"
   show (Local (Name index) _)
-    = "local"
-    ++ show index
+    = "local" ++ show index
   show row = show' row
     where
     show' (Compose (Empty _) top _)
       = show top
     show' (Compose down top _)
-      = show' down
-      ++ " "
-      ++ show top
+      = show' down ++ " " ++ show top
     show' (Empty _) = ""
     show' scalar = show scalar
-
-toTyped :: Resolved -> Inference Typed
-toTyped resolved = case resolved of
-  Resolve.Word index -> Word index <$> freshFunction
-  Resolve.Int value -> Int value <$> freshFunction
-  Resolve.Scoped term -> Scoped <$> toTyped term <*> freshFunction
-  Resolve.Local index -> Local index <$> freshFunction
-  Resolve.Vec terms -> Vec <$> mapM toTyped terms <*> freshFunction
-  Resolve.Fun term -> Fun <$> toTyped term <*> freshFunction
-  Resolve.Compose down top
-    -> Compose <$> toTyped down <*> toTyped top <*> freshFunction
-  Resolve.Empty -> Empty <$> freshFunction
-  where freshFunction = (:>) <$> fresh <*> fresh
-
-instance Show Type where
-  show IntType = "int"
-  show (Var name) = show name
-  show (SVec type_ size)
-    = "(" ++ show type_ ++ "{" ++ show size ++ "})"
-  show (DVec type_)
-    = "(" ++ show type_ ++ "*)"
-  show (a :> b)
-    = "{" ++ show a ++ " -> " ++ show b ++ "}"
-  show (EmptyType :. a) = show a
-  show EmptyType = "()"
-  show (a :. b) = show a ++ " " ++ show b
 
 instance Show TypeScheme where
   show (Forall vars term)
@@ -125,34 +100,40 @@ data Env = Env
 
 type Inference = StateT Env (Either CompileError)
 
-fresh :: Inference Type
-fresh = Var <$> freshName
+------------------------------------------------------------
 
-freshName :: Inference Name
-freshName = do
-  name@(Name x) <- gets envNext
-  modify $ \ env -> env { envNext = Name $ succ x }
-  return name
-
-declareType :: Name -> Type -> Env -> Env
-declareType (Name var) type_ env@Env{..}
-  = env { envTypes = IntMap.insert var type_ envTypes }
-
+-- | Runs type inference on a resolved AST.
 typeProgram :: Program Resolved -> Either CompileError (Program Typed)
 typeProgram program
   = fmap (uncurry substProgram) . flip runStateT emptyEnv
   $ inferProgram =<< toTypedProgram program
 
-emptyEnv :: Env
-emptyEnv = Env (Name 0) IntMap.empty [] []
-
+-- | Annotates a resolved AST with fresh type variables.
 toTypedProgram :: Program Resolved -> Inference (Program Typed)
 toTypedProgram (Program defs term)
   = Program <$> mapM toTypedDef defs <*> toTyped term
 
+-- | Annotates a resolved definition with fresh type variables.
 toTypedDef :: Def Resolved -> Inference (Def Typed)
 toTypedDef (Def name term) = Def name <$> toTyped term
 
+-- | Annotates a resolved term with fresh type variables.
+toTyped :: Resolved -> Inference Typed
+toTyped resolved = case resolved of
+  Resolve.Word index -> Word index <$> freshFunction
+  Resolve.Int value -> Int value <$> freshFunction
+  Resolve.Scoped term -> Scoped <$> toTyped term <*> freshFunction
+  Resolve.Local index -> Local index <$> freshFunction
+  Resolve.Vec terms -> Vec <$> mapM toTyped terms <*> freshFunction
+  Resolve.Fun term -> Fun <$> toTyped term <*> freshFunction
+  Resolve.Compose down top
+    -> Compose <$> toTyped down <*> toTyped top <*> freshFunction
+  Resolve.Empty -> Empty <$> freshFunction
+  where freshFunction = (:>) <$> fresh <*> fresh
+
+------------------------------------------------------------
+
+-- | Infers and annotates the type of a program.
 inferProgram :: Program Typed -> Inference (Program Typed)
 inferProgram program@(Program defs term) = do
   defMap <- mapM inferDef defs
@@ -160,9 +141,11 @@ inferProgram program@(Program defs term) = do
   void $ infer term
   gets $ substProgram program
 
+-- | Infers the type scheme of a definition.
 inferDef :: Def Typed -> Inference TypeScheme
 inferDef (Def _ term) = generalize $ infer term
 
+-- | Infers the type of a term.
 infer :: Typed -> Inference Type
 infer typedTerm = do
   r <- fresh
@@ -171,8 +154,6 @@ infer typedTerm = do
       -> unifyM _type =<< instantiate =<< gets ((!! index) . envDefs)
     Int _ type_
       -> unifyM type_ $ r :> r :. IntType
-    Scoped (Fun term _) type_
-      -> unifyM type_ =<< infer (Scoped term type_)
     -- Note the similarity to composition here.
     Scoped term type_ -> do
       a <- fresh
@@ -208,26 +189,13 @@ infer typedTerm = do
     modify $ \ env -> env { envLocals = init $ envLocals env }
     return result
 
-unifyM :: Type -> Type -> Inference Type
-unifyM type1 type2 = do
-  env <- gets $ unify type1 type2
-  case env of
-    Right env' -> put env' >> return type2
-    Left err -> lift . Left . CompileError
-      $ "Unification error: " ++ show err
+------------------------------------------------------------
 
-findType :: Env -> Name -> Either CompileError Type
-findType Env{..} (Name var) = maybeToEither
-  (CompileError $ "Nonexistent type variable " ++ show var ++ "!")
-  $ IntMap.lookup var envTypes
-
-maybeToEither :: e -> Maybe a -> Either e a
-maybeToEither _ (Just a) = Right a
-maybeToEither e Nothing = Left e
-
+-- | Simplifies and unifies two types.
 unify :: Type -> Type -> Env -> Either CompileError Env
 unify a b env = (unify' `on` substChain env) a b env
 
+-- | Unifies two simplified types.
 unify' :: Type -> Type -> Env -> Either CompileError Env
 unify' a b | a == b = return
 unify' (SVec a m) (SVec b n) = unify a b >=> unifySize m n
@@ -241,12 +209,16 @@ unify' type_ (Var var) = unifyVar var type_
 unify' a b = const . Left . CompileError $ unwords
   ["cannot solve type constraint:", show a, "=", show b]
 
-unifySize :: Int -> Int -> Env -> Either CompileError Env
-unifySize a b env
-  | a == b = Right env
-  | otherwise = Left . CompileError . unwords
-    $ ["cannot solve size constraint:", show a, "=", show b]
+-- | Unifies two types, returning the second type.
+unifyM :: Type -> Type -> Inference Type
+unifyM type1 type2 = do
+  env <- gets $ unify type1 type2
+  case env of
+    Right env' -> put env' >> return type2
+    Left err -> lift . Left . CompileError
+      $ "Unification error: " ++ show err
 
+-- | Unifies a variable with a type.
 unifyVar :: Name -> Type -> Env -> Either CompileError Env
 unifyVar var1 (Var var2) env | var1 == var2 = return env
 unifyVar var1 (Var var2) env
@@ -257,29 +229,31 @@ unifyVar var type_ env | occurs var type_ env
 unifyVar var type_ env
   = return $ declareType var type_ env
 
-occurs :: Name -> Type -> Env -> Bool
-occurs _ IntType _ = False
-occurs _ EmptyType _ = False
-occurs var (SVec type_ _) env = occurs var type_ env
-occurs var (DVec type_) env = occurs var type_ env
-occurs var1 (Var var2) env = case findType env var2 of
-  Left _ -> var1 == var2
-  Right type_ -> occurs var1 type_ env
-occurs var (a :> b) env = occurs var a env || occurs var b env
-occurs var (a :. b) env = occurs var a env || occurs var b env
+-- | Unifies two constant size constraints.
+unifySize :: Int -> Int -> Env -> Either CompileError Env
+unifySize a b env
+  | a == b = Right env
+  | otherwise = Left . CompileError . unwords
+    $ ["cannot solve size constraint:", show a, "=", show b]
 
+------------------------------------------------------------
+
+-- | Simplifies a chain of variable equality constraints.
 substChain :: Env -> Type -> Type
 substChain env (Var var)
   | Right type_ <- findType env var = substChain env type_
 substChain _ type_ = type_
 
+-- | Substitutes type variables in a program.
 substProgram :: Program Typed -> Env -> Program Typed
 substProgram (Program defs term) env
   = Program (map (substDef env) defs) (substTerm env term)
 
+-- | Substitutes type variables in a definition.
 substDef :: Env -> Def Typed -> Def Typed
 substDef env (Def name term) = Def name $ substTerm env term
 
+-- | Substitutes type variables in a term.
 substTerm :: Env -> Typed -> Typed
 substTerm env typed = case typed of
   Word index type_ -> Word index $ substType env type_
@@ -292,6 +266,7 @@ substTerm env typed = case typed of
     -> Compose (substTerm env down) (substTerm env top) (substType env type_)
   Empty type_ -> Empty $ substType env type_
 
+-- | Substitutes type variables in a type.
 substType :: Env -> Type -> Type
 substType env (a :> b) = substType env a :> substType env b
 substType env (a :. b) = substType env a :. substType env b
@@ -299,6 +274,9 @@ substType env (Var var)
   | Right type_ <- findType env var = substType env type_
 substType _ type_ = type_
 
+------------------------------------------------------------
+
+-- | Instantiates a type scheme in the current environment.
 instantiate :: TypeScheme -> Inference Type
 instantiate (Forall vars type_) = do
   env <- rename vars
@@ -310,6 +288,7 @@ instantiate (Forall vars type_) = do
     a <- fresh
     return $ declareType v a env
 
+-- | Generalizes a type into a type scheme.
 generalize :: Inference Type -> Inference TypeScheme
 generalize action = do
   before <- get
@@ -320,6 +299,7 @@ generalize action = do
   let vars = filter dependent . nub $ free substituted
   return $ Forall vars substituted
 
+-- | Enumerates free variables of a type.
 free :: Type -> [Name]
 free IntType = []
 free (a :> b) = free a ++ free b
@@ -329,11 +309,52 @@ free (DVec a) = free a
 free (Var var) = [var]
 free EmptyType = []
 
+-- | Tests whether a variable is dependent between two type
+-- environment states.
 dependentBetween :: Env -> Env -> Name -> Bool
 dependentBetween before after var1
   = any (bound after) (unbound before)
   where bound env var2 = occurs var1 (Var var2) env
 
+-- | Enumerates those type variables in an environment which
+-- are allocated but not yet bound to a type.
 unbound :: Env -> [Name]
 unbound Env{..} = filter (\ (Name var) -> not $ IntMap.member var envTypes)
   [Name 0 .. pred envNext]
+
+------------------------------------------------------------
+
+-- | Declares a type variable.
+declareType :: Name -> Type -> Env -> Env
+declareType (Name var) type_ env@Env{..}
+  = env { envTypes = IntMap.insert var type_ envTypes }
+
+-- | Finds the type associated with a type variable name.
+findType :: Env -> Name -> Either CompileError Type
+findType Env{..} (Name var) = maybeToEither
+  (CompileError $ "Nonexistent type variable " ++ show var ++ "!")
+  $ IntMap.lookup var envTypes
+
+-- | The famed "occurs check".
+occurs :: Name -> Type -> Env -> Bool
+occurs _ IntType _ = False
+occurs _ EmptyType _ = False
+occurs var (SVec type_ _) env = occurs var type_ env
+occurs var (DVec type_) env = occurs var type_ env
+occurs var1 (Var var2) env = case findType env var2 of
+  Left _ -> var1 == var2
+  Right type_ -> occurs var1 type_ env
+occurs var (a :> b) env = occurs var a env || occurs var b env
+occurs var (a :. b) env = occurs var a env || occurs var b env
+
+-- | Generates a fresh type variable.
+fresh :: Inference Type
+fresh = Var <$> freshName
+  where
+  freshName = do
+    name@(Name x) <- gets envNext
+    modify $ \ env -> env { envNext = Name $ succ x }
+    return name
+
+emptyEnv :: Env
+emptyEnv = Env (Name 0) IntMap.empty [] []
