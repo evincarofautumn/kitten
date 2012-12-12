@@ -4,8 +4,6 @@ module Builtin
   , toString
   ) where
 
-import Prelude hiding (Bool(..))
-
 import Data.Map (Map)
 import Data.Maybe
 
@@ -22,7 +20,6 @@ data Builtin
   | Drop
   | Dup
   | Eq
-  | False
   | Fun
   | Ge
   | Gt
@@ -37,7 +34,6 @@ data Builtin
   | Or
   | Sub
   | Swap
-  | True
   | Xor
   deriving (Eq, Ord)
 
@@ -65,7 +61,6 @@ fromStringTable =
   , (,) "drop"    Drop
   , (,) "dup"     Dup
   , (,) "eq"      Eq
-  , (,) "false"   False
   , (,) "fun"     Fun
   , (,) "ge"      Ge
   , (,) "gt"      Gt
@@ -80,7 +75,6 @@ fromStringTable =
   , (,) "or"      Or
   , (,) "sub"     Sub
   , (,) "swap"    Swap
-  , (,) "true"    True
   , (,) "xor"     Xor
   ]
 

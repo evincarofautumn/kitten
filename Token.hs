@@ -22,6 +22,7 @@ data Token
   = Word !String
   | Builtin !Builtin
   | Int !Integer
+  | Bool !Bool
   | Def
   | Lambda
   | VecBegin
@@ -34,6 +35,7 @@ instance Show Token where
   show (Word word) = word
   show (Builtin name) = show name
   show (Int value) = show value
+  show (Bool value) = if value then "true" else "false"
   show Def = "def"
   show Lambda = "\\"
   show VecBegin = "["
@@ -88,6 +90,8 @@ token = located $ P.choice
   word = P.many1 (P.letter <|> P.digit <|> P.char '_')
     <$$> \ name -> case name of
       "def" -> Def
+      "true" -> Bool True
+      "false" -> Bool False
       _ -> case Builtin.fromString name of
         Just builtin -> Builtin builtin
         _ -> Word name

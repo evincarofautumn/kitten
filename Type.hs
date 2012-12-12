@@ -47,6 +47,7 @@ data Typed
   = Word Name Type
   | Builtin Builtin Type
   | Int Integer Type
+  | Bool Bool Type
   | Scoped Typed Type
   | Local Name Type
   | Vec [Typed] Type
@@ -77,6 +78,8 @@ instance Show Typed where
     = show name ++ "::" ++ show type_
   show (Int value _)
     = show value
+  show (Bool value _)
+    = if value then "true" else "false"
   show (Vec body type_)
     = "[" ++ unwords (map show body) ++ "]::" ++ show type_
   show (Fun body type_)
@@ -130,6 +133,7 @@ toTyped resolved = case resolved of
   Resolve.Word index -> Word index <$> freshFunction
   Resolve.Builtin name -> Builtin name <$> freshFunction
   Resolve.Int value -> Int value <$> freshFunction
+  Resolve.Bool value -> Bool value <$> freshFunction
   Resolve.Scoped term -> Scoped <$> toTyped term <*> freshFunction
   Resolve.Local index -> Local index <$> freshFunction
   Resolve.Vec terms -> Vec <$> mapM toTyped terms <*> freshFunction
@@ -165,13 +169,14 @@ infer typedTerm = do
     intToInt    = return $ r :. IntType              :> r :. IntType
     intsToBool  = return $ r :. IntType :. IntType   :> r :. BoolType
     intsToInt   = return $ r :. IntType :. IntType   :> r :. IntType
-    toBool      = return $ r                         :> r :. BoolType
 
   case typedTerm of
     Word (Name index) _type
       -> unifyM _type =<< instantiate =<< gets ((!! index) . envDefs)
     Int _ type_
       -> unifyM type_ $ r :> r :. IntType
+    Bool _ type_
+      -> unifyM type_ $ r :> r :. BoolType
     -- Note the similarity to composition here.
     Scoped term type_ -> do
       a <- fresh
@@ -238,8 +243,6 @@ infer typedTerm = do
       Builtin.Gt -> intsToBool
       Builtin.Le -> intsToBool
       Builtin.Ge -> intsToBool
-      Builtin.True -> toBool
-      Builtin.False -> toBool
   where
   local scheme action = do
     modify $ \ env -> env { envLocals = envLocals env ++ [scheme] }
@@ -320,6 +323,7 @@ substTerm env typed = case typed of
   Word index type_ -> Word index $ substType env type_
   Builtin builtin type_ -> Builtin builtin $ substType env type_
   Int value type_ -> Int value $ substType env type_
+  Bool value type_ -> Bool value $ substType env type_
   Scoped term type_ -> Scoped (substTerm env term) (substType env type_)
   Local index type_ -> Local index $ substType env type_
   Vec body type_ -> Vec (map (substTerm env) body) (substType env type_)

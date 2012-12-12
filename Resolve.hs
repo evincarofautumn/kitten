@@ -23,6 +23,7 @@ data Resolved
   = Word !Name
   | Builtin !Builtin
   | Int !Integer
+  | Bool !Bool
   | Scoped !Resolved
   | Local !Name
   | Vec ![Resolved]
@@ -34,6 +35,7 @@ instance Show Resolved where
   show (Word index) = show index
   show (Builtin name) = show name
   show (Int value) = show value
+  show (Bool value) = if value then "true" else "false"
   show (Scoped term) = "scoped { " ++ show term ++ " }"
   show (Local index) = "local#" ++ show index
   show (Vec terms) = "(" ++ unwords (map show terms) ++ ")"
@@ -81,6 +83,7 @@ resolveTerm unresolved = case unresolved of
   Term.Compose down top
     -> Resolve.Compose <$> resolveTerm down <*> resolveTerm top
   Term.Int value -> return $ Int value
+  Term.Bool value -> return $ Bool value
   Term.Lambda name term -> do
     modify $ enter name
     resolved <- resolveTerm term

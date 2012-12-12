@@ -27,6 +27,7 @@ type Parser a = P.ParsecT [Located] () Identity a
 data Term
   = Word !String
   | Int !Integer
+  | Bool !Bool
   | Builtin !Builtin
   | Lambda !String !Term
   | Vec ![Term]
@@ -37,6 +38,7 @@ data Term
 instance Show Term where
   show (Word name) = name
   show (Int value) = show value
+  show (Bool value) = if value then "true" else "false"
   show (Builtin name) = show name
   show (Lambda name body) = unwords ["\\", name, show body]
   show (Vec body) = "(" ++ unwords (map show body) ++ ")"
@@ -60,11 +62,12 @@ def = (<?> "definition") $ do
   Def name <$> grouped
 
 term :: Parser Term
-term = P.choice [builtin, word, int, lambda, vec, fun] <?> "term"
+term = P.choice [builtin, word, literal, lambda, vec, fun] <?> "term"
   where
-  int = mapOne toInt <?> "int"
-  toInt (Token.Int value) = Just (Int value)
-  toInt _ = Nothing
+  literal = mapOne toLiteral <?> "literal"
+  toLiteral (Token.Int value) = Just $ Int value
+  toLiteral (Token.Bool value) = Just $ Bool value
+  toLiteral _ = Nothing
   lambda = (<?> "lambda") $ do
     Word name <- token Token.Lambda *> word
     Lambda name <$> grouped
