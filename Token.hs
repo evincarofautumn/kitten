@@ -50,7 +50,7 @@ data Located = Located
   }
 
 instance Show Located where
-  show Located {..} = show locatedToken
+  show Located{..} = show locatedToken
 
 tokenize :: String -> String -> Either P.ParseError [Located]
 tokenize = P.runParser file 0
