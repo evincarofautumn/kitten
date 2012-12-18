@@ -37,10 +37,10 @@ data Env = Env
   }
 
 enter :: String -> Env -> Env
-enter name env = env { envScope = envScope env ++ [name] }
+enter name env = env { envScope = name : envScope env }
 
 leave :: Env -> Env
-leave env = env { envScope = init $ envScope env }
+leave env = env { envScope = tail $ envScope env }
 
 type Resolution = StateT Env (Either CompileError)
 
