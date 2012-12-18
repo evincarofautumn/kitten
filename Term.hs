@@ -35,17 +35,6 @@ data Term
   | Compose !Term !Term
   | Empty
 
-instance Show Term where
-  show (Word name) = name
-  show (Int value) = show value
-  show (Bool value) = if value then "true" else "false"
-  show (Builtin name) = show name
-  show (Lambda name body) = unwords ["\\", name, show body]
-  show (Vec body) = "(" ++ unwords (map show body) ++ ")"
-  show (Fun body) = "[" ++ show body ++ "]"
-  show (Compose down top) = show down ++ ' ' : show top
-  show Empty = ""
-
 parse :: String -> [Located] -> Either P.ParseError (Program Term)
 parse = P.parse program
 
