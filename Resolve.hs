@@ -2,6 +2,7 @@
 
 module Resolve
   ( Resolved(..)
+  , Value(..)
   , resolveProgram
   ) where
 
@@ -20,16 +21,25 @@ import Term (Term)
 import qualified Term
 
 data Resolved
-  = Word !Name
+  = Value !Value
   | Builtin !Builtin
-  | Int !Integer
-  | Bool !Bool
   | Scoped !Resolved
   | Local !Name
-  | Vec ![Resolved]
-  | Fun !Resolved
   | Compose !Resolved !Resolved
   | Empty
+
+data Value
+  = Word !Name
+  | Int !Int
+  | Bool !Bool
+  | Vec ![Value]
+  | Fun !Resolved
+
+instance Show Value where
+  show (Int value) = show value
+  show (Bool value) = if value then "true" else "false"
+  show (Vec values) = "[" ++ unwords (map show values) ++ "]"
+  show (Fun _) = "{...}"
 
 data Env = Env
   { envDefs :: [Def Term]
@@ -55,6 +65,23 @@ resolveDefs defs = mapM resolveDef defs
 
 resolveTerm :: Term -> Resolution Resolved
 resolveTerm unresolved = case unresolved of
+  Term.Value value -> resolveValue value
+  Term.Builtin name -> return $ Builtin name
+  Term.Compose down top
+    -> Resolve.Compose <$> resolveTerm down <*> resolveTerm top
+  Term.Lambda name term -> do
+    modify $ enter name
+    resolved <- resolveTerm term
+    modify leave
+    return $ Scoped resolved
+  Term.Empty -> return Empty
+
+fromValue :: Resolved -> Value
+fromValue (Value value) = value
+fromValue _ = error "Resolve.fromValue: not a value"
+
+resolveValue :: Term.Value -> Resolution Resolved
+resolveValue value = case value of
   Term.Word name -> do
     mLocalIndex <- gets $ localIndex name
     case mLocalIndex of
@@ -62,22 +89,13 @@ resolveTerm unresolved = case unresolved of
       Nothing -> do
         mDefIndex <- gets $ defIndex name
         case mDefIndex of
-          Just index -> return . Word $ Name index
+          Just index -> return . Value . Word $ Name index
           Nothing -> lift . Left . CompileError $ concat
             ["Unable to resolve word '", name, "'"]
-  Term.Builtin name -> return $ Builtin name
-  Term.Fun term -> Fun <$> resolveTerm term
-  Term.Vec terms -> Vec <$> mapM resolveTerm terms
-  Term.Compose down top
-    -> Resolve.Compose <$> resolveTerm down <*> resolveTerm top
-  Term.Int value -> return $ Int value
-  Term.Bool value -> return $ Bool value
-  Term.Lambda name term -> do
-    modify $ enter name
-    resolved <- resolveTerm term
-    modify leave
-    return $ Scoped resolved
-  Term.Empty -> return Empty
+  Term.Fun term -> Value . Fun <$> resolveTerm term
+  Term.Vec terms -> Value . Vec <$> mapM (fmap fromValue . resolveValue) terms
+  Term.Int value -> return . Value $ Int value
+  Term.Bool value -> return . Value $ Bool value
 
 localIndex :: String -> Env -> Maybe Int
 localIndex name = elemIndex name . envScope

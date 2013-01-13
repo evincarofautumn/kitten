@@ -50,8 +50,8 @@ compile name source = do
   where failIfError = mapLeft $ CompileError . show
 
 data Stacks = Stacks
-  { dataStack :: [Value]
-  , localStack :: [Value]
+  { dataStack :: [Resolved.Value]
+  , localStack :: [Resolved.Value]
   }
 
 (%) :: (a -> b) -> a -> b
@@ -61,114 +61,113 @@ infixl 0 %
 runProgram :: Program Resolved -> IO ()
 runProgram (Program defs term) = do
   Stacks {..} <- execStateT % runTerm term % Stacks [] []
-  putStrLn . unwords $ map show dataStack
+  putStrLn . unwords . reverse $ map show dataStack
   where
-  runTerm (Resolved.Word (Name index)) = runDef $ defs !! index
+  runTerm (Resolved.Value value) = case value of
+    Resolved.Word (Name index) -> runDef $ defs !! index
+    _ -> pushData value
   runTerm (Resolved.Builtin builtin) = case builtin of
     Builtin.Add -> do
-      (Int b) <- popData
-      (Int a) <- popData
-      pushData . Int $ a + b
+      (Resolved.Int b) <- popData
+      (Resolved.Int a) <- popData
+      pushData . Resolved.Int $ a + b
     Builtin.AndBool -> do
-      (Bool b) <- popData
-      (Bool a) <- popData
-      pushData . Bool $ a && b
+      (Resolved.Bool b) <- popData
+      (Resolved.Bool a) <- popData
+      pushData . Resolved.Bool $ a && b
     Builtin.AndInt -> do
-      (Int b) <- popData
-      (Int a) <- popData
-      pushData . Int $ a .&. b
+      (Resolved.Int b) <- popData
+      (Resolved.Int a) <- popData
+      pushData . Resolved.Int $ a .&. b
     Builtin.Apply -> do
-      (Fun a) <- popData
-      mapM_ runTerm a
+      (Resolved.Fun a) <- popData
+      runTerm a
     Builtin.Compose -> do
-      (Fun b) <- popData
-      (Fun a) <- popData
-      pushData . Fun $ a ++ b
+      (Resolved.Fun b) <- popData
+      (Resolved.Fun a) <- popData
+      pushData . Resolved.Fun $ Resolved.Compose a b
     Builtin.Div -> do
-      (Int b) <- popData
-      (Int a) <- popData
-      pushData . Int $ a `div` b
+      (Resolved.Int b) <- popData
+      (Resolved.Int a) <- popData
+      pushData . Resolved.Int $ a `div` b
     Builtin.Drop -> popData_
     Builtin.Dup -> pushData =<< peekData
     Builtin.Eq -> do
-      (Int b) <- popData
-      (Int a) <- popData
-      pushData . Bool $ a == b
-    Builtin.Fun -> error "TODO: run builtin fun"
+      (Resolved.Int b) <- popData
+      (Resolved.Int a) <- popData
+      pushData . Resolved.Bool $ a == b
+    Builtin.Fun -> do
+      a <- popData
+      pushData . Resolved.Fun $ Resolved.Value a
     Builtin.Ge -> do
-      (Int b) <- popData
-      (Int a) <- popData
-      pushData . Bool $ a >= b
+      (Resolved.Int b) <- popData
+      (Resolved.Int a) <- popData
+      pushData . Resolved.Bool $ a >= b
     Builtin.Gt -> do
-      (Int b) <- popData
-      (Int a) <- popData
-      pushData . Bool $ a > b
+      (Resolved.Int b) <- popData
+      (Resolved.Int a) <- popData
+      pushData . Resolved.Bool $ a > b
     Builtin.If -> error "TODO: run builtin if"
     Builtin.Le -> do
-      (Int b) <- popData
-      (Int a) <- popData
-      pushData . Bool $ a <= b
+      (Resolved.Int b) <- popData
+      (Resolved.Int a) <- popData
+      pushData . Resolved.Bool $ a <= b
     Builtin.Lt -> do
-      (Int b) <- popData
-      (Int a) <- popData
-      pushData . Bool $ a < b
+      (Resolved.Int b) <- popData
+      (Resolved.Int a) <- popData
+      pushData . Resolved.Bool $ a < b
     Builtin.Mod -> do
-      (Int b) <- popData
-      (Int a) <- popData
-      pushData . Int $ a `mod` b
+      (Resolved.Int b) <- popData
+      (Resolved.Int a) <- popData
+      pushData . Resolved.Int $ a `mod` b
     Builtin.Mul -> do
-      (Int b) <- popData
-      (Int a) <- popData
-      pushData . Int $ a * b
+      (Resolved.Int b) <- popData
+      (Resolved.Int a) <- popData
+      pushData . Resolved.Int $ a * b
     Builtin.Ne -> do
-      (Int b) <- popData
-      (Int a) <- popData
-      pushData . Bool $ a /= b
+      (Resolved.Int b) <- popData
+      (Resolved.Int a) <- popData
+      pushData . Resolved.Bool $ a /= b
     Builtin.Neg -> do
-      (Int a) <- popData
-      pushData . Int $ negate a
+      (Resolved.Int a) <- popData
+      pushData . Resolved.Int $ negate a
     Builtin.NotBool -> do
-      (Bool a) <- popData
-      pushData . Bool $ not a
+      (Resolved.Bool a) <- popData
+      pushData . Resolved.Bool $ not a
     Builtin.NotInt -> do
-      (Int a) <- popData
-      pushData . Int $ complement a
+      (Resolved.Int a) <- popData
+      pushData . Resolved.Int $ complement a
     Builtin.OrBool -> do
-      (Bool b) <- popData
-      (Bool a) <- popData
-      pushData . Bool $ a || b
+      (Resolved.Bool b) <- popData
+      (Resolved.Bool a) <- popData
+      pushData . Resolved.Bool $ a || b
     Builtin.OrInt -> do
-      (Int b) <- popData
-      (Int a) <- popData
-      pushData . Int $ a .|. b
+      (Resolved.Int b) <- popData
+      (Resolved.Int a) <- popData
+      pushData . Resolved.Int $ a .|. b
     Builtin.Sub -> do
-      (Int b) <- popData
-      (Int a) <- popData
-      pushData . Int $ a - b
+      (Resolved.Int b) <- popData
+      (Resolved.Int a) <- popData
+      pushData . Resolved.Int $ a - b
     Builtin.Swap -> do
       b <- popData
       a <- popData
       pushData b
       pushData a
     Builtin.XorBool -> do
-      (Bool b) <- popData
-      (Bool a) <- popData
-      pushData . Bool $ a /= b
+      (Resolved.Bool b) <- popData
+      (Resolved.Bool a) <- popData
+      pushData . Resolved.Bool $ a /= b
     Builtin.XorInt -> do
-      (Int b) <- popData
-      (Int a) <- popData
-      pushData . Int $ a `xor` b
-  runTerm (Resolved.Int value) = pushData . Int $ fromInteger value
-  runTerm (Resolved.Bool value) = pushData $ Bool value
+      (Resolved.Int b) <- popData
+      (Resolved.Int a) <- popData
+      pushData . Resolved.Int $ a `xor` b
   runTerm (Resolved.Scoped term) = do
     pushLocal =<< popData
     runTerm term
     popLocal_
   runTerm (Resolved.Local (Name index))
     = pushData =<< (!! index) <$> gets localStack
-  runTerm (Resolved.Vec _terms)
-    = error "TODO: run vec"
-  runTerm (Resolved.Fun term) = pushData (Fun [term])
   runTerm (Resolved.Compose term1 term2) = do
     runTerm term1
     runTerm term2
@@ -184,18 +183,6 @@ runProgram (Program defs term) = do
     popData_
     return value
   popLocal_ = modify $ \ s -> s { localStack = tail $ localStack s }
-
-data Value
-  = Int Int
-  | Bool Bool
-  | Vec [Value]
-  | Fun [Resolved]
-
-instance Show Value where
-  show (Int value) = show value
-  show (Bool value) = if value then "true" else "false"
-  show (Vec values) = "[" ++ unwords (map show values) ++ "]"
-  show (Fun _) = "{...}"
 
 mapLeft :: (e1 -> e2) -> Either e1 a -> Either e2 a
 mapLeft f (Left e) = Left $ f e

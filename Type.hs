@@ -44,16 +44,19 @@ infixl 4 :>
 infixl 5 :.
 
 data Typed
-  = Word Name Type
-  | Builtin Builtin Type
-  | Int Integer Type
-  | Bool Bool Type
-  | Scoped Typed Type
-  | Local Name Type
-  | Vec [Typed] Type
-  | Fun Typed Type
-  | Compose Typed Typed Type
-  | Empty Type
+  = Value !Value
+  | Builtin !Builtin !Type
+  | Scoped !Typed !Type
+  | Local !Name !Type
+  | Compose !Typed !Typed !Type
+  | Empty !Type
+
+data Value
+  = Word !Name !Type
+  | Int !Int !Type
+  | Bool !Bool !Type
+  | Vec ![Value] !Type
+  | Fun !Typed !Type
 
 data TypeScheme = Forall [Name] Type
 
@@ -71,32 +74,6 @@ instance Show Type where
   show EmptyType = "()"
   show (a :. b) = show a ++ " " ++ show b
 
-instance Show Typed where
-  show (Word (Name index) type_)
-    = "@" ++ show index ++ "::" ++ show type_
-  show (Builtin name type_)
-    = show name ++ "::" ++ show type_
-  show (Int value _)
-    = show value
-  show (Bool value _)
-    = if value then "true" else "false"
-  show (Vec body type_)
-    = "[" ++ unwords (map show body) ++ "]::" ++ show type_
-  show (Fun body type_)
-    = "{" ++ show body ++ "}::" ++ show type_
-  show (Scoped term _)
-    = "\\(" ++ show term ++ ")"
-  show (Local (Name index) _)
-    = "local" ++ show index
-  show row = show' row
-    where
-    show' (Compose (Empty _) top _)
-      = show top
-    show' (Compose down top _)
-      = show' down ++ " " ++ show top
-    show' (Empty _) = ""
-    show' scalar = show scalar
-
 instance Show TypeScheme where
   show (Forall vars term)
     = "forall [" ++ unwords (map show vars) ++ "]. " ++ show term
@@ -106,7 +83,7 @@ data Env = Env
   , envTypes :: IntMap Type
   , envLocals :: [TypeScheme]
   , envDefs :: [TypeScheme]
-  } deriving (Show)
+  }
 
 type Inference = StateT Env (Either CompileError)
 
@@ -130,18 +107,21 @@ toTypedDef (Def name term) = Def name <$> toTyped term
 -- | Annotates a resolved term with fresh type variables.
 toTyped :: Resolved -> Inference Typed
 toTyped resolved = case resolved of
-  Resolve.Word index -> Word index <$> freshFunction
+  Resolve.Value value -> Value <$> toTypedValue value
   Resolve.Builtin name -> Builtin name <$> freshFunction
-  Resolve.Int value -> Int value <$> freshFunction
-  Resolve.Bool value -> Bool value <$> freshFunction
   Resolve.Scoped term -> Scoped <$> toTyped term <*> freshFunction
   Resolve.Local index -> Local index <$> freshFunction
-  Resolve.Vec terms -> Vec <$> mapM toTyped terms <*> freshFunction
-  Resolve.Fun term -> Fun <$> toTyped term <*> freshFunction
   Resolve.Compose down top
     -> Compose <$> toTyped down <*> toTyped top <*> freshFunction
   Resolve.Empty -> Empty <$> freshFunction
-  where freshFunction = (:>) <$> fresh <*> fresh
+  where
+  freshFunction = (:>) <$> fresh <*> fresh
+  toTypedValue value = case value of
+    Resolve.Word index -> Word index <$> freshFunction
+    Resolve.Int value -> Int value <$> freshFunction
+    Resolve.Bool value -> Bool value <$> freshFunction
+    Resolve.Vec terms -> Vec <$> mapM toTypedValue terms <*> freshFunction
+    Resolve.Fun term -> Fun <$> toTyped term <*> freshFunction
 
 ------------------------------------------------------------
 
@@ -171,12 +151,24 @@ infer typedTerm = do
     intsToInt   = return $ r :. IntType :. IntType   :> r :. IntType
 
   case typedTerm of
-    Word (Name index) _type
-      -> unifyM _type =<< instantiate =<< gets ((!! index) . envDefs)
-    Int _ type_
-      -> unifyM type_ $ r :> r :. IntType
-    Bool _ type_
-      -> unifyM type_ $ r :> r :. BoolType
+    Value value -> case value of
+      Word (Name index) _type
+        -> unifyM _type =<< instantiate =<< gets ((!! index) . envDefs)
+      Int _ type_
+        -> unifyM type_ $ r :> r :. IntType
+      Bool _ type_
+        -> unifyM type_ $ r :> r :. BoolType
+      Vec terms type_ -> do
+        termTypes <- mapM (infer . Value) terms
+        termType <- unifyEach termTypes
+        unifyM type_ $ r :> r :. SVec termType (length terms)
+        where
+        unifyEach (x:y:zs) = unifyM x y >> unifyEach (y:zs)
+        unifyEach [x] = return x
+        unifyEach [] = fresh
+      Fun x type_ -> do
+        a <- infer x
+        unifyM type_ $ r :> r :. a
     -- Note the similarity to composition here.
     Scoped term type_ -> do
       a <- fresh
@@ -192,17 +184,6 @@ infer typedTerm = do
       (c :> d) <- infer y
       void $ unifyM b c
       unifyM type_ $ a :> d
-    Vec terms type_ -> do
-      termTypes <- mapM infer terms
-      termType <- unifyEach termTypes
-      unifyM type_ $ r :> r :. SVec termType (length terms)
-      where
-      unifyEach (x:y:zs) = unifyM x y >> unifyEach (y:zs)
-      unifyEach [x] = return x
-      unifyEach [] = fresh
-    Fun x type_ -> do
-      a <- infer x
-      unifyM type_ $ r :> r :. a
     Empty type_
       -> unifyM type_ $ r :> r
     Builtin name type_ -> unifyM type_ =<< case name of
@@ -324,17 +305,21 @@ substDef env (Def name term) = Def name $ substTerm env term
 -- | Substitutes type variables in a term.
 substTerm :: Env -> Typed -> Typed
 substTerm env typed = case typed of
-  Word index type_ -> Word index $ substType env type_
+  Value value -> Value $ substValue env value
   Builtin builtin type_ -> Builtin builtin $ substType env type_
-  Int value type_ -> Int value $ substType env type_
-  Bool value type_ -> Bool value $ substType env type_
   Scoped term type_ -> Scoped (substTerm env term) (substType env type_)
   Local index type_ -> Local index $ substType env type_
-  Vec body type_ -> Vec (map (substTerm env) body) (substType env type_)
-  Fun body type_ -> Fun (substTerm env body) (substType env type_)
   Compose down top type_
     -> Compose (substTerm env down) (substTerm env top) (substType env type_)
   Empty type_ -> Empty $ substType env type_
+
+substValue :: Env -> Value -> Value
+substValue env value = case value of
+  Word index type_ -> Word index $ substType env type_
+  Int value type_ -> Int value $ substType env type_
+  Bool value type_ -> Bool value $ substType env type_
+  Vec body type_ -> Vec (map (substValue env) body) (substType env type_)
+  Fun body type_ -> Fun (substTerm env body) (substType env type_)
 
 -- | Substitutes type variables in a type.
 substType :: Env -> Type -> Type

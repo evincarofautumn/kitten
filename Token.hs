@@ -21,7 +21,7 @@ type Parser a = P.ParsecT String P.Column Identity a
 data Token
   = Word !String
   | Builtin !Builtin
-  | Int !Integer
+  | Int !Int
   | Bool !Bool
   | Def
   | Lambda
