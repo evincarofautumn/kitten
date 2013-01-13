@@ -8,6 +8,7 @@ module Token
 
 import Control.Applicative
 import Control.Monad.Identity
+import Text.Parsec ((<?>))
 
 import qualified Text.Parsec as P
 
@@ -65,13 +66,13 @@ located parser = do
   return $ Token.Located position indent result
 
 file :: Parser [Located]
-file = tokens <* P.eof
+file = P.spaces *> tokens <* P.eof
 
 tokens :: Parser [Located]
-tokens = token `P.sepBy` P.spaces
+tokens = token `P.sepEndBy` P.spaces
 
 token :: Parser Located
-token = located $ P.choice
+token = (<?> "token") . located $ P.choice
   [ lambda
   , vecBegin
   , vecEnd
