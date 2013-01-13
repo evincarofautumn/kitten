@@ -4,4 +4,7 @@ module Program
 
 import Def
 
-data Program a = Program [Def a] a
+data Program a = Program
+  { programDefs :: [Def a] 
+  , programTerm :: a
+  }

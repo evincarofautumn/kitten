@@ -24,16 +24,28 @@ main = evalStateT repl ""
       hFlush stdout
       getLine
     case line of
-      ":q" -> return ()
+      "" -> repl
+      ":quit" -> quit
+      ":q" -> quit
+      ":clear" -> clear
+      ":c" -> clear
+      (':' : expression) -> do
+        lift $ case typecheck replName expression of
+          Left compileError -> print compileError
+          Right type_ -> print type_
+        repl
       _ -> do
         program <- get
         let program' = program ++ '\n' : line
-        case compile "STDIN" program' of
+        case compile replName program' of
           Left compileError -> lift $ print compileError
           Right compileResult -> do
             lift $ interpret compileResult
             put program'
         repl
+  quit = return ()
+  clear = put [] >> repl
+  replName = "REPL"
 
 compile :: String -> String -> Either CompileError (Program Resolved)
 compile name source = do
@@ -42,8 +54,10 @@ compile name source = do
   resolved <- Resolved.resolveProgram parsed
   void $ Typed.typeProgram resolved
   return resolved
-  where failIfError = mapLeft $ CompileError . show
 
-mapLeft :: (e1 -> e2) -> Either e1 a -> Either e2 a
-mapLeft f (Left e) = Left $ f e
-mapLeft _ (Right a) = Right a
+typecheck :: String -> String -> Either CompileError Typed.Type
+typecheck name
+  = failIfError . Token.tokenize name
+  >=> failIfError . Term.parse name
+  >=> Resolved.resolveProgram
+  >=> liftM (Typed.manifestType . programTerm) . Typed.typeProgram

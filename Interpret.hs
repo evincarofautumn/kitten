@@ -70,7 +70,11 @@ interpret (Program defs body) = do
       (Int b) <- popData
       (Int a) <- popData
       pushData . Bool $ a > b
-    Builtin.If -> error "TODO: run builtin if"
+    Builtin.If -> do
+      (Bool condition) <- popData
+      (Fun false) <- popData
+      (Fun true) <- popData
+      runTerm $ if condition then true else false
     Builtin.Le -> do
       (Int b) <- popData
       (Int a) <- popData

@@ -3,6 +3,7 @@
 module Type
   ( Type(..)
   , Typed(..)
+  , manifestType
   , typeProgram
   ) where
 
@@ -415,3 +416,21 @@ fresh = Var <$> freshName
 
 emptyEnv :: Env
 emptyEnv = Env (Name 0) IntMap.empty [] []
+
+------------------------------------------------------------
+
+manifestType :: Typed -> Type
+manifestType term = case term of
+  Value value -> manifestValueType value
+  Builtin _ type_ -> type_
+  Scoped _ type_ -> type_
+  Local _ type_ -> type_
+  Compose _ _ type_ -> type_
+  Empty type_ -> type_
+  where
+  manifestValueType value = case value of
+    Word _ type_ -> type_
+    Int _ type_ -> type_
+    Bool _ type_ -> type_
+    Vec _ type_ -> type_
+    Fun _ type_ -> type_
