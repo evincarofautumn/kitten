@@ -227,22 +227,26 @@ infer typedTerm = do
       Builtin.If
         -> (\ s -> r :. (r :> s) :. (r :> s) :. BoolType :> s)
         <$> fresh
-      Builtin.And -> boolsToBool
-      Builtin.Or  -> boolsToBool
-      Builtin.Xor -> boolsToBool
-      Builtin.Not -> boolToBool
-      Builtin.Add -> intsToInt
-      Builtin.Sub -> intsToInt
-      Builtin.Mul -> intsToInt
-      Builtin.Div -> intsToInt
-      Builtin.Mod -> intsToInt
-      Builtin.Neg -> intToInt
-      Builtin.Eq -> intsToBool
-      Builtin.Ne -> intsToBool
-      Builtin.Lt -> intsToBool
-      Builtin.Gt -> intsToBool
-      Builtin.Le -> intsToBool
-      Builtin.Ge -> intsToBool
+      Builtin.AndBool -> boolsToBool
+      Builtin.AndInt  -> intsToInt
+      Builtin.OrBool  -> boolsToBool
+      Builtin.OrInt   -> intsToInt
+      Builtin.XorBool -> boolsToBool
+      Builtin.XorInt  -> intsToInt
+      Builtin.NotBool -> boolToBool
+      Builtin.NotInt  -> intToInt
+      Builtin.Add     -> intsToInt
+      Builtin.Sub     -> intsToInt
+      Builtin.Mul     -> intsToInt
+      Builtin.Div     -> intsToInt
+      Builtin.Mod     -> intsToInt
+      Builtin.Neg     -> intToInt
+      Builtin.Eq      -> intsToBool
+      Builtin.Ne      -> intsToBool
+      Builtin.Lt      -> intsToBool
+      Builtin.Gt      -> intsToBool
+      Builtin.Le      -> intsToBool
+      Builtin.Ge      -> intsToBool
   where
   local scheme action = do
     modify $ \ env -> env { envLocals = envLocals env ++ [scheme] }

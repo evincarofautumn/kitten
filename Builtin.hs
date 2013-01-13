@@ -13,7 +13,8 @@ import Util
 
 data Builtin
   = Add
-  | And
+  | AndBool
+  | AndInt
   | Apply
   | Compose
   | Div
@@ -30,11 +31,14 @@ data Builtin
   | Mul
   | Ne
   | Neg
-  | Not
-  | Or
+  | NotBool
+  | NotInt
+  | OrBool
+  | OrInt
   | Sub
   | Swap
-  | Xor
+  | XorBool
+  | XorInt
   deriving (Eq, Ord)
 
 instance Show Builtin where show = fromMaybe "<unknown builtin>" . toString
@@ -54,7 +58,8 @@ fromStringMap = Map.fromList fromStringTable
 fromStringTable :: [(String, Builtin)]
 fromStringTable =
   [ (,) "add"     Add
-  , (,) "and"     And
+  , (,) "and"     AndBool
+  , (,) "bitand"  AndInt
   , (,) "apply"   Apply
   , (,) "compose" Compose
   , (,) "div"     Div
@@ -71,11 +76,14 @@ fromStringTable =
   , (,) "mul"     Mul
   , (,) "ne"      Ne
   , (,) "neg"     Neg
-  , (,) "not"     Not
-  , (,) "or"      Or
+  , (,) "not"     NotBool
+  , (,) "bitnot"  NotInt
+  , (,) "or"      OrBool
+  , (,) "bitor"   OrInt
   , (,) "sub"     Sub
   , (,) "swap"    Swap
-  , (,) "xor"     Xor
+  , (,) "xor"     XorBool
+  , (,) "bitxor"  XorInt
   ]
 
 toStringTable :: [(Builtin, String)]
