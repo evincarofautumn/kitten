@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 module Resolve
   ( Resolved(..)
   , Value(..)
@@ -36,6 +34,7 @@ data Value
   | Fun !Resolved
 
 instance Show Value where
+  show (Word (Name name)) = '@' : show name
   show (Int value) = show value
   show (Bool value) = if value then "true" else "false"
   show (Vec values) = "[" ++ unwords (map show values) ++ "]"
@@ -60,7 +59,7 @@ resolveProgram (Program defs term)
   where env0 = Env defs []
 
 resolveDefs :: [Def Term] -> Resolution [Def Resolved]
-resolveDefs defs = mapM resolveDef defs
+resolveDefs = mapM resolveDef
   where resolveDef (Def name body) = Def name <$> resolveTerm body
 
 resolveTerm :: Term -> Resolution Resolved
@@ -81,7 +80,7 @@ fromValue (Value value) = value
 fromValue _ = error "Resolve.fromValue: not a value"
 
 resolveValue :: Term.Value -> Resolution Resolved
-resolveValue value = case value of
+resolveValue v = case v of
   Term.Word name -> do
     mLocalIndex <- gets $ localIndex name
     case mLocalIndex of

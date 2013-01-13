@@ -19,7 +19,6 @@ import Builtin (Builtin)
 import Def
 import Program
 import Token (Located(..), Token)
-import Util
 
 import qualified Token
 
@@ -40,64 +39,65 @@ data Value
   | Fun !Term
 
 parse :: String -> [Located] -> Either P.ParseError (Program Term)
-parse = P.parse program
+parse = P.parse programP
 
-program :: Parser (Program Term)
-program = uncurry Program . second compose . partitionEithers
-  <$> P.many ((Left <$> def) <|> (Right <$> term)) <* P.eof
+programP :: Parser (Program Term)
+programP = uncurry Program . second compose . partitionEithers
+  <$> P.many ((Left <$> defP) <|> (Right <$> termP)) <* P.eof
 
 compose :: [Term] -> Term
 compose = foldl' Compose Empty
 
-def :: Parser (Def Term)
-def = (<?> "definition") $ do
-  name <- token Token.Def *> identifier
-  Def name <$> grouped
+defP :: Parser (Def Term)
+defP = (<?> "definition") $ do
+  name <- token Token.Def *> identifierP
+  Def name <$> groupedP
 
-term :: Parser Term
-term = P.choice [Value <$> value, builtin, lambda]
+termP :: Parser Term
+termP = P.choice [Value <$> valueP, builtinP, lambdaP]
 
-value :: Parser Value
-value = P.choice
-  [ literal
-  , vec
-  , fun
-  , word
+valueP :: Parser Value
+valueP = P.choice
+  [ literalP
+  , vecP
+  , funP
+  , wordP
   ]
   where
-  literal = mapOne toLiteral <?> "literal"
+  literalP = mapOne toLiteral <?> "literal"
   toLiteral (Token.Int value) = Just $ Int value
   toLiteral (Token.Bool value) = Just $ Bool value
   toLiteral _ = Nothing
-  vec = Vec <$> (token Token.VecBegin *> many value <* token Token.VecEnd)
+  vecP = Vec <$> (token Token.VecBegin *> many valueP <* token Token.VecEnd)
     <?> "vector"
-  fun = Fun . compose
-    <$> (token Token.FunBegin *> many term <* token Token.FunEnd)
+  funP = Fun . compose
+    <$> (token Token.FunBegin *> many termP <* token Token.FunEnd)
     <?> "function"
-  word = mapOne toWord <?> "word"
+  wordP = mapOne toWord <?> "word"
   toWord (Token.Word name) = Just $ Word name
   toWord _ = Nothing
 
-identifier :: Parser String
-identifier = mapOne toIdentifier
+identifierP :: Parser String
+identifierP = mapOne toIdentifier
   where
   toIdentifier (Token.Word name) = Just name
   toIdentifier _ = Nothing
 
-builtin :: Parser Term
-builtin = mapOne toBuiltin <?> "builtin"
+builtinP :: Parser Term
+builtinP = mapOne toBuiltin <?> "builtin"
   where
   toBuiltin (Token.Builtin name) = Just $ Builtin name
   toBuiltin _ = Nothing
 
-lambda = (<?> "lambda") $ do
-  name <- token Token.Lambda *> identifier
-  Lambda name <$> grouped
+lambdaP :: Parser Term
+lambdaP = (<?> "lambda") $ do
+  name <- token Token.Lambda *> identifierP
+  Lambda name <$> groupedP
 
-grouped :: Parser Term
-grouped
-  = compose <$> (token Token.FunBegin *> many term <* token Token.FunEnd)
-  <|> term
+groupedP :: Parser Term
+groupedP
+  = compose <$> (token Token.FunBegin *> many termP <* token Token.FunEnd)
+  <|> termP
 
 advance :: P.SourcePos -> t -> [Located] -> P.SourcePos
 advance _ _ (Located sourcePos _ _ : _) = sourcePos

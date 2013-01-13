@@ -116,7 +116,7 @@ toTyped resolved = case resolved of
   Resolve.Empty -> Empty <$> freshFunction
   where
   freshFunction = (:>) <$> fresh <*> fresh
-  toTypedValue value = case value of
+  toTypedValue v = case v of
     Resolve.Word index -> Word index <$> freshFunction
     Resolve.Int value -> Int value <$> freshFunction
     Resolve.Bool value -> Bool value <$> freshFunction
@@ -314,7 +314,7 @@ substTerm env typed = case typed of
   Empty type_ -> Empty $ substType env type_
 
 substValue :: Env -> Value -> Value
-substValue env value = case value of
+substValue env v = case v of
   Word index type_ -> Word index $ substType env type_
   Int value type_ -> Int value $ substType env type_
   Bool value type_ -> Bool value $ substType env type_

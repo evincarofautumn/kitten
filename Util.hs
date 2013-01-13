@@ -1,13 +1,17 @@
 module Util
-  ( (<$$>)
+  ( (%)
+  , (<$$>)
   , maybeToEither
   , swap
   ) where
 
-import Control.Applicative
+(%) :: (a -> b) -> a -> b
+(%) = ($)
+infixl 0 %
 
 (<$$>) :: (Functor f) => f a -> (a -> b) -> f b
 (<$$>) = flip fmap
+infixl 4 <$$>
 
 maybeToEither :: e -> Maybe a -> Either e a
 maybeToEither _ (Just a) = Right a
