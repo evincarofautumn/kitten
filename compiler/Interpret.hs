@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 module Interpret
   ( interpret
   ) where
@@ -23,7 +21,7 @@ data Stacks = Stacks
 
 interpret :: Program Resolved -> IO ()
 interpret (Program defs body) = do
-  Stacks {..} <- execStateT % runTerm body % Stacks [] []
+  Stacks{..} <- execStateT % runTerm body % Stacks [] []
   putStrLn . unwords . reverse $ map show dataStack
   where
   runTerm (Value value) = case value of

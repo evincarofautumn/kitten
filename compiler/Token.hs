@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 module Token
   ( Located(..)
   , Token(..)

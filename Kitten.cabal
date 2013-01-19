@@ -1,0 +1,36 @@
+name: Kitten
+version: 0.1
+cabal-version: >= 1.8
+build-type: Simple
+license: MIT
+license-file: LICENSE.md
+copyright: 2012 (C) 2012 Jon Purdy
+author: Jon Purdy
+maintainer: Jon Purdy <evincarofautumn@gmail.com>
+stability: alpha
+homepage: http://kittenlang.org/
+bug-reports: https://github.com/evincarofautumn/kitten/issues
+synopsis: A minimalistic concatenative programming language.
+
+executable kitten
+
+  build-depends:
+    base >= 2,
+    containers == 0.4.*,
+    mtl == 2.0.* || == 2.1.*,
+    parsec == 3.1.*,
+    transformers == 0.3.*
+
+  ghc-options:
+    -Wall
+
+  hs-source-dirs:
+    compiler
+
+  extensions:
+    GeneralizedNewtypeDeriving,
+    PatternGuards,
+    RecordWildCards
+
+  main-is:
+    Main.hs
