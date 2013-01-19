@@ -2,6 +2,9 @@ module Program
   ( Program(..)
   ) where
 
-import Term
+import Def
 
-data Program = Program [Term]
+data Program a = Program
+  { programDefs :: [Def a] 
+  , programTerm :: a
+  }

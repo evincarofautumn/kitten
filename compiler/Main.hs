@@ -1,29 +1,63 @@
 module Main where
 
-import Kitten
-import qualified Text
-
-import System.Environment
+import Control.Monad
+import Control.Monad.Trans.Class
+import Control.Monad.Trans.State.Strict
 import System.IO
-import System.Exit
+
+import Error
+import Interpret
+import Program
+import Resolve (Resolved)
+
+import qualified Resolve as Resolved
+import qualified Term
+import qualified Type as Typed
+import qualified Token
 
 main :: IO ()
-main = do
-  args <- getArgs
-  case length args of
-    1 -> do
-      let filename = head args
-      file <- readFile filename
-      case compile filename file of
-        Left compileError   -> die compileError
-        Right compileResult -> putStrLn $ Text.unpack compileResult
-    _ ->
-      die "Usage: kitten FILENAME\n"
+main = evalStateT repl ""
+  where
+  repl = do
+    line <- lift $ do
+      putStr "> "
+      hFlush stdout
+      getLine
+    case line of
+      "" -> repl
+      ":quit" -> quit
+      ":q" -> quit
+      ":clear" -> clear
+      ":c" -> clear
+      (':' : expression) -> do
+        lift $ case typecheck replName expression of
+          Left compileError -> print compileError
+          Right type_ -> print type_
+        repl
+      _ -> do
+        program <- get
+        let program' = program ++ '\n' : line
+        case compile replName program' of
+          Left compileError -> lift $ print compileError
+          Right compileResult -> do
+            lift $ interpret compileResult
+            put program'
+        repl
+  quit = return ()
+  clear = put [] >> repl
+  replName = "REPL"
 
-die
-  :: (Show a)
-  => a
-  -> IO ()
-die msg = do
-  hPutStr stderr $ show msg
-  exitFailure
+compile :: String -> String -> Either CompileError (Program Resolved)
+compile name source = do
+  tokenized <- failIfError $ Token.tokenize name source
+  parsed <- failIfError $ Term.parse name tokenized
+  resolved <- Resolved.resolveProgram parsed
+  void $ Typed.typeProgram resolved
+  return resolved
+
+typecheck :: String -> String -> Either CompileError Typed.Type
+typecheck name
+  = failIfError . Token.tokenize name
+  >=> failIfError . Term.parse name
+  >=> Resolved.resolveProgram
+  >=> liftM (Typed.manifestType . programTerm) . Typed.typeProgram

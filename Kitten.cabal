@@ -3,26 +3,23 @@ version: 0.1
 cabal-version: >= 1.8
 build-type: Simple
 license: MIT
-license-file: LICENSE
+license-file: LICENSE.md
 copyright: 2012 (C) 2012 Jon Purdy
 author: Jon Purdy
-maintainer: evincarofautumn@gmail.com
+maintainer: Jon Purdy <evincarofautumn@gmail.com>
 stability: alpha
-homepage: https://github.com/evincarofautumn/kitten
+homepage: http://kittenlang.org/
 bug-reports: https://github.com/evincarofautumn/kitten/issues
-synopsis: A high-performance concatenative programming language.
+synopsis: A minimalistic concatenative programming language.
 
 executable kitten
 
   build-depends:
     base >= 2,
-    file-location == 0.4.*,
+    containers == 0.4.*,
     mtl == 2.0.* || == 2.1.*,
-    parsec >= 3.1.2 && < 3.2,
-    template-haskell,
-    text == 0.11.*
-
-  extensions: TemplateHaskell
+    parsec == 3.1.*,
+    transformers == 0.3.*
 
   ghc-options:
     -Wall
@@ -30,7 +27,10 @@ executable kitten
   hs-source-dirs:
     compiler
 
-  include-dirs:
-    library
+  extensions:
+    GeneralizedNewtypeDeriving,
+    PatternGuards,
+    RecordWildCards
 
-  main-is: Main.hs
+  main-is:
+    Main.hs
