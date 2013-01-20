@@ -51,7 +51,7 @@ compose = foldl' Compose Empty
 defP :: Parser (Def Term)
 defP = (<?> "definition") $ do
   name <- token Token.Def *> identifierP
-  Def name <$> groupedP
+  Def name <$> oneOrGroupP
 
 termP :: Parser Term
 termP = P.choice [Value <$> valueP, builtinP, lambdaP]
@@ -70,12 +70,24 @@ valueP = P.choice
   toLiteral _ = Nothing
   vecP = Vec <$> (token Token.VecBegin *> many valueP <* token Token.VecEnd)
     <?> "vector"
-  funP = Fun . compose
-    <$> (token Token.FunBegin *> many termP <* token Token.FunEnd)
-    <?> "function"
   wordP = mapOne toWord <?> "word"
   toWord (Token.Word name) = Just $ Word name
   toWord _ = Nothing
+  funP = Fun . compose
+    <$> (groupedP <|> layoutP)
+    <?> "function"
+
+groupedP :: Parser [Term]
+groupedP = token Token.FunBegin *> many termP <* token Token.FunEnd
+
+layoutP :: Parser [Term]
+layoutP = do
+  Token.Located startLocation _ _ <- located Token.Layout
+  tokens <- many . locatedSatisfy $ \ (Token.Located location _ _)
+    -> P.sourceColumn location > P.sourceColumn startLocation
+  case P.parse (many termP) "layout quotation" tokens of
+    Right result -> return result
+    Left err -> fail $ show err
 
 identifierP :: Parser String
 identifierP = mapOne toIdentifier
@@ -92,12 +104,14 @@ builtinP = mapOne toBuiltin <?> "builtin"
 lambdaP :: Parser Term
 lambdaP = (<?> "lambda") $ do
   name <- token Token.Lambda *> identifierP
-  Lambda name <$> groupedP
+  Lambda name <$> oneOrGroupP
 
-groupedP :: Parser Term
-groupedP
-  = compose <$> (token Token.FunBegin *> many termP <* token Token.FunEnd)
-  <|> termP
+oneOrGroupP :: Parser Term
+oneOrGroupP = P.choice
+  [ compose <$> groupedP
+  , compose <$> layoutP
+  , termP
+  ]
 
 advance :: P.SourcePos -> t -> [Located] -> P.SourcePos
 advance _ _ (Located sourcePos _ _ : _) = sourcePos
@@ -122,8 +136,8 @@ locatedSatisfy predicate = P.tokenPrim show advance
 token :: Token -> Parser Token -- P.ParsecT s u m Token
 token tok = satisfy (== tok)
 
-locatedToken :: Token -> Parser Located
-locatedToken tok = locatedSatisfy (\ (Located _ _ loc) -> loc == tok)
+located :: Token -> Parser Located
+located tok = locatedSatisfy (\ (Located _ _ loc) -> loc == tok)
 
 anyLocatedToken :: Parser Located
 anyLocatedToken = locatedSatisfy (const True)

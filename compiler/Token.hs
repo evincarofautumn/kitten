@@ -28,6 +28,7 @@ data Token
   | VecEnd
   | FunBegin
   | FunEnd
+  | Layout
   deriving (Eq)
 
 instance Show Token where
@@ -41,6 +42,7 @@ instance Show Token where
   show VecEnd = "]"
   show FunBegin = "{"
   show FunEnd = "}"
+  show Layout = ":"
 
 data Located = Located
   { locatedLocation :: P.SourcePos
@@ -76,6 +78,7 @@ token = (<?> "token") . located $ P.choice
   , vecEnd
   , funBegin
   , funEnd
+  , layout
   , int
   , word
   ]
@@ -84,6 +87,7 @@ token = (<?> "token") . located $ P.choice
   vecBegin = VecBegin <$ P.char '['
   vecEnd = VecEnd <$ P.char ']'
   funBegin = FunBegin <$ P.char '{'
+  layout = Layout <$ P.char ':'
   funEnd = FunEnd <$ P.char '}'
   int = Int . read <$> P.many1 P.digit
   word = P.many1 (P.letter <|> P.digit <|> P.char '_')
