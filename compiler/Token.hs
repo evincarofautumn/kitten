@@ -66,10 +66,10 @@ located parser = do
   return $ Token.Located position indent result
 
 file :: Parser [Located]
-file = P.spaces *> tokens <* P.eof
+file = silence *> tokens <* P.eof
 
 tokens :: Parser [Located]
-tokens = token `P.sepEndBy` P.spaces
+tokens = token `P.sepEndBy` silence
 
 token :: Parser Located
 token = (<?> "token") . located $ P.choice
@@ -98,3 +98,27 @@ token = (<?> "token") . located $ P.choice
       _ -> case Builtin.fromString name of
         Just builtin -> Builtin builtin
         _ -> Word name
+
+silence :: Parser ()
+silence = P.skipMany $ comment <|> whitespace
+  where
+  whitespace = P.skipMany1 $ P.choice [newline, nonNewline]
+  newline = do
+    void $ P.char '\n' *> many nonNewline
+    pos <- P.getPosition
+    P.putState $ P.sourceColumn pos
+  nonNewline = void $ P.satisfy (`elem` "\t\v\f\r ")
+  comment = single <|> multi
+  single = P.string "--" *> (P.anyChar `skipManyTill` P.char '\n')
+  multi = void $ start *> contents <* end
+    where
+    contents = characters *> optional multi <* characters
+    characters = P.skipMany $ P.notFollowedBy (start <|> end) *> P.anyChar
+    start = P.try $ P.string "{-"
+    end = P.string "-}"
+
+skipManyTill
+  :: Parser a
+  -> Parser b
+  -> Parser ()
+a `skipManyTill` b = void (P.try b) <|> a *> (a `skipManyTill` b)

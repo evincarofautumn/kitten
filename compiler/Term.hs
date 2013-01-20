@@ -82,9 +82,16 @@ groupedP = token Token.FunBegin *> many termP <* token Token.FunEnd
 
 layoutP :: Parser [Term]
 layoutP = do
-  Token.Located startLocation _ _ <- located Token.Layout
-  tokens <- many . locatedSatisfy $ \ (Token.Located location _ _)
-    -> P.sourceColumn location > P.sourceColumn startLocation
+  Token.Located startLocation startIndent _ <- located Token.Layout
+  firstToken@(Token.Located firstLocation _ _) <- anyLocated
+  let
+    inside = if P.sourceLine firstLocation == P.sourceLine startLocation
+      then \ (Token.Located location _ _)
+        -> P.sourceColumn location > P.sourceColumn startLocation
+      else \ (Token.Located location _ _)
+        -> P.sourceColumn location > startIndent
+  innerTokens <- many $ locatedSatisfy inside
+  let tokens = firstToken : innerTokens
   case P.parse (many termP) "layout quotation" tokens of
     Right result -> return result
     Left err -> fail $ show err
@@ -139,5 +146,5 @@ token tok = satisfy (== tok)
 located :: Token -> Parser Located
 located tok = locatedSatisfy (\ (Located _ _ loc) -> loc == tok)
 
-anyLocatedToken :: Parser Located
-anyLocatedToken = locatedSatisfy (const True)
+anyLocated :: Parser Located
+anyLocated = locatedSatisfy (const True)
