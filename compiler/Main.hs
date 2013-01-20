@@ -3,6 +3,7 @@ module Main where
 import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict
+import System.Environment
 import System.IO
 
 import Error
@@ -16,7 +17,15 @@ import qualified Type as Typed
 import qualified Token
 
 main :: IO ()
-main = evalStateT repl ""
+main = do
+  args <- getArgs
+  case args of
+    [] -> evalStateT repl ""
+    filenames -> forM_ filenames $ \ filename -> do
+      program <- readFile filename
+      case compile replName program of
+        Left compileError -> print compileError
+        Right compileResult -> interpret compileResult
   where
   repl = do
     line <- lift $ do
