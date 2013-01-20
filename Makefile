@@ -8,8 +8,11 @@ TargetDir := ./build
 MAKEFLAGS += --warn-undefined-variables
 .SECONDARY :
 
+.PHONY : default
+default : compiler lint
+
 .PHONY : all
-all : compiler lint
+all : deps configure compiler lint
 
 .PHONY : clean
 clean :
