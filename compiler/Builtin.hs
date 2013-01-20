@@ -57,33 +57,33 @@ fromStringMap = Map.fromList fromStringTable
 
 fromStringTable :: [(String, Builtin)]
 fromStringTable =
-  [ (,) "add"     Add
-  , (,) "and"     AndBool
-  , (,) "bitand"  AndInt
+  [ (,) "+"       Add
+  , (,) "&&"      AndBool
+  , (,) "&"       AndInt
   , (,) "apply"   Apply
   , (,) "compose" Compose
-  , (,) "div"     Div
+  , (,) "/"       Div
   , (,) "drop"    Drop
   , (,) "dup"     Dup
-  , (,) "eq"      Eq
+  , (,) "="       Eq
   , (,) "fun"     Fun
-  , (,) "ge"      Ge
-  , (,) "gt"      Gt
+  , (,) ">="      Ge
+  , (,) ">"       Gt
   , (,) "if"      If
-  , (,) "le"      Le
-  , (,) "lt"      Lt
-  , (,) "mod"     Mod
-  , (,) "mul"     Mul
-  , (,) "ne"      Ne
+  , (,) "<="      Le
+  , (,) "<"       Lt
+  , (,) "%"       Mod
+  , (,) "*"       Mul
+  , (,) "!="      Ne
   , (,) "neg"     Neg
-  , (,) "not"     NotBool
-  , (,) "bitnot"  NotInt
-  , (,) "or"      OrBool
-  , (,) "bitor"   OrInt
-  , (,) "sub"     Sub
+  , (,) "!"       NotBool
+  , (,) "~"       NotInt
+  , (,) "||"      OrBool
+  , (,) "|"       OrInt
+  , (,) "-"       Sub
   , (,) "swap"    Swap
-  , (,) "xor"     XorBool
-  , (,) "bitxor"  XorInt
+  , (,) "^^"      XorBool
+  , (,) "^"       XorInt
   ]
 
 toStringTable :: [(Builtin, String)]

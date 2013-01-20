@@ -90,14 +90,18 @@ token = (<?> "token") . located $ P.choice
   layout = Layout <$ P.char ':'
   funEnd = FunEnd <$ P.char '}'
   int = Int . read <$> P.many1 P.digit
-  word = P.many1 (P.letter <|> P.digit <|> P.char '_')
-    <$$> \ name -> case name of
-      "def" -> Def
-      "true" -> Bool True
-      "false" -> Bool False
-      _ -> case Builtin.fromString name of
-        Just builtin -> Builtin builtin
-        _ -> Word name
+  word = (alphanumeric <|> symbolic) <$$> \ name -> case name of
+    "def" -> Def
+    "true" -> Bool True
+    "false" -> Bool False
+    _ -> case Builtin.fromString name of
+      Just builtin -> Builtin builtin
+      _ -> Word name
+    where
+    alphanumeric = (:)
+      <$> (P.letter <|> P.char '_')
+      <*> P.many (P.letter <|> P.digit <|> P.char '_')
+    symbolic = P.many1 $ P.oneOf "!#$%&*+,-./;<=>?@^|~"
 
 silence :: Parser ()
 silence = P.skipMany $ comment <|> whitespace
