@@ -79,7 +79,7 @@ token = (<?> "token") . located $ P.choice
   , funBegin
   , funEnd
   , layout
-  , int
+  , P.try int
   , word
   ]
   where
@@ -89,7 +89,10 @@ token = (<?> "token") . located $ P.choice
   funBegin = FunBegin <$ P.char '{'
   layout = Layout <$ P.char ':'
   funEnd = FunEnd <$ P.char '}'
-  int = Int . read <$> P.many1 P.digit
+  int = do
+    sign <- P.optionMaybe $ P.oneOf "+-"
+    value <- read <$> P.many1 P.digit
+    return . Int $ if sign == Just '-' then negate value else value
   word = (alphanumeric <|> symbolic) <$$> \ name -> case name of
     "def" -> Def
     "true" -> Bool True
@@ -113,7 +116,7 @@ silence = P.skipMany $ comment <|> whitespace
     P.putState $ P.sourceColumn pos
   nonNewline = void $ P.satisfy (`elem` "\t\v\f\r ")
   comment = single <|> multi
-  single = P.string "--" *> (P.anyChar `skipManyTill` P.char '\n')
+  single = P.try (P.string "--") *> (P.anyChar `skipManyTill` P.char '\n')
   multi = void $ start *> contents <* end
     where
     contents = characters *> optional multi <* characters
