@@ -50,8 +50,15 @@ compose = foldl' Compose Empty
 
 defP :: Parser (Def Term)
 defP = (<?> "definition") $ do
-  name <- token Token.Def *> identifierP
-  Def name <$> oneOrGroupP
+  void $ token Token.Def
+  mParams <- P.optionMaybe $ groupedP identifierP
+  name <- identifierP
+  body <- oneOrGroupP
+  let
+    body' = case mParams of
+      Just params -> foldr Lambda body $ reverse params
+      Nothing -> body
+  return $ Def name body'
 
 termP :: Parser Term
 termP = P.choice [Value <$> valueP, builtinP, lambdaP]
@@ -74,11 +81,11 @@ valueP = P.choice
   toWord (Token.Word name) = Just $ Word name
   toWord _ = Nothing
   funP = Fun . compose
-    <$> (groupedP <|> layoutP)
+    <$> (groupedP termP <|> layoutP)
     <?> "function"
 
-groupedP :: Parser [Term]
-groupedP = token Token.FunBegin *> many termP <* token Token.FunEnd
+groupedP :: Parser a -> Parser [a]
+groupedP parser = token Token.FunBegin *> many parser <* token Token.FunEnd
 
 layoutP :: Parser [Term]
 layoutP = do
@@ -115,7 +122,7 @@ lambdaP = (<?> "lambda") $ do
 
 oneOrGroupP :: Parser Term
 oneOrGroupP = P.choice
-  [ compose <$> groupedP
+  [ compose <$> groupedP termP
   , compose <$> layoutP
   , termP
   ]
