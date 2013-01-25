@@ -116,7 +116,8 @@ silence = P.skipMany $ comment <|> whitespace
     P.putState $ P.sourceColumn pos
   nonNewline = void $ P.satisfy (`elem` "\t\v\f\r ")
   comment = single <|> multi
-  single = P.try (P.string "--") *> (P.anyChar `skipManyTill` P.char '\n')
+  single = P.try (P.string "--")
+    *> (P.anyChar `skipManyTill` (void (P.char '\n') <|> P.eof))
   multi = void $ start *> contents <* end
     where
     contents = characters *> optional multi <* characters
