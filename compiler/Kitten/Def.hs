@@ -1,4 +1,4 @@
-module Def
+module Kitten.Def
   ( Def(..)
   ) where
 

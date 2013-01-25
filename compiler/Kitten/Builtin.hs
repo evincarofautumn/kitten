@@ -1,4 +1,4 @@
-module Builtin
+module Kitten.Builtin
   ( Builtin(..)
   , fromString
   , toString
@@ -9,7 +9,7 @@ import Data.Maybe
 
 import qualified Data.Map as Map
 
-import Util
+import Kitten.Util
 
 data Builtin
   = Add

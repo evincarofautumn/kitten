@@ -1,4 +1,4 @@
-module Util
+module Kitten.Util
   ( (%)
   , (<$$>)
   , mapLeft

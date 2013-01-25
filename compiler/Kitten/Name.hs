@@ -1,4 +1,4 @@
-module Name
+module Kitten.Name
   ( Name(..)
   ) where
 

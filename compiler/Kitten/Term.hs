@@ -1,4 +1,4 @@
-module Term
+module Kitten.Term
   ( Term(..)
   , Value(..)
   , parse
@@ -13,12 +13,12 @@ import Text.Parsec ((<?>))
 
 import qualified Text.Parsec as P
 
-import Builtin (Builtin)
-import Def
-import Fragment
-import Token (Located(..), Token)
+import Kitten.Builtin (Builtin)
+import Kitten.Def
+import Kitten.Fragment
+import Kitten.Token (Located(..), Token)
 
-import qualified Token
+import qualified Kitten.Token as Token
 
 type Parser a = P.ParsecT [Located] () Identity a
 

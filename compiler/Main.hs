@@ -6,17 +6,17 @@ import Control.Monad.Trans.State.Strict
 import System.Environment
 import System.IO
 
-import Def
-import Error
-import Fragment
-import Interpret
-import Resolve (Resolved)
-import Type (Type)
+import Kitten.Def
+import Kitten.Error
+import Kitten.Fragment
+import Kitten.Interpret
+import Kitten.Resolve (Resolved)
+import Kitten.Type (Type)
 
-import qualified Resolve
-import qualified Term
-import qualified Type
-import qualified Token
+import qualified Kitten.Resolve as Resolve
+import qualified Kitten.Term as Term
+import qualified Kitten.Type as Type
+import qualified Kitten.Token as Token
 
 main :: IO ()
 main = do

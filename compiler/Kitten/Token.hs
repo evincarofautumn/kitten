@@ -1,4 +1,4 @@
-module Token
+module Kitten.Token
   ( Located(..)
   , Token(..)
   , tokenize
@@ -10,10 +10,10 @@ import Text.Parsec ((<?>))
 
 import qualified Text.Parsec as P
 
-import Builtin (Builtin)
-import Util
+import Kitten.Builtin (Builtin)
+import Kitten.Util
 
-import qualified Builtin
+import qualified Kitten.Builtin as Builtin
 
 type Parser a = P.ParsecT String P.Column Identity a
 
@@ -59,13 +59,13 @@ tokenize :: String -> String -> Either P.ParseError [Located]
 tokenize = P.runParser file 0
 
 located
-  :: Parser Token.Token
-  -> Parser Token.Located
+  :: Parser Token
+  -> Parser Located
 located parser = do
   indent <- P.getState
   position <- P.getPosition
   result <- parser
-  return $ Token.Located position indent result
+  return $ Located position indent result
 
 file :: Parser [Located]
 file = silence *> tokens <* P.eof

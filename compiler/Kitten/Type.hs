@@ -1,4 +1,4 @@
-module Type
+module Kitten.Type
   ( Type(..)
   , Typed(..)
   , manifestType
@@ -15,16 +15,16 @@ import Data.List
 
 import qualified Data.IntMap as IntMap
 
-import Builtin (Builtin)
-import Def
-import Error
-import Name
-import Fragment
-import Resolve (Resolved)
-import Util
+import Kitten.Builtin (Builtin)
+import Kitten.Def
+import Kitten.Error
+import Kitten.Name
+import Kitten.Fragment
+import Kitten.Resolve (Resolved)
+import Kitten.Util
 
-import qualified Builtin
-import qualified Resolve
+import qualified Kitten.Builtin as Builtin
+import qualified Kitten.Resolve as Resolve
 
 ------------------------------------------------------------
 

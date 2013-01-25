@@ -1,11 +1,11 @@
-module Error
+module Kitten.Error
   ( CompileError(..)
   , failIfError
   ) where
 
 import Text.Parsec.Error
 
-import Util
+import Kitten.Util
 
 data CompileError
   = CompileError !String

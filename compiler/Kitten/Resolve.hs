@@ -1,4 +1,4 @@
-module Resolve
+module Kitten.Resolve
   ( Resolved(..)
   , Value(..)
   , resolveFragment
@@ -9,14 +9,14 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.List
 
-import Builtin (Builtin)
-import Def
-import Error
-import Name
-import Fragment
-import Term (Term)
+import Kitten.Builtin (Builtin)
+import Kitten.Def
+import Kitten.Error
+import Kitten.Name
+import Kitten.Fragment
+import Kitten.Term (Term)
 
-import qualified Term
+import qualified Kitten.Term as Term
 
 data Resolved
   = Value !Value
@@ -72,8 +72,7 @@ resolveTerm :: Term -> Resolution Resolved
 resolveTerm unresolved = case unresolved of
   Term.Value value -> resolveValue value
   Term.Builtin name -> return $ Builtin name
-  Term.Compose down top
-    -> Resolve.Compose <$> resolveTerm down <*> resolveTerm top
+  Term.Compose down top -> Compose <$> resolveTerm down <*> resolveTerm top
   Term.Lambda name term -> do
     modify $ enter name
     resolved <- resolveTerm term

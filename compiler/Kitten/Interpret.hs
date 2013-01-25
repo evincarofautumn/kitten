@@ -1,4 +1,4 @@
-module Interpret
+module Kitten.Interpret
   ( interpret
   ) where
 
@@ -7,13 +7,13 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict
 import Data.Bits
 
-import Def
-import Name
-import Fragment
-import Resolve
-import Util
+import Kitten.Def
+import Kitten.Name
+import Kitten.Fragment
+import Kitten.Resolve
+import Kitten.Util
 
-import qualified Builtin
+import qualified Kitten.Builtin as Builtin
 
 data Stacks = Stacks
   { dataStack :: [Value]
