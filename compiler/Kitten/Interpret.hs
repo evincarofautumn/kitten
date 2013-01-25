@@ -3,6 +3,7 @@ module Kitten.Interpret
   ) where
 
 import Control.Applicative
+import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict
 import Data.Bits
@@ -11,7 +12,6 @@ import Kitten.Def
 import Kitten.Name
 import Kitten.Fragment
 import Kitten.Resolve
-import Kitten.Util
 
 import qualified Kitten.Builtin as Builtin
 
@@ -20,10 +20,9 @@ data Stacks = Stacks
   , localStack :: [Value]
   }
 
-interpret :: Fragment Resolved -> IO ()
-interpret (Fragment defs body) = do
-  Stacks{..} <- execStateT % runTerm body % Stacks [] []
-  putStrLn . unwords . reverse $ map show dataStack
+interpret :: [Value] -> Fragment Resolved -> IO [Value]
+interpret stack (Fragment defs body)
+  = liftM dataStack . execStateT (runTerm body) $ Stacks stack []
   where
   runTerm (Value value) = case value of
     Word (Name index) -> runDef $ defs !! index

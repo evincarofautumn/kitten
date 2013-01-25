@@ -92,10 +92,13 @@ type Inference = StateT Env (Either CompileError)
 ------------------------------------------------------------
 
 -- | Runs type inference on a resolved AST.
-typeFragment :: Fragment Resolved -> Either CompileError (Fragment Typed)
-typeFragment fragment
+typeFragment
+  :: [Resolve.Value]
+  -> Fragment Resolved
+  -> Either CompileError (Fragment Typed)
+typeFragment stack fragment
   = fmap (uncurry substFragment) . flip runStateT emptyEnv
-  $ inferFragment =<< toTypedFragment fragment
+  $ inferFragment stack =<< toTypedFragment fragment
 
 -- | Annotates a resolved AST with fresh type variables.
 toTypedFragment :: Fragment Resolved -> Inference (Fragment Typed)
@@ -129,13 +132,19 @@ toTyped resolved = case resolved of
 ------------------------------------------------------------
 
 -- | Infers and annotates the type of a program fragment.
-inferFragment :: Fragment Typed -> Inference (Fragment Typed)
-inferFragment fragment@(Fragment defs term) = do
+inferFragment
+  :: [Resolve.Value]
+  -> Fragment Typed
+  -> Inference (Fragment Typed)
+inferFragment stack fragment@(Fragment defs term) = do
   defMap <- mapM inferDef defs
   modify $ \ env -> env { envDefs = defMap }
-  type_ <- infer term
-  r <- fresh
-  void . unifyM type_ $ EmptyType :> r
+  (a :> b) <- infer <=< toTyped
+    $ foldr (flip Resolve.Compose . Resolve.Value) Resolve.Empty stack
+  (c :> _) <- infer term
+  s <- fresh
+  void $ unifyM a (EmptyType :> s)
+  void $ unifyM b c
   gets $ substFragment fragment
 
 -- | Infers the type scheme of a definition.

@@ -13,25 +13,29 @@ import Kitten.Term
 import Kitten.Token
 import Kitten.Type
 
+import qualified Kitten.Resolve as Resolve
+
 compile
-  :: [Def Resolved]
+  :: [Resolve.Value]
+  -> [Def Resolved]
   -> String
   -> String
   -> Either CompileError (Fragment Resolved)
-compile prelude name source = do
+compile stack prelude name source = do
   tokenized <- failIfError $ tokenize name source
   parsed <- failIfError $ parse name tokenized
   resolved <- resolveFragment prelude parsed
-  void $ typeFragment resolved
+  void $ typeFragment stack resolved
   return resolved
 
 typecheck
-  :: [Def Resolved]
+  :: [Resolve.Value]
+  -> [Def Resolved]
   -> String
   -> String
   -> Either CompileError Type
-typecheck prelude name
+typecheck stack prelude name
   = failIfError . tokenize name
   >=> failIfError . parse name
   >=> resolveFragment prelude
-  >=> liftM (manifestType . fragmentTerm) . typeFragment
+  >=> liftM (manifestType . fragmentTerm) . typeFragment stack

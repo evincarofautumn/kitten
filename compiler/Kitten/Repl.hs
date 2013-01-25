@@ -14,9 +14,17 @@ import Kitten.Prelude
 import Kitten.Resolve
 
 runRepl :: IO ()
-runRepl = evalStateT repl prelude
+runRepl = evalStateT repl empty
 
-repl :: StateT [Def Resolved] IO ()
+data Repl = Repl
+  { replStack :: [Value]
+  , replDefs :: [Def Resolved]
+  }
+
+empty :: Repl
+empty = Repl [] prelude
+
+repl :: StateT Repl IO ()
 repl = do
   line <- lift prompt
   case line of
@@ -26,17 +34,23 @@ repl = do
     ":clear" -> clear
     ":c" -> clear
     (':' : expression) -> do
-      lift $ case typecheck prelude replName expression of
+      stack <- gets replStack
+      lift $ case typecheck stack prelude replName expression of
         Left compileError -> print compileError
         Right type_ -> print type_
       repl
     _ -> do
-      defs <- get
-      case compile defs replName line of
+      defs <- gets replDefs
+      stack <- gets replStack
+      case compile stack defs replName line of
         Left compileError -> lift $ print compileError
         Right compileResult -> do
-          lift $ interpret compileResult
-          put $ defs ++ fragmentDefs compileResult
+          stack' <- lift $ interpret stack compileResult
+          lift . putStrLn . unwords . reverse $ map show stack'
+          modify $ \ s -> s
+            { replStack = stack'
+            , replDefs = defs ++ fragmentDefs compileResult
+            }
       repl
   where
   prompt = do
@@ -44,5 +58,5 @@ repl = do
     hFlush stdout
     getLine
   quit = return ()
-  clear = put [] >> repl
+  clear = put empty >> repl
   replName = "REPL"

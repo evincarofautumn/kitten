@@ -1,14 +1,9 @@
 module Kitten.Util
-  ( (%)
-  , (<$$>)
+  ( (<$$>)
   , mapLeft
   , maybeToEither
   , swap
   ) where
-
-(%) :: (a -> b) -> a -> b
-(%) = ($)
-infixl 0 %
 
 (<$$>) :: (Functor f) => f a -> (a -> b) -> f b
 (<$$>) = flip fmap

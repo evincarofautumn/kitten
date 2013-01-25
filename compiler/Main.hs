@@ -15,6 +15,6 @@ main = do
     [] -> runRepl
     filenames -> forM_ filenames $ \ filename -> do
       program <- readFile filename
-      case compile prelude filename program of
+      case compile [] prelude filename program of
         Left compileError -> print compileError
-        Right resolved -> interpret resolved
+        Right resolved -> void $ interpret [] resolved
