@@ -1,7 +1,5 @@
 module Term
-  ( Def(..)
-  , Program(..)
-  , Term(..)
+  ( Term(..)
   , Value(..)
   , parse
   ) where
@@ -17,7 +15,7 @@ import qualified Text.Parsec as P
 
 import Builtin (Builtin)
 import Def
-import Program
+import Fragment
 import Token (Located(..), Token)
 
 import qualified Token
@@ -35,14 +33,15 @@ data Value
   = Word !String
   | Int !Int
   | Bool !Bool
+  | String !String
   | Vec ![Value]
   | Fun !Term
 
-parse :: String -> [Located] -> Either P.ParseError (Program Term)
+parse :: String -> [Located] -> Either P.ParseError (Fragment Term)
 parse = P.parse programP
 
-programP :: Parser (Program Term)
-programP = uncurry Program . second compose . partitionEithers
+programP :: Parser (Fragment Term)
+programP = uncurry Fragment . second compose . partitionEithers
   <$> P.many ((Left <$> defP) <|> (Right <$> termP)) <* P.eof
 
 compose :: [Term] -> Term
@@ -74,6 +73,7 @@ valueP = P.choice
   literalP = mapOne toLiteral <?> "literal"
   toLiteral (Token.Int value) = Just $ Int value
   toLiteral (Token.Bool value) = Just $ Bool value
+  toLiteral (Token.String value) = Just $ String value
   toLiteral _ = Nothing
   vecP = Vec <$> (token Token.VecBegin *> many valueP <* token Token.VecEnd)
     <?> "vector"

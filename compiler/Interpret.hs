@@ -3,12 +3,13 @@ module Interpret
   ) where
 
 import Control.Applicative
+import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict
 import Data.Bits
 
 import Def
 import Name
-import Program
+import Fragment
 import Resolve
 import Util
 
@@ -19,8 +20,8 @@ data Stacks = Stacks
   , localStack :: [Value]
   }
 
-interpret :: Program Resolved -> IO ()
-interpret (Program defs body) = do
+interpret :: Fragment Resolved -> IO ()
+interpret (Fragment defs body) = do
   Stacks{..} <- execStateT % runTerm body % Stacks [] []
   putStrLn . unwords . reverse $ map show dataStack
   where
@@ -110,6 +111,9 @@ interpret (Program defs body) = do
       (Int b) <- popData
       (Int a) <- popData
       pushData . Int $ a .|. b
+    Builtin.Print -> do
+      (String s) <- popData
+      lift $ putStrLn s
     Builtin.Sub -> do
       (Int b) <- popData
       (Int a) <- popData

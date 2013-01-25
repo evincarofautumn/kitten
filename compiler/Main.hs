@@ -6,32 +6,31 @@ import Control.Monad.Trans.State.Strict
 import System.Environment
 import System.IO
 
+import Def
 import Error
+import Fragment
 import Interpret
-import Program
 import Resolve (Resolved)
+import Type (Type)
 
-import qualified Resolve as Resolved
+import qualified Resolve
 import qualified Term
-import qualified Type as Typed
+import qualified Type
 import qualified Token
 
 main :: IO ()
 main = do
   args <- getArgs
   case args of
-    [] -> evalStateT repl ""
+    [] -> evalStateT repl prelude
     filenames -> forM_ filenames $ \ filename -> do
       program <- readFile filename
-      case compile replName program of
+      case compile prelude replName program of
         Left compileError -> print compileError
-        Right compileResult -> interpret compileResult
+        Right resolved -> interpret resolved
   where
   repl = do
-    line <- lift $ do
-      putStr "> "
-      hFlush stdout
-      getLine
+    line <- lift prompt
     case line of
       "" -> repl
       ":quit" -> quit
@@ -39,34 +38,46 @@ main = do
       ":clear" -> clear
       ":c" -> clear
       (':' : expression) -> do
-        lift $ case typecheck replName expression of
+        lift $ case typecheck prelude replName expression of
           Left compileError -> print compileError
           Right type_ -> print type_
         repl
       _ -> do
-        program <- get
-        let program' = program ++ '\n' : line
-        case compile replName program' of
+        defs <- get
+        case compile defs replName line of
           Left compileError -> lift $ print compileError
           Right compileResult -> do
             lift $ interpret compileResult
-            put program'
+            put $ defs ++ fragmentDefs compileResult
         repl
+  prompt = do
+    putStr "> "
+    hFlush stdout
+    getLine
   quit = return ()
   clear = put [] >> repl
   replName = "REPL"
+  prelude = []
 
-compile :: String -> String -> Either CompileError (Program Resolved)
-compile name source = do
+compile
+  :: [Def Resolved]
+  -> String
+  -> String
+  -> Either CompileError (Fragment Resolved)
+compile prelude name source = do
   tokenized <- failIfError $ Token.tokenize name source
   parsed <- failIfError $ Term.parse name tokenized
-  resolved <- Resolved.resolveProgram parsed
-  void $ Typed.typeProgram resolved
+  resolved <- Resolve.resolveFragment prelude parsed
+  void $ Type.typeFragment resolved
   return resolved
 
-typecheck :: String -> String -> Either CompileError Typed.Type
-typecheck name
+typecheck
+  :: [Def Resolved]
+  -> String
+  -> String
+  -> Either CompileError Type
+typecheck prelude name
   = failIfError . Token.tokenize name
   >=> failIfError . Term.parse name
-  >=> Resolved.resolveProgram
-  >=> liftM (Typed.manifestType . programTerm) . Typed.typeProgram
+  >=> Resolve.resolveFragment prelude
+  >=> liftM (Type.manifestType . fragmentTerm) . Type.typeFragment

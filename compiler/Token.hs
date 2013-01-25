@@ -22,6 +22,7 @@ data Token
   | Builtin !Builtin
   | Int !Int
   | Bool !Bool
+  | String !String
   | Def
   | Lambda
   | VecBegin
@@ -36,6 +37,7 @@ instance Show Token where
   show (Builtin name) = show name
   show (Int value) = show value
   show (Bool value) = if value then "true" else "false"
+  show (String value) = show value
   show Def = "def"
   show Lambda = "\\"
   show VecBegin = "["
@@ -80,19 +82,29 @@ token = (<?> "token") . located $ P.choice
   , funEnd
   , layout
   , P.try int
+  , string
   , word
   ]
+
   where
   lambda = Lambda <$ P.char '\\'
+
   vecBegin = VecBegin <$ P.char '['
   vecEnd = VecEnd <$ P.char ']'
+
   funBegin = FunBegin <$ P.char '{'
   layout = Layout <$ P.char ':'
   funEnd = FunEnd <$ P.char '}'
+
   int = do
     sign <- P.optionMaybe $ P.oneOf "+-"
     value <- read <$> P.many1 P.digit
     return . Int $ if sign == Just '-' then negate value else value
+
+  string = String <$> (P.char '"' *> stringContents <* P.char '"')
+  stringContents = P.many (P.noneOf "\\\"" <|> stringEscape)
+  stringEscape = P.char '\\' *> P.oneOf "\\\""
+
   word = (alphanumeric <|> symbolic) <$$> \ name -> case name of
     "def" -> Def
     "true" -> Bool True

@@ -1,7 +1,7 @@
 module Resolve
   ( Resolved(..)
   , Value(..)
-  , resolveProgram
+  , resolveFragment
   ) where
 
 import Control.Applicative
@@ -13,7 +13,7 @@ import Builtin (Builtin)
 import Def
 import Error
 import Name
-import Program
+import Fragment
 import Term (Term)
 
 import qualified Term
@@ -30,6 +30,7 @@ data Value
   = Word !Name
   | Int !Int
   | Bool !Bool
+  | String !String
   | Vec ![Value]
   | Fun !Resolved
 
@@ -37,11 +38,13 @@ instance Show Value where
   show (Word (Name name)) = '@' : show name
   show (Int value) = show value
   show (Bool value) = if value then "true" else "false"
+  show (String value) = show value
   show (Vec values) = "[" ++ unwords (map show values) ++ "]"
   show (Fun _) = "{...}"
 
 data Env = Env
-  { envDefs :: [Def Term]
+  { envPrelude :: [Def Resolved]
+  , envDefs :: [Def Term]
   , envScope :: [String]
   }
 
@@ -53,13 +56,16 @@ leave env = env { envScope = tail $ envScope env }
 
 type Resolution = StateT Env (Either CompileError)
 
-resolveProgram :: Program Term -> Either CompileError (Program Resolved)
-resolveProgram (Program defs term)
-  = evalStateT (Program <$> resolveDefs defs <*> resolveTerm term) env0
-  where env0 = Env defs []
+resolveFragment
+  :: [Def Resolved]
+  -> Fragment Term
+  -> Either CompileError (Fragment Resolved)
+resolveFragment prelude (Fragment defs term) = flip evalStateT env0
+  $ Fragment <$> resolveDefs defs <*> resolveTerm term
+  where env0 = Env prelude defs []
 
 resolveDefs :: [Def Term] -> Resolution [Def Resolved]
-resolveDefs = mapM resolveDef
+resolveDefs defs = (++) <$> gets envPrelude <*> mapM resolveDef defs
   where resolveDef (Def name body) = Def name <$> resolveTerm body
 
 resolveTerm :: Term -> Resolution Resolved
@@ -80,7 +86,7 @@ fromValue (Value value) = value
 fromValue _ = error "Resolve.fromValue: not a value"
 
 resolveValue :: Term.Value -> Resolution Resolved
-resolveValue v = case v of
+resolveValue unresolved = case unresolved of
   Term.Word name -> do
     mLocalIndex <- gets $ localIndex name
     case mLocalIndex of
@@ -92,13 +98,18 @@ resolveValue v = case v of
           Nothing -> lift . Left . CompileError $ concat
             ["Unable to resolve word '", name, "'"]
   Term.Fun term -> Value . Fun <$> resolveTerm term
-  Term.Vec terms -> Value . Vec <$> mapM (fmap fromValue . resolveValue) terms
+  Term.Vec terms -> Value . Vec
+    <$> mapM (fmap fromValue . resolveValue) terms
   Term.Int value -> return . Value $ Int value
   Term.Bool value -> return . Value $ Bool value
+  Term.String value -> return . Value $ String value
 
 localIndex :: String -> Env -> Maybe Int
 localIndex name = elemIndex name . envScope
 
 defIndex :: String -> Env -> Maybe Int
-defIndex expected = findIndex ((== expected) . defName) . envDefs
-  where defName (Def name _) = name
+defIndex expected Env{..} = findExpected envPrelude
+  <|> ((+ length envPrelude) <$> findExpected envDefs)
+  where
+  defName (Def name _) = name
+  findExpected = findIndex $ (== expected) . defName

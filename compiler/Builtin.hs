@@ -35,6 +35,7 @@ data Builtin
   | NotInt
   | OrBool
   | OrInt
+  | Print
   | Sub
   | Swap
   | XorBool
@@ -80,6 +81,7 @@ fromStringTable =
   , (,) "~"       NotInt
   , (,) "||"      OrBool
   , (,) "|"       OrInt
+  , (,) "print"   Print
   , (,) "-"       Sub
   , (,) "swap"    Swap
   , (,) "^^"      XorBool

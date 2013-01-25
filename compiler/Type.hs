@@ -2,7 +2,7 @@ module Type
   ( Type(..)
   , Typed(..)
   , manifestType
-  , typeProgram
+  , typeFragment
   ) where
 
 import Control.Applicative
@@ -19,7 +19,7 @@ import Builtin (Builtin)
 import Def
 import Error
 import Name
-import Program
+import Fragment
 import Resolve (Resolved)
 import Util
 
@@ -31,6 +31,7 @@ import qualified Resolve
 data Type
   = BoolType
   | IntType
+  | StringType
   | !Type :> !Type
   | !Type :. !Type
   | SVec !Type !Int
@@ -54,6 +55,7 @@ data Value
   = Word !Name !Type
   | Int !Int !Type
   | Bool !Bool !Type
+  | String !String !Type
   | Vec ![Value] !Type
   | Fun !Typed !Type
 
@@ -62,6 +64,7 @@ data TypeScheme = Forall [Name] Type
 instance Show Type where
   show IntType = "int"
   show BoolType = "bool"
+  show StringType = "string"
   show (Var name) = show name
   show (SVec type_ size)
     = show type_ ++ "[" ++ show size ++ "]"
@@ -89,15 +92,15 @@ type Inference = StateT Env (Either CompileError)
 ------------------------------------------------------------
 
 -- | Runs type inference on a resolved AST.
-typeProgram :: Program Resolved -> Either CompileError (Program Typed)
-typeProgram program
-  = fmap (uncurry substProgram) . flip runStateT emptyEnv
-  $ inferProgram =<< toTypedProgram program
+typeFragment :: Fragment Resolved -> Either CompileError (Fragment Typed)
+typeFragment fragment
+  = fmap (uncurry substFragment) . flip runStateT emptyEnv
+  $ inferFragment =<< toTypedFragment fragment
 
 -- | Annotates a resolved AST with fresh type variables.
-toTypedProgram :: Program Resolved -> Inference (Program Typed)
-toTypedProgram (Program defs term)
-  = Program <$> mapM toTypedDef defs <*> toTyped term
+toTypedFragment :: Fragment Resolved -> Inference (Fragment Typed)
+toTypedFragment (Fragment defs term)
+  = Fragment <$> mapM toTypedDef defs <*> toTyped term
 
 -- | Annotates a resolved definition with fresh type variables.
 toTypedDef :: Def Resolved -> Inference (Def Typed)
@@ -119,20 +122,21 @@ toTyped resolved = case resolved of
     Resolve.Word index -> Word index <$> freshFunction
     Resolve.Int value -> Int value <$> freshFunction
     Resolve.Bool value -> Bool value <$> freshFunction
+    Resolve.String value -> String value <$> freshFunction
     Resolve.Vec terms -> Vec <$> mapM toTypedValue terms <*> freshFunction
     Resolve.Fun term -> Fun <$> toTyped term <*> freshFunction
 
 ------------------------------------------------------------
 
--- | Infers and annotates the type of a program.
-inferProgram :: Program Typed -> Inference (Program Typed)
-inferProgram program@(Program defs term) = do
+-- | Infers and annotates the type of a program fragment.
+inferFragment :: Fragment Typed -> Inference (Fragment Typed)
+inferFragment fragment@(Fragment defs term) = do
   defMap <- mapM inferDef defs
   modify $ \ env -> env { envDefs = defMap }
   type_ <- infer term
   r <- fresh
   void . unifyM type_ $ EmptyType :> r
-  gets $ substProgram program
+  gets $ substFragment fragment
 
 -- | Infers the type scheme of a definition.
 inferDef :: Def Typed -> Inference TypeScheme
@@ -157,6 +161,8 @@ infer typedTerm = do
         -> unifyM type_ $ r :> r :. IntType
       Bool _ type_
         -> unifyM type_ $ r :> r :. BoolType
+      String _ type_
+        -> unifyM type_ $ r :> r :. StringType
       Vec terms type_ -> do
         termTypes <- mapM (infer . Value) terms
         termType <- unifyEach termTypes
@@ -183,9 +189,9 @@ infer typedTerm = do
       (c :> d) <- infer y
       void $ unifyM b c
       unifyM type_ $ a :> d
-    Empty type_
-      -> unifyM type_ $ r :> r
+    Empty type_ -> unifyM type_ $ r :> r
     Builtin name type_ -> unifyM type_ =<< case name of
+      Builtin.Print -> return $ r :. StringType :> r
       Builtin.Dup
         -> (\ a -> r :. a :> r :. a :. a)
         <$> fresh
@@ -292,10 +298,10 @@ substChain env (Var var)
   | Right type_ <- findType env var = substChain env type_
 substChain _ type_ = type_
 
--- | Substitutes type variables in a program.
-substProgram :: Program Typed -> Env -> Program Typed
-substProgram (Program defs term) env
-  = Program (map (substDef env) defs) (substTerm env term)
+-- | Substitutes type variables in a program fragment.
+substFragment :: Fragment Typed -> Env -> Fragment Typed
+substFragment (Fragment defs term) env
+  = Fragment (map (substDef env) defs) (substTerm env term)
 
 -- | Substitutes type variables in a definition.
 substDef :: Env -> Def Typed -> Def Typed
@@ -317,6 +323,7 @@ substValue env v = case v of
   Word index type_ -> Word index $ substType env type_
   Int value type_ -> Int value $ substType env type_
   Bool value type_ -> Bool value $ substType env type_
+  String value type_ -> String value $ substType env type_
   Vec body type_ -> Vec (map (substValue env) body) (substType env type_)
   Fun body type_ -> Fun (substTerm env body) (substType env type_)
 
@@ -357,6 +364,7 @@ generalize action = do
 free :: Type -> [Name]
 free IntType = []
 free BoolType = []
+free StringType = []
 free (a :> b) = free a ++ free b
 free (a :. b) = free a ++ free b
 free (SVec a _) = free a
@@ -394,6 +402,7 @@ findType Env{..} (Name var) = maybeToEither
 occurs :: Name -> Type -> Env -> Bool
 occurs _ IntType _ = False
 occurs _ BoolType _ = False
+occurs _ StringType _ = False
 occurs _ EmptyType _ = False
 occurs var (SVec type_ _) env = occurs var type_ env
 occurs var (DVec type_) env = occurs var type_ env
@@ -430,5 +439,6 @@ manifestType term = case term of
     Word _ type_ -> type_
     Int _ type_ -> type_
     Bool _ type_ -> type_
+    String _ type_ -> type_
     Vec _ type_ -> type_
     Fun _ type_ -> type_
