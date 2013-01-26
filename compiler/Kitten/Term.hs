@@ -36,7 +36,7 @@ data Value
   = Word !Text
   | Int !Int
   | Bool !Bool
-  | String !Text
+  | Text !Text
   | Vec !(Vector Value)
   | Fun !Term
 
@@ -76,7 +76,7 @@ valueP = P.choice
   literalP = mapOne toLiteral <?> "literal"
   toLiteral (Token.Int value) = Just $ Int value
   toLiteral (Token.Bool value) = Just $ Bool value
-  toLiteral (Token.String value) = Just $ String value
+  toLiteral (Token.Text value) = Just $ Text value
   toLiteral _ = Nothing
   vecP = Vec . Vector.fromList
     <$> (token Token.VecBegin *> many valueP <* token Token.VecEnd)

@@ -38,7 +38,7 @@ import qualified Kitten.Resolve as Resolve
 data Type
   = BoolType
   | IntType
-  | StringType
+  | TextType
   | !Type :> !Type
   | !Type :. !Type
   | SVec !Type !Int
@@ -62,7 +62,7 @@ data Value
   = Word !Name !Type
   | Int !Int !Type
   | Bool !Bool !Type
-  | String !Text !Type
+  | Text !Text !Type
   | Vec !(Vector Value) !Type
   | Fun !Typed !Type
 
@@ -71,7 +71,7 @@ data TypeScheme = Forall [Name] Type
 instance Show Type where
   show IntType = "int"
   show BoolType = "bool"
-  show StringType = "string"
+  show TextType = "text"
   show (Var name) = show name
   show (SVec type_ size)
     = show type_ ++ "[" ++ show size ++ "]"
@@ -132,7 +132,7 @@ toTyped resolved = case resolved of
     Resolve.Word index -> Word index <$> freshFunction
     Resolve.Int value -> Int value <$> freshFunction
     Resolve.Bool value -> Bool value <$> freshFunction
-    Resolve.String value -> String value <$> freshFunction
+    Resolve.Text value -> Text value <$> freshFunction
     Resolve.Vec terms -> Vec
       <$> Vector.mapM toTypedValue terms <*> freshFunction
     Resolve.Fun term -> Fun <$> toTyped term <*> freshFunction
@@ -178,8 +178,8 @@ infer typedTerm = do
         -> unifyM type_ $ r :> r :. IntType
       Bool _ type_
         -> unifyM type_ $ r :> r :. BoolType
-      String _ type_
-        -> unifyM type_ $ r :> r :. StringType
+      Text _ type_
+        -> unifyM type_ $ r :> r :. TextType
       Vec terms type_ -> do
         termTypes <- mapM (infer . Value) $ Vector.toList terms
         termType <- unifyEach termTypes
@@ -208,7 +208,7 @@ infer typedTerm = do
       unifyM type_ $ a :> d
     Empty type_ -> unifyM type_ $ r :> r
     Builtin name type_ -> unifyM type_ =<< case name of
-      Builtin.Print -> return $ r :. StringType :> r
+      Builtin.Print -> return $ r :. TextType :> r
       Builtin.Dup
         -> (\ a -> r :. a :> r :. a :. a)
         <$> fresh
@@ -297,10 +297,10 @@ unifyVar var1 (Var var2) env
   = return $ declareType var1 (Var var2) env
 unifyVar var type_ env | occurs var type_ env
   = Left . CompileError $ Text.unwords
-    ["cannot construct infinite type", varString, "=", typeString]
+    ["cannot construct infinite type", varText, "=", typeText]
   where
-  varString = textShow $ substType env (Var var)
-  typeString = textShow $ substType env type_
+  varText = textShow $ substType env (Var var)
+  typeText = textShow $ substType env type_
 unifyVar var type_ env
   = return $ declareType var type_ env
 
@@ -344,7 +344,7 @@ substValue env v = case v of
   Word index type_ -> Word index $ substType env type_
   Int value type_ -> Int value $ substType env type_
   Bool value type_ -> Bool value $ substType env type_
-  String value type_ -> String value $ substType env type_
+  Text value type_ -> Text value $ substType env type_
   Vec body type_ -> Vec
     (Vector.map (substValue env) body) (substType env type_)
   Fun body type_ -> Fun (substTerm env body) (substType env type_)
@@ -386,7 +386,7 @@ generalize action = do
 free :: Type -> [Name]
 free IntType = []
 free BoolType = []
-free StringType = []
+free TextType = []
 free (a :> b) = free a ++ free b
 free (a :. b) = free a ++ free b
 free (SVec a _) = free a
@@ -424,7 +424,7 @@ findType Env{..} (Name var) = maybeToEither
 occurs :: Name -> Type -> Env -> Bool
 occurs _ IntType _ = False
 occurs _ BoolType _ = False
-occurs _ StringType _ = False
+occurs _ TextType _ = False
 occurs _ EmptyType _ = False
 occurs var (SVec type_ _) env = occurs var type_ env
 occurs var (DVec type_) env = occurs var type_ env
@@ -461,6 +461,6 @@ manifestType term = case term of
     Word _ type_ -> type_
     Int _ type_ -> type_
     Bool _ type_ -> type_
-    String _ type_ -> type_
+    Text _ type_ -> type_
     Vec _ type_ -> type_
     Fun _ type_ -> type_

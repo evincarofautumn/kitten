@@ -114,7 +114,7 @@ interpret stack (Fragment defs body)
       (Int a) <- popData
       pushData . Int $ a .|. b
     Builtin.Print -> do
-      (String s) <- popData
+      (Text s) <- popData
       lift $ Text.putStr s
     Builtin.Sub -> do
       (Int b) <- popData

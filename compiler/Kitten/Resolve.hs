@@ -39,7 +39,7 @@ data Value
   = Word !Name
   | Int !Int
   | Bool !Bool
-  | String !Text
+  | Text !Text
   | Vec !(Vector Value)
   | Fun !Resolved
 
@@ -47,7 +47,7 @@ instance Show Value where
   show (Word (Name name)) = '@' : show name
   show (Int value) = show value
   show (Bool value) = if value then "true" else "false"
-  show (String value) = show value
+  show (Text value) = show value
   show (Vec values) = Text.unpack
     $ "[" <> Text.unwords (map textShow $ Vector.toList values) <> "]"
   show (Fun _) = "{...}"
@@ -111,7 +111,7 @@ resolveValue unresolved = case unresolved of
     <$> Vector.mapM (fmap fromValue . resolveValue) terms
   Term.Int value -> return . Value $ Int value
   Term.Bool value -> return . Value $ Bool value
-  Term.String value -> return . Value $ String value
+  Term.Text value -> return . Value $ Text value
 
 localIndex :: Text -> Env -> Maybe Int
 localIndex name = elemIndex name . envScope

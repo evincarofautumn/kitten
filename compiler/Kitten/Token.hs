@@ -24,7 +24,7 @@ data Token
   | Builtin !Builtin
   | Int !Int
   | Bool !Bool
-  | String !Text
+  | Text !Text
   | Def
   | Lambda
   | VecBegin
@@ -39,7 +39,7 @@ instance Show Token where
   show (Builtin name) = show name
   show (Int value) = show value
   show (Bool value) = if value then "true" else "false"
-  show (String value) = show value
+  show (Text value) = show value
   show Def = "def"
   show Lambda = "\\"
   show VecBegin = "["
@@ -84,7 +84,7 @@ token = (<?> "token") . located $ P.choice
   , funEnd
   , layout
   , P.try int
-  , string
+  , text
   , word
   ]
 
@@ -103,9 +103,9 @@ token = (<?> "token") . located $ P.choice
     value <- read <$> P.many1 P.digit
     return . Int $ if sign == Just '-' then negate value else value
 
-  string = String . Text.pack <$> (P.char '"' *> stringContents <* P.char '"')
-  stringContents = P.many (P.noneOf "\\\"" <|> stringEscape)
-  stringEscape = P.char '\\' *> P.oneOf "\\\""
+  text = Text . Text.pack <$> (P.char '"' *> textContents <* P.char '"')
+  textContents = P.many (P.noneOf "\\\"" <|> textEscape)
+  textEscape = P.char '\\' *> P.oneOf "\\\""
 
   word = (alphanumeric <|> symbolic) <$$> \ name -> case name of
     "def" -> Def
