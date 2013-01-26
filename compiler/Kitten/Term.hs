@@ -42,58 +42,58 @@ data Value
   | Fun !Term
 
 parse :: String -> [Located] -> Either ParseError (Fragment Term)
-parse = Parsec.parse programP
+parse = Parsec.parse fragment
 
-programP :: Parser (Fragment Term)
-programP = uncurry Fragment . (Vector.fromList *** compose) . partitionEithers
-  <$> many ((Left <$> defP) <|> (Right <$> termP)) <* eof
+fragment :: Parser (Fragment Term)
+fragment = uncurry Fragment . (Vector.fromList *** compose) . partitionEithers
+  <$> many ((Left <$> def) <|> (Right <$> term)) <* eof
 
 compose :: [Term] -> Term
 compose = foldl' Compose Empty
 
-defP :: Parser (Def Term)
-defP = (<?> "definition") $ do
+def :: Parser (Def Term)
+def = (<?> "definition") $ do
   void $ token Token.Def
-  mParams <- optionMaybe $ groupedP identifierP
-  name <- identifierP
-  body <- oneOrGroupP
+  mParams <- optionMaybe $ grouped identifier
+  name <- identifier
+  body <- oneOrGroup
   let
     body' = case mParams of
       Just params -> foldr Lambda body $ reverse params
       Nothing -> body
   return $ Def name body'
 
-termP :: Parser Term
-termP = choice [Value <$> valueP, builtinP, lambdaP]
+term :: Parser Term
+term = choice [Value <$> value, builtin, lambda]
 
-valueP :: Parser Value
-valueP = choice
-  [ literalP
-  , vecP
-  , funP
-  , wordP
+value :: Parser Value
+value = choice
+  [ literal
+  , vec
+  , fun
+  , word
   ]
   where
-  literalP = mapOne toLiteral <?> "literal"
-  toLiteral (Token.Int value) = Just $ Int value
-  toLiteral (Token.Bool value) = Just $ Bool value
-  toLiteral (Token.Text value) = Just $ Text value
+  literal = mapOne toLiteral <?> "literal"
+  toLiteral (Token.Int x) = Just $ Int x
+  toLiteral (Token.Bool x) = Just $ Bool x
+  toLiteral (Token.Text x) = Just $ Text x
   toLiteral _ = Nothing
-  vecP = Vec . Vector.fromList
-    <$> (token Token.VecBegin *> many valueP <* token Token.VecEnd)
+  vec = Vec . Vector.fromList
+    <$> (token Token.VecBegin *> many value <* token Token.VecEnd)
     <?> "vector"
-  wordP = mapOne toWord <?> "word"
+  word = mapOne toWord <?> "word"
   toWord (Token.Word name) = Just $ Word name
   toWord _ = Nothing
-  funP = Fun . compose
-    <$> (groupedP termP <|> layoutP)
+  fun = Fun . compose
+    <$> (grouped term <|> layout)
     <?> "function"
 
-groupedP :: Parser a -> Parser [a]
-groupedP parser = token Token.FunBegin *> many parser <* token Token.FunEnd
+grouped :: Parser a -> Parser [a]
+grouped parser = token Token.FunBegin *> many parser <* token Token.FunEnd
 
-layoutP :: Parser [Term]
-layoutP = do
+layout :: Parser [Term]
+layout = do
   Token.Located startLocation startIndent _ <- located Token.Layout
   firstToken@(Token.Located firstLocation _ _) <- anyLocated
   let
@@ -104,32 +104,32 @@ layoutP = do
         -> sourceColumn location > startIndent
   innerTokens <- many $ locatedSatisfy inside
   let tokens = firstToken : innerTokens
-  case Parsec.parse (many termP) "layout quotation" tokens of
+  case Parsec.parse (many term) "layout quotation" tokens of
     Right result -> return result
     Left err -> fail $ show err
 
-identifierP :: Parser Text
-identifierP = mapOne toIdentifier
+identifier :: Parser Text
+identifier = mapOne toIdentifier
   where
   toIdentifier (Token.Word name) = Just name
   toIdentifier _ = Nothing
 
-builtinP :: Parser Term
-builtinP = mapOne toBuiltin <?> "builtin"
+builtin :: Parser Term
+builtin = mapOne toBuiltin <?> "builtin"
   where
   toBuiltin (Token.Builtin name) = Just $ Builtin name
   toBuiltin _ = Nothing
 
-lambdaP :: Parser Term
-lambdaP = (<?> "lambda") $ do
-  name <- token Token.Lambda *> identifierP
-  Lambda name <$> oneOrGroupP
+lambda :: Parser Term
+lambda = (<?> "lambda") $ do
+  name <- token Token.Lambda *> identifier
+  Lambda name <$> oneOrGroup
 
-oneOrGroupP :: Parser Term
-oneOrGroupP = choice
-  [ compose <$> groupedP termP
-  , compose <$> layoutP
-  , termP
+oneOrGroup :: Parser Term
+oneOrGroup = choice
+  [ compose <$> grouped term
+  , compose <$> layout
+  , term
   ]
 
 advance :: SourcePos -> t -> [Located] -> SourcePos
