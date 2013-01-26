@@ -1,2 +1,0 @@
-#!/bin/sh
-./build/kitten $1 | gcc -x c - -o ${1%.*} -L./build -lkitten -lm -I.
