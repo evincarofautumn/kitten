@@ -1,8 +1,6 @@
 # The Kitten Programming Language
 
-**Kitten** is a minimalistic, statically typed, functional programming language
-with concatenative semantics. This is an in-progress implementation of that
-language.
+**Kitten** is a minimalistic, statically typed, impure functional programming language with concatenative semantics. This is an in-progress implementation of that language.
 
  * Visit the [official site][1].
 
@@ -10,8 +8,7 @@ language.
 
  * Subscribe to the [mailing list][3].
 
-The original implementation was compiled to C. In the interest of faster
-iteration on language features, the current implementation is interpreted.
+The original implementation was compiled to C. In the interest of faster iteration on language features, the current implementation is interpreted.
 
 # Building
 
