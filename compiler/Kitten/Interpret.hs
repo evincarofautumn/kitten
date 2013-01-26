@@ -7,6 +7,7 @@ import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict
 import Data.Bits
+import Data.Vector ((!))
 
 import qualified Data.Text.IO as Text
 
@@ -27,7 +28,7 @@ interpret stack (Fragment defs body)
   = liftM dataStack . execStateT (runTerm body) $ Stacks stack []
   where
   runTerm (Value value) = case value of
-    Word (Name index) -> runDef $ defs !! index
+    Word (Name index) -> runDef $ defs ! index
     _ -> pushData value
   runTerm (Builtin builtin) = case builtin of
     Builtin.Add -> do

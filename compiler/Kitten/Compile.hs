@@ -4,6 +4,7 @@ module Kitten.Compile
   ) where
 
 import Control.Monad
+import Data.Vector (Vector)
 
 import Kitten.Def
 import Kitten.Error
@@ -17,7 +18,7 @@ import qualified Kitten.Resolve as Resolve
 
 compile
   :: [Resolve.Value]
-  -> [Def Resolved]
+  -> Vector (Def Resolved)
   -> String
   -> String
   -> Either CompileError (Fragment Resolved)
@@ -30,7 +31,7 @@ compile stack prelude name source = do
 
 typecheck
   :: [Resolve.Value]
-  -> [Def Resolved]
+  -> Vector (Def Resolved)
   -> String
   -> String
   -> Either CompileError Type

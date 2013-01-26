@@ -20,7 +20,8 @@ executable kitten
     mtl == 2.0.* || == 2.1.*,
     parsec == 3.1.*,
     text,
-    transformers == 0.3.*
+    transformers == 0.3.*,
+    vector
 
   ghc-options:
     -Wall

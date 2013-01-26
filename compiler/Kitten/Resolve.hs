@@ -10,9 +10,12 @@ import Control.Applicative
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.List
+import Data.Monoid
 import Data.Text (Text)
+import Data.Vector (Vector)
 
 import qualified Data.Text as Text
+import qualified Data.Vector as Vector
 
 import Kitten.Builtin (Builtin)
 import Kitten.Def
@@ -20,6 +23,7 @@ import Kitten.Error
 import Kitten.Name
 import Kitten.Fragment
 import Kitten.Term (Term)
+import Kitten.Util
 
 import qualified Kitten.Term as Term
 
@@ -36,7 +40,7 @@ data Value
   | Int !Int
   | Bool !Bool
   | String !Text
-  | Vec ![Value]
+  | Vec !(Vector Value)
   | Fun !Resolved
 
 instance Show Value where
@@ -44,12 +48,13 @@ instance Show Value where
   show (Int value) = show value
   show (Bool value) = if value then "true" else "false"
   show (String value) = show value
-  show (Vec values) = "[" ++ unwords (map show values) ++ "]"
+  show (Vec values) = Text.unpack
+    $ "[" <> Text.unwords (map textShow $ Vector.toList values) <> "]"
   show (Fun _) = "{...}"
 
 data Env = Env
-  { envPrelude :: [Def Resolved]
-  , envDefs :: [Def Term]
+  { envPrelude :: Vector (Def Resolved)
+  , envDefs :: Vector (Def Term)
   , envScope :: [Text]
   }
 
@@ -62,15 +67,15 @@ leave env = env { envScope = tail $ envScope env }
 type Resolution = StateT Env (Either CompileError)
 
 resolveFragment
-  :: [Def Resolved]
+  :: Vector (Def Resolved)
   -> Fragment Term
   -> Either CompileError (Fragment Resolved)
 resolveFragment prelude (Fragment defs term) = flip evalStateT env0
   $ Fragment <$> resolveDefs defs <*> resolveTerm term
   where env0 = Env prelude defs []
 
-resolveDefs :: [Def Term] -> Resolution [Def Resolved]
-resolveDefs defs = (++) <$> gets envPrelude <*> mapM resolveDef defs
+resolveDefs :: Vector (Def Term) -> Resolution (Vector (Def Resolved))
+resolveDefs defs = (<>) <$> gets envPrelude <*> Vector.mapM resolveDef defs
   where resolveDef (Def name body) = Def name <$> resolveTerm body
 
 resolveTerm :: Term -> Resolution Resolved
@@ -103,7 +108,7 @@ resolveValue unresolved = case unresolved of
             ["Unable to resolve word '", name, "'"]
   Term.Fun term -> Value . Fun <$> resolveTerm term
   Term.Vec terms -> Value . Vec
-    <$> mapM (fmap fromValue . resolveValue) terms
+    <$> Vector.mapM (fmap fromValue . resolveValue) terms
   Term.Int value -> return . Value $ Int value
   Term.Bool value -> return . Value $ Bool value
   Term.String value -> return . Value $ String value
@@ -113,7 +118,7 @@ localIndex name = elemIndex name . envScope
 
 defIndex :: Text -> Env -> Maybe Int
 defIndex expected Env{..} = findExpected envPrelude
-  <|> ((+ length envPrelude) <$> findExpected envDefs)
+  <|> ((+ Vector.length envPrelude) <$> findExpected envDefs)
   where
   defName (Def name _) = name
-  findExpected = findIndex $ (== expected) . defName
+  findExpected = Vector.findIndex $ (== expected) . defName

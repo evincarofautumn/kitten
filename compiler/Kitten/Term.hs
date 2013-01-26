@@ -10,8 +10,10 @@ import Control.Monad.Identity
 import Data.Either
 import Data.List
 import Data.Text (Text)
+import Data.Vector (Vector)
 import Text.Parsec ((<?>))
 
+import qualified Data.Vector as Vector
 import qualified Text.Parsec as P
 
 import Kitten.Builtin (Builtin)
@@ -35,14 +37,14 @@ data Value
   | Int !Int
   | Bool !Bool
   | String !Text
-  | Vec ![Value]
+  | Vec !(Vector Value)
   | Fun !Term
 
 parse :: String -> [Located] -> Either P.ParseError (Fragment Term)
 parse = P.parse programP
 
 programP :: Parser (Fragment Term)
-programP = uncurry Fragment . second compose . partitionEithers
+programP = uncurry Fragment . (Vector.fromList *** compose) . partitionEithers
   <$> P.many ((Left <$> defP) <|> (Right <$> termP)) <* P.eof
 
 compose :: [Term] -> Term
@@ -76,7 +78,8 @@ valueP = P.choice
   toLiteral (Token.Bool value) = Just $ Bool value
   toLiteral (Token.String value) = Just $ String value
   toLiteral _ = Nothing
-  vecP = Vec <$> (token Token.VecBegin *> many valueP <* token Token.VecEnd)
+  vecP = Vec . Vector.fromList
+    <$> (token Token.VecBegin *> many valueP <* token Token.VecEnd)
     <?> "vector"
   wordP = mapOne toWord <?> "word"
   toWord (Token.Word name) = Just $ Word name

@@ -2,9 +2,11 @@ module Kitten.Fragment
   ( Fragment(..)
   ) where
 
+import Data.Vector (Vector)
+
 import Kitten.Def
 
 data Fragment a = Fragment
-  { fragmentDefs :: [Def a]
+  { fragmentDefs :: Vector (Def a)
   , fragmentTerm :: a
   }

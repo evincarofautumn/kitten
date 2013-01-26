@@ -16,9 +16,11 @@ import Data.IntMap (IntMap)
 import Data.List
 import Data.Monoid
 import Data.Text (Text)
+import Data.Vector (Vector, (!))
 
 import qualified Data.IntMap as IntMap
 import qualified Data.Text as Text
+import qualified Data.Vector as Vector
 
 import Kitten.Builtin (Builtin)
 import Kitten.Def
@@ -61,7 +63,7 @@ data Value
   | Int !Int !Type
   | Bool !Bool !Type
   | String !Text !Type
-  | Vec ![Value] !Type
+  | Vec !(Vector Value) !Type
   | Fun !Typed !Type
 
 data TypeScheme = Forall [Name] Type
@@ -89,7 +91,7 @@ data Env = Env
   { envNext  :: Name
   , envTypes :: IntMap Type
   , envLocals :: [TypeScheme]
-  , envDefs :: [TypeScheme]
+  , envDefs :: Vector TypeScheme
   }
 
 type Inference = StateT Env (Either CompileError)
@@ -108,7 +110,7 @@ typeFragment stack fragment
 -- | Annotates a resolved AST with fresh type variables.
 toTypedFragment :: Fragment Resolved -> Inference (Fragment Typed)
 toTypedFragment (Fragment defs term)
-  = Fragment <$> mapM toTypedDef defs <*> toTyped term
+  = Fragment <$> Vector.mapM toTypedDef defs <*> toTyped term
 
 -- | Annotates a resolved definition with fresh type variables.
 toTypedDef :: Def Resolved -> Inference (Def Typed)
@@ -131,7 +133,8 @@ toTyped resolved = case resolved of
     Resolve.Int value -> Int value <$> freshFunction
     Resolve.Bool value -> Bool value <$> freshFunction
     Resolve.String value -> String value <$> freshFunction
-    Resolve.Vec terms -> Vec <$> mapM toTypedValue terms <*> freshFunction
+    Resolve.Vec terms -> Vec
+      <$> Vector.mapM toTypedValue terms <*> freshFunction
     Resolve.Fun term -> Fun <$> toTyped term <*> freshFunction
 
 ------------------------------------------------------------
@@ -142,7 +145,7 @@ inferFragment
   -> Fragment Typed
   -> Inference (Fragment Typed)
 inferFragment stack fragment@(Fragment defs term) = do
-  defMap <- mapM inferDef defs
+  defMap <- Vector.mapM inferDef defs
   modify $ \ env -> env { envDefs = defMap }
   (a :> b) <- infer <=< toTyped
     $ foldr (flip Resolve.Compose . Resolve.Value) Resolve.Empty stack
@@ -170,7 +173,7 @@ infer typedTerm = do
   case typedTerm of
     Value value -> case value of
       Word (Name index) _type
-        -> unifyM _type =<< instantiate =<< gets ((!! index) . envDefs)
+        -> unifyM _type =<< instantiate =<< gets ((! index) . envDefs)
       Int _ type_
         -> unifyM type_ $ r :> r :. IntType
       Bool _ type_
@@ -178,9 +181,9 @@ infer typedTerm = do
       String _ type_
         -> unifyM type_ $ r :> r :. StringType
       Vec terms type_ -> do
-        termTypes <- mapM (infer . Value) terms
+        termTypes <- mapM (infer . Value) $ Vector.toList terms
         termType <- unifyEach termTypes
-        unifyM type_ $ r :> r :. SVec termType (length terms)
+        unifyM type_ $ r :> r :. SVec termType (Vector.length terms)
         where
         unifyEach (x:y:zs) = unifyM x y >> unifyEach (y:zs)
         unifyEach [x] = return x
@@ -319,7 +322,7 @@ substChain _ type_ = type_
 -- | Substitutes type variables in a program fragment.
 substFragment :: Fragment Typed -> Env -> Fragment Typed
 substFragment (Fragment defs term) env
-  = Fragment (map (substDef env) defs) (substTerm env term)
+  = Fragment (Vector.map (substDef env) defs) (substTerm env term)
 
 -- | Substitutes type variables in a definition.
 substDef :: Env -> Def Typed -> Def Typed
@@ -342,7 +345,8 @@ substValue env v = case v of
   Int value type_ -> Int value $ substType env type_
   Bool value type_ -> Bool value $ substType env type_
   String value type_ -> String value $ substType env type_
-  Vec body type_ -> Vec (map (substValue env) body) (substType env type_)
+  Vec body type_ -> Vec
+    (Vector.map (substValue env) body) (substType env type_)
   Fun body type_ -> Fun (substTerm env body) (substType env type_)
 
 -- | Substitutes type variables in a type.
@@ -440,7 +444,7 @@ fresh = Var <$> freshName
     return name
 
 emptyEnv :: Env
-emptyEnv = Env (Name 0) IntMap.empty [] []
+emptyEnv = Env (Name 0) IntMap.empty [] Vector.empty
 
 ------------------------------------------------------------
 
