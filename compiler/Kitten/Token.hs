@@ -105,7 +105,16 @@ token = (<?> "token") . located $ choice
 
   text = Text . Text.pack <$> (char '"' *> textContents <* char '"')
   textContents = many (noneOf "\\\"" <|> textEscape)
-  textEscape = char '\\' *> oneOf "\\\""
+  textEscape = char '\\' *> choice
+    [ oneOf "\\\""
+    , '\a' <$ char 'a'
+    , '\b' <$ char 'b'
+    , '\f' <$ char 'f'
+    , '\n' <$ char 'n'
+    , '\r' <$ char 'r'
+    , '\t' <$ char 't'
+    , '\v' <$ char 'v'
+    ]
 
   word = (alphanumeric <|> symbolic) <$$> \ name -> case name of
     "def" -> Def
