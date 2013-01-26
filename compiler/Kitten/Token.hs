@@ -7,17 +7,17 @@ module Kitten.Token
 import Control.Applicative
 import Control.Monad.Identity
 import Data.Text (Text)
-import Text.Parsec ((<?>))
+import Text.Parsec
+  hiding ((<|>), many, newline, optional, token, tokens)
 
 import qualified Data.Text as Text
-import qualified Text.Parsec as P
 
 import Kitten.Builtin (Builtin)
 import Kitten.Util
 
 import qualified Kitten.Builtin as Builtin
 
-type Parser a = P.ParsecT String P.Column Identity a
+type Parser a = ParsecT String Column Identity a
 
 data Token
   = Word !Text
@@ -49,63 +49,63 @@ instance Show Token where
   show Layout = ":"
 
 data Located = Located
-  { locatedLocation :: P.SourcePos
-  , locatedIndent :: P.Column
+  { locatedLocation :: SourcePos
+  , locatedIndent :: Column
   , locatedToken :: Token
   }
 
 instance Show Located where
   show Located{..} = show locatedToken
 
-tokenize :: String -> String -> Either P.ParseError [Located]
-tokenize = P.runParser file 0
+tokenize :: String -> String -> Either ParseError [Located]
+tokenize = runParser file 0
 
 located
   :: Parser Token
   -> Parser Located
 located parser = do
-  indent <- P.getState
-  position <- P.getPosition
+  indent <- getState
+  position <- getPosition
   result <- parser
   return $ Located position indent result
 
 file :: Parser [Located]
-file = silence *> tokens <* P.eof
+file = silence *> tokens <* eof
 
 tokens :: Parser [Located]
-tokens = token `P.sepEndBy` silence
+tokens = token `sepEndBy` silence
 
 token :: Parser Located
-token = (<?> "token") . located $ P.choice
+token = (<?> "token") . located $ choice
   [ lambda
   , vecBegin
   , vecEnd
   , funBegin
   , funEnd
   , layout
-  , P.try int
+  , try int
   , text
   , word
   ]
 
   where
-  lambda = Lambda <$ P.char '\\'
+  lambda = Lambda <$ char '\\'
 
-  vecBegin = VecBegin <$ P.char '['
-  vecEnd = VecEnd <$ P.char ']'
+  vecBegin = VecBegin <$ char '['
+  vecEnd = VecEnd <$ char ']'
 
-  funBegin = FunBegin <$ P.char '{'
-  layout = Layout <$ P.char ':'
-  funEnd = FunEnd <$ P.char '}'
+  funBegin = FunBegin <$ char '{'
+  layout = Layout <$ char ':'
+  funEnd = FunEnd <$ char '}'
 
   int = do
-    sign <- P.optionMaybe $ P.oneOf "+-"
-    value <- read <$> P.many1 P.digit
+    sign <- optionMaybe $ oneOf "+-"
+    value <- read <$> many1 digit
     return . Int $ if sign == Just '-' then negate value else value
 
-  text = Text . Text.pack <$> (P.char '"' *> textContents <* P.char '"')
-  textContents = P.many (P.noneOf "\\\"" <|> textEscape)
-  textEscape = P.char '\\' *> P.oneOf "\\\""
+  text = Text . Text.pack <$> (char '"' *> textContents <* char '"')
+  textContents = many (noneOf "\\\"" <|> textEscape)
+  textEscape = char '\\' *> oneOf "\\\""
 
   word = (alphanumeric <|> symbolic) <$$> \ name -> case name of
     "def" -> Def
@@ -117,31 +117,31 @@ token = (<?> "token") . located $ P.choice
       where nameText = Text.pack name
     where
     alphanumeric = (:)
-      <$> (P.letter <|> P.char '_')
-      <*> P.many (P.letter <|> P.digit <|> P.char '_')
-    symbolic = P.many1 $ P.oneOf "!#$%&*+,-./;<=>?@^|~"
+      <$> (letter <|> char '_')
+      <*> many (letter <|> digit <|> char '_')
+    symbolic = many1 $ oneOf "!#$%&*+,-./;<=>?@^|~"
 
 silence :: Parser ()
-silence = P.skipMany $ comment <|> whitespace
+silence = skipMany $ comment <|> whitespace
   where
-  whitespace = P.skipMany1 $ P.choice [newline, nonNewline]
+  whitespace = skipMany1 $ choice [newline, nonNewline]
   newline = do
-    void $ P.char '\n' *> many nonNewline
-    pos <- P.getPosition
-    P.putState $ P.sourceColumn pos
-  nonNewline = void $ P.satisfy (`elem` "\t\v\f\r ")
+    void $ char '\n' *> many nonNewline
+    pos <- getPosition
+    putState $ sourceColumn pos
+  nonNewline = void $ satisfy (`elem` "\t\v\f\r ")
   comment = single <|> multi
-  single = P.try (P.string "--")
-    *> (P.anyChar `skipManyTill` (void (P.char '\n') <|> P.eof))
+  single = try (string "--")
+    *> (anyChar `skipManyTill` (void (char '\n') <|> eof))
   multi = void $ start *> contents <* end
     where
     contents = characters *> optional multi <* characters
-    characters = P.skipMany $ P.notFollowedBy (start <|> end) *> P.anyChar
-    start = P.try $ P.string "{-"
-    end = P.string "-}"
+    characters = skipMany $ notFollowedBy (start <|> end) *> anyChar
+    start = try $ string "{-"
+    end = string "-}"
 
 skipManyTill
   :: Parser a
   -> Parser b
   -> Parser ()
-a `skipManyTill` b = void (P.try b) <|> a *> (a `skipManyTill` b)
+a `skipManyTill` b = void (try b) <|> a *> (a `skipManyTill` b)

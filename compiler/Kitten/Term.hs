@@ -11,10 +11,11 @@ import Data.Either
 import Data.List
 import Data.Text (Text)
 import Data.Vector (Vector)
-import Text.Parsec ((<?>))
+import Text.Parsec
+  hiding ((<|>), Empty, many, parse, satisfy, token, tokens)
 
 import qualified Data.Vector as Vector
-import qualified Text.Parsec as P
+import qualified Text.Parsec as Parsec
 
 import Kitten.Builtin (Builtin)
 import Kitten.Def
@@ -23,7 +24,7 @@ import Kitten.Token (Located(..), Token)
 
 import qualified Kitten.Token as Token
 
-type Parser a = P.ParsecT [Located] () Identity a
+type Parser a = ParsecT [Located] () Identity a
 
 data Term
   = Value !Value
@@ -40,12 +41,12 @@ data Value
   | Vec !(Vector Value)
   | Fun !Term
 
-parse :: String -> [Located] -> Either P.ParseError (Fragment Term)
-parse = P.parse programP
+parse :: String -> [Located] -> Either ParseError (Fragment Term)
+parse = Parsec.parse programP
 
 programP :: Parser (Fragment Term)
 programP = uncurry Fragment . (Vector.fromList *** compose) . partitionEithers
-  <$> P.many ((Left <$> defP) <|> (Right <$> termP)) <* P.eof
+  <$> many ((Left <$> defP) <|> (Right <$> termP)) <* eof
 
 compose :: [Term] -> Term
 compose = foldl' Compose Empty
@@ -53,7 +54,7 @@ compose = foldl' Compose Empty
 defP :: Parser (Def Term)
 defP = (<?> "definition") $ do
   void $ token Token.Def
-  mParams <- P.optionMaybe $ groupedP identifierP
+  mParams <- optionMaybe $ groupedP identifierP
   name <- identifierP
   body <- oneOrGroupP
   let
@@ -63,10 +64,10 @@ defP = (<?> "definition") $ do
   return $ Def name body'
 
 termP :: Parser Term
-termP = P.choice [Value <$> valueP, builtinP, lambdaP]
+termP = choice [Value <$> valueP, builtinP, lambdaP]
 
 valueP :: Parser Value
-valueP = P.choice
+valueP = choice
   [ literalP
   , vecP
   , funP
@@ -96,14 +97,14 @@ layoutP = do
   Token.Located startLocation startIndent _ <- located Token.Layout
   firstToken@(Token.Located firstLocation _ _) <- anyLocated
   let
-    inside = if P.sourceLine firstLocation == P.sourceLine startLocation
+    inside = if sourceLine firstLocation == sourceLine startLocation
       then \ (Token.Located location _ _)
-        -> P.sourceColumn location > P.sourceColumn startLocation
+        -> sourceColumn location > sourceColumn startLocation
       else \ (Token.Located location _ _)
-        -> P.sourceColumn location > startIndent
+        -> sourceColumn location > startIndent
   innerTokens <- many $ locatedSatisfy inside
   let tokens = firstToken : innerTokens
-  case P.parse (many termP) "layout quotation" tokens of
+  case Parsec.parse (many termP) "layout quotation" tokens of
     Right result -> return result
     Left err -> fail $ show err
 
@@ -125,22 +126,22 @@ lambdaP = (<?> "lambda") $ do
   Lambda name <$> oneOrGroupP
 
 oneOrGroupP :: Parser Term
-oneOrGroupP = P.choice
+oneOrGroupP = choice
   [ compose <$> groupedP termP
   , compose <$> layoutP
   , termP
   ]
 
-advance :: P.SourcePos -> t -> [Located] -> P.SourcePos
+advance :: SourcePos -> t -> [Located] -> SourcePos
 advance _ _ (Located sourcePos _ _ : _) = sourcePos
 advance sourcePos _ _ = sourcePos
 
 satisfy :: (Token -> Bool) -> Parser Token
-satisfy f = P.tokenPrim show advance
+satisfy f = tokenPrim show advance
   $ \ Located { Token.locatedToken = t } -> justIf (f t) t
 
 mapOne :: (Token -> Maybe a) -> Parser a
-mapOne f = P.tokenPrim show advance
+mapOne f = tokenPrim show advance
   $ \ Located { Token.locatedToken = t } -> f t
 
 justIf :: Bool -> a -> Maybe a
@@ -148,10 +149,10 @@ justIf c x = if c then Just x else Nothing
 
 locatedSatisfy
   :: (Located -> Bool) -> Parser Located
-locatedSatisfy predicate = P.tokenPrim show advance
+locatedSatisfy predicate = tokenPrim show advance
   $ \ loc -> justIf (predicate loc) loc
 
-token :: Token -> Parser Token -- P.ParsecT s u m Token
+token :: Token -> Parser Token
 token tok = satisfy (== tok)
 
 located :: Token -> Parser Located
