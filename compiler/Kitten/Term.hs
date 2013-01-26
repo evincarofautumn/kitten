@@ -9,6 +9,7 @@ import Control.Arrow
 import Control.Monad.Identity
 import Data.Either
 import Data.List
+import Data.Text (Text)
 import Text.Parsec ((<?>))
 
 import qualified Text.Parsec as P
@@ -25,15 +26,15 @@ type Parser a = P.ParsecT [Located] () Identity a
 data Term
   = Value !Value
   | Builtin !Builtin
-  | Lambda !String !Term
+  | Lambda !Text !Term
   | Compose !Term !Term
   | Empty
 
 data Value
-  = Word !String
+  = Word !Text
   | Int !Int
   | Bool !Bool
-  | String !String
+  | String !Text
   | Vec ![Value]
   | Fun !Term
 
@@ -103,7 +104,7 @@ layoutP = do
     Right result -> return result
     Left err -> fail $ show err
 
-identifierP :: Parser String
+identifierP :: Parser Text
 identifierP = mapOne toIdentifier
   where
   toIdentifier (Token.Word name) = Just name

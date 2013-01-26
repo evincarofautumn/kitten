@@ -1,11 +1,13 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Kitten.Builtin
   ( Builtin(..)
-  , fromString
-  , toString
+  , fromText
+  , toText
   ) where
 
 import Data.Map (Map)
-import Data.Maybe
+import Data.Text (Text)
 
 import qualified Data.Map as Map
 
@@ -42,22 +44,22 @@ data Builtin
   | XorInt
   deriving (Eq, Ord)
 
-instance Show Builtin where show = fromMaybe "<unknown builtin>" . toString
+instance Show Builtin where show = maybe "<unknown builtin>" show . toText
 
-toString :: Builtin -> Maybe String
-toString = (`Map.lookup` toStringMap)
+toText :: Builtin -> Maybe Text
+toText = (`Map.lookup` toTextMap)
 
-fromString :: String -> Maybe Builtin
-fromString = (`Map.lookup` fromStringMap)
+fromText :: Text -> Maybe Builtin
+fromText = (`Map.lookup` fromTextMap)
 
-toStringMap :: Map Builtin String
-toStringMap = Map.fromList toStringTable
+toTextMap :: Map Builtin Text
+toTextMap = Map.fromList toTextTable
 
-fromStringMap :: Map String Builtin
-fromStringMap = Map.fromList fromStringTable
+fromTextMap :: Map Text Builtin
+fromTextMap = Map.fromList fromTextTable
 
-fromStringTable :: [(String, Builtin)]
-fromStringTable =
+fromTextTable :: [(Text, Builtin)]
+fromTextTable =
   [ (,) "+"       Add
   , (,) "&&"      AndBool
   , (,) "&"       AndInt
@@ -88,5 +90,5 @@ fromStringTable =
   , (,) "^"       XorInt
   ]
 
-toStringTable :: [(Builtin, String)]
-toStringTable = map swap fromStringTable
+toTextTable :: [(Builtin, Text)]
+toTextTable = map swap fromTextTable

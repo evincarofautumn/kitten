@@ -8,6 +8,8 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict
 import Data.Bits
 
+import qualified Data.Text.IO as Text
+
 import Kitten.Def
 import Kitten.Name
 import Kitten.Fragment
@@ -112,7 +114,7 @@ interpret stack (Fragment defs body)
       pushData . Int $ a .|. b
     Builtin.Print -> do
       (String s) <- popData
-      lift $ putStrLn s
+      lift $ Text.putStr s
     Builtin.Sub -> do
       (Int b) <- popData
       (Int a) <- popData

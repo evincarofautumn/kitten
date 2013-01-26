@@ -3,15 +3,17 @@ module Kitten.Error
   , failIfError
   ) where
 
+import Data.Text (Text)
 import Text.Parsec.Error
+
+import qualified Data.Text as Text
 
 import Kitten.Util
 
-data CompileError
-  = CompileError !String
+data CompileError = CompileError !Text
 
 instance Show CompileError where
-  show (CompileError message) = message
+  show (CompileError message) = Text.unpack message
 
 failIfError :: Either ParseError a -> Either CompileError a
-failIfError = mapLeft $ CompileError . show
+failIfError = mapLeft $ CompileError . Text.pack . show

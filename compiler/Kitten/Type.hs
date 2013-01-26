@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Kitten.Type
   ( Type(..)
   , Typed(..)
@@ -12,8 +14,11 @@ import Control.Monad.Trans.State.Strict
 import Data.Function
 import Data.IntMap (IntMap)
 import Data.List
+import Data.Monoid
+import Data.Text (Text)
 
 import qualified Data.IntMap as IntMap
+import qualified Data.Text as Text
 
 import Kitten.Builtin (Builtin)
 import Kitten.Def
@@ -55,7 +60,7 @@ data Value
   = Word !Name !Type
   | Int !Int !Type
   | Bool !Bool !Type
-  | String !String !Type
+  | String !Text !Type
   | Vec ![Value] !Type
   | Fun !Typed !Type
 
@@ -266,8 +271,12 @@ unify' (a :> b) (c :> d) = unify b d >=> unify a c
 unify' (a :. b) (c :. d) = unify b d >=> unify a c
 unify' (Var var) type_ = unifyVar var type_
 unify' type_ (Var var) = unifyVar var type_
-unify' a b = const . Left . CompileError $ unwords
-  ["cannot solve type constraint:", show a, "=", show b]
+unify' a b = const . Left . CompileError $ Text.unwords
+  [ "cannot solve type constraint:"
+  , textShow a
+  , "="
+  , textShow b
+  ]
 
 -- | Unifies two types, returning the second type.
 unifyM :: Type -> Type -> Inference Type
@@ -276,7 +285,7 @@ unifyM type1 type2 = do
   case env of
     Right env' -> put env' >> return type2
     Left err -> lift . Left . CompileError
-      $ "Unification error: " ++ show err
+      $ "Unification error: " <> textShow err
 
 -- | Unifies a variable with a type.
 unifyVar :: Name -> Type -> Env -> Either CompileError Env
@@ -284,11 +293,11 @@ unifyVar var1 (Var var2) env | var1 == var2 = return env
 unifyVar var1 (Var var2) env
   = return $ declareType var1 (Var var2) env
 unifyVar var type_ env | occurs var type_ env
-  = Left . CompileError $ unwords
+  = Left . CompileError $ Text.unwords
     ["cannot construct infinite type", varString, "=", typeString]
   where
-  varString = show $ substType env (Var var)
-  typeString = show $ substType env type_
+  varString = textShow $ substType env (Var var)
+  typeString = textShow $ substType env type_
 unifyVar var type_ env
   = return $ declareType var type_ env
 
@@ -296,8 +305,8 @@ unifyVar var type_ env
 unifySize :: Int -> Int -> Env -> Either CompileError Env
 unifySize a b env
   | a == b = Right env
-  | otherwise = Left . CompileError . unwords
-    $ ["cannot solve size constraint:", show a, "=", show b]
+  | otherwise = Left . CompileError . Text.unwords
+    $ ["cannot solve size constraint:", textShow a, "=", textShow b]
 
 ------------------------------------------------------------
 
@@ -404,7 +413,7 @@ declareType (Name var) type_ env@Env{..}
 -- | Finds the type associated with a type variable name.
 findType :: Env -> Name -> Either CompileError Type
 findType Env{..} (Name var) = maybeToEither
-  (CompileError $ "Nonexistent type variable " ++ show var ++ "!")
+  (CompileError $ "Nonexistent type variable " <> textShow var <> "!")
   $ IntMap.lookup var envTypes
 
 -- | The famed "occurs check".

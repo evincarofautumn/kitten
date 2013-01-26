@@ -6,8 +6,10 @@ module Kitten.Token
 
 import Control.Applicative
 import Control.Monad.Identity
+import Data.Text (Text)
 import Text.Parsec ((<?>))
 
+import qualified Data.Text as Text
 import qualified Text.Parsec as P
 
 import Kitten.Builtin (Builtin)
@@ -18,11 +20,11 @@ import qualified Kitten.Builtin as Builtin
 type Parser a = P.ParsecT String P.Column Identity a
 
 data Token
-  = Word !String
+  = Word !Text
   | Builtin !Builtin
   | Int !Int
   | Bool !Bool
-  | String !String
+  | String !Text
   | Def
   | Lambda
   | VecBegin
@@ -33,7 +35,7 @@ data Token
   deriving (Eq)
 
 instance Show Token where
-  show (Word word) = word
+  show (Word word) = show word
   show (Builtin name) = show name
   show (Int value) = show value
   show (Bool value) = if value then "true" else "false"
@@ -101,7 +103,7 @@ token = (<?> "token") . located $ P.choice
     value <- read <$> P.many1 P.digit
     return . Int $ if sign == Just '-' then negate value else value
 
-  string = String <$> (P.char '"' *> stringContents <* P.char '"')
+  string = String . Text.pack <$> (P.char '"' *> stringContents <* P.char '"')
   stringContents = P.many (P.noneOf "\\\"" <|> stringEscape)
   stringEscape = P.char '\\' *> P.oneOf "\\\""
 
@@ -109,9 +111,10 @@ token = (<?> "token") . located $ P.choice
     "def" -> Def
     "true" -> Bool True
     "false" -> Bool False
-    _ -> case Builtin.fromString name of
+    _ -> case Builtin.fromText nameText of
       Just builtin -> Builtin builtin
-      _ -> Word name
+      _ -> Word nameText
+      where nameText = Text.pack name
     where
     alphanumeric = (:)
       <$> (P.letter <|> P.char '_')

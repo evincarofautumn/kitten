@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Kitten.Resolve
   ( Resolved(..)
   , Value(..)
@@ -8,6 +10,9 @@ import Control.Applicative
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.List
+import Data.Text (Text)
+
+import qualified Data.Text as Text
 
 import Kitten.Builtin (Builtin)
 import Kitten.Def
@@ -30,7 +35,7 @@ data Value
   = Word !Name
   | Int !Int
   | Bool !Bool
-  | String !String
+  | String !Text
   | Vec ![Value]
   | Fun !Resolved
 
@@ -45,10 +50,10 @@ instance Show Value where
 data Env = Env
   { envPrelude :: [Def Resolved]
   , envDefs :: [Def Term]
-  , envScope :: [String]
+  , envScope :: [Text]
   }
 
-enter :: String -> Env -> Env
+enter :: Text -> Env -> Env
 enter name env = env { envScope = name : envScope env }
 
 leave :: Env -> Env
@@ -94,7 +99,7 @@ resolveValue unresolved = case unresolved of
         mDefIndex <- gets $ defIndex name
         case mDefIndex of
           Just index -> return . Value . Word $ Name index
-          Nothing -> lift . Left . CompileError $ concat
+          Nothing -> lift . Left . CompileError $ Text.concat
             ["Unable to resolve word '", name, "'"]
   Term.Fun term -> Value . Fun <$> resolveTerm term
   Term.Vec terms -> Value . Vec
@@ -103,10 +108,10 @@ resolveValue unresolved = case unresolved of
   Term.Bool value -> return . Value $ Bool value
   Term.String value -> return . Value $ String value
 
-localIndex :: String -> Env -> Maybe Int
+localIndex :: Text -> Env -> Maybe Int
 localIndex name = elemIndex name . envScope
 
-defIndex :: String -> Env -> Maybe Int
+defIndex :: Text -> Env -> Maybe Int
 defIndex expected Env{..} = findExpected envPrelude
   <|> ((+ length envPrelude) <$> findExpected envDefs)
   where
