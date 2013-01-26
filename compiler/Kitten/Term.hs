@@ -38,6 +38,7 @@ data Value
   | Bool !Bool
   | Text !Text
   | Vec !(Vector Value)
+  | Tuple !(Vector Value)
   | Fun !Term
 
 data Element
@@ -91,6 +92,7 @@ value = choice
   [ literal
   , vec
   , fun
+  , tuple
   , word
   ]
   where
@@ -100,17 +102,21 @@ value = choice
   toLiteral (Token.Text x) = Just $ Text x
   toLiteral _ = Nothing
   vec = Vec . Vector.fromList
-    <$> (token Token.VecBegin *> many value <* token Token.VecEnd)
+    <$> between (token Token.VecBegin) (token Token.VecEnd) (many value)
     <?> "vector"
-  word = mapOne toWord <?> "word"
-  toWord (Token.Word name) = Just $ Word name
-  toWord _ = Nothing
   fun = Fun . compose
     <$> (grouped term <|> layout)
     <?> "function"
+  tuple = Tuple . Vector.fromList
+    <$> between (token Token.TupleBegin) (token Token.TupleEnd) (many value)
+    <?> "tuple"
+  word = mapOne toWord <?> "word"
+  toWord (Token.Word name) = Just $ Word name
+  toWord _ = Nothing
 
 grouped :: Parser a -> Parser [a]
-grouped parser = token Token.FunBegin *> many parser <* token Token.FunEnd
+grouped parser = between (token Token.FunBegin) (token Token.FunEnd)
+  $ many parser
 
 layout :: Parser [Term]
 layout = do

@@ -43,6 +43,7 @@ data Type
   | !Type :. !Type
   | SVec !Type !Int
   | DVec !Type
+  | TupleType !(Vector Type)
   | EmptyType
   | Var !Name
   deriving (Eq, Ord)
@@ -64,6 +65,7 @@ data Value
   | Bool !Bool !Type
   | Text !Text !Type
   | Vec !(Vector Value) !Type
+  | Tuple !(Vector Value) !Type
   | Fun !Typed !Type
 
 data TypeScheme = Forall [Name] Type
@@ -77,6 +79,8 @@ instance Show Type where
     = show type_ ++ "[" ++ show size ++ "]"
   show (DVec type_)
     = show type_ ++ "*"
+  show (TupleType types)
+    = "(" ++ unwords (map show $ Vector.toList types) ++ ")"
   show (a :> b)
     = "(" ++ show a ++ " -> " ++ show b ++ ")"
   show (EmptyType :. a) = show a
@@ -136,6 +140,8 @@ toTyped resolved = case resolved of
     Resolve.Vec terms -> Vec
       <$> Vector.mapM toTypedValue terms <*> freshFunction
     Resolve.Fun term -> Fun <$> toTyped term <*> freshFunction
+    Resolve.Tuple terms -> Tuple
+      <$> Vector.mapM toTypedValue terms <*> freshFunction
 
 ------------------------------------------------------------
 
@@ -188,6 +194,9 @@ infer typedTerm = do
         unifyEach (x:y:zs) = unifyM x y >> unifyEach (y:zs)
         unifyEach [x] = return x
         unifyEach [] = fresh
+      Tuple terms type_ -> do
+        termTypes <- Vector.mapM (infer . Value) terms
+        unifyM type_ $ r :> r :. TupleType termTypes
       Fun x type_ -> do
         a <- infer x
         unifyM type_ $ r :> r :. a
@@ -345,8 +354,10 @@ substValue env v = case v of
   Int value type_ -> Int value $ substType env type_
   Bool value type_ -> Bool value $ substType env type_
   Text value type_ -> Text value $ substType env type_
-  Vec body type_ -> Vec
-    (Vector.map (substValue env) body) (substType env type_)
+  Vec values type_ -> Vec
+    (Vector.map (substValue env) values) (substType env type_)
+  Tuple values type_ -> Tuple
+    (Vector.map (substValue env) values) (substType env type_)
   Fun body type_ -> Fun (substTerm env body) (substType env type_)
 
 -- | Substitutes type variables in a type.
@@ -391,6 +402,7 @@ free (a :> b) = free a ++ free b
 free (a :. b) = free a ++ free b
 free (SVec a _) = free a
 free (DVec a) = free a
+free (TupleType types) = free =<< Vector.toList types
 free (Var var) = [var]
 free EmptyType = []
 
@@ -428,6 +440,8 @@ occurs _ TextType _ = False
 occurs _ EmptyType _ = False
 occurs var (SVec type_ _) env = occurs var type_ env
 occurs var (DVec type_) env = occurs var type_ env
+occurs var (TupleType types) env
+  = Vector.any (\ type_ -> occurs var type_ env) types
 occurs var1 (Var var2) env = case findType env var2 of
   Left _ -> var1 == var2
   Right type_ -> occurs var1 type_ env
@@ -464,3 +478,4 @@ manifestType term = case term of
     Text _ type_ -> type_
     Vec _ type_ -> type_
     Fun _ type_ -> type_
+    Tuple _ type_ -> type_

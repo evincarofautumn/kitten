@@ -41,16 +41,20 @@ data Value
   | Bool !Bool
   | Text !Text
   | Vec !(Vector Value)
+  | Tuple !(Vector Value)
   | Fun !Resolved
 
 instance Show Value where
-  show (Word (Name name)) = '@' : show name
-  show (Int value) = show value
-  show (Bool value) = if value then "true" else "false"
-  show (Text value) = show value
-  show (Vec values) = Text.unpack
-    $ "[" <> Text.unwords (map textShow $ Vector.toList values) <> "]"
-  show (Fun _) = "{...}"
+  show v = case v of
+    Word (Name name) -> '@' : show name
+    Int value -> show value
+    Bool value -> if value then "true" else "false"
+    Text value -> show value
+    Vec values -> Text.unpack $ "[" <> showVector values <> "]"
+    Tuple values -> Text.unpack $ "(" <> showVector values <> ")"
+    Fun _ -> "{...}"
+    where
+    showVector = Text.unwords . map textShow . Vector.toList
 
 data Env = Env
   { envPrelude :: Vector (Def Resolved)
@@ -107,11 +111,13 @@ resolveValue unresolved = case unresolved of
           Nothing -> lift . Left . CompileError $ Text.concat
             ["Unable to resolve word '", name, "'"]
   Term.Fun term -> Value . Fun <$> resolveTerm term
-  Term.Vec terms -> Value . Vec
-    <$> Vector.mapM (fmap fromValue . resolveValue) terms
+  Term.Vec terms -> Value . Vec <$> resolveVector terms
+  Term.Tuple terms -> Value . Tuple <$> resolveVector terms
   Term.Int value -> return . Value $ Int value
   Term.Bool value -> return . Value $ Bool value
   Term.Text value -> return . Value $ Text value
+  where
+  resolveVector = Vector.mapM (fmap fromValue . resolveValue)
 
 localIndex :: Text -> Env -> Maybe Int
 localIndex name = elemIndex name . envScope

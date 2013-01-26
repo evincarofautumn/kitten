@@ -31,6 +31,8 @@ data Token
   | VecEnd
   | FunBegin
   | FunEnd
+  | TupleBegin
+  | TupleEnd
   | Layout
   deriving (Eq)
 
@@ -46,6 +48,8 @@ instance Show Token where
   show VecEnd = "]"
   show FunBegin = "{"
   show FunEnd = "}"
+  show TupleBegin = "("
+  show TupleEnd = ")"
   show Layout = ":"
 
 data Located = Located
@@ -77,32 +81,23 @@ tokens = token `sepEndBy` silence
 
 token :: Parser Located
 token = (<?> "token") . located $ choice
-  [ lambda
-  , vecBegin
-  , vecEnd
-  , funBegin
-  , funEnd
-  , layout
-  , try int
+  [ Lambda <$ char '\\'
+  , VecBegin <$ char '['
+  , VecEnd <$ char ']'
+  , FunBegin <$ char '{'
+  , FunEnd <$ char '}'
+  , TupleBegin <$ char '('
+  , TupleEnd <$ char ')'
+  , Layout <$ char ':'
   , text
+  , try int
   , word
   ]
-
   where
-  lambda = Lambda <$ char '\\'
-
-  vecBegin = VecBegin <$ char '['
-  vecEnd = VecEnd <$ char ']'
-
-  funBegin = FunBegin <$ char '{'
-  layout = Layout <$ char ':'
-  funEnd = FunEnd <$ char '}'
-
   int = do
     sign <- optionMaybe $ oneOf "+-"
     value <- read <$> many1 digit
     return . Int $ if sign == Just '-' then negate value else value
-
   text = Text . Text.pack <$> (char '"' *> textContents <* char '"')
   textContents = many (noneOf "\\\"" <|> textEscape)
   textEscape = char '\\' *> choice
@@ -115,7 +110,6 @@ token = (<?> "token") . located $ choice
     , '\t' <$ char 't'
     , '\v' <$ char 'v'
     ]
-
   word = (alphanumeric <|> symbolic) <$$> \ name -> case name of
     "def" -> Def
     "true" -> Bool True
