@@ -5,10 +5,9 @@ module Kitten.Term
   ) where
 
 import Control.Applicative
-import Control.Arrow
 import Control.Monad.Identity
-import Data.Either
 import Data.List
+import Data.Monoid
 import Data.Text (Text)
 import Data.Vector (Vector)
 import Text.Parsec
@@ -41,12 +40,33 @@ data Value
   | Vec !(Vector Value)
   | Fun !Term
 
+data Element
+  = DefElement (Def Term)
+  | TermElement Term
+
 parse :: String -> [Located] -> Either ParseError (Fragment Term)
 parse = Parsec.parse fragment
 
+partitionElements :: [Element] -> ([Def Term], [Term])
+partitionElements = partitionElements' mempty
+  where
+  partitionElements' (ds, ts) (DefElement d : es)
+    = partitionElements' (d : ds, ts) es
+  partitionElements' (ds, ts) (TermElement t : es)
+    = partitionElements' (ds, t : ts) es
+  partitionElements' acc [] = acc
+
 fragment :: Parser (Fragment Term)
-fragment = uncurry Fragment . (Vector.fromList *** compose) . partitionEithers
-  <$> many ((Left <$> def) <|> (Right <$> term)) <* eof
+fragment = do
+  elements <- many element <* eof
+  let (defs, terms) = partitionElements elements
+  return $ Fragment (Vector.fromList defs) (compose terms)
+
+element :: Parser Element
+element = choice
+  [ DefElement <$> def
+  , TermElement <$> term
+  ]
 
 compose :: [Term] -> Term
 compose = foldl' Compose Empty
