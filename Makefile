@@ -33,3 +33,7 @@ compiler :
 .PHONY : lint
 lint :
 	@ $(HLINT) compiler
+
+.PHONY : loc
+loc :
+	@ find compiler -name '*.hs' -exec wc -l {} + | sort -n
