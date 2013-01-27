@@ -49,13 +49,10 @@ parse :: String -> [Located] -> Either ParseError (Fragment Term)
 parse = Parsec.parse fragment
 
 partitionElements :: [Element] -> ([Def Term], [Term])
-partitionElements = partitionElements' mempty
+partitionElements = foldr partitionElement mempty
   where
-  partitionElements' (ds, ts) (DefElement d : es)
-    = partitionElements' (d : ds, ts) es
-  partitionElements' (ds, ts) (TermElement t : es)
-    = partitionElements' (ds, t : ts) es
-  partitionElements' acc [] = acc
+  partitionElement (DefElement d) (ds, ts) = (d : ds, ts)
+  partitionElement (TermElement t) (ds, ts) = (ds, t : ts)
 
 fragment :: Parser (Fragment Term)
 fragment = do

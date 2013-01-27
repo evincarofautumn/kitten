@@ -104,12 +104,15 @@ type Inference = StateT Env (Either CompileError)
 
 -- | Runs type inference on a resolved AST.
 typeFragment
-  :: [Resolve.Value]
+  :: Vector (Def Resolved)
+  -> [Resolve.Value]
   -> Fragment Resolved
   -> Either CompileError (Fragment Typed)
-typeFragment stack fragment
-  = fmap (uncurry substFragment) . flip runStateT emptyEnv
-  $ inferFragment stack =<< toTypedFragment fragment
+typeFragment prelude stack fragment
+  = fmap (uncurry substFragment) . flip runStateT emptyEnv $ do
+    typedPrelude <- Vector.mapM toTypedDef prelude
+    typedFragment <- toTypedFragment fragment
+    inferFragment stack typedPrelude typedFragment
 
 -- | Annotates a resolved AST with fresh type variables.
 toTypedFragment :: Fragment Resolved -> Inference (Fragment Typed)
@@ -131,7 +134,6 @@ toTyped resolved = case resolved of
     -> Compose <$> toTyped down <*> toTyped top <*> freshFunction
   Resolve.Empty -> Empty <$> freshFunction
   where
-  freshFunction = (:>) <$> fresh <*> fresh
   toTypedValue v = case v of
     Resolve.Word index -> Word index <$> freshFunction
     Resolve.Int value -> Int value <$> freshFunction
@@ -148,18 +150,30 @@ toTyped resolved = case resolved of
 -- | Infers and annotates the type of a program fragment.
 inferFragment
   :: [Resolve.Value]
+  -> Vector (Def Typed)
   -> Fragment Typed
   -> Inference (Fragment Typed)
-inferFragment stack fragment@(Fragment defs term) = do
-  defMap <- Vector.mapM inferDef defs
-  modify $ \ env -> env { envDefs = defMap }
-  (a :> b) <- infer <=< toTyped
-    $ foldr (flip Resolve.Compose . Resolve.Value) Resolve.Empty stack
-  (c :> _) <- infer term
-  s <- fresh
-  void $ unifyM a (EmptyType :> s)
-  void $ unifyM b c
-  gets $ substFragment fragment
+inferFragment stack prelude fragment@Fragment{..}
+  = inferAllDefs >> inferTerm >> gets (substFragment fragment)
+  where
+  inferAllDefs = do
+    initial <- Vector.replicateM
+      (Vector.length prelude + Vector.length fragmentDefs) freshFunction
+    setDefs $ Vector.map (Forall []) initial
+    inferred <- (<>) <$> inferDefs prelude <*> inferDefs fragmentDefs
+    Vector.forM_ (Vector.zip initial inferred) $ \ (var, scheme) -> do
+      type_ <- instantiate scheme
+      unifyM_ var type_
+    setDefs inferred
+  inferTerm = do
+    (a :> b) <- infer <=< toTyped $ stackTerm stack
+    (c :> _) <- infer fragmentTerm
+    s <- fresh
+    unifyM_ a (EmptyType :> s)
+    unifyM_ b c
+  inferDefs = Vector.mapM inferDef
+  stackTerm = foldr (flip Resolve.Compose . Resolve.Value) Resolve.Empty
+  setDefs ds = modify $ \ env@Env{..} -> env { envDefs = ds }
 
 -- | Infers the type scheme of a definition.
 inferDef :: Def Typed -> Inference TypeScheme
@@ -205,7 +219,7 @@ infer typedTerm = do
       a <- fresh
       local (Forall [] a) $ do
         (b :> c) <- infer term
-        void $ unifyM r b
+        unifyM_ r b
         unifyM type_ $ r :. a :> c
     Local (Name index) type_ -> do
       termType <- instantiate =<< gets ((!! index) . envLocals)
@@ -213,7 +227,7 @@ infer typedTerm = do
     Compose x y type_ -> do
       (a :> b) <- infer x
       (c :> d) <- infer y
-      void $ unifyM b c
+      unifyM_ b c
       unifyM type_ $ a :> d
     Empty type_ -> unifyM type_ $ r :> r
     Builtin name type_ -> unifyM type_ =<< case name of
@@ -289,6 +303,10 @@ unify' a b = const . Left . CompileError $ Text.unwords
   , "="
   , textShow b
   ]
+
+-- | Unifies two types.
+unifyM_ :: Type -> Type -> Inference ()
+unifyM_ = (void .) . unifyM
 
 -- | Unifies two types, returning the second type.
 unifyM :: Type -> Type -> Inference Type
@@ -456,6 +474,9 @@ fresh = Var <$> freshName
     name@(Name x) <- gets envNext
     modify $ \ env -> env { envNext = Name $ succ x }
     return name
+
+freshFunction :: Inference Type
+freshFunction = (:>) <$> fresh <*> fresh
 
 emptyEnv :: Env
 emptyEnv = Env (Name 0) IntMap.empty [] Vector.empty

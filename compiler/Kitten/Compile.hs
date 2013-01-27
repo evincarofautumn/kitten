@@ -26,7 +26,7 @@ compile stack prelude name source = do
   tokenized <- failIfError $ tokenize name source
   parsed <- failIfError $ parse name tokenized
   resolved <- resolveFragment prelude parsed
-  void $ typeFragment stack resolved
+  void $ typeFragment prelude stack resolved
   return resolved
 
 typecheck
@@ -39,4 +39,4 @@ typecheck stack prelude name
   = failIfError . tokenize name
   >=> failIfError . parse name
   >=> resolveFragment prelude
-  >=> liftM (manifestType . fragmentTerm) . typeFragment stack
+  >=> liftM (manifestType . fragmentTerm) . typeFragment prelude stack
