@@ -95,7 +95,7 @@ data Env = Env
   { envNext  :: Name
   , envTypes :: IntMap Type
   , envLocals :: [TypeScheme]
-  , envDefs :: Vector TypeScheme
+  , envInstantiations :: [(Type, Name)]
   }
 
 type Inference = StateT Env (Either CompileError)
@@ -157,14 +157,10 @@ inferFragment stack prelude fragment@Fragment{..}
   = inferAllDefs >> inferTerm >> gets (substFragment fragment)
   where
   inferAllDefs = do
-    initial <- Vector.replicateM
-      (Vector.length prelude + Vector.length fragmentDefs) freshFunction
-    setDefs $ Vector.map (Forall []) initial
     inferred <- (<>) <$> inferDefs prelude <*> inferDefs fragmentDefs
-    Vector.forM_ (Vector.zip initial inferred) $ \ (var, scheme) -> do
-      type_ <- instantiate scheme
-      unifyM_ var type_
-    setDefs inferred
+    instantiations <- gets envInstantiations
+    forM_ instantiations $ \ (type_, Name index)
+      -> unifyM_ type_ =<< instantiate (inferred ! index)
   inferTerm = do
     (a :> b) <- infer <=< toTyped $ stackTerm stack
     (c :> _) <- infer fragmentTerm
@@ -173,7 +169,6 @@ inferFragment stack prelude fragment@Fragment{..}
     unifyM_ b c
   inferDefs = Vector.mapM inferDef
   stackTerm = foldr (flip Resolve.Compose . Resolve.Value) Resolve.Empty
-  setDefs ds = modify $ \ env@Env{..} -> env { envDefs = ds }
 
 -- | Infers the type scheme of a definition.
 inferDef :: Def Typed -> Inference TypeScheme
@@ -192,8 +187,7 @@ infer typedTerm = do
 
   case typedTerm of
     Value value -> case value of
-      Word (Name index) _type
-        -> unifyM _type =<< instantiate =<< gets ((! index) . envDefs)
+      Word name _type -> unifyM _type =<< makeInstantiation name
       Int _ type_
         -> unifyM type_ $ r :> r :. IntType
       Bool _ type_
@@ -388,6 +382,15 @@ substType _ type_ = type_
 
 ------------------------------------------------------------
 
+-- | Makes a reference to the type scheme of a definition
+-- which will be instantiated later.
+makeInstantiation :: Name -> Inference Type
+makeInstantiation name = do
+  type_ <- freshFunction
+  modify $ \ env@Env{..} -> env
+    { envInstantiations = (type_, name) : envInstantiations }
+  return type_
+
 -- | Instantiates a type scheme in the current environment.
 instantiate :: TypeScheme -> Inference Type
 instantiate (Forall vars type_) = do
@@ -479,7 +482,7 @@ freshFunction :: Inference Type
 freshFunction = (:>) <$> fresh <*> fresh
 
 emptyEnv :: Env
-emptyEnv = Env (Name 0) IntMap.empty [] Vector.empty
+emptyEnv = Env (Name 0) IntMap.empty [] []
 
 ------------------------------------------------------------
 
