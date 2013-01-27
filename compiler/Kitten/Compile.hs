@@ -13,6 +13,7 @@ import Kitten.Resolve
 import Kitten.Term
 import Kitten.Token
 import Kitten.Type
+import Kitten.Type.Infer
 
 import qualified Kitten.Resolve as Resolve
 
