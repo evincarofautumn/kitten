@@ -31,5 +31,5 @@ compiler :
 	$(CABAL) build --builddir=$(TargetDir)
 
 .PHONY : lint
-lint : $(CompSrcFiles)
-	@ $(HLINT) .
+lint :
+	@ $(HLINT) compiler
