@@ -20,6 +20,7 @@ import Kitten.Builtin (Builtin)
 import Kitten.Def
 import Kitten.Fragment
 import Kitten.Token (Located(..), Token)
+import Kitten.Util
 
 import qualified Kitten.Token as Token
 
@@ -82,22 +83,33 @@ def = (<?> "definition") $ do
   return $ Def name body'
 
 term :: Parser Term
-term = choice [Value <$> value, builtin, lambda]
+term = choice
+  [ Value <$> value
+  , mapOne toBuiltin <?> "builtin"
+  , lambda
+  ]
+  where
+  lambda = (<?> "lambda") $ do
+    name <- token Token.Lambda *> identifier
+    Lambda name <$> oneOrGroup
+  toBuiltin (Token.Builtin name) = Just $ Builtin name
+  toBuiltin _ = Nothing
 
 value :: Parser Value
 value = choice
-  [ literal
+  [ mapOne toLiteral <?> "literal"
+  , mapOne toWord <?> "word"
   , vec
   , fun
   , tuple
-  , word
   ]
   where
-  literal = mapOne toLiteral <?> "literal"
   toLiteral (Token.Int x) = Just $ Int x
   toLiteral (Token.Bool x) = Just $ Bool x
   toLiteral (Token.Text x) = Just $ Text x
   toLiteral _ = Nothing
+  toWord (Token.Word name) = Just $ Word name
+  toWord _ = Nothing
   vec = Vec . Vector.fromList
     <$> between (token Token.VecBegin) (token Token.VecEnd) (many value)
     <?> "vector"
@@ -107,9 +119,6 @@ value = choice
   tuple = Tuple . Vector.fromList
     <$> between (token Token.TupleBegin) (token Token.TupleEnd) (many value)
     <?> "tuple"
-  word = mapOne toWord <?> "word"
-  toWord (Token.Word name) = Just $ Word name
-  toWord _ = Nothing
 
 grouped :: Parser a -> Parser [a]
 grouped parser = between (token Token.FunBegin) (token Token.FunEnd)
@@ -137,17 +146,6 @@ identifier = mapOne toIdentifier
   toIdentifier (Token.Word name) = Just name
   toIdentifier _ = Nothing
 
-builtin :: Parser Term
-builtin = mapOne toBuiltin <?> "builtin"
-  where
-  toBuiltin (Token.Builtin name) = Just $ Builtin name
-  toBuiltin _ = Nothing
-
-lambda :: Parser Term
-lambda = (<?> "lambda") $ do
-  name <- token Token.Lambda *> identifier
-  Lambda name <$> oneOrGroup
-
 oneOrGroup :: Parser Term
 oneOrGroup = choice
   [ compose <$> grouped term
@@ -167,11 +165,7 @@ mapOne :: (Token -> Maybe a) -> Parser a
 mapOne f = tokenPrim show advance
   $ \ Located { Token.locatedToken = t } -> f t
 
-justIf :: Bool -> a -> Maybe a
-justIf c x = if c then Just x else Nothing
-
-locatedSatisfy
-  :: (Located -> Bool) -> Parser Located
+locatedSatisfy :: (Located -> Bool) -> Parser Located
 locatedSatisfy predicate = tokenPrim show advance
   $ \ loc -> justIf (predicate loc) loc
 

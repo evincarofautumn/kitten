@@ -1,5 +1,6 @@
 module Kitten.Util
   ( (<$$>)
+  , justIf
   , mapLeft
   , maybeToEither
   , swap
@@ -13,6 +14,9 @@ import qualified Data.Text as Text
 (<$$>) :: (Functor f) => f a -> (a -> b) -> f b
 (<$$>) = flip fmap
 infixl 4 <$$>
+
+justIf :: Bool -> a -> Maybe a
+justIf c x = if c then Just x else Nothing
 
 mapLeft :: (e1 -> e2) -> Either e1 a -> Either e2 a
 mapLeft f (Left e) = Left $ f e
