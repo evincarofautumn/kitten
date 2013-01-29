@@ -4,7 +4,6 @@ module Kitten.Repl
 
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict
-import Data.Monoid
 import Data.Vector (Vector)
 import System.IO
 
@@ -51,7 +50,7 @@ repl = do
           lift . putStrLn . unwords . reverse $ map show stack'
           modify $ \ s -> s
             { replStack = stack'
-            , replDefs = defs <> fragmentDefs compileResult
+            , replDefs = fragmentDefs compileResult
             }
       repl
   where
