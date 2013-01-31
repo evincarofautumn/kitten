@@ -1,5 +1,6 @@
 module Kitten.Util
   ( (<$$>)
+  , fromRight
   , justIf
   , mapLeft
   , maybeToEither
@@ -14,6 +15,10 @@ import qualified Data.Text as Text
 (<$$>) :: (Functor f) => f a -> (a -> b) -> f b
 (<$$>) = flip fmap
 infixl 4 <$$>
+
+fromRight :: (Show e) => Either e a -> a
+fromRight (Right x) = x
+fromRight (Left x) = error $ "Kitten.Util.fromRight: Left " ++ show x
 
 justIf :: Bool -> a -> Maybe a
 justIf c x = if c then Just x else Nothing

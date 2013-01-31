@@ -35,8 +35,9 @@ repl = do
     ":clear" -> clear
     ":c" -> clear
     (':' : expression) -> do
+      defs <- gets replDefs
       stack <- gets replStack
-      lift $ case typecheck stack prelude replName expression of
+      lift $ case typecheck stack defs replName expression of
         Left compileError -> print compileError
         Right type_ -> print type_
       repl
