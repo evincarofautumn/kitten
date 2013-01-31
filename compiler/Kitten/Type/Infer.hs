@@ -161,7 +161,7 @@ infer typedTerm = do
       Builtin.Ge      -> intsToBool
   where
   local scheme action = do
-    modify $ \ env -> env { envLocals = envLocals env ++ [scheme] }
+    modify $ \ env -> env { envLocals = scheme : envLocals env }
     result <- action
-    modify $ \ env -> env { envLocals = init $ envLocals env }
+    modify $ \ env -> env { envLocals = tail $ envLocals env }
     return result
