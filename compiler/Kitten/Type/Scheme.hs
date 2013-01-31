@@ -42,9 +42,10 @@ generalize action = do
   before <- get
   type_ <- action
   after <- get
-  let substituted = substType after type_
-  let dependent = dependentBetween before after
-  let vars = filter dependent . nub $ free substituted
+  let
+    substituted = substType after type_
+    dependent = dependentBetween before after
+    vars = filter dependent . nub $ free substituted
   return $ Forall vars substituted
 
 -- | Enumerates free variables of a type.

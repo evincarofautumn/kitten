@@ -79,13 +79,10 @@ infer typedTerm = do
 
   case typedTerm of
     Value value -> case value of
-      Word name _type -> unifyM _type =<< makeInstantiation name
-      Int _ type_
-        -> unifyM type_ $ r :> r :. IntType
-      Bool _ type_
-        -> unifyM type_ $ r :> r :. BoolType
-      Text _ type_
-        -> unifyM type_ $ r :> r :. TextType
+      Word name type_ -> unifyM type_ =<< makeInstantiation name
+      Int _ type_ -> unifyM type_ $ r :> r :. IntType
+      Bool _ type_ -> unifyM type_ $ r :> r :. BoolType
+      Text _ type_ -> unifyM type_ $ r :> r :. TextType
       Vec terms type_ -> do
         termTypes <- mapM (infer . Value) $ Vector.toList terms
         termType <- unifyEach termTypes
