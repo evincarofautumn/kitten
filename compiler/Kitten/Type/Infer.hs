@@ -46,7 +46,7 @@ inferFragment
   -> Fragment Typed
   -> Inference (Fragment Typed)
 inferFragment stack prelude fragment@Fragment{..}
-  = inferAllDefs >> inferTerm >> gets (substFragment fragment)
+  = inferTerm >> inferAllDefs >> gets (substFragment fragment)
   where
   inferAllDefs = do
     inferred <- (<>) <$> inferDefs prelude <*> inferDefs fragmentDefs
