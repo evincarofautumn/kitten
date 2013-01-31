@@ -22,8 +22,7 @@ data Type
   | TextType
   | !Type :> !Type
   | !Type :. !Type
-  | SVec !Type !Int
-  | DVec !Type
+  | VecType !Type
   | TupleType !(Vector Type)
   | EmptyType
   | Var !Name
@@ -76,9 +75,7 @@ instance Show Type where
   show BoolType = "bool"
   show TextType = "text"
   show (Var name) = show name
-  show (SVec type_ size)
-    = show type_ ++ "[" ++ show size ++ "]"
-  show (DVec type_)
+  show (VecType type_)
     = show type_ ++ "*"
   show (TupleType types)
     = "(" ++ unwords (map show $ Vector.toList types) ++ ")"

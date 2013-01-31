@@ -5,7 +5,6 @@ module Kitten.Type.Unify
   , unifyM
   , unifyM_
   , unifyVar
-  , unifySize
   ) where
 
 import Control.Monad
@@ -30,10 +29,7 @@ unify a b env = (unify' `on` substChain env) a b env
 -- | Unifies two simplified types.
 unify' :: Type -> Type -> Env -> Either CompileError Env
 unify' a b | a == b = return
-unify' (SVec a m) (SVec b n) = unify a b >=> unifySize m n
-unify' (SVec a _) (DVec b) = unify a b
-unify' (DVec a) (SVec b _) = unify a b
-unify' (DVec a) (DVec b) = unify a b
+unify' (VecType a) (VecType b) = unify a b
 unify' (a :> b) (c :> d) = unify b d >=> unify a c
 unify' (a :. b) (c :. d) = unify b d >=> unify a c
 unify' (Var var) type_ = unifyVar var type_
@@ -71,10 +67,3 @@ unifyVar var type_ env | occurs var type_ env
   typeText = textShow $ substType env type_
 unifyVar var type_ env
   = return $ declareType var type_ env
-
--- | Unifies two constant size constraints.
-unifySize :: Int -> Int -> Env -> Either CompileError Env
-unifySize a b env
-  | a == b = Right env
-  | otherwise = Left . CompileError . Text.unwords
-    $ ["cannot solve size constraint:", textShow a, "=", textShow b]

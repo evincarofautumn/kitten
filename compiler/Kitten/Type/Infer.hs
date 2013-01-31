@@ -86,7 +86,7 @@ infer typedTerm = do
       Vec terms type_ -> do
         termTypes <- mapM (infer . Value) $ Vector.toList terms
         termType <- unifyEach termTypes
-        unifyM type_ $ r :> r :. SVec termType (Vector.length terms)
+        unifyM type_ $ r :> r :. VecType termType
         where
         unifyEach (x:y:zs) = unifyM x y >> unifyEach (y:zs)
         unifyEach [x] = return x
@@ -115,6 +115,30 @@ infer typedTerm = do
     Empty type_ -> unifyM type_ $ r :> r
     Builtin name type_ -> unifyM type_ =<< case name of
       Builtin.Print -> return $ r :. TextType :> r
+      Builtin.At
+        -> (\ a -> r :. VecType a :. IntType :> r :. a)
+        <$> fresh
+      Builtin.Cat
+        -> (\ a -> r :. VecType a :. VecType a :> r :. VecType a)
+        <$> fresh
+      Builtin.Vec
+        -> (\ a -> r :. a :> r :. VecType a)
+        <$> fresh
+      Builtin.Top
+        -> (\ a -> r :. VecType a :> r :. a)
+        <$> fresh
+      Builtin.Down
+        -> (\ a -> r :. VecType a :> r :. VecType a)
+        <$> fresh
+      Builtin.Bottom
+        -> (\ a -> r :. VecType a :> r :. a)
+        <$> fresh
+      Builtin.Up
+        -> (\ a -> r :. VecType a :> r :. VecType a)
+        <$> fresh
+      Builtin.Empty
+        -> (\ a -> r :. VecType a :> r :. BoolType)
+        <$> fresh
       Builtin.Dup
         -> (\ a -> r :. a :> r :. a :. a)
         <$> fresh

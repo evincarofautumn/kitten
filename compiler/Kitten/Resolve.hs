@@ -54,7 +54,7 @@ instance Show Value where
     Tuple values -> Text.unpack $ "(" <> showVector values <> ")"
     Fun _ -> "{...}"
     where
-    showVector = Text.unwords . map textShow . Vector.toList
+    showVector = Text.unwords . map textShow . Vector.toList . Vector.reverse
 
 data Env = Env
   { envPrelude :: Vector (Def Resolved)

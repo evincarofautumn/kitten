@@ -55,8 +55,7 @@ free BoolType = []
 free TextType = []
 free (a :> b) = free a ++ free b
 free (a :. b) = free a ++ free b
-free (SVec a _) = free a
-free (DVec a) = free a
+free (VecType a) = free a
 free (TupleType types) = free =<< Vector.toList types
 free (Var var) = [var]
 free EmptyType = []

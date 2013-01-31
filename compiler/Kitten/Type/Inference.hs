@@ -61,8 +61,7 @@ occurs _ IntType _ = False
 occurs _ BoolType _ = False
 occurs _ TextType _ = False
 occurs _ EmptyType _ = False
-occurs var (SVec type_ _) env = occurs var type_ env
-occurs var (DVec type_) env = occurs var type_ env
+occurs var (VecType type_) env = occurs var type_ env
 occurs var (TupleType types) env
   = Vector.any (\ type_ -> occurs var type_ env) types
 occurs var1 (Var var2) env = case findType env var2 of

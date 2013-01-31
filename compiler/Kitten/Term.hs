@@ -62,10 +62,7 @@ fragment = do
   return $ Fragment (Vector.fromList defs) (compose terms)
 
 element :: Parser Element
-element = choice
-  [ DefElement <$> def
-  , TermElement <$> term
-  ]
+element = (DefElement <$> def) <|> (TermElement <$> term)
 
 compose :: [Term] -> Term
 compose = foldl' Compose Empty
@@ -110,13 +107,13 @@ value = choice
   toLiteral _ = Nothing
   toWord (Token.Word name) = Just $ Word name
   toWord _ = Nothing
-  vec = Vec . Vector.fromList
+  vec = Vec . Vector.reverse . Vector.fromList
     <$> between (token Token.VecBegin) (token Token.VecEnd) (many value)
     <?> "vector"
   fun = Fun . compose
     <$> (grouped term <|> layout)
     <?> "function"
-  tuple = Tuple . Vector.fromList
+  tuple = Tuple . Vector.reverse . Vector.fromList
     <$> between (token Token.TupleBegin) (token Token.TupleEnd) (many value)
     <?> "tuple"
 

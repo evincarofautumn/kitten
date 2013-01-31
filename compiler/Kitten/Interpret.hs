@@ -7,9 +7,11 @@ import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict
 import Data.Bits
+import Data.Monoid
 import Data.Vector ((!))
 
 import qualified Data.Text.IO as Text
+import qualified Data.Vector as Vector
 
 import Kitten.Def
 import Kitten.Name
@@ -31,6 +33,27 @@ interpret stack (Fragment defs body)
     Word (Name index) -> runDef $ defs ! index
     _ -> pushData value
   runTerm (Builtin builtin) = case builtin of
+    Builtin.At -> do
+      Int b <- popData
+      Vec a <- popData
+      pushData $ a ! b
+    Builtin.Bottom -> do
+      Vec a <- popData
+      pushData $ Vector.last a
+    Builtin.Cat -> do
+      Vec b <- popData
+      Vec a <- popData
+      pushData . Vec $ b <> a
+    Builtin.Down -> do
+      Vec a <- popData
+      pushData . Vec $ Vector.tail a
+    Builtin.Top -> do
+      Vec a <- popData
+      pushData $ Vector.head a
+    Builtin.Up -> do
+      Vec a <- popData
+      pushData . Vec $ Vector.init a
+    Builtin.Vec -> pushData . Vec . pure =<< popData
     Builtin.Add -> do
       Int b <- popData
       Int a <- popData
@@ -56,6 +79,9 @@ interpret stack (Fragment defs body)
       pushData . Int $ a `div` b
     Builtin.Drop -> popData_
     Builtin.Dup -> pushData =<< peekData
+    Builtin.Empty -> do
+      Vec a <- popData
+      pushData . Bool $ Vector.null a
     Builtin.Eq -> do
       Int b <- popData
       Int a <- popData

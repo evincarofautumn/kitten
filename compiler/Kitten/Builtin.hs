@@ -18,11 +18,16 @@ data Builtin
   | AndBool
   | AndInt
   | Apply
+  | At
+  | Bottom
+  | Cat
   | Compose
   | Div
+  | Down
   | Drop
   | Dup
   | Eq
+  | Empty
   | Fun
   | Ge
   | Gt
@@ -40,6 +45,9 @@ data Builtin
   | Print
   | Sub
   | Swap
+  | Top
+  | Up
+  | Vec
   | XorBool
   | XorInt
   deriving (Eq, Ord)
@@ -64,11 +72,16 @@ fromTextTable =
   , (,) "&&"      AndBool
   , (,) "&"       AndInt
   , (,) "apply"   Apply
+  , (,) "@"       At
+  , (,) "bottom"  Bottom
+  , (,) "cat"     Cat
   , (,) "compose" Compose
   , (,) "/"       Div
+  , (,) "down"    Down
   , (,) "drop"    Drop
   , (,) "dup"     Dup
   , (,) "="       Eq
+  , (,) "empty"   Empty
   , (,) "fun"     Fun
   , (,) ">="      Ge
   , (,) ">"       Gt
@@ -86,6 +99,9 @@ fromTextTable =
   , (,) "print"   Print
   , (,) "-"       Sub
   , (,) "swap"    Swap
+  , (,) "top"     Top
+  , (,) "up"      Up
+  , (,) "vec"     Vec
   , (,) "^^"      XorBool
   , (,) "^"       XorInt
   ]
