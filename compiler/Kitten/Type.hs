@@ -28,7 +28,7 @@ data Type
   | Var !Name
   deriving (Eq, Ord)
 
-infixl 4 :>
+infix 4 :>
 infixl 5 :.
 
 data Typed
