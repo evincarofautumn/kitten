@@ -8,7 +8,7 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict
 import Data.Bits
 import Data.Monoid
-import Data.Vector ((!))
+import Data.Vector (Vector, (!))
 
 import qualified Data.Text.IO as Text
 import qualified Data.Vector as Vector
@@ -25,14 +25,18 @@ data Stacks = Stacks
   , localStack :: [Value]
   }
 
+type StackIO = StateT Stacks IO
+
 interpret :: [Value] -> Fragment Resolved -> IO [Value]
 interpret stack (Fragment defs body)
-  = liftM dataStack . execStateT (runTerm body) $ Stacks stack []
-  where
-  runTerm (Value value) = case value of
+  = liftM dataStack . execStateT (runTerm defs body) $ Stacks stack []
+
+runTerm :: Vector (Def Resolved) -> Resolved -> StackIO ()
+runTerm defs body = case body of
+  Value value -> case value of
     Word (Name index) -> runDef $ defs ! index
     _ -> pushData value
-  runTerm (Builtin builtin) = case builtin of
+  Builtin builtin -> case builtin of
     Builtin.At -> do
       Int b <- popData
       Vec a <- popData
@@ -68,7 +72,7 @@ interpret stack (Fragment defs body)
       pushData . Int $ a .&. b
     Builtin.Apply -> do
       Fun a <- popData
-      runTerm a
+      recur a
     Builtin.Compose -> do
       Fun b <- popData
       Fun a <- popData
@@ -101,7 +105,7 @@ interpret stack (Fragment defs body)
       Bool condition <- popData
       Fun false <- popData
       Fun true <- popData
-      runTerm $ if condition then true else false
+      recur $ if condition then true else false
     Builtin.Le -> do
       Int b <- popData
       Int a <- popData
@@ -159,24 +163,36 @@ interpret stack (Fragment defs body)
       Int b <- popData
       Int a <- popData
       pushData . Int $ a `xor` b
-  runTerm (Scoped term) = do
+  Scoped term -> do
     pushLocal =<< popData
-    runTerm term
+    recur term
     popLocal_
-  runTerm (Local (Name index))
-    = pushData =<< (!! index) <$> gets localStack
-  runTerm (Compose term1 term2) = do
-    runTerm term1
-    runTerm term2
-  runTerm Empty = return ()
-  runDef (Def _ term) = runTerm term
+  Local (Name index) -> pushData =<< (!! index) <$> gets localStack
+  Compose term1 term2 -> do
+    recur term1
+    recur term2
+  Empty -> return ()
+  where
+  runDef (Def _ term) = recur term
+  recur = runTerm defs
 
-  pushData value = modify $ \ s -> s { dataStack = value : dataStack s }
-  pushLocal value = modify $ \ s -> s { localStack = value : localStack s }
-  peekData = head <$> gets dataStack
-  popData_ = modify $ \ s -> s { dataStack = tail $ dataStack s }
-  popData = do
-    value <- head <$> gets dataStack
-    popData_
-    return value
-  popLocal_ = modify $ \ s -> s { localStack = tail $ localStack s }
+peekData :: StackIO Value
+peekData = head <$> gets dataStack
+
+popData :: StackIO Value
+popData = do
+  value <- head <$> gets dataStack
+  popData_
+  return value
+
+popData_ :: StackIO ()
+popData_ = modify $ \ s -> s { dataStack = tail $ dataStack s }
+
+popLocal_ :: StackIO ()
+popLocal_ = modify $ \ s -> s { localStack = tail $ localStack s }
+
+pushData :: Value -> StackIO ()
+pushData value = modify $ \ s -> s { dataStack = value : dataStack s }
+
+pushLocal :: Value -> StackIO ()
+pushLocal value = modify $ \ s -> s { localStack = value : localStack s }
