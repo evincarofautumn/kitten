@@ -2,6 +2,7 @@ module Kitten.Repl
   ( runRepl
   ) where
 
+import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict
 import Data.List
@@ -17,6 +18,8 @@ import Kitten.Fragment
 import Kitten.Interpret
 import Kitten.Prelude
 import Kitten.Resolve
+
+import qualified Kitten.Builtin as Builtin
 
 runRepl :: IO ()
 runRepl = flip evalStateT empty $ runInputT settings repl
@@ -67,17 +70,20 @@ repl = do
     liftIO . putStrLn . unwords . reverse $ map show stack
 
 completer :: CompletionFunc ReplState
-completer = completeWord Nothing "\t \"{}[]()\\:" findDef
+completer = completeWord Nothing "\t \"{}[]()\\:" completePrefix
 
-findDef :: (Monad m) => String -> StateT Repl m [Completion]
-findDef prefix = do
-  defs <- gets replDefs
+completePrefix :: (Monad m) => String -> StateT Repl m [Completion]
+completePrefix prefix = do
+  defs <- liftM Vector.toList $ gets replDefs
   let
-    names = Vector.map (Text.unpack . defName) defs
-    matching = Vector.filter (prefix `isPrefixOf`) names
-    finished = Vector.length matching <= 1
-    completions = Vector.map (toCompletion finished) matching
-  return $ Vector.toList completions
+    names = map Text.unpack $ map defName defs ++ Builtin.names
+    matching = filter (prefix `isPrefixOf`) names
+    finished = case matching of
+      [] -> True
+      [_] -> True
+      _ -> False
+    completions = map (toCompletion finished) matching
+  return completions
 
 toCompletion :: Bool -> String -> Completion
 toCompletion finished name = Completion

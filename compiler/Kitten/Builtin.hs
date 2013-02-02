@@ -3,6 +3,7 @@
 module Kitten.Builtin
   ( Builtin(..)
   , fromText
+  , names
   , toText
   ) where
 
@@ -67,6 +68,9 @@ toTextMap = Map.fromList toTextTable
 
 fromTextMap :: Map Text Builtin
 fromTextMap = Map.fromList fromTextTable
+
+names :: [Text]
+names = map fst fromTextTable
 
 fromTextTable :: [(Text, Builtin)]
 fromTextTable =
