@@ -2,14 +2,24 @@ def {x f} dip {
   f apply x
 }
 
-def push {
-  vec cat
+def {xs x} append {
+  xs x vec cat
 }
 
-def {xs f g} topdown {
+def {x xs} prepend {
+  x vec xs cat
+}
+
+def {xs f g} downtop {
   xs down f apply
   xs top g apply
-  push
+  append
+}
+
+def {xs f g} bottomup {
+  xs bottom f apply
+  xs up g apply
+  prepend
 }
 
 def {t x} when {
@@ -22,10 +32,6 @@ def {f x} unless {
 
 def {xs f} map {
   { [] }
-  {}
-  xs fun compose
-  f fun {map} compose fun compose
-  f fun compose
-  {topdown} compose
+  { xs f {f map} bottomup }
   xs empty if
 }
