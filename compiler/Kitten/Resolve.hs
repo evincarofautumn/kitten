@@ -135,6 +135,4 @@ localIndex name = elemIndex name . envScope
 defIndex :: Text -> Env -> Maybe Int
 defIndex expected Env{..} = findExpected envPrelude
   <|> ((+ Vector.length envPrelude) <$> findExpected envDefs)
-  where
-  defName (Def name _) = name
-  findExpected = Vector.findIndex $ (== expected) . defName
+  where findExpected = Vector.findIndex $ (== expected) . defName
