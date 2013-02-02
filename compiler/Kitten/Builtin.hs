@@ -10,6 +10,7 @@ import Data.Map (Map)
 import Data.Text (Text)
 
 import qualified Data.Map as Map
+import qualified Data.Text as Text
 
 import Kitten.Util
 
@@ -52,7 +53,8 @@ data Builtin
   | XorInt
   deriving (Eq, Ord)
 
-instance Show Builtin where show = maybe "<unknown builtin>" show . toText
+instance Show Builtin where
+  show = maybe "<unknown builtin>" Text.unpack . toText
 
 toText :: Builtin -> Maybe Text
 toText = (`Map.lookup` toTextMap)
