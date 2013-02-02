@@ -35,6 +35,9 @@ runTerm :: Vector (Def Resolved) -> Resolved -> StackIO ()
 runTerm defs body = case body of
   Value value -> case value of
     Word (Name index) -> runDef $ defs ! index
+    Fun term -> do
+      locals <- gets localStack
+      pushData . Fun $ closeTerm locals term
     _ -> pushData value
   Builtin builtin -> case builtin of
     Builtin.At -> do
@@ -175,6 +178,26 @@ runTerm defs body = case body of
   where
   runDef (Def _ term) = recur term
   recur = runTerm defs
+
+closeTerm :: [Value] -> Resolved -> Resolved
+closeTerm locals = closeTerm' 0
+  where
+  closeTerm' depth body = case body of
+    Value value -> Value $ closeValue depth value
+    Scoped term -> Scoped $ descend term
+    Local (Name index) -> if index >= depth
+      then Value $ locals !! (index - depth)
+      else body
+    Compose term1 term2
+      -> Compose (recur term1) (recur term2)
+    _ -> body
+    where
+    recur = closeTerm' depth
+    descend = closeTerm' $ succ depth
+
+  closeValue depth value = case value of
+    Fun term -> Fun $ closeTerm' depth term
+    _ -> value
 
 peekData :: StackIO Value
 peekData = head <$> gets dataStack
