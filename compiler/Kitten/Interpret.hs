@@ -61,6 +61,9 @@ runTerm defs body = case body of
       Vec a <- popData
       pushData . Vec $ Vector.init a
     Builtin.Vec -> pushData . Vec . pure =<< popData
+    Builtin.Length -> do
+      Vec a <- popData
+      pushData . Int $ Vector.length a
     Builtin.Add -> do
       Int b <- popData
       Int a <- popData

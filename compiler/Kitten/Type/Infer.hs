@@ -136,6 +136,9 @@ infer typedTerm = do
       Builtin.Up
         -> (\ a -> r :. VecType a :> r :. VecType a)
         <$> fresh
+      Builtin.Length
+        -> (\ a -> r :. VecType a :> r :. IntType)
+        <$> fresh
       Builtin.Empty
         -> (\ a -> r :. VecType a :> r :. BoolType)
         <$> fresh

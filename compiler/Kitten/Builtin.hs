@@ -35,6 +35,7 @@ data Builtin
   | Gt
   | If
   | Le
+  | Length
   | Lt
   | Mod
   | Mul
@@ -93,6 +94,7 @@ fromTextTable =
   , (,) ">"       Gt
   , (,) "if"      If
   , (,) "<="      Le
+  , (,) "length"  Length
   , (,) "<"       Lt
   , (,) "%"       Mod
   , (,) "*"       Mul
