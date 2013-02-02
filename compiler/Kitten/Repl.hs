@@ -5,7 +5,7 @@ module Kitten.Repl
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict
 import Data.Vector (Vector)
-import System.IO
+import System.Console.Haskeline
 
 import Kitten.Compile
 import Kitten.Def
@@ -15,50 +15,50 @@ import Kitten.Prelude
 import Kitten.Resolve
 
 runRepl :: IO ()
-runRepl = evalStateT repl empty
+runRepl = runInputT defaultSettings $ evalStateT repl emptyRepl
 
 data Repl = Repl
   { replStack :: [Value]
   , replDefs :: Vector (Def Resolved)
   }
 
-empty :: Repl
-empty = Repl [] prelude
+type ReplT = StateT Repl
 
-repl :: StateT Repl IO ()
+emptyRepl :: Repl
+emptyRepl = Repl [] prelude
+
+repl :: ReplT (InputT IO) ()
 repl = do
-  line <- lift prompt
-  case line of
-    "" -> repl
-    ":quit" -> quit
-    ":q" -> quit
-    ":clear" -> clear
-    ":c" -> clear
-    (':' : expression) -> do
-      defs <- gets replDefs
-      stack <- gets replStack
-      lift $ case typecheck stack defs replName expression of
+  mLine <- lift $ getInputLine ">>> "
+  case mLine of
+    Nothing -> quit
+    Just "" -> repl
+    Just ":quit" -> quit
+    Just ":q" -> quit
+    Just ":clear" -> clear
+    Just ":c" -> clear
+    Just (':' : expression) -> do
+      Repl{..} <- get
+      lift . lift $ case typecheck replStack replDefs replName expression of
         Left compileError -> print compileError
         Right type_ -> print type_
       repl
-    _ -> do
-      defs <- gets replDefs
-      stack <- gets replStack
-      case compile stack defs replName line of
-        Left compileError -> lift $ print compileError
+    Just line -> do
+      Repl{..} <- get
+      case compile replStack replDefs replName line of
+        Left compileError -> lift . lift $ print compileError
         Right compileResult -> do
-          stack' <- lift $ interpret stack compileResult
-          lift . putStrLn . unwords . reverse $ map show stack'
+          stack' <- lift . lift $ interpret replStack compileResult
           modify $ \ s -> s
             { replStack = stack'
             , replDefs = fragmentDefs compileResult
             }
+          showStack
       repl
   where
-  prompt = do
-    putStr "> "
-    hFlush stdout
-    getLine
   quit = return ()
-  clear = put empty >> repl
+  clear = put emptyRepl >> repl
   replName = "REPL"
+  showStack = do
+    stack <- gets replStack
+    lift . lift . putStrLn . unwords . reverse $ map show stack
