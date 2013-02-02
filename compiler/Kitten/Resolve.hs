@@ -35,6 +35,16 @@ data Resolved
   | Compose !Resolved !Resolved
   | Empty
 
+instance Show Resolved where
+  show resolved = case resolved of
+    Value value -> show value
+    Builtin builtin -> show builtin
+    Scoped term -> concat ["enter ", show term, " leave"]
+    Local (Name index) -> "local" ++ show index
+    Compose Empty term -> show term
+    Compose term1 term2 -> show term1 ++ " " ++ show term2
+    Empty -> ""
+
 data Value
   = Word !Name
   | Int !Int
@@ -52,7 +62,7 @@ instance Show Value where
     Text value -> show value
     Vec values -> Text.unpack $ "[" <> showVector values <> "]"
     Tuple values -> Text.unpack $ "(" <> showVector values <> ")"
-    Fun _ -> "{...}"
+    Fun term -> Text.unpack $ "{" <> textShow term <> "}"
     where
     showVector = Text.unwords . map textShow . Vector.toList . Vector.reverse
 
