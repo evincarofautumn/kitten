@@ -4,8 +4,12 @@ module Kitten.Repl
 
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict
+import Data.List
 import Data.Vector (Vector)
 import System.Console.Haskeline
+
+import qualified Data.Text as Text
+import qualified Data.Vector as Vector
 
 import Kitten.Compile
 import Kitten.Def
@@ -15,21 +19,19 @@ import Kitten.Prelude
 import Kitten.Resolve
 
 runRepl :: IO ()
-runRepl = runInputT defaultSettings $ evalStateT repl emptyRepl
+runRepl = flip evalStateT empty $ runInputT settings repl
 
 data Repl = Repl
   { replStack :: [Value]
   , replDefs :: Vector (Def Resolved)
   }
 
-type ReplT = StateT Repl
+type ReplState = StateT Repl IO
+type ReplInput = InputT ReplState
 
-emptyRepl :: Repl
-emptyRepl = Repl [] prelude
-
-repl :: ReplT (InputT IO) ()
+repl :: ReplInput ()
 repl = do
-  mLine <- lift $ getInputLine ">>> "
+  mLine <- getInputLine ">>> "
   case mLine of
     Nothing -> quit
     Just "" -> repl
@@ -38,18 +40,18 @@ repl = do
     Just ":clear" -> clear
     Just ":c" -> clear
     Just (':' : expression) -> do
-      Repl{..} <- get
+      Repl{..} <- lift get
       liftIO $ case typecheck replStack replDefs replName expression of
         Left compileError -> print compileError
         Right type_ -> print type_
       repl
     Just line -> do
-      Repl{..} <- get
+      Repl{..} <- lift get
       case compile replStack replDefs replName line of
         Left compileError -> liftIO $ print compileError
         Right compileResult -> do
           stack' <- liftIO $ interpret replStack compileResult
-          modify $ \ s -> s
+          lift . modify $ \ s -> s
             { replStack = stack'
             , replDefs = fragmentDefs compileResult
             }
@@ -57,9 +59,39 @@ repl = do
       repl
   where
   quit = return ()
-  clear = put emptyRepl >> repl
+  clear = lift (put empty) >> repl
   replName = "REPL"
   liftIO = lift . lift
   showStack = do
-    stack <- gets replStack
+    stack <- lift $ gets replStack
     liftIO . putStrLn . unwords . reverse $ map show stack
+
+completer :: CompletionFunc ReplState
+completer = completeWord Nothing "\t \"{}[]()\\:" findDef
+
+findDef :: (Monad m) => String -> StateT Repl m [Completion]
+findDef prefix = do
+  defs <- gets replDefs
+  let
+    names = Vector.map (Text.unpack . defName) defs
+    matching = Vector.filter (prefix `isPrefixOf`) names
+    finished = Vector.length matching <= 1
+    completions = Vector.map (toCompletion finished) matching
+  return $ Vector.toList completions
+
+toCompletion :: Bool -> String -> Completion
+toCompletion finished name = Completion
+  { replacement = name
+  , display = name
+  , isFinished = finished
+  }
+
+settings :: Settings ReplState
+settings = Settings
+  { complete = completer
+  , historyFile = Nothing
+  , autoAddHistory = True
+  }
+
+empty :: Repl
+empty = Repl [] prelude
