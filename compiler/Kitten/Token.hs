@@ -62,7 +62,7 @@ instance Show Located where
   show Located{..} = show locatedToken
 
 tokenize :: String -> String -> Either ParseError [Located]
-tokenize = runParser file 0
+tokenize = runParser file 1
 
 located
   :: Parser Token
