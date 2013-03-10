@@ -123,8 +123,7 @@ resolveValue unresolved = case unresolved of
   Term.Int value -> return . Value $ Int value
   Term.Bool value -> return . Value $ Bool value
   Term.Text value -> return . Value $ Text value
-  where
-  resolveVector = Vector.mapM (fmap fromValue . resolveValue)
+  where resolveVector = Vector.mapM $ fmap fromValue . resolveValue
 
 localIndex :: Text -> Env -> Maybe Int
 localIndex name = elemIndex name . envScope
