@@ -80,9 +80,9 @@ runTerm defs body = case body of
       Fun a <- popData
       recur a
     Builtin.Compose -> do
-      Fun b <- popData
-      Fun a <- popData
-      pushData . Fun $ Compose a b
+      Fun (Compose bs) <- popData
+      Fun (Compose as) <- popData
+      pushData . Fun . Compose $ as <> bs
     Builtin.Div -> do
       Int b <- popData
       Int a <- popData
@@ -174,10 +174,7 @@ runTerm defs body = case body of
     recur term
     popLocal_
   Local (Name index) -> pushData =<< (!! index) <$> gets localStack
-  Compose term1 term2 -> do
-    recur term1
-    recur term2
-  Empty -> return ()
+  Compose terms -> Vector.mapM_ recur terms
   where
   runDef (Def _ term) = recur term
   recur = runTerm defs
@@ -191,8 +188,7 @@ closeTerm locals = closeTerm' 0
     Local (Name index) -> if index >= depth
       then Value $ locals !! (index - depth)
       else body
-    Compose term1 term2
-      -> Compose (recur term1) (recur term2)
+    Compose terms -> Compose $ Vector.map recur terms
     _ -> body
     where
     recur = closeTerm' depth
