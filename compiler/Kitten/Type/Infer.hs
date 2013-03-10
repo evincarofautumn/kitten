@@ -100,7 +100,7 @@ infer typedTerm = do
     -- Note the similarity to composition here.
     Scoped term type_ -> do
       a <- fresh
-      local (Forall [] a) $ do
+      local (Forall mempty a) $ do
         (b :> c) <- infer term
         unifyM_ r b
         unifyM type_ $ r :. a :> c

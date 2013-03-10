@@ -4,10 +4,12 @@ module Kitten.Util
   , justIf
   , mapLeft
   , maybeToEither
+  , mconcatMap
   , swap
   , textShow
   ) where
 
+import Data.Monoid
 import Data.Text (Text)
 
 import qualified Data.Text as Text
@@ -30,6 +32,9 @@ mapLeft _ (Right a) = Right a
 maybeToEither :: e -> Maybe a -> Either e a
 maybeToEither _ (Just a) = Right a
 maybeToEither e Nothing = Left e
+
+mconcatMap :: (Monoid b) => (a -> b) -> [a] -> b
+mconcatMap = (mconcat .) . map
 
 swap :: (a, b) -> (b, a)
 swap ~(a, b) = (b, a)

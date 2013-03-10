@@ -25,8 +25,8 @@ import Kitten.Type
 import Kitten.Util
 
 data Env = Env
-  { envNext  :: Name
-  , envTypes :: IntMap Type
+  { envNext  :: !Name
+  , envTypes :: !(IntMap Type)
   , envLocals :: [TypeScheme]
   , envInstantiations :: [(Type, Name)]
   }

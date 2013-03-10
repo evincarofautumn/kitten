@@ -53,9 +53,9 @@ instance Show Token where
   show Layout = ":"
 
 data Located = Located
-  { locatedLocation :: SourcePos
-  , locatedIndent :: Column
-  , locatedToken :: Token
+  { locatedLocation :: !SourcePos
+  , locatedIndent :: !Column
+  , locatedToken :: !Token
   }
 
 instance Show Located where

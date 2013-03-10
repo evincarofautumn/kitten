@@ -9,8 +9,10 @@ module Kitten.Type
   ) where
 
 import Data.Text (Text)
+import Data.Set (Set)
 import Data.Vector (Vector)
 
+import qualified Data.Set as Set
 import qualified Data.Vector as Vector
 
 import Kitten.Builtin (Builtin)
@@ -48,7 +50,7 @@ data Value
   | Tuple !(Vector Value) !Type
   | Fun !Typed !Type
 
-data TypeScheme = Forall [Name] Type
+data TypeScheme = Forall !(Set Name) !Type
 
 manifestType :: Typed -> Type
 manifestType term = case term of
@@ -86,5 +88,9 @@ instance Show Type where
   show (a :. b) = show a ++ " " ++ show b
 
 instance Show TypeScheme where
-  show (Forall vars term)
-    = "forall [" ++ unwords (map show vars) ++ "]. " ++ show term
+  show (Forall vars term) = concat
+    [ "forall ["
+    , unwords . Set.toList $ Set.map show vars
+    , "]. "
+    , show term
+    ]

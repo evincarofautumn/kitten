@@ -43,8 +43,8 @@ data Value
   | Fun !Term
 
 data Element
-  = DefElement (Def Term)
-  | TermElement Term
+  = DefElement !(Def Term)
+  | TermElement !Term
 
 parse :: String -> [Located] -> Either ParseError (Fragment Term)
 parse = Parsec.parse fragment

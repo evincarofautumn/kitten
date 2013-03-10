@@ -26,7 +26,7 @@ runRepl = flip evalStateT empty $ runInputT settings repl
 
 data Repl = Repl
   { replStack :: [Value]
-  , replDefs :: Vector (Def Resolved)
+  , replDefs :: !(Vector (Def Resolved))
   }
 
 type ReplState = StateT Repl IO
