@@ -60,7 +60,6 @@ manifestType term = case term of
   Local _ type_ -> type_
   Compose _ _ type_ -> type_
   Empty type_ -> type_
-  where
 
 manifestValueType :: Value -> Type
 manifestValueType value = case value of
