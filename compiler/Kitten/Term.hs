@@ -6,7 +6,6 @@ module Kitten.Term
 
 import Control.Applicative
 import Control.Monad.Identity
-import Data.List
 import Data.Monoid
 import Data.Text (Text)
 import Data.Vector (Vector)
@@ -30,8 +29,7 @@ data Term
   = Value !Value
   | Builtin !Builtin
   | Lambda !Text !Term
-  | Compose !Term !Term
-  | Empty
+  | Compose !(Vector Term)
 
 data Value
   = Word !Text
@@ -65,7 +63,7 @@ element :: Parser Element
 element = (DefElement <$> def) <|> (TermElement <$> term)
 
 compose :: [Term] -> Term
-compose = foldl' Compose Empty
+compose = Compose . Vector.fromList
 
 def :: Parser (Def Term)
 def = (<?> "definition") $ do

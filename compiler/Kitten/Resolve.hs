@@ -32,8 +32,7 @@ data Resolved
   | Builtin !Builtin
   | Scoped !Resolved
   | Local !Name
-  | Compose !Resolved !Resolved
-  | Empty
+  | Compose !(Vector Resolved)
 
 instance Show Resolved where
   show resolved = case resolved of
@@ -41,9 +40,7 @@ instance Show Resolved where
     Builtin builtin -> show builtin
     Scoped term -> concat ["enter ", show term, " leave"]
     Local (Name index) -> "local" ++ show index
-    Compose Empty term -> show term
-    Compose term1 term2 -> show term1 ++ " " ++ show term2
-    Empty -> ""
+    Compose terms -> unwords . Vector.toList $ Vector.map show terms
 
 data Value
   = Word !Name
@@ -97,9 +94,8 @@ resolveTerm :: Term -> Resolution Resolved
 resolveTerm unresolved = case unresolved of
   Term.Value value -> resolveValue value
   Term.Builtin name -> return $ Builtin name
-  Term.Compose down top -> Compose <$> resolveTerm down <*> resolveTerm top
+  Term.Compose terms -> Compose <$> Vector.mapM resolveTerm terms
   Term.Lambda name term -> withLocal name $ Scoped <$> resolveTerm term
-  Term.Empty -> return Empty
 
 fromValue :: Resolved -> Value
 fromValue (Value value) = value

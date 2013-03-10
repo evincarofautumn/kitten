@@ -60,7 +60,7 @@ inferFragment stack prelude fragment@Fragment{..}
     unifyM_ a (EmptyType :> s)
     unifyM_ b c
   inferDefs = Vector.mapM inferDef
-  stackTerm = foldr (flip Resolve.Compose . Resolve.Value) Resolve.Empty
+  stackTerm = Resolve.Compose . Vector.map Resolve.Value . Vector.fromList
 
 -- | Infers the type scheme of a definition.
 inferDef :: Def Typed -> Inference TypeScheme
