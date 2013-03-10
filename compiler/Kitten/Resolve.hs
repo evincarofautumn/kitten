@@ -72,11 +72,12 @@ data Env = Env
   , envScope :: [Text]
   }
 
-enter :: Text -> Env -> Env
-enter name env = env { envScope = name : envScope env }
-
-leave :: Env -> Env
-leave env = env { envScope = tail $ envScope env }
+withLocal :: Text -> Resolution a -> Resolution a
+withLocal name action = do
+  modify $ \ env@Env{..} -> env { envScope = name : envScope }
+  result <- action
+  modify $ \ env@Env{..} -> env { envScope = tail envScope }
+  return result
 
 type Resolution = StateT Env (Either CompileError)
 
@@ -97,11 +98,7 @@ resolveTerm unresolved = case unresolved of
   Term.Value value -> resolveValue value
   Term.Builtin name -> return $ Builtin name
   Term.Compose down top -> Compose <$> resolveTerm down <*> resolveTerm top
-  Term.Lambda name term -> do
-    modify $ enter name
-    resolved <- resolveTerm term
-    modify leave
-    return $ Scoped resolved
+  Term.Lambda name term -> withLocal name $ Scoped <$> resolveTerm term
   Term.Empty -> return Empty
 
 fromValue :: Resolved -> Value
