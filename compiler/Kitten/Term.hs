@@ -72,7 +72,7 @@ def = (<?> "definition") $ do
   void $ token Token.Def
   mParams <- optionMaybe $ grouped identifier
   name <- identifier
-  body <- oneOrGroup
+  body <- oneOrBlock
   let
     body' = case mParams of
       Just params -> foldr Lambda body $ reverse params
@@ -88,7 +88,7 @@ term = choice
   where
   lambda = (<?> "lambda") $ do
     name <- token Token.Lambda *> identifier
-    Lambda name <$> oneOrGroup
+    Lambda name <$> oneOrBlock
   toBuiltin (Token.Builtin name) = Just $ Builtin name
   toBuiltin _ = Nothing
 
@@ -111,14 +111,18 @@ value = choice
     <$> between (token Token.VecBegin) (token Token.VecEnd) (many value)
     <?> "vector"
   fun = Fun . compose
-    <$> (grouped term <|> layout)
+    <$> (block term <|> layout)
     <?> "function"
   tuple = Tuple . Vector.reverse . Vector.fromList
     <$> between (token Token.TupleBegin) (token Token.TupleEnd) (many value)
     <?> "tuple"
 
 grouped :: Parser a -> Parser [a]
-grouped parser = between (token Token.FunBegin) (token Token.FunEnd)
+grouped parser = between (token Token.TupleBegin) (token Token.TupleEnd)
+  $ many parser
+
+block :: Parser a -> Parser [a]
+block parser = between (token Token.FunBegin) (token Token.FunEnd)
   $ many parser
 
 layout :: Parser [Term]
@@ -143,9 +147,9 @@ identifier = mapOne toIdentifier
   toIdentifier (Token.Word name) = Just name
   toIdentifier _ = Nothing
 
-oneOrGroup :: Parser Term
-oneOrGroup = choice
-  [ compose <$> grouped term
+oneOrBlock :: Parser Term
+oneOrBlock = choice
+  [ compose <$> block term
   , compose <$> layout
   , term
   ]

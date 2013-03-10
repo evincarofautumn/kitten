@@ -1,29 +1,29 @@
-def {x f} dip:
+def (x f) dip:
   f apply x
 
-def {xs x} append:
+def (xs x) append:
   xs x vec cat
 
-def {x xs} prepend:
+def (x xs) prepend:
   x vec xs cat
 
-def {xs f g} downtop:
+def (xs f g) downtop:
   xs down f apply
   xs top g apply
   append
 
-def {xs f g} bottomup:
+def (xs f g) bottomup:
   xs bottom f apply
   xs up g apply
   prepend
 
-def {t x} when:
+def (t x) when:
   t {} x if
 
-def {f x} unless:
+def (f x) unless:
   {} f x if
 
-def {xs f} map:
+def (xs f) map:
   { [] }
   { xs f {f map} bottomup }
   xs empty if
