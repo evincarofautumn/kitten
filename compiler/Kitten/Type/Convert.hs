@@ -6,7 +6,6 @@ module Kitten.Type.Convert
 
 import Control.Applicative
 
-import qualified Data.Foldable as Foldable
 import qualified Data.Vector as Vector
 
 import Kitten.Def
@@ -33,10 +32,9 @@ toTyped resolved = case resolved of
   Resolve.Builtin name -> Builtin name <$> freshFunction
   Resolve.Scoped term -> Scoped <$> toTyped term <*> freshFunction
   Resolve.Local index -> Local index <$> freshFunction
-  Resolve.Compose terms -> do
-    terms' <- Vector.mapM toTyped terms
-    bottom <- Empty <$> freshFunction
-    Foldable.foldlM (\ x y -> Compose x y <$> freshFunction) bottom terms'
+  Resolve.Compose down top
+    -> Compose <$> toTyped down <*> toTyped top <*> freshFunction
+  Resolve.Empty -> Empty <$> freshFunction
   where
   toTypedValue v = case v of
     Resolve.Word index -> Word index <$> freshFunction
