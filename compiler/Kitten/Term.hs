@@ -6,22 +6,31 @@ module Kitten.Term
 
 import Control.Applicative
 import Control.Monad.Identity
+import Data.List
 import Data.Monoid
+import Data.Map (Map)
 import Data.Text (Text)
 import Data.Vector (Vector)
 import Text.Parsec
   hiding ((<|>), Empty, many, parse, satisfy, token, tokens)
 
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Text.Parsec as Parsec
 
+import Kitten.Anno
 import Kitten.Builtin (Builtin)
 import Kitten.Def
 import Kitten.Fragment
+import Kitten.Name
 import Kitten.Token (Located(..), Token)
+import Kitten.Type (TypeScheme(..), Type((:>), (:.)))
 import Kitten.Util
 
 import qualified Kitten.Token as Token
+import qualified Kitten.Type as Type
 
 type Parser a = ParsecT [Located] () Identity a
 
@@ -41,34 +50,81 @@ data Value
   | Fun !Term
 
 data Element
-  = DefElement !(Def Term)
+  = AnnoElement !Anno
+  | DefElement !(Def Term)
   | TermElement !Term
 
 parse :: String -> [Located] -> Either ParseError (Fragment Term)
 parse = Parsec.parse fragment
 
-partitionElements :: [Element] -> ([Def Term], [Term])
+partitionElements :: [Element] -> ([Anno], [Def Term], [Term])
 partitionElements = foldr partitionElement mempty
   where
-  partitionElement (DefElement d) (ds, ts) = (d : ds, ts)
-  partitionElement (TermElement t) (ds, ts) = (ds, t : ts)
+  partitionElement (AnnoElement a) (as, ds, ts) = (a : as, ds, ts)
+  partitionElement (DefElement d) (as, ds, ts) = (as, d : ds, ts)
+  partitionElement (TermElement t) (as, ds, ts) = (as, ds, t : ts)
 
 fragment :: Parser (Fragment Term)
 fragment = do
   elements <- many element <* eof
-  let (defs, terms) = partitionElements elements
+  let (_annos, defs, terms) = partitionElements elements
   return $ Fragment (Vector.fromList defs) (compose terms)
 
 element :: Parser Element
-element = (DefElement <$> def) <|> (TermElement <$> term)
+element = choice
+  [ AnnoElement <$> anno
+  , DefElement <$> def
+  , TermElement <$> term
+  ]
 
 compose :: [Term] -> Term
 compose = Compose . Vector.fromList
 
+anno :: Parser Anno
+anno = do
+  void $ token Token.Type
+  params <- maybe mempty makeParamMap
+    <$> optionMaybe (grouped $ many identifier)
+  name <- identifier
+  rawType <- block (type_ params) <|> layout (type_ params)
+  return . Anno name $ Forall
+    (Set.fromList [Name 0 .. Name $ Map.size params])
+    rawType
+  where makeParamMap = Map.fromList . flip zip [Name 0 ..]
+
+type_ :: Map Text Name -> Parser Type
+type_ params = type'
+  where
+  type' = do
+    left <- many1 baseType
+    mRight <- optionMaybe $ token Token.Arrow *> many1 baseType
+    case mRight of
+      Just right -> return $ composeTypes left :> composeTypes right
+      Nothing -> return $ composeTypes left
+  baseType = choice
+    [ Type.BoolType <$ token Token.BoolType
+    , Type.IntType <$ token Token.IntType
+    , Type.TextType <$ token Token.TextType
+    , Type.VecType <$> between (token Token.VecBegin) (token Token.VecEnd) type'
+    , Type.TupleType . Vector.fromList <$> grouped (many baseType)
+    , block type'
+    , var
+    ]
+  var = do
+    word <- identifier
+    case Map.lookup word params of
+      Just param -> return $ Type.Var param
+      Nothing -> (parserFail . concat)
+        [ "type variable '"
+        , Text.unpack word
+        , "' is not in scope"
+        ]
+  composeTypes = foldl' (:.) Type.EmptyType
+
 def :: Parser (Def Term)
 def = (<?> "definition") $ do
   void $ token Token.Def
-  mParams <- optionMaybe $ grouped identifier
+  mParams <- optionMaybe . grouped $ many identifier
   name <- identifier
   body <- oneOrBlock
   let
@@ -109,22 +165,20 @@ value = choice
     <$> between (token Token.VecBegin) (token Token.VecEnd) (many value)
     <?> "vector"
   fun = Fun . compose
-    <$> (block term <|> layout)
+    <$> (block (many term) <|> layout (many term))
     <?> "function"
   tuple = Tuple . Vector.reverse . Vector.fromList
     <$> between (token Token.TupleBegin) (token Token.TupleEnd) (many value)
     <?> "tuple"
 
-grouped :: Parser a -> Parser [a]
-grouped parser = between (token Token.TupleBegin) (token Token.TupleEnd)
-  $ many parser
+grouped :: Parser a -> Parser a
+grouped = between (token Token.TupleBegin) (token Token.TupleEnd)
 
-block :: Parser a -> Parser [a]
-block parser = between (token Token.FunBegin) (token Token.FunEnd)
-  $ many parser
+block :: Parser a -> Parser a
+block = between (token Token.FunBegin) (token Token.FunEnd)
 
-layout :: Parser [Term]
-layout = do
+layout :: Parser a -> Parser a
+layout inner = do
   Token.Located startLocation startIndent _ <- located Token.Layout
   firstToken@(Token.Located firstLocation _ _) <- anyLocated
   let
@@ -135,7 +189,7 @@ layout = do
         -> sourceColumn location > startIndent
   innerTokens <- many $ locatedSatisfy inside
   let tokens = firstToken : innerTokens
-  case Parsec.parse (many term) "layout quotation" tokens of
+  case Parsec.parse (inner <* eof) "layout" tokens of
     Right result -> return result
     Left err -> fail $ show err
 
@@ -147,8 +201,8 @@ identifier = mapOne toIdentifier
 
 oneOrBlock :: Parser Term
 oneOrBlock = choice
-  [ compose <$> block term
-  , compose <$> layout
+  [ compose <$> block (many term)
+  , compose <$> layout (many term)
   , term
   ]
 
