@@ -16,21 +16,19 @@ import Text.Parsec
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Text.Parsec as Parsec
 
-import Kitten.Anno
+import Kitten.Anno (Anno(..), Type((:>), (:.)))
 import Kitten.Builtin (Builtin)
 import Kitten.Def
 import Kitten.Fragment
 import Kitten.Name
 import Kitten.Token (Located(..), Token)
-import Kitten.Type (TypeScheme(..), Type((:>), (:.)))
 import Kitten.Util
 
+import qualified Kitten.Anno as Anno
 import qualified Kitten.Token as Token
-import qualified Kitten.Type as Type
 
 type Parser a = ParsecT [Located] () Identity a
 
@@ -86,40 +84,33 @@ anno = do
   params <- maybe mempty makeParamMap
     <$> optionMaybe (grouped $ many identifier)
   name <- identifier
-  rawType <- block (type_ params) <|> layout (type_ params)
-  return . Anno name $ Forall
+  rawType <- block (sig params) <|> layout (sig params)
+  return $ Anno name
     (Set.fromList [Name 0 .. Name $ Map.size params])
     rawType
   where makeParamMap = Map.fromList . flip zip [Name 0 ..]
 
-type_ :: Map Text Name -> Parser Type
-type_ params = type'
+sig :: Map Text Name -> Parser Type
+sig params = sig'
   where
-  type' = do
+  sig' = do
     left <- many1 baseType
     mRight <- optionMaybe $ token Token.Arrow *> many1 baseType
     case mRight of
       Just right -> return $ composeTypes left :> composeTypes right
       Nothing -> return $ composeTypes left
   baseType = choice
-    [ Type.BoolType <$ token Token.BoolType
-    , Type.IntType <$ token Token.IntType
-    , Type.TextType <$ token Token.TextType
-    , Type.VecType <$> between (token Token.VecBegin) (token Token.VecEnd) type'
-    , Type.TupleType . Vector.fromList <$> grouped (many baseType)
-    , block type'
+    [ Anno.Vec <$> between (token Token.VecBegin) (token Token.VecEnd) sig'
+    , Anno.Tuple . Vector.fromList <$> grouped (many baseType)
+    , block sig'
     , var
     ]
   var = do
     word <- identifier
-    case Map.lookup word params of
-      Just param -> return $ Type.Var param
-      Nothing -> (parserFail . concat)
-        [ "type variable '"
-        , Text.unpack word
-        , "' is not in scope"
-        ]
-  composeTypes = foldl' (:.) Type.EmptyType
+    return $ case Map.lookup word params of
+      Just param -> Anno.Var param
+      Nothing -> Anno.Word word
+  composeTypes = foldl' (:.) Anno.Empty
 
 def :: Parser (Def Term)
 def = (<?> "definition") $ do
