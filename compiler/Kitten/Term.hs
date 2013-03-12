@@ -19,7 +19,7 @@ import qualified Data.Set as Set
 import qualified Data.Vector as Vector
 import qualified Text.Parsec as Parsec
 
-import Kitten.Anno (Anno(..), Type((:>), (:.)))
+import Kitten.Anno (Anno(..), Sig)
 import Kitten.Builtin (Builtin)
 import Kitten.Def
 import Kitten.Fragment
@@ -48,25 +48,28 @@ data Value
   | Fun !Term
 
 data Element
-  = AnnoElement !Anno
+  = AnnoElement !(Anno Text)
   | DefElement !(Def Term)
   | TermElement !Term
 
-parse :: String -> [Located] -> Either ParseError (Fragment Term)
+parse :: String -> [Located] -> Either ParseError (Fragment Term Text)
 parse = Parsec.parse fragment
 
-partitionElements :: [Element] -> ([Anno], [Def Term], [Term])
+partitionElements :: [Element] -> ([Anno Text], [Def Term], [Term])
 partitionElements = foldr partitionElement mempty
   where
   partitionElement (AnnoElement a) (as, ds, ts) = (a : as, ds, ts)
   partitionElement (DefElement d) (as, ds, ts) = (as, d : ds, ts)
   partitionElement (TermElement t) (as, ds, ts) = (as, ds, t : ts)
 
-fragment :: Parser (Fragment Term)
+fragment :: Parser (Fragment Term Text)
 fragment = do
   elements <- many element <* eof
-  let (_annos, defs, terms) = partitionElements elements
-  return $ Fragment (Vector.fromList defs) (compose terms)
+  let (annos, defs, terms) = partitionElements elements
+  return $ Fragment
+    (Vector.fromList annos)
+    (Vector.fromList defs)
+    (compose terms)
 
 element :: Parser Element
 element = choice
@@ -78,7 +81,7 @@ element = choice
 compose :: [Term] -> Term
 compose = Compose . Vector.fromList
 
-anno :: Parser Anno
+anno :: Parser (Anno Text)
 anno = do
   void $ token Token.Type
   params <- maybe mempty makeParamMap
@@ -86,18 +89,20 @@ anno = do
   name <- identifier
   rawType <- block (sig params) <|> layout (sig params)
   return $ Anno name
-    (Set.fromList [Name 0 .. Name $ Map.size params])
+    (Set.fromList [Name 0 .. Name . pred $ Map.size params])
     rawType
   where makeParamMap = Map.fromList . flip zip [Name 0 ..]
 
-sig :: Map Text Name -> Parser Type
+sig :: Map Text Name -> Parser Sig
 sig params = sig'
   where
   sig' = do
     left <- many1 baseType
     mRight <- optionMaybe $ token Token.Arrow *> many1 baseType
     case mRight of
-      Just right -> return $ composeTypes left :> composeTypes right
+      Just right -> return $ Anno.Function
+        (composeTypes left)
+        (composeTypes right)
       Nothing -> return $ composeTypes left
   baseType = choice
     [ Anno.Vec <$> between (token Token.VecBegin) (token Token.VecEnd) sig'
@@ -110,7 +115,10 @@ sig params = sig'
     return $ case Map.lookup word params of
       Just param -> Anno.Var param
       Nothing -> Anno.Word word
-  composeTypes = foldl' (:.) Anno.Empty
+  composeTypes types
+    = if null types
+      then Anno.Empty
+      else foldl1' Anno.Compose types
 
 def :: Parser (Def Term)
 def = (<?> "definition") $ do

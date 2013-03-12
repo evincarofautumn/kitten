@@ -23,11 +23,8 @@ data Token
   = Word !Text
   | Builtin !Builtin
   | Int !Int
-  | IntType
   | Bool !Bool
-  | BoolType
   | Text !Text
-  | TextType
   | Arrow
   | Def
   | Type
@@ -46,11 +43,8 @@ instance Show Token where
     Word word -> show word
     Builtin name -> show name
     Int value -> show value
-    IntType -> "int"
     Bool value -> if value then "true" else "false"
-    BoolType -> "bool"
     Text value -> show value
-    TextType -> "text"
     Arrow -> "->"
     Def -> "def"
     Type -> "type"
@@ -124,9 +118,6 @@ token = (<?> "token") . located $ choice
     , '\v' <$ char 'v'
     ]
   word = (alphanumeric <|> symbolic) <$$> \ name -> case name of
-    "bool" -> BoolType
-    "int" -> IntType
-    "text" -> TextType
     "def" -> Def
     "type" -> Type
     "true" -> Bool True

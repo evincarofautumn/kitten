@@ -6,16 +6,19 @@ import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict
 import Data.List
+import Data.Monoid
 import Data.Vector (Vector)
 import System.Console.Haskeline
 
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 
+import Kitten.Anno
 import Kitten.Compile
 import Kitten.Def
 import Kitten.Fragment
 import Kitten.Interpret
+import Kitten.Name
 import Kitten.Prelude
 import Kitten.Resolve
 
@@ -27,6 +30,7 @@ runRepl = flip evalStateT empty $ runInputT settings repl
 data Repl = Repl
   { replStack :: [Value]
   , replDefs :: !(Vector (Def Resolved))
+  , replAnnos :: !(Vector (Anno Name))
   }
 
 type ReplState = StateT Repl IO
@@ -44,19 +48,21 @@ repl = do
     Just ":c" -> clear
     Just (':' : expression) -> do
       Repl{..} <- lift get
-      liftIO $ case typecheck replStack replDefs replName expression of
+      liftIO $ case typecheck
+        replStack replDefs replAnnos replName expression of
         Left compileError -> print compileError
         Right type_ -> print type_
       repl
     Just line -> do
       Repl{..} <- lift get
-      case compile replStack replDefs replName line of
+      case compile replStack replDefs replAnnos replName line of
         Left compileError -> liftIO $ print compileError
         Right compileResult -> do
           stack' <- liftIO $ interpret replStack compileResult
           lift . modify $ \ s -> s
             { replStack = stack'
             , replDefs = fragmentDefs compileResult
+            , replAnnos = fragmentAnnos compileResult
             }
           showStack
       repl
@@ -100,4 +106,4 @@ settings = Settings
   }
 
 empty :: Repl
-empty = Repl [] prelude
+empty = Repl [] prelude mempty

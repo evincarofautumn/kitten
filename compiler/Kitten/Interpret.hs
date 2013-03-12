@@ -27,8 +27,9 @@ data Stacks = Stacks
 
 type StackIO = StateT Stacks IO
 
-interpret :: [Value] -> Fragment Resolved -> IO [Value]
-interpret stack (Fragment defs body)
+interpret
+  :: [Value] -> Fragment Resolved Name -> IO [Value]
+interpret stack (Fragment _ defs body)
   = liftM dataStack . execStateT (runTerm defs body) $ Stacks stack []
 
 runTerm :: Vector (Def Resolved) -> Resolved -> StackIO ()

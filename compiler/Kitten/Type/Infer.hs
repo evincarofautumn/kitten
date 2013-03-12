@@ -10,8 +10,10 @@ import Control.Monad.Trans.State.Strict
 import Data.Monoid
 import Data.Vector (Vector, (!))
 
+import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 
+import Kitten.Anno (Anno(..), Sig)
 import Kitten.Def
 import Kitten.Error
 import Kitten.Name
@@ -24,28 +26,31 @@ import Kitten.Type.Scheme
 import Kitten.Type.Substitute
 import Kitten.Type.Unify
 
+import qualified Kitten.Anno as Anno
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.Resolve as Resolve
 
 -- | Runs type inference on a resolved AST.
 typeFragment
   :: Vector (Def Resolved)
+  -> Vector (Anno Name)
   -> [Resolve.Value]
-  -> Fragment Resolved
-  -> Either CompileError (Fragment Typed)
-typeFragment prelude stack fragment
+  -> Fragment Resolved Name
+  -> Either CompileError (Fragment Typed Name)
+typeFragment prelude annos stack fragment
   = fmap (uncurry substFragment) . flip runStateT emptyEnv $ do
     typedPrelude <- Vector.mapM toTypedDef prelude
     typedFragment <- toTypedFragment fragment
-    inferFragment stack typedPrelude typedFragment
+    inferFragment stack typedPrelude annos typedFragment
 
 -- | Infers and annotates the type of a program fragment.
 inferFragment
   :: [Resolve.Value]
   -> Vector (Def Typed)
-  -> Fragment Typed
-  -> Inference (Fragment Typed)
-inferFragment stack prelude fragment@Fragment{..}
+  -> Vector (Anno Name)
+  -> Fragment Typed Name
+  -> Inference (Fragment Typed Name)
+inferFragment stack prelude annos fragment@Fragment{..}
   = inferTerm >> inferAllDefs >> gets (substFragment fragment)
   where
   inferAllDefs = do
@@ -53,6 +58,11 @@ inferFragment stack prelude fragment@Fragment{..}
     instantiations <- gets envInstantiations
     forM_ instantiations $ \ (type_, Name index)
       -> unifyM_ type_ =<< instantiate (inferred ! index)
+    let allAnnos = fragmentAnnos <> annos
+    Vector.forM_ allAnnos $ \ (Anno (Name index) vars sig) -> do
+      declaredType <- instantiate . Forall vars =<< typeFromSig sig
+      inferredType <- instantiate $ inferred ! index
+      unifyM_ declaredType inferredType
   inferTerm = do
     (a :> b) <- infer <=< toTyped $ stackTerm stack
     (c :> _) <- infer fragmentTerm
@@ -62,6 +72,24 @@ inferFragment stack prelude fragment@Fragment{..}
   inferDefs = Vector.mapM inferDef
   stackTerm = Resolve.Compose
     . Vector.map Resolve.Value . Vector.reverse . Vector.fromList
+
+typeFromSig :: Sig -> Inference Type
+typeFromSig s = case s of
+  Anno.Function left right
+    -> (:>) <$> typeFromSig left <*> typeFromSig right
+  Anno.Compose down top -> (:.) <$> typeFromSig down <*> typeFromSig top
+  Anno.Vec sig -> VecType <$> typeFromSig sig
+  Anno.Tuple sigs -> TupleType <$> Vector.mapM typeFromSig sigs
+  Anno.Empty -> return EmptyType
+  Anno.Var name -> return $ Var name
+  Anno.Word "bool" -> return BoolType
+  Anno.Word "int" -> return IntType
+  Anno.Word "text" -> return TextType
+  Anno.Word name -> fail . Text.unpack $ Text.concat
+    [ "Unable to resolve type '"
+    , name
+    , "'"
+    ]
 
 -- | Infers the type scheme of a definition.
 inferDef :: Def Typed -> Inference TypeScheme

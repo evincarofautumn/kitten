@@ -1,6 +1,6 @@
 module Kitten.Anno
   ( Anno(..)
-  , Type(..)
+  , Sig(..)
   ) where
 
 import Data.Set (Set)
@@ -9,17 +9,18 @@ import Data.Vector (Vector)
 
 import Kitten.Name
 
-data Anno = Anno
-  { annoName :: !Text
+data Anno a = Anno
+  { annoName :: !a
   , annoVars :: !(Set Name)
-  , annoType :: !Type
-  }
+  , annoSig :: !Sig
+  } deriving (Show)
 
-data Type
-  = !Type :> !Type
-  | !Type :. !Type
-  | Vec !Type
-  | Tuple !(Vector Type)
+data Sig
+  = Function !Sig !Sig
+  | Compose !Sig !Sig
+  | Vec !Sig
+  | Tuple !(Vector Sig)
   | Empty
   | Var !Name
   | Word !Text
+  deriving (Show)

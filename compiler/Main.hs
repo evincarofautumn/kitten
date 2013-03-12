@@ -1,6 +1,7 @@
 module Main where
 
 import Control.Monad
+import Data.Monoid
 import System.Environment
 
 import Kitten.Compile
@@ -15,6 +16,6 @@ main = do
     [] -> runRepl
     filenames -> forM_ filenames $ \ filename -> do
       program <- readFile filename
-      case compile [] prelude filename program of
+      case compile [] prelude mempty filename program of
         Left compileError -> print compileError
         Right resolved -> void $ interpret [] resolved

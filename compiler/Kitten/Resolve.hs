@@ -17,6 +17,7 @@ import Data.Vector (Vector)
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 
+import Kitten.Anno (Anno(..))
 import Kitten.Builtin (Builtin)
 import Kitten.Def
 import Kitten.Error
@@ -80,11 +81,23 @@ type Resolution = StateT Env (Either CompileError)
 
 resolveFragment
   :: Vector (Def Resolved)
-  -> Fragment Term
-  -> Either CompileError (Fragment Resolved)
-resolveFragment prelude (Fragment defs term) = flip evalStateT env0
-  $ Fragment <$> resolveDefs defs <*> resolveTerm term
+  -> Fragment Term Text
+  -> Either CompileError (Fragment Resolved Name)
+resolveFragment prelude (Fragment annos defs term) = flip evalStateT env0
+  $ Fragment <$> resolveAnnos annos <*> resolveDefs defs <*> resolveTerm term
   where env0 = Env prelude defs []
+
+resolveAnnos
+  :: Vector (Anno Text)
+  -> Resolution (Vector (Anno Name))
+resolveAnnos = Vector.mapM resolveAnno
+  where
+    resolveAnno (Anno name vars sig) = do
+      mDefIndex <- gets $ defIndex name
+      case mDefIndex of
+        Just index -> return $ Anno (Name index) vars sig
+        Nothing -> lift . Left . CompileError $ Text.concat
+          ["Unable to resolve word '", name, "'"]
 
 resolveDefs :: Vector (Def Term) -> Resolution (Vector (Def Resolved))
 resolveDefs defs = (<>) <$> gets envPrelude <*> Vector.mapM resolveDef defs
