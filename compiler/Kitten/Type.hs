@@ -77,7 +77,7 @@ instance Show Type where
   show TextType = "text"
   show (Var name) = show name
   show (VecType type_)
-    = show type_ ++ "*"
+    = "[" ++ show type_ ++ "]"
   show (TupleType types)
     = "(" ++ unwords (map show $ Vector.toList types) ++ ")"
   show (a :> b)
