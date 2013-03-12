@@ -11,6 +11,7 @@ import qualified Data.Vector as Vector
 
 import Kitten.Def
 import Kitten.Fragment
+import Kitten.Name
 import Kitten.Resolve (Resolved)
 import Kitten.Type
 import Kitten.Type.Inference
@@ -18,9 +19,11 @@ import Kitten.Type.Inference
 import qualified Kitten.Resolve as Resolve
 
 -- | Annotates a resolved AST with fresh type variables.
-toTypedFragment :: Fragment Resolved -> Inference (Fragment Typed)
-toTypedFragment (Fragment defs term)
-  = Fragment <$> Vector.mapM toTypedDef defs <*> toTyped term
+toTypedFragment
+  :: Fragment Resolved Name
+  -> Inference (Fragment Typed Name)
+toTypedFragment (Fragment annos defs term)
+  = Fragment annos <$> Vector.mapM toTypedDef defs <*> toTyped term
 
 -- | Annotates a resolved definition with fresh type variables.
 toTypedDef :: Def Resolved -> Inference (Def Typed)

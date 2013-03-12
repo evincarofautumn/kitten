@@ -25,7 +25,9 @@ data Token
   | Int !Int
   | Bool !Bool
   | Text !Text
+  | Arrow
   | Def
+  | Type
   | Lambda
   | VecBegin
   | VecEnd
@@ -37,20 +39,23 @@ data Token
   deriving (Eq)
 
 instance Show Token where
-  show (Word word) = show word
-  show (Builtin name) = show name
-  show (Int value) = show value
-  show (Bool value) = if value then "true" else "false"
-  show (Text value) = show value
-  show Def = "def"
-  show Lambda = "\\"
-  show VecBegin = "["
-  show VecEnd = "]"
-  show FunBegin = "{"
-  show FunEnd = "}"
-  show TupleBegin = "("
-  show TupleEnd = ")"
-  show Layout = ":"
+  show t = case t of
+    Word word -> show word
+    Builtin name -> show name
+    Int value -> show value
+    Bool value -> if value then "true" else "false"
+    Text value -> show value
+    Arrow -> "->"
+    Def -> "def"
+    Type -> "type"
+    Lambda -> "\\"
+    VecBegin -> "["
+    VecEnd -> "]"
+    FunBegin -> "{"
+    FunEnd -> "}"
+    TupleBegin -> "("
+    TupleEnd -> ")"
+    Layout -> ":"
 
 data Located = Located
   { locatedLocation :: !SourcePos
@@ -91,9 +96,11 @@ token = (<?> "token") . located $ choice
   , Layout <$ char ':'
   , text
   , try int
+  , try arrow
   , word
   ]
   where
+  arrow = Arrow <$ string "->"
   int = do
     sign <- optionMaybe $ oneOf "+-"
     value <- read <$> many1 digit
@@ -112,6 +119,7 @@ token = (<?> "token") . located $ choice
     ]
   word = (alphanumeric <|> symbolic) <$$> \ name -> case name of
     "def" -> Def
+    "type" -> Type
     "true" -> Bool True
     "false" -> Bool False
     _ -> case Builtin.fromText nameText of

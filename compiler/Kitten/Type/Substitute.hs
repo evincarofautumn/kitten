@@ -11,6 +11,7 @@ import qualified Data.Vector as Vector
 
 import Kitten.Def
 import Kitten.Fragment
+import Kitten.Name
 import Kitten.Type
 import Kitten.Type.Inference
 
@@ -23,9 +24,12 @@ substChain _ type_ = type_
 substDef :: Env -> Def Typed -> Def Typed
 substDef env (Def name term) = Def name $ substTerm env term
 
-substFragment :: Fragment Typed -> Env -> Fragment Typed
-substFragment (Fragment defs term) env
-  = Fragment (Vector.map (substDef env) defs) (substTerm env term)
+substFragment
+  :: Fragment Typed Name -> Env -> Fragment Typed Name
+substFragment (Fragment annos defs term) env
+  = Fragment annos
+    (Vector.map (substDef env) defs)
+    (substTerm env term)
 
 substTerm :: Env -> Typed -> Typed
 substTerm env typed = case typed of
