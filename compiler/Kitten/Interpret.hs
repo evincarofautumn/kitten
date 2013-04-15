@@ -7,6 +7,7 @@ module Kitten.Interpret
 import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
+import Data.Bits
 
 import Kitten.Builtin (Builtin)
 import Kitten.Fragment
@@ -38,45 +39,88 @@ interpretTerm resolved = case resolved of
 
 interpretBuiltin :: Builtin -> Interpret
 interpretBuiltin builtin = case builtin of
-  Builtin.Add -> fail "TODO interpret builtin 'add'"
-  Builtin.AndBool -> fail "TODO interpret builtin 'andbool'"
-  Builtin.AndInt -> fail "TODO interpret builtin 'andint'"
+  Builtin.Add -> intsToInt (+)
+  Builtin.AndBool -> boolsToBool (&&)
+  Builtin.AndInt -> intsToInt (.&.)
   Builtin.Apply -> fail "TODO interpret builtin 'apply'"
   Builtin.At -> fail "TODO interpret builtin 'at'"
   Builtin.Bottom -> fail "TODO interpret builtin 'bottom'"
   Builtin.Cat -> fail "TODO interpret builtin 'cat'"
   Builtin.Compose -> fail "TODO interpret builtin 'compose'"
-  Builtin.Div -> fail "TODO interpret builtin 'div'"
+  Builtin.Div -> intsToInt div
   Builtin.Down -> fail "TODO interpret builtin 'down'"
-  Builtin.Drop -> fail "TODO interpret builtin 'drop'"
-  Builtin.Dup -> fail "TODO interpret builtin 'dup'"
-  Builtin.Eq -> fail "TODO interpret builtin 'eq'"
+  Builtin.Drop -> void popData
+
+  Builtin.Dup -> do
+    a <- popData
+    pushData a
+    pushData a
+
+  Builtin.Eq -> intsToBool (==)
   Builtin.Empty -> fail "TODO interpret builtin 'empty'"
   Builtin.Fun -> fail "TODO interpret builtin 'fun'"
-  Builtin.Ge -> fail "TODO interpret builtin 'ge'"
-  Builtin.Gt -> fail "TODO interpret builtin 'gt'"
+
+  Builtin.Ge -> intsToBool (>=)
+  Builtin.Gt -> intsToBool (>)
   Builtin.If -> fail "TODO interpret builtin 'if'"
-  Builtin.Le -> fail "TODO interpret builtin 'le'"
+  Builtin.Le -> intsToBool (<=)
   Builtin.Length -> fail "TODO interpret builtin 'length'"
-  Builtin.Lt -> fail "TODO interpret builtin 'lt'"
-  Builtin.Mod -> fail "TODO interpret builtin 'mod'"
-  Builtin.Mul -> fail "TODO interpret builtin 'mul'"
-  Builtin.Ne -> fail "TODO interpret builtin 'ne'"
-  Builtin.Neg -> fail "TODO interpret builtin 'neg'"
-  Builtin.NotBool -> fail "TODO interpret builtin 'notbool'"
-  Builtin.NotInt -> fail "TODO interpret builtin 'notint'"
-  Builtin.OrBool -> fail "TODO interpret builtin 'orbool'"
-  Builtin.OrInt -> fail "TODO interpret builtin 'orint'"
+  Builtin.Lt -> intsToBool (<)
+  Builtin.Mod -> intsToInt mod
+  Builtin.Mul -> intsToInt (*)
+  Builtin.Ne -> intsToBool (/=)
+  Builtin.Neg -> intToInt negate
+  Builtin.NotBool -> boolToBool not
+  Builtin.NotInt -> intToInt complement
+  Builtin.OrBool -> boolsToBool (||)
+  Builtin.OrInt -> intsToInt (.|.)
+
   Builtin.Print -> do
     Text text <- popData
     lift $ putStr text
-  Builtin.Sub -> fail "TODO interpret builtin 'sub'"
-  Builtin.Swap -> fail "TODO interpret builtin 'swap'"
+
+  Builtin.Sub -> intsToInt (-)
+  Builtin.Swap -> do
+    b <- popData
+    a <- popData
+    pushData b
+    pushData a
+
   Builtin.Top -> fail "TODO interpret builtin 'top'"
   Builtin.Up -> fail "TODO interpret builtin 'up'"
   Builtin.Vec -> fail "TODO interpret builtin 'vec'"
-  Builtin.XorBool -> fail "TODO interpret builtin 'xorbool'"
-  Builtin.XorInt -> fail "TODO interpret builtin 'xorint'"
+  Builtin.XorBool -> boolsToBool (/=)
+  Builtin.XorInt -> intsToInt xor
+
+  where
+
+  boolToBool :: (Bool -> Bool) -> Interpret
+  boolToBool f = do
+    Bool a <- popData
+    pushData . Bool $ f a
+
+  boolsToBool :: (Bool -> Bool -> Bool) -> Interpret
+  boolsToBool f = do
+    Bool b <- popData
+    Bool a <- popData
+    pushData . Bool $ f a b
+
+  intsToBool :: (Int -> Int -> Bool) -> Interpret
+  intsToBool f = do
+    Int b <- popData
+    Int a <- popData
+    pushData . Bool $ f a b
+
+  intToInt :: (Int -> Int) -> Interpret
+  intToInt f = do
+    Int a <- popData
+    pushData . Int $ f a
+
+  intsToInt :: (Int -> Int -> Int) -> Interpret
+  intsToInt f = do
+    Int b <- popData
+    Int a <- popData
+    pushData . Int $ f a b
 
 pushData :: Value -> Interpret
 pushData value = modify $ \ env@Env{..}

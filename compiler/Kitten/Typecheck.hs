@@ -60,43 +60,75 @@ valueType value = case value of
 
 typecheckBuiltin :: Builtin -> Typecheck
 typecheckBuiltin builtin = case builtin of
-  Builtin.Add -> compileError "TODO typecheck builtin 'add'"
-  Builtin.AndBool -> compileError "TODO typecheck builtin 'andbool'"
-  Builtin.AndInt -> compileError "TODO typecheck builtin 'andint'"
+  Builtin.Add -> intsToInt
+  Builtin.AndBool -> boolsToBool
+  Builtin.AndInt -> intsToInt
   Builtin.Apply -> compileError "TODO typecheck builtin 'apply'"
   Builtin.At -> compileError "TODO typecheck builtin 'at'"
   Builtin.Bottom -> compileError "TODO typecheck builtin 'bottom'"
   Builtin.Cat -> compileError "TODO typecheck builtin 'cat'"
   Builtin.Compose -> compileError "TODO typecheck builtin 'compose'"
-  Builtin.Div -> compileError "TODO typecheck builtin 'div'"
+  Builtin.Div -> intsToInt
   Builtin.Down -> compileError "TODO typecheck builtin 'down'"
-  Builtin.Drop -> compileError "TODO typecheck builtin 'drop'"
-  Builtin.Dup -> compileError "TODO typecheck builtin 'dup'"
-  Builtin.Eq -> compileError "TODO typecheck builtin 'eq'"
+  Builtin.Drop -> void popData
+  Builtin.Dup -> do
+    a <- popData
+    pushData a
+    pushData a
+  Builtin.Eq -> intsToBool
   Builtin.Empty -> compileError "TODO typecheck builtin 'empty'"
   Builtin.Fun -> compileError "TODO typecheck builtin 'fun'"
-  Builtin.Ge -> compileError "TODO typecheck builtin 'ge'"
-  Builtin.Gt -> compileError "TODO typecheck builtin 'gt'"
+  Builtin.Ge -> intsToBool
+  Builtin.Gt -> intsToBool
   Builtin.If -> compileError "TODO typecheck builtin 'if'"
-  Builtin.Le -> compileError "TODO typecheck builtin 'le'"
+  Builtin.Le -> intsToBool
   Builtin.Length -> compileError "TODO typecheck builtin 'length'"
-  Builtin.Lt -> compileError "TODO typecheck builtin 'lt'"
-  Builtin.Mod -> compileError "TODO typecheck builtin 'mod'"
-  Builtin.Mul -> compileError "TODO typecheck builtin 'mul'"
-  Builtin.Ne -> compileError "TODO typecheck builtin 'ne'"
-  Builtin.Neg -> compileError "TODO typecheck builtin 'neg'"
-  Builtin.NotBool -> compileError "TODO typecheck builtin 'notbool'"
-  Builtin.NotInt -> compileError "TODO typecheck builtin 'notint'"
-  Builtin.OrBool -> compileError "TODO typecheck builtin 'orbool'"
-  Builtin.OrInt -> compileError "TODO typecheck builtin 'orint'"
+  Builtin.Lt -> intsToBool
+  Builtin.Mod -> intsToInt
+  Builtin.Mul -> intsToInt
+  Builtin.Ne -> intsToBool
+  Builtin.Neg -> intToInt
+  Builtin.NotBool -> boolToBool
+  Builtin.NotInt -> intToInt
+  Builtin.OrBool -> boolsToBool
+  Builtin.OrInt -> intsToInt
   Builtin.Print -> popDataExpecting TextType
-  Builtin.Sub -> compileError "TODO typecheck builtin 'sub'"
-  Builtin.Swap -> compileError "TODO typecheck builtin 'swap'"
+  Builtin.Sub -> intsToInt
+  Builtin.Swap -> do
+    a <- popData
+    b <- popData
+    pushData a
+    pushData b
   Builtin.Top -> compileError "TODO typecheck builtin 'top'"
   Builtin.Up -> compileError "TODO typecheck builtin 'up'"
   Builtin.Vec -> compileError "TODO typecheck builtin 'vec'"
-  Builtin.XorBool -> compileError "TODO typecheck builtin 'xorbool'"
-  Builtin.XorInt -> compileError "TODO typecheck builtin 'xorint'"
+  Builtin.XorBool -> boolsToBool
+  Builtin.XorInt -> intsToInt
+
+  where
+
+  boolToBool = do
+    popDataExpecting BoolType
+    pushData BoolType
+
+  boolsToBool = do
+    popDataExpecting BoolType
+    popDataExpecting BoolType
+    pushData BoolType
+
+  intToInt = do
+    popDataExpecting IntType
+    pushData IntType
+
+  intsToInt = do
+    popDataExpecting IntType
+    popDataExpecting IntType
+    pushData IntType
+
+  intsToBool = do
+    popDataExpecting IntType
+    popDataExpecting IntType
+    pushData BoolType
 
 compileError :: String -> TypecheckM a
 compileError = lift . Left . CompileError
@@ -105,7 +137,7 @@ popData :: TypecheckM Type
 popData = do
   dataStack <- gets envData
   case dataStack of
-    [] -> compileError "stack underflow"
+    [] -> compileError "expecting type but got empty stack"
     (top : down) -> do
       modify $ \ env -> env { envData = down }
       return top
