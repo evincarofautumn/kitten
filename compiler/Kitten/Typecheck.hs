@@ -70,7 +70,7 @@ typecheckBuiltin builtin = case builtin of
   Builtin.Compose -> compileError "TODO typecheck builtin 'compose'"
   Builtin.Div -> intsToInt
   Builtin.Down -> compileError "TODO typecheck builtin 'down'"
-  Builtin.Drop -> void popData
+  Builtin.Drop -> popData_
   Builtin.Dup -> do
     a <- popData
     pushData a
@@ -92,7 +92,7 @@ typecheckBuiltin builtin = case builtin of
   Builtin.NotInt -> intToInt
   Builtin.OrBool -> boolsToBool
   Builtin.OrInt -> intsToInt
-  Builtin.Print -> popDataExpecting TextType
+  Builtin.Print -> popDataExpecting_ TextType
   Builtin.Sub -> intsToInt
   Builtin.Swap -> do
     a <- popData
@@ -108,30 +108,33 @@ typecheckBuiltin builtin = case builtin of
   where
 
   boolToBool = do
-    popDataExpecting BoolType
+    popDataExpecting_ BoolType
     pushData BoolType
 
   boolsToBool = do
-    popDataExpecting BoolType
-    popDataExpecting BoolType
+    popDataExpecting_ BoolType
+    popDataExpecting_ BoolType
     pushData BoolType
 
   intToInt = do
-    popDataExpecting IntType
+    popDataExpecting_ IntType
     pushData IntType
 
   intsToInt = do
-    popDataExpecting IntType
-    popDataExpecting IntType
+    popDataExpecting_ IntType
+    popDataExpecting_ IntType
     pushData IntType
 
   intsToBool = do
-    popDataExpecting IntType
-    popDataExpecting IntType
+    popDataExpecting_ IntType
+    popDataExpecting_ IntType
     pushData BoolType
 
 compileError :: String -> TypecheckM a
 compileError = lift . Left . CompileError
+
+popData_ :: Typecheck
+popData_ = void popData
 
 popData :: TypecheckM Type
 popData = do
@@ -142,7 +145,10 @@ popData = do
       modify $ \ env -> env { envData = down }
       return top
 
-popDataExpecting :: Type -> Typecheck
+popDataExpecting_ :: Type -> Typecheck
+popDataExpecting_ = void . popDataExpecting
+
+popDataExpecting :: Type -> TypecheckM Type
 popDataExpecting type_ = do
   dataStack <- gets envData
   case dataStack of
@@ -152,6 +158,7 @@ popDataExpecting type_ = do
       modify $ \ env -> env { envData = down }
       unless (top == type_) . compileError $ unwords
         ["expecting", show type_, "but got", show top]
+      return top
 
 pushData :: Type -> Typecheck
 pushData type_ = modify $ \ env@Env{..}
