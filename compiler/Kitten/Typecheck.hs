@@ -66,19 +66,21 @@ typecheckValue value = case value of
     a <- popData
     pushData $ VecType a
   Tuple _values -> compileError "TODO typecheck tuple"
-  Fun term -> do
-    before <- get
-    typecheckTerm term
-    after <- get
-    put before
-    let
-      stackBefore = envData before
-      stackAfter = envData after
-      (consumption, production)
-        = stripCommonPrefix (reverse stackBefore) (reverse stackAfter)
-    pushData
-      $ Composition (reverse consumption)
-      :> Composition (reverse production)
+  Fun term -> pushData =<< stackEffect (typecheckTerm term)
+
+stackEffect :: TypecheckM a -> TypecheckM (Type Scalar)
+stackEffect action = do
+  before <- get
+  void action
+  after <- get
+  put before
+  let
+    stackBefore = envData before
+    stackAfter = envData after
+    (consumption, production)
+      = stripCommonPrefix (reverse stackBefore) (reverse stackAfter)
+  return
+    $ Composition (reverse consumption) :> Composition (reverse production)
 
 typecheckBuiltin :: Builtin -> Typecheck
 typecheckBuiltin builtin = case builtin of
@@ -122,21 +124,12 @@ typecheckBuiltin builtin = case builtin of
       <- popDataExpecting $ RowVar (Name 0) :> RowVar (Name 1)
     Composition a :> Composition b
       <- popDataExpecting $ RowVar (Name 0) :> RowVar (Name 1)
-    before <- get
-    mapM_ popDataExpecting a
-    mapM_ pushData b
-    mapM_ popDataExpecting c
-    mapM_ pushData d
-    after <- get
-    put before
-    let
-      stackBefore = envData before
-      stackAfter = envData after
-      (consumption, production)
-        = stripCommonPrefix (reverse stackBefore) (reverse stackAfter)
-    pushData
-      $ Composition (reverse consumption)
-      :> Composition (reverse production)
+    result <- stackEffect $ do
+      mapM_ popDataExpecting a
+      mapM_ pushData b
+      mapM_ popDataExpecting c
+      mapM_ pushData d
+    pushData result
 
   Builtin.Div -> intsToInt
 
