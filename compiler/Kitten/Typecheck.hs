@@ -92,12 +92,34 @@ typecheckBuiltin builtin = case builtin of
     mapM_ popDataExpecting_ consumption
     mapM_ pushData production
 
-  Builtin.At -> compileError "TODO typecheck builtin 'at'"
-  Builtin.Bottom -> compileError "TODO typecheck builtin 'bottom'"
-  Builtin.Cat -> compileError "TODO typecheck builtin 'cat'"
+  Builtin.At -> do
+    popDataExpecting_ IntType
+    VecType a <- popDataExpecting $ VecType (ScalarVar (Name 0))
+    pushData a
+
+  Builtin.Bottom -> do
+    VecType a <- popDataExpecting $ VecType (ScalarVar (Name 0))
+    pushData a
+
+  Builtin.Cat -> do
+    VecType b <- popDataExpecting $ VecType (ScalarVar (Name 0))
+    VecType a <- popDataExpecting $ VecType (ScalarVar (Name 0))
+    if a == b
+      then pushData $ VecType a
+      else compileError $ concat
+        [ "Mismatched element types "
+        , show a
+        , " and "
+        , show b
+        , " in 'cat' arguments"
+        ]
+
   Builtin.Compose -> compileError "TODO typecheck builtin 'compose'"
   Builtin.Div -> intsToInt
-  Builtin.Down -> compileError "TODO typecheck builtin 'down'"
+  Builtin.Down -> do
+    a <- popDataExpecting $ VecType (ScalarVar (Name 0))
+    pushData a
+
   Builtin.Drop -> popData_
   Builtin.Dup -> do
     a <- popData
@@ -121,7 +143,10 @@ typecheckBuiltin builtin = case builtin of
       else compileError $ "Mismatched types in 'if' branches"
 
   Builtin.Le -> intsToBool
-  Builtin.Length -> compileError "TODO typecheck builtin 'length'"
+  Builtin.Length -> do
+    popDataExpecting_ $ VecType (ScalarVar (Name 0))
+    pushData IntType
+
   Builtin.Lt -> intsToBool
   Builtin.Mod -> intsToInt
   Builtin.Mul -> intsToInt
@@ -138,9 +163,19 @@ typecheckBuiltin builtin = case builtin of
     b <- popData
     pushData a
     pushData b
-  Builtin.Top -> compileError "TODO typecheck builtin 'top'"
-  Builtin.Up -> compileError "TODO typecheck builtin 'up'"
-  Builtin.Vec -> compileError "TODO typecheck builtin 'vec'"
+
+  Builtin.Top -> do
+    VecType a <- popDataExpecting $ VecType (ScalarVar (Name 0))
+    pushData a
+
+  Builtin.Up -> do
+    a <- popDataExpecting $ VecType (ScalarVar (Name 0))
+    pushData a
+
+  Builtin.Vec -> do
+    a <- popData
+    pushData $ VecType a
+
   Builtin.XorBool -> boolsToBool
   Builtin.XorInt -> intsToInt
 

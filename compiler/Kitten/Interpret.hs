@@ -46,12 +46,26 @@ interpretBuiltin builtin = case builtin of
     Fun term <- popData
     interpretTerm term
 
-  Builtin.At -> fail "TODO interpret builtin 'at'"
-  Builtin.Bottom -> fail "TODO interpret builtin 'bottom'"
-  Builtin.Cat -> fail "TODO interpret builtin 'cat'"
+  Builtin.At -> do
+    Int b <- popData
+    Vec a <- popData
+    pushData $ a !! b
+
+  Builtin.Bottom -> do
+    Vec a <- popData
+    pushData $ last a
+
+  Builtin.Cat -> do
+    Vec b <- popData
+    Vec a <- popData
+    pushData $ Vec (b ++ a)
+
   Builtin.Compose -> fail "TODO interpret builtin 'compose'"
   Builtin.Div -> intsToInt div
-  Builtin.Down -> fail "TODO interpret builtin 'down'"
+  Builtin.Down -> do
+    Vec a <- popData
+    pushData $ Vec (tail a)
+
   Builtin.Drop -> void popData
 
   Builtin.Dup -> do
@@ -77,7 +91,10 @@ interpretBuiltin builtin = case builtin of
       else interpretTerm false
 
   Builtin.Le -> intsToBool (<=)
-  Builtin.Length -> fail "TODO interpret builtin 'length'"
+  Builtin.Length -> do
+    Vec a <- popData
+    pushData . Int $ length a
+
   Builtin.Lt -> intsToBool (<)
   Builtin.Mod -> intsToInt mod
   Builtin.Mul -> intsToInt (*)
@@ -99,9 +116,18 @@ interpretBuiltin builtin = case builtin of
     pushData b
     pushData a
 
-  Builtin.Top -> fail "TODO interpret builtin 'top'"
-  Builtin.Up -> fail "TODO interpret builtin 'up'"
-  Builtin.Vec -> fail "TODO interpret builtin 'vec'"
+  Builtin.Top -> do
+    Vec a <- popData
+    pushData $ head a
+
+  Builtin.Up -> do
+    Vec a <- popData
+    pushData $ Vec (init a)
+
+  Builtin.Vec -> do
+    a <- popData
+    pushData $ Vec [a]
+
   Builtin.XorBool -> boolsToBool (/=)
   Builtin.XorInt -> intsToInt xor
 
