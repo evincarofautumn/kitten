@@ -1,3 +1,4 @@
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Kitten.Typecheck
@@ -20,8 +21,8 @@ import Kitten.Util.List
 import qualified Kitten.Builtin as Builtin
 
 data Env = Env
-  { envData :: [Type]
-  , envLocals :: [Type]
+  { envData :: [Type Scalar]
+  , envLocals :: [Type Scalar]
   , envDefs :: [Def Resolved]
   }
 
@@ -58,7 +59,7 @@ typecheckValue value = case value of
   Bool _ -> pushData BoolType
   Text _ -> pushData TextType
   Vec [] -> do
-    pushData $ VecType (Var (Name 0))
+    pushData $ VecType (ScalarVar (Name 0))
   Vec (v : _) -> do
     typecheckValue v
     -- FIXME Check remaining vector values.
@@ -98,16 +99,17 @@ typecheckBuiltin builtin = case builtin of
     pushData a
   Builtin.Eq -> intsToBool
   Builtin.Empty -> do
-    popDataExpecting_ $ VecType (Var (Name 0))
+    popDataExpecting_ $ VecType (ScalarVar (Name 0))
     pushData BoolType
   Builtin.Fun -> compileError "TODO typecheck builtin 'fun'"
   Builtin.Ge -> intsToBool
   Builtin.Gt -> intsToBool
   Builtin.If -> do
     popDataExpecting_ BoolType
-    b <- popDataExpecting (Var (Name 0) :> Var (Name 1))
+    b <- popDataExpecting (RowVar (Name 0) :> RowVar (Name 1))
     -- FIXME Unsafe.
-    a@(_ :> Composition production) <- popDataExpecting (Var (Name 0) :> Var (Name 1))
+    a@(_ :> Composition production) <- popDataExpecting
+      $ RowVar (Name 0) :> RowVar (Name 1)
     if a == b
       then mapM_ pushData production
       else compileError $ "Mismatched types in 'if' branches"
@@ -167,7 +169,7 @@ compileError = lift . Left . CompileError
 popData_ :: Typecheck
 popData_ = void popData
 
-popData :: TypecheckM Type
+popData :: TypecheckM (Type Scalar)
 popData = do
   dataStack <- gets envData
   case dataStack of
@@ -176,10 +178,10 @@ popData = do
       modify $ \ env -> env { envData = down }
       return top
 
-popDataExpecting_ :: Type -> Typecheck
+popDataExpecting_ :: Type Scalar -> Typecheck
 popDataExpecting_ = void . popDataExpecting
 
-popDataExpecting :: Type -> TypecheckM Type
+popDataExpecting :: Type Scalar -> TypecheckM (Type Scalar)
 popDataExpecting type_ = do
   dataStack <- gets envData
   case dataStack of
@@ -191,10 +193,10 @@ popDataExpecting type_ = do
         ["expecting", show type_, "but got", show top]
       return top
 
-pushData :: Type -> Typecheck
+pushData :: Type Scalar -> Typecheck
 pushData type_ = modify $ \ env@Env{..}
   -> env { envData = type_ : envData }
 
-pushLocal :: Type -> Typecheck
+pushLocal :: Type Scalar -> Typecheck
 pushLocal type_ = modify $ \ env@Env{..}
   -> env { envLocals = type_ : envLocals }
