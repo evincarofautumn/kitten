@@ -63,7 +63,10 @@ interpretBuiltin builtin = case builtin of
     Vec a <- popData
     pushData $ Vec (b ++ a)
 
-  Builtin.Compose -> fail "TODO interpret builtin 'compose'"
+  Builtin.Compose -> do
+    Fun b <- popData
+    Fun a <- popData
+    pushData $ Fun (Compose [b, a])
 
   Builtin.Div -> intsToInt div
 

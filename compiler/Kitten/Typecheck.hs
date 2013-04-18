@@ -117,7 +117,26 @@ typecheckBuiltin builtin = case builtin of
         , " in 'cat' arguments"
         ]
 
-  Builtin.Compose -> compileError "TODO typecheck builtin 'compose'"
+  Builtin.Compose -> do
+    Composition c :> Composition d
+      <- popDataExpecting $ RowVar (Name 0) :> RowVar (Name 1)
+    Composition a :> Composition b
+      <- popDataExpecting $ RowVar (Name 0) :> RowVar (Name 1)
+    before <- get
+    mapM_ popDataExpecting a
+    mapM_ pushData b
+    mapM_ popDataExpecting c
+    mapM_ pushData d
+    after <- get
+    put before
+    let
+      stackBefore = envData before
+      stackAfter = envData after
+      (consumption, production)
+        = stripCommonPrefix (reverse stackBefore) (reverse stackAfter)
+    pushData
+      $ Composition (reverse consumption)
+      :> Composition (reverse production)
 
   Builtin.Div -> intsToInt
 
