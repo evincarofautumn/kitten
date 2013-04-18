@@ -15,12 +15,14 @@ import Kitten.Fragment
 import Kitten.Name
 import Kitten.Resolve (Resolved(..), Value(..))
 import Kitten.Type
+import Kitten.Util.List
 
 import qualified Kitten.Builtin as Builtin
 
 data Env = Env
   { envData :: [Type]
   , envLocals :: [Type]
+  , envDefs :: [Def Resolved]
   }
 
 type TypecheckM a = StateT Env (Either CompileError) a
@@ -31,9 +33,9 @@ typecheck
   -> [Value]
   -> Fragment Resolved
   -> Either CompileError ()
-typecheck _prelude stack Fragment{..} = do
-  stackTypes <- mapM valueType stack
-  evalStateT (typecheckTerm fragmentTerm) (Env stackTypes [])
+typecheck _prelude stack Fragment{..} = evalStateT
+  (mapM_ typecheckValue stack >> typecheckTerm fragmentTerm)
+  (Env [] [] fragmentDefs)
 
 typecheckTerm :: Resolved -> Typecheck
 typecheckTerm resolved = case resolved of
@@ -46,17 +48,18 @@ typecheckTerm resolved = case resolved of
   Compose terms -> mapM_ typecheckTerm terms
 
 typecheckValue :: Value -> Typecheck
-typecheckValue = pushData <=< lift . valueType
-
-valueType :: Value -> Either CompileError Type
-valueType value = case value of
-  Word (Name _name) -> Left $ CompileError "TODO typecheck name"
-  Int _ -> Right IntType
-  Bool _ -> Right BoolType
-  Text _ -> Right TextType
-  Vec _values -> Left $ CompileError "TODO typecheck vec"
-  Tuple _values -> Left $ CompileError "TODO typecheck tuple"
-  Fun _term -> Left $ CompileError "TODO typecheck fun"
+typecheckValue value = case value of
+  Word (Name index) -> do
+    mDef <- gets $ (!? index) . envDefs
+    case mDef of
+      Nothing -> compileError $ "Internal name resolution error"
+      Just (Def _ term) -> typecheckTerm term
+  Int _ -> pushData IntType
+  Bool _ -> pushData BoolType
+  Text _ -> pushData TextType
+  Vec _values -> compileError "TODO typecheck vec"
+  Tuple _values -> compileError "TODO typecheck tuple"
+  Fun _term -> compileError "TODO typecheck fun"
 
 typecheckBuiltin :: Builtin -> Typecheck
 typecheckBuiltin builtin = case builtin of
