@@ -83,8 +83,11 @@ typecheckValue value = case value of
 typecheckBuiltin :: Builtin -> Typecheck
 typecheckBuiltin builtin = case builtin of
   Builtin.Add -> intsToInt
+
   Builtin.AndBool -> boolsToBool
+
   Builtin.AndInt -> intsToInt
+
   Builtin.Apply -> do
     -- FIXME Make total.
     (Composition consumption :> Composition production)
@@ -115,23 +118,32 @@ typecheckBuiltin builtin = case builtin of
         ]
 
   Builtin.Compose -> compileError "TODO typecheck builtin 'compose'"
+
   Builtin.Div -> intsToInt
+
   Builtin.Down -> do
     a <- popDataExpecting $ VecType (ScalarVar (Name 0))
     pushData a
 
   Builtin.Drop -> popData_
+
   Builtin.Dup -> do
     a <- popData
     pushData a
     pushData a
+
   Builtin.Eq -> intsToBool
+
   Builtin.Empty -> do
     popDataExpecting_ $ VecType (ScalarVar (Name 0))
     pushData BoolType
+
   Builtin.Fun -> compileError "TODO typecheck builtin 'fun'"
+
   Builtin.Ge -> intsToBool
+
   Builtin.Gt -> intsToBool
+
   Builtin.If -> do
     popDataExpecting_ BoolType
     b <- popDataExpecting (RowVar (Name 0) :> RowVar (Name 1))
@@ -143,21 +155,33 @@ typecheckBuiltin builtin = case builtin of
       else compileError $ "Mismatched types in 'if' branches"
 
   Builtin.Le -> intsToBool
+
   Builtin.Length -> do
     popDataExpecting_ $ VecType (ScalarVar (Name 0))
     pushData IntType
 
   Builtin.Lt -> intsToBool
+
   Builtin.Mod -> intsToInt
+
   Builtin.Mul -> intsToInt
+
   Builtin.Ne -> intsToBool
+
   Builtin.Neg -> intToInt
+
   Builtin.NotBool -> boolToBool
+
   Builtin.NotInt -> intToInt
+
   Builtin.OrBool -> boolsToBool
+
   Builtin.OrInt -> intsToInt
+
   Builtin.Print -> popDataExpecting_ TextType
+
   Builtin.Sub -> intsToInt
+
   Builtin.Swap -> do
     a <- popData
     b <- popData
@@ -177,6 +201,7 @@ typecheckBuiltin builtin = case builtin of
     pushData $ VecType a
 
   Builtin.XorBool -> boolsToBool
+
   Builtin.XorInt -> intsToInt
 
   where

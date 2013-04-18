@@ -40,8 +40,11 @@ interpretTerm resolved = case resolved of
 interpretBuiltin :: Builtin -> Interpret
 interpretBuiltin builtin = case builtin of
   Builtin.Add -> intsToInt (+)
+
   Builtin.AndBool -> boolsToBool (&&)
+
   Builtin.AndInt -> intsToInt (.&.)
+
   Builtin.Apply -> do
     Fun term <- popData
     interpretTerm term
@@ -61,7 +64,9 @@ interpretBuiltin builtin = case builtin of
     pushData $ Vec (b ++ a)
 
   Builtin.Compose -> fail "TODO interpret builtin 'compose'"
+
   Builtin.Div -> intsToInt div
+
   Builtin.Down -> do
     Vec a <- popData
     pushData $ Vec (tail a)
@@ -74,6 +79,7 @@ interpretBuiltin builtin = case builtin of
     pushData a
 
   Builtin.Eq -> intsToBool (==)
+
   Builtin.Empty -> do
     Vec a <- popData
     pushData . Bool $ null a
@@ -81,7 +87,9 @@ interpretBuiltin builtin = case builtin of
   Builtin.Fun -> fail "TODO interpret builtin 'fun'"
 
   Builtin.Ge -> intsToBool (>=)
+
   Builtin.Gt -> intsToBool (>)
+
   Builtin.If -> do
     Bool condition <- popData
     Fun false <- popData
@@ -91,18 +99,27 @@ interpretBuiltin builtin = case builtin of
       else interpretTerm false
 
   Builtin.Le -> intsToBool (<=)
+
   Builtin.Length -> do
     Vec a <- popData
     pushData . Int $ length a
 
   Builtin.Lt -> intsToBool (<)
+
   Builtin.Mod -> intsToInt mod
+
   Builtin.Mul -> intsToInt (*)
+
   Builtin.Ne -> intsToBool (/=)
+
   Builtin.Neg -> intToInt negate
+
   Builtin.NotBool -> boolToBool not
+
   Builtin.NotInt -> intToInt complement
+
   Builtin.OrBool -> boolsToBool (||)
+
   Builtin.OrInt -> intsToInt (.|.)
 
   Builtin.Print -> do
@@ -110,6 +127,7 @@ interpretBuiltin builtin = case builtin of
     lift $ putStr text
 
   Builtin.Sub -> intsToInt (-)
+
   Builtin.Swap -> do
     b <- popData
     a <- popData
@@ -129,6 +147,7 @@ interpretBuiltin builtin = case builtin of
     pushData $ Vec [a]
 
   Builtin.XorBool -> boolsToBool (/=)
+
   Builtin.XorInt -> intsToInt xor
 
   where
