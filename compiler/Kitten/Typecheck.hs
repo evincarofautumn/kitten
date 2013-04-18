@@ -57,9 +57,27 @@ typecheckValue value = case value of
   Int _ -> pushData IntType
   Bool _ -> pushData BoolType
   Text _ -> pushData TextType
-  Vec _values -> compileError "TODO typecheck vec"
+  Vec [] -> do
+    pushData $ VecType (Var (Name 0))
+  Vec (v : _) -> do
+    typecheckValue v
+    -- FIXME Check remaining vector values.
+    a <- popData
+    pushData $ VecType a
   Tuple _values -> compileError "TODO typecheck tuple"
-  Fun _term -> compileError "TODO typecheck fun"
+  Fun term -> do
+    before <- get
+    typecheckTerm term
+    after <- get
+    let
+      stackBefore = envData before
+      stackAfter = envData after
+      (consumption, production)
+        = stripCommonPrefix (reverse stackBefore) (reverse stackAfter)
+    put before
+    pushData
+      $ Composition (reverse consumption)
+      :> Composition (reverse production)
 
 typecheckBuiltin :: Builtin -> Typecheck
 typecheckBuiltin builtin = case builtin of
@@ -79,11 +97,21 @@ typecheckBuiltin builtin = case builtin of
     pushData a
     pushData a
   Builtin.Eq -> intsToBool
-  Builtin.Empty -> compileError "TODO typecheck builtin 'empty'"
+  Builtin.Empty -> do
+    popDataExpecting_ $ VecType (Var (Name 0))
+    pushData BoolType
   Builtin.Fun -> compileError "TODO typecheck builtin 'fun'"
   Builtin.Ge -> intsToBool
   Builtin.Gt -> intsToBool
-  Builtin.If -> compileError "TODO typecheck builtin 'if'"
+  Builtin.If -> do
+    popDataExpecting_ BoolType
+    b <- popDataExpecting (Var (Name 0) :> Var (Name 1))
+    -- FIXME Unsafe.
+    a@(_ :> Composition production) <- popDataExpecting (Var (Name 0) :> Var (Name 1))
+    if a == b
+      then mapM_ pushData production
+      else compileError $ "Mismatched types in 'if' branches"
+
   Builtin.Le -> intsToBool
   Builtin.Length -> compileError "TODO typecheck builtin 'length'"
   Builtin.Lt -> intsToBool
@@ -159,7 +187,7 @@ popDataExpecting type_ = do
       ["expecting", show type_, "but got empty stack"]
     (top : down) -> do
       modify $ \ env -> env { envData = down }
-      unless (top == type_) . compileError $ unwords
+      unless (top `instanceOf` type_) . compileError $ unwords
         ["expecting", show type_, "but got", show top]
       return top
 

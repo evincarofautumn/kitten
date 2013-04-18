@@ -57,12 +57,22 @@ interpretBuiltin builtin = case builtin of
     pushData a
 
   Builtin.Eq -> intsToBool (==)
-  Builtin.Empty -> fail "TODO interpret builtin 'empty'"
+  Builtin.Empty -> do
+    Vec a <- popData
+    pushData . Bool $ null a
+
   Builtin.Fun -> fail "TODO interpret builtin 'fun'"
 
   Builtin.Ge -> intsToBool (>=)
   Builtin.Gt -> intsToBool (>)
-  Builtin.If -> fail "TODO interpret builtin 'if'"
+  Builtin.If -> do
+    Bool condition <- popData
+    Fun false <- popData
+    Fun true <- popData
+    if condition
+      then interpretTerm true
+      else interpretTerm false
+
   Builtin.Le -> intsToBool (<=)
   Builtin.Length -> fail "TODO interpret builtin 'length'"
   Builtin.Lt -> intsToBool (<)
