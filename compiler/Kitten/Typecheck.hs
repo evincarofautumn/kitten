@@ -70,12 +70,12 @@ typecheckValue value = case value of
     before <- get
     typecheckTerm term
     after <- get
+    put before
     let
       stackBefore = envData before
       stackAfter = envData after
       (consumption, production)
         = stripCommonPrefix (reverse stackBefore) (reverse stackAfter)
-    put before
     pushData
       $ Composition (reverse consumption)
       :> Composition (reverse production)
