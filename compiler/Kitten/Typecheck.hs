@@ -138,7 +138,9 @@ typecheckBuiltin builtin = case builtin of
     popDataExpecting_ $ VecType (ScalarVar (Name 0))
     pushData BoolType
 
-  Builtin.Fun -> compileError "TODO typecheck builtin 'fun'"
+  Builtin.Fun -> do
+    a <- popData
+    pushData $ Composition [] :> Composition [a]
 
   Builtin.Ge -> intsToBool
 

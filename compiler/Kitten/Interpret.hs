@@ -84,7 +84,9 @@ interpretBuiltin builtin = case builtin of
     Vec a <- popData
     pushData . Bool $ null a
 
-  Builtin.Fun -> fail "TODO interpret builtin 'fun'"
+  Builtin.Fun -> do
+    a <- popData
+    pushData $ Fun (Value a)
 
   Builtin.Ge -> intsToBool (>=)
 
