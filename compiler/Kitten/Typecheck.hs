@@ -85,7 +85,13 @@ typecheckBuiltin builtin = case builtin of
   Builtin.Add -> intsToInt
   Builtin.AndBool -> boolsToBool
   Builtin.AndInt -> intsToInt
-  Builtin.Apply -> compileError "TODO typecheck builtin 'apply'"
+  Builtin.Apply -> do
+    -- FIXME Make total.
+    (Composition consumption :> Composition production)
+      <- popDataExpecting $ RowVar (Name 0) :> RowVar (Name 1)
+    mapM_ popDataExpecting_ consumption
+    mapM_ pushData production
+
   Builtin.At -> compileError "TODO typecheck builtin 'at'"
   Builtin.Bottom -> compileError "TODO typecheck builtin 'bottom'"
   Builtin.Cat -> compileError "TODO typecheck builtin 'cat'"

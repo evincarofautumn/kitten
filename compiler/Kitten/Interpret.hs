@@ -42,7 +42,10 @@ interpretBuiltin builtin = case builtin of
   Builtin.Add -> intsToInt (+)
   Builtin.AndBool -> boolsToBool (&&)
   Builtin.AndInt -> intsToInt (.&.)
-  Builtin.Apply -> fail "TODO interpret builtin 'apply'"
+  Builtin.Apply -> do
+    Fun term <- popData
+    interpretTerm term
+
   Builtin.At -> fail "TODO interpret builtin 'at'"
   Builtin.Bottom -> fail "TODO interpret builtin 'bottom'"
   Builtin.Cat -> fail "TODO interpret builtin 'cat'"
