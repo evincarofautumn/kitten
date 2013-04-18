@@ -56,11 +56,6 @@ instance Show (Type a) where
   show (Composition as) = unwords (map show as)
   show EmptyType = "()"
 
-{-
-class InstanceOf a where
-  instanceOf :: a -> a -> Bool
--}
-
 instanceOf :: Type Scalar -> Type Scalar -> Bool
 instanceOf type1 type2
   | type1 == type2 = True
