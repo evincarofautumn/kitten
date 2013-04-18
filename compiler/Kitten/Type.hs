@@ -48,7 +48,7 @@ instance Show (Type a) where
   show (ScalarVar name) = show name
   show (RowVar name) = show name
   show (VecType type_)
-    = show type_ ++ "*"
+    = "[" ++ show type_ ++ "]"
   show (TupleType types)
     = "(" ++ unwords (map show types) ++ ")"
   show (a :> b)
