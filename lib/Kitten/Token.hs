@@ -105,13 +105,18 @@ token = (<?> "token") . located $ choice
   , word
   ]
   where
+
   arrow = Arrow <$ string "->"
+
   int = do
     sign <- optionMaybe $ oneOf "+-"
     value <- read <$> many1 digit
     return . Int $ if sign == Just '-' then negate value else value
+
   text = Text <$> (char '"' *> textContents <* char '"')
+
   textContents = many (noneOf "\\\"" <|> textEscape)
+
   textEscape = char '\\' *> choice
     [ oneOf "\\\""
     , '\a' <$ char 'a'
@@ -122,6 +127,7 @@ token = (<?> "token") . located $ choice
     , '\t' <$ char 't'
     , '\v' <$ char 'v'
     ]
+
   word = flip fmap (alphanumeric <|> symbolic) $ \ name -> case name of
     "bool" -> BoolType
     "int" -> IntType
@@ -134,23 +140,31 @@ token = (<?> "token") . located $ choice
       Just builtin -> Builtin builtin
       _ -> Word name
     where
+
     alphanumeric = (:)
       <$> (letter <|> char '_')
       <*> many (letter <|> digit <|> char '_')
+
     symbolic = many1 $ oneOf "!#$%&*+,-./;<=>?@^|~"
 
 silence :: Parser ()
 silence = skipMany $ comment <|> whitespace
   where
+
   whitespace = skipMany1 $ choice [newline, nonNewline]
+
   newline = do
     void $ char '\n' *> many nonNewline
     pos <- getPosition
     putState $ sourceColumn pos
+
   nonNewline = void $ satisfy (`elem` "\t\v\f\r ")
+
   comment = single <|> multi
+
   single = try (string "--")
     *> (anyChar `skipManyTill` (void (char '\n') <|> eof))
+
   multi = void $ start *> contents <* end
     where
     contents = characters *> optional multi <* characters
