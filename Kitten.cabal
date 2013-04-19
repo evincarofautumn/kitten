@@ -45,6 +45,7 @@ library
     Kitten.Token,
     Kitten.Type,
     Kitten.Typecheck,
+    Kitten.Util.Applicative,
     Kitten.Util.Either,
     Kitten.Util.List,
     Kitten.Util.Maybe,

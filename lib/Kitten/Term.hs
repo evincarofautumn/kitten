@@ -23,6 +23,7 @@ import Kitten.Def
 import Kitten.Fragment
 import Kitten.Name
 import Kitten.Token (Located(..), Token)
+import Kitten.Util.Applicative
 import Kitten.Util.Maybe
 
 import qualified Kitten.Anno as Anno
@@ -176,21 +177,53 @@ grouped = between (token Token.TupleBegin) (token Token.TupleEnd)
 block :: Parser a -> Parser a
 block = between (token Token.FunBegin) (token Token.FunEnd)
 
+locatedBlock :: (Located -> Bool) -> Parser a -> Parser a
+locatedBlock inside = between
+  (locatedSatisfy (inside .&&. (Token.FunBegin ==) . locatedToken))
+  (token Token.FunEnd)
+
+locatedTuple :: (Located -> Bool) -> Parser a -> Parser a
+locatedTuple inside = between
+  (locatedSatisfy (inside .&&. (Token.TupleBegin ==) . locatedToken))
+  (token Token.TupleEnd)
+
+locatedVec :: (Located -> Bool) -> Parser a -> Parser a
+locatedVec inside = between
+  (locatedSatisfy (inside .&&. (Token.VecBegin ==) . locatedToken))
+  (token Token.VecEnd)
+
 layout :: Parser a -> Parser a
 layout inner = do
+
   Token.Located startLocation startIndent _ <- located Token.Layout
   firstToken@(Token.Located firstLocation _ _) <- anyLocated
+
   let
     inside = if sourceLine firstLocation == sourceLine startLocation
       then \ (Token.Located location _ _)
         -> sourceColumn location > sourceColumn startLocation
       else \ (Token.Located location _ _)
         -> sourceColumn location > startIndent
-  innerTokens <- many $ locatedSatisfy inside
+
+  innerTokens <- liftM concat . many $ choice
+    [ locatedBlock inside $ many anyLocated
+    , locatedVec inside $ many anyLocated
+    , locatedTuple inside $ many anyLocated
+    , liftM (:[]) . locatedSatisfy
+      $ inside .&&. not . locatedEnd
+    ]
+
   let tokens = firstToken : innerTokens
   case Parsec.parse (inner <* eof) "layout" tokens of
     Right result -> return result
     Left err -> fail $ show err
+  where
+
+  locatedEnd foo = any ($ locatedToken foo)
+    [ (==) Token.FunEnd
+    , (==) Token.VecEnd
+    , (==) Token.TupleEnd
+    ]
 
 identifier :: Parser String
 identifier = mapOne toIdentifier

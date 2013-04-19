@@ -6,7 +6,7 @@ import Test.Hspec
 
 import Test.Util
 
-import Kitten.Anno
+import Kitten.Anno (Anno)
 import Kitten.Def
 import Kitten.Error
 import Kitten.Fragment
@@ -35,6 +35,38 @@ spec = do
         , Builtin Builtin.Apply
         ]
 
+  describe "layout" $ do
+
+    testTerm
+      ": sameLine\n\
+      \  nextLine\n\
+      \  anotherLine\n"
+      $ fragment [] []
+        [ fun
+          [ word "sameLine"
+          , word "nextLine"
+          , word "anotherLine"
+          ]
+        ]
+
+    testTerm
+      "{ : sameLine\n\
+      \    nextLine\n\
+      \    anotherLine }\n"
+      $ fragment [] []
+        [ fun
+          [ fun
+            [ word "sameLine"
+            , word "nextLine"
+            , word "anotherLine"
+            ]
+          ]
+        ]
+
+    testTerm "{ one : two three }"
+      $ fragment [] []
+      [fun [word "one", fun [word "two", word "three"]]]
+
 testTerm :: String -> Fragment Term -> Spec
 testTerm source expected = it (show source)
   $ case parsed source of
@@ -52,5 +84,11 @@ fragment :: [Anno] -> [Def Term] -> [Term] -> Fragment Term
 fragment annos defs terms
   = Fragment annos defs (Compose terms)
 
+fun :: [Term] -> Term
+fun = Value . Fun . Compose
+
 int :: Int -> Term
 int = Value . Int
+
+word :: String -> Term
+word = Value . Word
