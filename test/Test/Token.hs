@@ -55,6 +55,12 @@ spec = do
     testInt "+123" 123
     testInt "-123" (-123)
 
+  describe "tokenize text" $ do
+    testTokens "\"\"" [Text ""]
+    testTokens "\"abc\"" [Text "abc"]
+    testTokens "\"\\a\\b\\f\\n\\r\\t\\v\\\"\\\\\""
+      [Text "\a\b\f\n\r\t\v\"\\"]
+
 testComment :: String -> Assertion
 testComment source = case tokenize "test" source of
   Left message -> assertFailure $ show message
