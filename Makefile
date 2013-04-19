@@ -3,32 +3,35 @@ HC := ghc
 HLINT := hlint
 CABAL ?= cabal
 
-TargetDir := ./build
-
+CABALFLAGS ?=
 MAKEFLAGS += --warn-undefined-variables
 .SECONDARY :
 
 .PHONY : default
-default : compiler
+default : build test
 
 .PHONY : all
-all : deps configure compiler lint
+all : deps configure build test lint
 
 .PHONY : clean
 clean :
-	$(CABAL) clean --builddir=$(TargetDir)
+	$(CABAL) clean
 
 .PHONY : configure
 configure :
-	$(CABAL) configure --builddir=$(TargetDir)
+	$(CABAL) configure $(CABALFLAGS)
 
 .PHONY : deps
 deps :
-	$(CABAL) install --only-dependencies --builddir=$(TargetDir)
+	$(CABAL) install $(CABALFLAGS) --only-dependencies
 
-.PHONY : compiler
-compiler :
-	$(CABAL) build --builddir=$(TargetDir)
+.PHONY : build
+build :
+	$(CABAL) build
+
+.PHONY: test
+test:
+	$(CABAL) test $(CABALFLAGS)
 
 .PHONY : lint
 lint :

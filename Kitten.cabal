@@ -12,7 +12,7 @@ homepage: http://kittenlang.org/
 bug-reports: https://github.com/evincarofautumn/kitten/issues
 synopsis: A minimalistic concatenative programming language.
 
-executable kitten
+library
 
   build-depends:
     base >= 2,
@@ -29,7 +29,57 @@ executable kitten
     -Wall
 
   hs-source-dirs:
-    compiler
+    lib
+
+  exposed-modules:
+    Kitten.Anno,
+    Kitten.Builtin,
+    Kitten.Compile,
+    Kitten.Def,
+    Kitten.Error,
+    Kitten.Fragment,
+    Kitten.Interpret,
+    Kitten.Name,
+    Kitten.Resolve,
+    Kitten.Term,
+    Kitten.Token,
+    Kitten.Type,
+    Kitten.Typecheck,
+    Kitten.Util.Either,
+    Kitten.Util.List,
+    Kitten.Util.Maybe,
+    Kitten.Util.Tuple
+
+executable kitten
+
+  hs-source-dirs:
+    src
 
   main-is:
     Main.hs
+
+  build-depends:
+    Kitten,
+    base
+
+test-suite test
+
+  type:
+    exitcode-stdio-1.0
+
+  hs-source-dirs:
+    test
+
+  main-is:
+    Test.hs
+
+  build-depends:
+    Kitten,
+    base,
+    containers,
+    hspec == 1.4.*,
+    HUnit,
+    QuickCheck == 2.6.*
+
+  ghc-options:
+    -Wall
