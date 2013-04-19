@@ -35,6 +35,7 @@ data Term
   | Builtin Builtin
   | Lambda String Term
   | Compose [Term]
+  deriving (Eq, Show)
 
 data Value
   = Word String
@@ -44,6 +45,7 @@ data Value
   | Vec [Value]
   | Tuple [Value]
   | Fun Term
+  deriving (Eq, Show)
 
 data Element
   = AnnoElement Anno

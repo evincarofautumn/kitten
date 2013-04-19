@@ -11,7 +11,7 @@ data Anno = Anno
   { annoName :: String
   , annoVars :: Set Name
   , annoType :: Type
-  }
+  } deriving (Eq, Show)
 
 data Type
   = Type :> Type
@@ -21,3 +21,4 @@ data Type
   | Empty
   | Var Name
   | Word String
+  deriving (Eq, Show)

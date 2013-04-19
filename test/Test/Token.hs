@@ -3,6 +3,8 @@ module Test.Token where
 import Test.HUnit.Lang (Assertion, assertFailure)
 import Test.Hspec
 
+import Test.Util
+
 import Kitten.Token
 
 spec :: Spec
@@ -84,14 +86,6 @@ testTokens source expected = it (show source)
       | map locatedToken actual == expected -> return ()
       | otherwise -> expectedButGot
         (showTokens expected) (showLocated actual)
-
-expectedButGot :: String -> String -> Assertion
-expectedButGot expected actual = assertFailure $ unwords
-  [ "expected"
-  , expected
-  , "but got"
-  , actual
-  ]
 
 showLocated :: [Located] -> String
 showLocated = unwords . map (show . locatedToken)

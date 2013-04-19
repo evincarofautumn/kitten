@@ -9,4 +9,4 @@ data Fragment a = Fragment
   { fragmentAnnos :: [Anno]
   , fragmentDefs :: [Def a]
   , fragmentTerm :: a
-  }
+  } deriving (Eq, Show)
