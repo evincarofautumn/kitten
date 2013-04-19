@@ -13,6 +13,8 @@ import Kitten.Fragment
 import Kitten.Term
 import Kitten.Token (tokenize)
 
+import qualified Kitten.Builtin as Builtin
+
 spec :: Spec
 spec = do
   describe "empty program"
@@ -21,6 +23,17 @@ spec = do
   describe "terms" $ do
     testTerm "1 2 3"
       (fragment [] [] [int 1, int 2, int 3])
+    testTerm "dup swap drop vec cat fun compose apply"
+      $ fragment [] []
+        [ Builtin Builtin.Dup
+        , Builtin Builtin.Swap
+        , Builtin Builtin.Drop
+        , Builtin Builtin.Vec
+        , Builtin Builtin.Cat
+        , Builtin Builtin.Fun
+        , Builtin Builtin.Compose
+        , Builtin Builtin.Apply
+        ]
 
 testTerm :: String -> Fragment Term -> Spec
 testTerm source expected = it (show source)
