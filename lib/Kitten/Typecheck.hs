@@ -60,11 +60,17 @@ typecheckValue value = case value of
   Text _ -> pushData TextType
   Vec [] -> do
     pushData $ VecType (ScalarVar (Name 0))
-  Vec (v : _) -> do
-    typecheckValue v
-    -- FIXME Check remaining vector values.
-    a <- popData
-    pushData $ VecType a
+  Vec vs@(_ : _) -> do
+    mapM_ typecheckValue vs
+    (expected : rest) <- replicateM (length vs) popData
+    forM_ rest $ \ actual -> unless (actual `instanceOf` expected)
+      $ compileError $ unwords
+        [ "expecting"
+        , show expected
+        , "but got"
+        , show actual
+        ]
+    pushData $ VecType expected
   Tuple _values -> compileError "TODO typecheck tuple"
   Fun term -> pushData =<< stackEffect (typecheckTerm term)
 
