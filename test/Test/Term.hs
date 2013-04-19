@@ -6,15 +6,21 @@ import Test.Hspec
 
 import Test.Util
 
+import Kitten.Anno
+import Kitten.Def
 import Kitten.Error
 import Kitten.Fragment
 import Kitten.Term
-import Kitten.Token
+import Kitten.Token (tokenize)
 
 spec :: Spec
 spec = do
   describe "empty program"
-    $ testTerm "" (Fragment [] [] (Compose []))
+    $ testTerm "" (fragment [] [] [])
+
+  describe "terms" $ do
+    testTerm "1 2 3"
+      (fragment [] [] [int 1, int 2, int 3])
 
 testTerm :: String -> Fragment Term -> Spec
 testTerm source expected = it (show source)
@@ -28,3 +34,10 @@ testTerm source expected = it (show source)
   parsed
     = liftParseError . parse "test"
     <=< liftParseError . tokenize "test"
+
+fragment :: [Anno] -> [Def Term] -> [Term] -> Fragment Term
+fragment annos defs terms
+  = Fragment annos defs (Compose terms)
+
+int :: Int -> Term
+int = Value . Int
