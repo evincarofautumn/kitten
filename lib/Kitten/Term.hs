@@ -88,23 +88,27 @@ anno = do
 sig :: Map String Name -> Parser Type
 sig params = sig'
   where
+
   sig' = do
     left <- many1 baseType
     mRight <- optionMaybe $ token Token.Arrow *> many1 baseType
     case mRight of
       Just right -> return $ composeTypes left :> composeTypes right
       Nothing -> return $ composeTypes left
+
   baseType = choice
     [ Anno.Vec <$> between (token Token.VecBegin) (token Token.VecEnd) sig'
     , Anno.Tuple <$> grouped (many baseType)
     , block sig'
     , var
     ]
+
   var = do
     word <- identifier
     return $ case Map.lookup word params of
       Just param -> Anno.Var param
       Nothing -> Anno.Word word
+
   composeTypes = foldl' (:.) Anno.Empty
 
 def :: Parser (Def Term)
@@ -126,9 +130,11 @@ term = choice
   , lambda
   ]
   where
+
   lambda = (<?> "lambda") $ do
     name <- token Token.Lambda *> identifier
     Lambda name <$> oneOrBlock
+
   toBuiltin (Token.Builtin name) = Just $ Builtin name
   toBuiltin _ = Nothing
 
@@ -141,18 +147,23 @@ value = choice
   , tuple
   ]
   where
+
   toLiteral (Token.Int x) = Just $ Int x
   toLiteral (Token.Bool x) = Just $ Bool x
   toLiteral (Token.Text x) = Just $ Text x
   toLiteral _ = Nothing
+
   toWord (Token.Word name) = Just $ Word name
   toWord _ = Nothing
+
   vec = Vec . reverse
     <$> between (token Token.VecBegin) (token Token.VecEnd) (many value)
     <?> "vector"
+
   fun = Fun . Compose
     <$> (block (many term) <|> layout (many term))
     <?> "function"
+
   tuple = Tuple . reverse
     <$> between (token Token.TupleBegin) (token Token.TupleEnd) (many value)
     <?> "tuple"
