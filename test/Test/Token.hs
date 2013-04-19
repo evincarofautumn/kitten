@@ -7,6 +7,8 @@ import Test.Util
 
 import Kitten.Token
 
+import qualified Kitten.Builtin as Builtin
+
 spec :: Spec
 spec = do
   describe "tokenize comment" $ do
@@ -62,6 +64,36 @@ spec = do
     testTokens "\"abc\"" [Text "abc"]
     testTokens "\"\\a\\b\\f\\n\\r\\t\\v\\\"\\\\\""
       [Text "\a\b\f\n\r\t\v\"\\"]
+
+  describe "tokenize bool" $ do
+    testTokens "true" [Bool True]
+    testTokens "false" [Bool False]
+
+  describe "tokenize keyword" $ do
+    testTokens "bool" [BoolType]
+    testTokens "int" [IntType]
+    testTokens "text" [TextType]
+    testTokens "def" [Def]
+    testTokens "type" [Type]
+
+  describe "tokenize builtin" $ do
+    testTokens "dup" [Builtin Builtin.Dup]
+    testTokens "swap" [Builtin Builtin.Swap]
+    testTokens "drop" [Builtin Builtin.Drop]
+    testTokens "vec" [Builtin Builtin.Vec]
+    testTokens "cat" [Builtin Builtin.Cat]
+    testTokens "fun" [Builtin Builtin.Fun]
+    testTokens "compose" [Builtin Builtin.Compose]
+    testTokens "apply" [Builtin Builtin.Apply]
+
+  describe "tokenize word" $ do
+    testTokens "not_a_keyword" [Word "not_a_keyword"]
+    testTokens "alsoNot" [Word "alsoNot"]
+    testTokens "thisThat123" [Word "thisThat123"]
+    testTokens "+-" [Word "+-"]
+    testTokens "<=>" [Word "<=>"]
+    testTokens "!#$%&*+,-./;<=>?@^|~"
+      [Word "!#$%&*+,-./;<=>?@^|~"]
 
 testComment :: String -> Assertion
 testComment source = case tokenize "test" source of
