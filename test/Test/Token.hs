@@ -31,6 +31,16 @@ spec = do
     it "nested multi-line comment"
       $ testComment "{- Nested {- multi-line -} comment. -}"
 
+  describe "single-character token" $ do
+    testTokens "\\" [Lambda]
+    testTokens "[" [VecBegin]
+    testTokens "]" [VecEnd]
+    testTokens "{" [FunBegin]
+    testTokens "}" [FunEnd]
+    testTokens "(" [TupleBegin]
+    testTokens ")" [TupleEnd]
+    testTokens ":" [Layout]
+
   describe "tokenize int" $ do
     testInt "0" 0
     testInt "5" 5
@@ -49,7 +59,7 @@ testComment :: String -> Assertion
 testComment source = case tokenize "test" source of
   Left message -> assertFailure $ show message
   Right [] -> return ()
-  Right actual -> expectedButGot "[]" actual
+  Right actual -> expectedButGot "[]" (showLocated actual)
 
 testInt :: String -> Int -> Spec
 testInt source expected = it ("int " ++ show source)
@@ -57,12 +67,28 @@ testInt source expected = it ("int " ++ show source)
     Left message -> assertFailure $ show message
     Right [Located _ _ (Int actual)]
       | actual == expected -> return ()
-    Right actual -> expectedButGot expected actual
+    Right actual -> expectedButGot
+      (show expected) (showLocated actual)
 
-expectedButGot :: (Show a, Show b) => a -> b -> Assertion
+testTokens :: String -> [Token] -> Spec
+testTokens source expected = it (show source)
+  $ case tokenize "test" source of
+    Left message -> assertFailure $ show message
+    Right actual
+      | map locatedToken actual == expected -> return ()
+      | otherwise -> expectedButGot
+        (showTokens expected) (showLocated actual)
+
+expectedButGot :: String -> String -> Assertion
 expectedButGot expected actual = assertFailure $ unwords
   [ "expected"
-  , show expected
+  , expected
   , "but got"
-  , show actual
+  , actual
   ]
+
+showLocated :: [Located] -> String
+showLocated = unwords . map (show . locatedToken)
+
+showTokens :: [Token] -> String
+showTokens = unwords . map show
