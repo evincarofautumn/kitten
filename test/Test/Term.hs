@@ -35,6 +35,58 @@ spec = do
         , Builtin Builtin.Apply
         ]
 
+  describe "lambda" $ do
+
+    testTerm
+      "\\x x x *"
+      $ fragment [] []
+        [ lambda "x"
+          [ word "x"
+          , word "x"
+          , Builtin Builtin.Mul
+          ]
+        ]
+
+    testTerm
+      "\\x \\y x y *"
+      $ fragment [] []
+        [ lambda "x"
+          [ lambda "y"
+            [ word "x"
+            , word "y"
+            , Builtin Builtin.Mul
+            ]
+          ]
+        ]
+
+    testTerm
+      "{ \\x \\y x y * }"
+      $ fragment [] []
+        [ fun
+          [ lambda "x"
+            [ lambda "y"
+              [ word "x"
+              , word "y"
+              , Builtin Builtin.Mul
+              ]
+            ]
+          ]
+        ]
+
+    testTerm
+      ": \\x \\y x y *"
+      $ fragment [] []
+        [ fun
+          [ lambda "x"
+            [ lambda "y"
+              [ word "x"
+              , word "y"
+              , Builtin Builtin.Mul
+              ]
+            ]
+          ]
+        ]
+
   describe "layout" $ do
 
     testTerm
@@ -89,6 +141,9 @@ fun = Value . Fun . Compose
 
 int :: Int -> Term
 int = Value . Int
+
+lambda :: String -> [Term] -> Term
+lambda name terms = Lambda name $ Compose terms
 
 word :: String -> Term
 word = Value . Word

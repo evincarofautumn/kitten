@@ -136,7 +136,7 @@ term = choice
 
   lambda = (<?> "lambda") $ do
     name <- token Token.Lambda *> identifier
-    Lambda name <$> oneOrBlock
+    Lambda name . Compose <$> many term
 
   toBuiltin (Token.Builtin name) = Just $ Builtin name
   toBuiltin _ = Nothing
