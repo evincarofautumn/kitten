@@ -137,7 +137,7 @@ fragment annos defs terms
   = Fragment annos defs (Compose terms)
 
 fun :: [Term] -> Term
-fun = Value . Fun . Compose
+fun = Value . Fun
 
 int :: Int -> Term
 int = Value . Int

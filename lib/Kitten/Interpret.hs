@@ -46,8 +46,8 @@ interpretBuiltin builtin = case builtin of
   Builtin.AndInt -> intsToInt (.&.)
 
   Builtin.Apply -> do
-    Fun term <- popData
-    interpretTerm term
+    Fun terms <- popData
+    mapM_ interpretTerm terms
 
   Builtin.At -> do
     Int b <- popData
@@ -66,7 +66,7 @@ interpretBuiltin builtin = case builtin of
   Builtin.Compose -> do
     Fun b <- popData
     Fun a <- popData
-    pushData $ Fun (Compose [b, a])
+    pushData $ Fun (b ++ a)
 
   Builtin.Div -> intsToInt div
 
@@ -89,7 +89,7 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.Fun -> do
     a <- popData
-    pushData $ Fun (Value a)
+    pushData $ Fun [Value a]
 
   Builtin.Ge -> intsToBool (>=)
 
@@ -100,8 +100,8 @@ interpretBuiltin builtin = case builtin of
     Fun false <- popData
     Fun true <- popData
     if condition
-      then interpretTerm true
-      else interpretTerm false
+      then mapM_ interpretTerm true
+      else mapM_ interpretTerm false
 
   Builtin.Le -> intsToBool (<=)
 

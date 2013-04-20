@@ -44,7 +44,7 @@ data Value
   | Text String
   | Vec [Value]
   | Tuple [Value]
-  | Fun Resolved
+  | Fun [Resolved]
 
 instance Show Value where
   show v = case v of
@@ -108,7 +108,7 @@ resolveValue unresolved = case unresolved of
           Just index -> return . Value . Word $ Name index
           Nothing -> lift . Left . CompileError $ concat
             ["Unable to resolve word '", name, "'"]
-  Term.Fun term -> Value . Fun <$> resolveTerm term
+  Term.Fun term -> Value . Fun <$> mapM resolveTerm term
   Term.Vec terms -> Value . Vec <$> resolveVector terms
   Term.Tuple terms -> Value . Tuple <$> resolveVector terms
   Term.Int value -> return . Value $ Int value

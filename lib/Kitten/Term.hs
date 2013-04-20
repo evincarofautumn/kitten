@@ -45,7 +45,7 @@ data Value
   | Text String
   | Vec [Value]
   | Tuple [Value]
-  | Fun Term
+  | Fun [Term]
   deriving (Eq, Show)
 
 data Element
@@ -163,7 +163,7 @@ value = choice
     <$> between (token Token.VecBegin) (token Token.VecEnd) (many value)
     <?> "vector"
 
-  fun = Fun . Compose
+  fun = Fun
     <$> (block (many term) <|> layout (many term))
     <?> "function"
 

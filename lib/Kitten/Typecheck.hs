@@ -72,7 +72,8 @@ typecheckValue value = case value of
         ]
     pushData $ VecType expected
   Tuple _values -> compileError "TODO typecheck tuple"
-  Fun term -> pushData =<< stackEffect (typecheckTerm term)
+  Fun term -> pushData
+    =<< stackEffect (mapM_ typecheckTerm term)
 
 stackEffect :: TypecheckM a -> TypecheckM (Type Scalar)
 stackEffect action = do
