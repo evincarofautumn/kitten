@@ -63,7 +63,8 @@ instance Show Token where
     Layout -> ":"
 
 data Located = Located
-  { locatedLocation :: SourcePos
+  { locatedStart :: SourcePos
+  , locatedEnd :: SourcePos
   , locatedIndent :: Column
   , locatedToken :: Token
   }
@@ -79,9 +80,10 @@ located
   -> Parser Located
 located parser = do
   indent <- getState
-  position <- getPosition
+  start <- getPosition
   result <- parser
-  return $ Located position indent result
+  end <- getPosition
+  return $ Located start end indent result
 
 file :: Parser [Located]
 file = silence *> tokens <* eof

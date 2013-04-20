@@ -1,5 +1,6 @@
 module Kitten.Util.List
   ( (!?)
+  , list
   , stripCommonPrefix
   ) where
 
@@ -8,6 +9,9 @@ _ !? n | n < 0 = Nothing
 (x : _) !? 0 = Just x
 (_ : xs) !? n = xs !? pred n
 [] !? _ = Nothing
+
+list :: a -> [a]
+list = (:[])
 
 stripCommonPrefix :: (Eq a) => [a] -> [a] -> ([a], [a])
 stripCommonPrefix (x : xs) (y : ys) | x == y = stripCommonPrefix xs ys

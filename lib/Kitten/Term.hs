@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Kitten.Term
   ( Term(..)
   , Value(..)
@@ -25,6 +27,7 @@ import Kitten.Name
 import Kitten.Token (Located(..), Token)
 import Kitten.Util.Applicative
 import Kitten.Util.Maybe
+import Kitten.Util.List
 
 import qualified Kitten.Anno as Anno
 import qualified Kitten.Token as Token
@@ -78,7 +81,7 @@ element = choice
 
 anno :: Parser Anno
 anno = do
-  void $ token Token.Type
+  void $ match Token.Type
   params <- maybe mempty makeParamMap
     <$> optionMaybe (grouped $ many identifier)
   name <- identifier
@@ -94,13 +97,13 @@ sig params = sig'
 
   sig' = do
     left <- many1 baseType
-    mRight <- optionMaybe $ token Token.Arrow *> many1 baseType
+    mRight <- optionMaybe $ match Token.Arrow *> many1 baseType
     case mRight of
       Just right -> return $ composeTypes left :> composeTypes right
       Nothing -> return $ composeTypes left
 
   baseType = choice
-    [ Anno.Vec <$> between (token Token.VecBegin) (token Token.VecEnd) sig'
+    [ Anno.Vec <$> between (match Token.VecBegin) (match Token.VecEnd) sig'
     , Anno.Tuple <$> grouped (many baseType)
     , block sig'
     , var
@@ -116,7 +119,7 @@ sig params = sig'
 
 def :: Parser (Def Term)
 def = (<?> "definition") $ do
-  void $ token Token.Def
+  void $ match Token.Def
   mParams <- optionMaybe . grouped $ many identifier
   name <- identifier
   body <- oneOrBlock
@@ -135,7 +138,7 @@ term = choice
   where
 
   lambda = (<?> "lambda") $ do
-    name <- token Token.Lambda *> identifier
+    name <- match Token.Lambda *> identifier
     Lambda name . Compose <$> many term
 
   toBuiltin (Token.Builtin name) = Just $ Builtin name
@@ -160,7 +163,10 @@ value = choice
   toWord _ = Nothing
 
   vec = Vec . reverse
-    <$> between (token Token.VecBegin) (token Token.VecEnd) (many value)
+    <$> between
+      (match Token.VecBegin)
+      (match Token.VecEnd)
+      (many value)
     <?> "vector"
 
   fun = Fun
@@ -168,49 +174,51 @@ value = choice
     <?> "function"
 
   tuple = Tuple . reverse
-    <$> between (token Token.TupleBegin) (token Token.TupleEnd) (many value)
+    <$> between
+      (match Token.TupleBegin)
+      (match Token.TupleEnd)
+      (many value)
     <?> "tuple"
 
 grouped :: Parser a -> Parser a
-grouped = between (token Token.TupleBegin) (token Token.TupleEnd)
+grouped = between (match Token.TupleBegin) (match Token.TupleEnd)
 
 block :: Parser a -> Parser a
-block = between (token Token.FunBegin) (token Token.FunEnd)
+block = between (match Token.FunBegin) (match Token.FunEnd)
 
 locatedBlock :: (Located -> Bool) -> Parser a -> Parser a
 locatedBlock inside = between
-  (locatedSatisfy (inside .&&. (Token.FunBegin ==) . locatedToken))
-  (token Token.FunEnd)
+  (locatedSatisfy $ inside .&&. isLocated Token.FunBegin)
+  (match Token.FunEnd)
 
 locatedTuple :: (Located -> Bool) -> Parser a -> Parser a
 locatedTuple inside = between
-  (locatedSatisfy (inside .&&. (Token.TupleBegin ==) . locatedToken))
-  (token Token.TupleEnd)
+  (locatedSatisfy $ inside .&&. isLocated Token.TupleBegin)
+  (match Token.TupleEnd)
 
 locatedVec :: (Located -> Bool) -> Parser a -> Parser a
 locatedVec inside = between
-  (locatedSatisfy (inside .&&. (Token.VecBegin ==) . locatedToken))
-  (token Token.VecEnd)
+  (locatedSatisfy $ inside .&&. isLocated Token.VecBegin)
+  (match Token.VecEnd)
 
 layout :: Parser a -> Parser a
 layout inner = do
 
-  Token.Located startLocation startIndent _ <- located Token.Layout
-  firstToken@(Token.Located firstLocation _ _) <- anyLocated
+  Token.Located startLocation _ startIndent _ <- located Token.Layout
+  firstToken@Token.Located{locatedStart = firstLocation} <- anyLocated
 
   let
     inside = if sourceLine firstLocation == sourceLine startLocation
-      then \ (Token.Located location _ _)
-        -> sourceColumn location > sourceColumn startLocation
-      else \ (Token.Located location _ _)
-        -> sourceColumn location > startIndent
+      then \ Token.Located{..}
+        -> sourceColumn locatedStart > sourceColumn startLocation
+      else \ Token.Located{..}
+        -> sourceColumn locatedStart > startIndent
 
   innerTokens <- liftM concat . many $ choice
     [ locatedBlock inside $ many anyLocated
     , locatedVec inside $ many anyLocated
     , locatedTuple inside $ many anyLocated
-    , liftM (:[]) . locatedSatisfy
-      $ inside .&&. not . locatedEnd
+    , liftM list . locatedSatisfy $ inside .&&. not . closing
     ]
 
   let tokens = firstToken : innerTokens
@@ -219,10 +227,11 @@ layout inner = do
     Left err -> fail $ show err
   where
 
-  locatedEnd foo = any ($ locatedToken foo)
-    [ (==) Token.FunEnd
-    , (==) Token.VecEnd
-    , (==) Token.TupleEnd
+  closing :: Located -> Bool
+  closing Located{..} = any (== locatedToken)
+    [ Token.FunEnd
+    , Token.VecEnd
+    , Token.TupleEnd
     ]
 
 identifier :: Parser String
@@ -239,26 +248,29 @@ oneOrBlock = choice
   ]
 
 advance :: SourcePos -> t -> [Located] -> SourcePos
-advance _ _ (Located sourcePos _ _ : _) = sourcePos
+advance _ _ (Located{..} : _) = locatedStart
 advance sourcePos _ _ = sourcePos
 
 satisfy :: (Token -> Bool) -> Parser Token
-satisfy f = tokenPrim show advance
-  $ \ Located { Token.locatedToken = t } -> justIf (f t) t
+satisfy predicate = tokenPrim show advance
+  $ \ Located{..} -> justIf (predicate locatedToken) locatedToken
 
 mapOne :: (Token -> Maybe a) -> Parser a
-mapOne f = tokenPrim show advance
-  $ \ Located { Token.locatedToken = t } -> f t
+mapOne extract = tokenPrim show advance
+  $ \ Located{..} -> extract locatedToken
 
 locatedSatisfy :: (Located -> Bool) -> Parser Located
 locatedSatisfy predicate = tokenPrim show advance
-  $ \ loc -> justIf (predicate loc) loc
+  $ \ location -> justIf (predicate location) location
 
-token :: Token -> Parser Token
-token tok = satisfy (== tok)
+match :: Token -> Parser Token
+match = satisfy . (==)
 
 located :: Token -> Parser Located
-located tok = locatedSatisfy (\ (Located _ _ loc) -> loc == tok)
+located token = locatedSatisfy $ isLocated token
+
+isLocated :: Token -> Located -> Bool
+isLocated token Located{..} = token == locatedToken
 
 anyLocated :: Parser Located
 anyLocated = locatedSatisfy (const True)
