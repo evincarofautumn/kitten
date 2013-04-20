@@ -42,10 +42,11 @@ typecheckTerm :: Resolved -> Typecheck
 typecheckTerm resolved = case resolved of
   Push value -> typecheckValue value
   Builtin builtin -> typecheckBuiltin builtin
-  Scoped term -> do
+  Scoped terms -> do
     pushLocal =<< popData
-    typecheckTerm term
-  Local (Name _name) -> compileError "TODO typecheck local"
+    mapM_ typecheckTerm terms
+  Local name -> pushData =<< getLocal name
+  Closed{} -> compileError "TODO typecheck closed"
   Compose terms -> mapM_ typecheckTerm terms
 
 typecheckValue :: Value -> Typecheck
@@ -72,8 +73,9 @@ typecheckValue value = case value of
         ]
     pushData $ VecType expected
   Tuple _values -> compileError "TODO typecheck tuple"
-  Fun term -> pushData
-    =<< stackEffect (mapM_ typecheckTerm term)
+  Fun terms -> pushData
+    =<< stackEffect (mapM_ typecheckTerm terms)
+  Closure{} -> compileError "TODO typecheck closure"
 
 stackEffect :: TypecheckM a -> TypecheckM (Type Scalar)
 stackEffect action = do
@@ -283,6 +285,9 @@ popDataExpecting type_ = do
 pushData :: Type Scalar -> Typecheck
 pushData type_ = modify $ \ env@Env{..}
   -> env { envData = type_ : envData }
+
+getLocal :: Name -> TypecheckM (Type Scalar)
+getLocal (Name index) = gets ((!! index) . envLocals)
 
 pushLocal :: Type Scalar -> Typecheck
 pushLocal type_ = modify $ \ env@Env{..}

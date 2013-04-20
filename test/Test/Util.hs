@@ -5,9 +5,9 @@ module Test.Util
 import Test.HUnit.Lang (Assertion, assertFailure)
 
 expectedButGot :: String -> String -> Assertion
-expectedButGot expected actual = assertFailure $ unwords
-  [ "expected"
+expectedButGot expected actual = assertFailure $ unlines
+  [ "\nExpected:"
   , expected
-  , "but got"
+  , "\nActual:"
   , actual
   ]

@@ -6,6 +6,7 @@ import Kitten.Def
 import Kitten.Error
 import Kitten.Fragment
 import Kitten.Resolve
+import Kitten.Scope
 import Kitten.Term
 import Kitten.Token
 import Kitten.Typecheck
@@ -23,4 +24,4 @@ compile stack prelude name source = do
   parsed <- liftParseError $ parse name tokenized
   resolved <- resolve prelude parsed
   typecheck prelude stack resolved
-  return resolved
+  return $ scope resolved

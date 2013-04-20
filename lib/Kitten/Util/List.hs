@@ -1,6 +1,7 @@
 module Kitten.Util.List
   ( (!?)
   , list
+  , mapHead
   , stripCommonPrefix
   ) where
 
@@ -12,6 +13,10 @@ _ !? n | n < 0 = Nothing
 
 list :: a -> [a]
 list = (:[])
+
+mapHead :: (a -> a) -> [a] -> [a]
+mapHead f (x : xs) = f x : xs
+mapHead _ [] = []
 
 stripCommonPrefix :: (Eq a) => [a] -> [a] -> ([a], [a])
 stripCommonPrefix (x : xs) (y : ys) | x == y = stripCommonPrefix xs ys

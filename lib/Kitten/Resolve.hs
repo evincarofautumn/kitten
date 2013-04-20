@@ -25,16 +25,19 @@ import qualified Kitten.Term as Term
 data Resolved
   = Push Value
   | Builtin Builtin
-  | Scoped Resolved
+  | Scoped [Resolved]
   | Local Name
+  | Closed Name
   | Compose [Resolved]
+  deriving (Eq)
 
 instance Show Resolved where
   show resolved = case resolved of
     Push value -> show value
     Builtin builtin -> show builtin
-    Scoped term -> concat ["enter ", show term, " leave"]
+    Scoped terms -> unwords $ "\\" : map show terms
     Local (Name index) -> "local" ++ show index
+    Closed (Name index) -> "closed" ++ show index
     Compose terms -> unwords $ map show terms
 
 data Value
@@ -45,6 +48,9 @@ data Value
   | Vec [Value]
   | Tuple [Value]
   | Fun [Resolved]
+  | Closure [Name] [Resolved]
+  | Closure' [Value] [Resolved]
+  deriving (Eq)
 
 instance Show Value where
   show v = case v of
@@ -54,7 +60,21 @@ instance Show Value where
     Text value -> show value
     Vec values -> "[" ++ showVector values ++ "]"
     Tuple values -> "(" ++ showVector values ++ ")"
-    Fun term -> "{" ++ show term ++ "}"
+    Fun terms -> "{" ++ unwords (map show terms) ++ "}"
+    Closure names terms -> concat
+      [ "$("
+      , unwords $ map show names
+      , "){"
+      , unwords $ map show terms
+      , "}"
+      ]
+    Closure' values terms -> concat
+      [ "$("
+      , unwords $ map show values
+      , "){"
+      , unwords $ map show terms
+      , "}"
+      ]
     where
     showVector = unwords . map show . reverse
 
@@ -90,7 +110,8 @@ resolveTerm unresolved = case unresolved of
   Term.Push value -> resolveValue value
   Term.Builtin name -> return $ Builtin name
   Term.Compose terms -> Compose <$> mapM resolveTerm terms
-  Term.Lambda name term -> withLocal name $ Scoped <$> resolveTerm term
+  Term.Lambda name term -> withLocal name
+    $ Scoped . (:[]) <$> resolveTerm term
 
 fromValue :: Resolved -> Value
 fromValue (Push value) = value

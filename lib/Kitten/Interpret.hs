@@ -10,6 +10,7 @@ import Control.Monad.Trans.State
 import Data.Bits
 
 import Kitten.Builtin (Builtin)
+import Kitten.Def
 import Kitten.Fragment
 import Kitten.Name
 import Kitten.Resolve (Resolved(..), Value(..))
@@ -19,6 +20,8 @@ import qualified Kitten.Builtin as Builtin
 data Env = Env
   { envData :: [Value]
   , envLocals :: [Value]
+  , envDefs :: [Def Resolved]
+  , envClosure :: [Value]
   }
 
 type InterpretM a = StateT Env IO a
@@ -27,15 +30,29 @@ type Interpret = InterpretM ()
 interpret :: [Value] -> Fragment Resolved -> IO ()
 interpret stack Fragment{..} = void $ evalStateT
   (interpretTerm fragmentTerm)
-  (Env stack [])
+  (Env stack [] fragmentDefs [])
 
 interpretTerm :: Resolved -> Interpret
 interpretTerm resolved = case resolved of
-  Push value -> pushData value
+  Push value -> interpretValue value
   Builtin builtin -> interpretBuiltin builtin
-  Scoped _term -> pushLocal =<< popData
-  Local (Name _name) -> fail "TODO interpret locals"
+  Scoped terms -> do
+    pushLocal =<< popData
+    mapM_ interpretTerm terms
+    popLocal
+  Local name -> pushData =<< getLocal name
+  Closed name -> pushData =<< getClosed name
   Compose terms -> mapM_ interpretTerm terms
+
+interpretValue :: Value -> Interpret
+interpretValue value = case value of
+  Word (Name index) -> do
+    Def _ term <- gets ((!! index) . envDefs)
+    interpretTerm term
+  Closure names terms -> do
+    values <- mapM getLocal names
+    pushData $ Closure' values terms
+  _ -> pushData value
 
 interpretBuiltin :: Builtin -> Interpret
 interpretBuiltin builtin = case builtin of
@@ -46,8 +63,12 @@ interpretBuiltin builtin = case builtin of
   Builtin.AndInt -> intsToInt (.&.)
 
   Builtin.Apply -> do
-    Fun terms <- popData
-    mapM_ interpretTerm terms
+    a <- popData
+    case a of
+      Fun terms -> mapM_ interpretTerm terms
+      Closure' values terms
+        -> withClosure values $ mapM_ interpretTerm terms
+      _ -> fail $ show a
 
   Builtin.At -> do
     Int b <- popData
@@ -198,6 +219,32 @@ popData = do
       modify $ \ env -> env { envData = down }
       return top
 
+getLocal :: Name -> InterpretM Value
+getLocal (Name index) = do
+  locals <- gets envLocals
+  return $ locals !! index
+
+getClosed :: Name -> InterpretM Value
+getClosed (Name index) = do
+  closure <- gets envClosure
+  return $ closure !! index
+
 pushLocal :: Value -> Interpret
 pushLocal value = modify $ \ env@Env{..}
   -> env { envLocals = value : envLocals }
+
+popLocal :: Interpret
+popLocal = do
+  localStack <- gets envLocals
+  case localStack of
+    [] -> fail "local stack underflow"
+    (_ : down) -> do
+      modify $ \ env -> env { envLocals = down }
+
+withClosure :: [Value] -> InterpretM a -> InterpretM a
+withClosure values action = do
+  closure <- gets envClosure
+  modify $ \ env@Env{..} -> env { envClosure = values }
+  result <- action
+  modify $ \ env@Env{..} -> env { envClosure = closure }
+  return result
