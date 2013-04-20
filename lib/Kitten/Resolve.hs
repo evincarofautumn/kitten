@@ -23,7 +23,7 @@ import Kitten.Term (Term)
 import qualified Kitten.Term as Term
 
 data Resolved
-  = Value Value
+  = Push Value
   | Builtin Builtin
   | Scoped Resolved
   | Local Name
@@ -31,7 +31,7 @@ data Resolved
 
 instance Show Resolved where
   show resolved = case resolved of
-    Value value -> show value
+    Push value -> show value
     Builtin builtin -> show builtin
     Scoped term -> concat ["enter ", show term, " leave"]
     Local (Name index) -> "local" ++ show index
@@ -87,13 +87,13 @@ resolveDefs defs = (<>) <$> gets envPrelude <*> mapM resolveDef defs
 
 resolveTerm :: Term -> Resolution Resolved
 resolveTerm unresolved = case unresolved of
-  Term.Value value -> resolveValue value
+  Term.Push value -> resolveValue value
   Term.Builtin name -> return $ Builtin name
   Term.Compose terms -> Compose <$> mapM resolveTerm terms
   Term.Lambda name term -> withLocal name $ Scoped <$> resolveTerm term
 
 fromValue :: Resolved -> Value
-fromValue (Value value) = value
+fromValue (Push value) = value
 fromValue _ = error "Resolve.fromValue: not a value"
 
 resolveValue :: Term.Value -> Resolution Resolved
@@ -105,15 +105,15 @@ resolveValue unresolved = case unresolved of
       Nothing -> do
         mDefIndex <- gets $ defIndex name
         case mDefIndex of
-          Just index -> return . Value . Word $ Name index
+          Just index -> return . Push . Word $ Name index
           Nothing -> lift . Left . CompileError $ concat
             ["Unable to resolve word '", name, "'"]
-  Term.Fun term -> Value . Fun <$> mapM resolveTerm term
-  Term.Vec terms -> Value . Vec <$> resolveVector terms
-  Term.Tuple terms -> Value . Tuple <$> resolveVector terms
-  Term.Int value -> return . Value $ Int value
-  Term.Bool value -> return . Value $ Bool value
-  Term.Text value -> return . Value $ Text value
+  Term.Fun term -> Push . Fun <$> mapM resolveTerm term
+  Term.Vec terms -> Push . Vec <$> resolveVector terms
+  Term.Tuple terms -> Push . Tuple <$> resolveVector terms
+  Term.Int value -> return . Push $ Int value
+  Term.Bool value -> return . Push $ Bool value
+  Term.Text value -> return . Push $ Text value
   where resolveVector = mapM $ fmap fromValue . resolveValue
 
 localIndex :: String -> Env -> Maybe Int

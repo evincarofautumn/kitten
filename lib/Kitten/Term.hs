@@ -32,7 +32,7 @@ import qualified Kitten.Token as Token
 type Parser a = ParsecT [Located] () Identity a
 
 data Term
-  = Value Value
+  = Push Value
   | Builtin Builtin
   | Lambda String Term
   | Compose [Term]
@@ -128,7 +128,7 @@ def = (<?> "definition") $ do
 
 term :: Parser Term
 term = choice
-  [ Value <$> value
+  [ Push <$> value
   , mapOne toBuiltin <?> "builtin"
   , lambda
   ]

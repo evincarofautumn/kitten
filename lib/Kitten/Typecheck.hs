@@ -40,7 +40,7 @@ typecheck _prelude stack Fragment{..} = evalStateT
 
 typecheckTerm :: Resolved -> Typecheck
 typecheckTerm resolved = case resolved of
-  Value value -> typecheckValue value
+  Push value -> typecheckValue value
   Builtin builtin -> typecheckBuiltin builtin
   Scoped term -> do
     pushLocal =<< popData

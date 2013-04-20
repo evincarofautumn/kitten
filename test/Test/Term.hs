@@ -137,13 +137,13 @@ fragment annos defs terms
   = Fragment annos defs (Compose terms)
 
 fun :: [Term] -> Term
-fun = Value . Fun
+fun = Push . Fun
 
 int :: Int -> Term
-int = Value . Int
+int = Push . Int
 
 lambda :: String -> [Term] -> Term
 lambda name terms = Lambda name $ Compose terms
 
 word :: String -> Term
-word = Value . Word
+word = Push . Word

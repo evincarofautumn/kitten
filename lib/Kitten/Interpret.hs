@@ -31,7 +31,7 @@ interpret stack Fragment{..} = void $ evalStateT
 
 interpretTerm :: Resolved -> Interpret
 interpretTerm resolved = case resolved of
-  Value value -> pushData value
+  Push value -> pushData value
   Builtin builtin -> interpretBuiltin builtin
   Scoped _term -> pushLocal =<< popData
   Local (Name _name) -> fail "TODO interpret locals"
@@ -89,7 +89,7 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.Fun -> do
     a <- popData
-    pushData $ Fun [Value a]
+    pushData $ Fun [Push a]
 
   Builtin.Ge -> intsToBool (>=)
 
