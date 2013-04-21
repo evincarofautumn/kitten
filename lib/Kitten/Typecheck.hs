@@ -75,7 +75,10 @@ typecheckValue value = case value of
   Tuple _values -> compileError "TODO typecheck tuple"
   Fun terms -> pushData
     =<< stackEffect (mapM_ typecheckTerm terms)
-  Closure{} -> compileError "TODO typecheck closure"
+  Closure{} -> internalError
+    "closures should not appear during inference"
+  Closure'{} -> internalError
+    "closures should not appear during inference"
 
 stackEffect :: TypecheckM a -> TypecheckM (Type Scalar)
 stackEffect action = do
@@ -254,6 +257,9 @@ typecheckBuiltin builtin = case builtin of
 
 compileError :: String -> TypecheckM a
 compileError = lift . Left . CompileError
+
+internalError :: String -> TypecheckM a
+internalError = lift . Left . InternalError
 
 popData_ :: Typecheck
 popData_ = void popData
