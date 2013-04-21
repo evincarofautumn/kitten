@@ -9,7 +9,6 @@ module Kitten.Term
 import Control.Applicative
 import Control.Monad
 import Data.Functor.Identity
-import Data.List
 import Data.Monoid
 import Data.Map (Map)
 import Text.Parsec
@@ -19,10 +18,11 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Text.Parsec as Parsec
 
-import Kitten.Anno (Anno(..), Type((:>), (:.)))
+import Kitten.Anno (Anno(..), Type((:>)))
 import Kitten.Builtin (Builtin)
 import Kitten.Def
 import Kitten.Fragment
+import Kitten.Kind
 import Kitten.Name
 import Kitten.Token (Located(..), Token)
 import Kitten.Util.Applicative
@@ -87,35 +87,43 @@ anno = do
   name <- identifier
   rawType <- block (sig params) <|> layout (sig params)
   return $ Anno name
-    (Set.fromList [Name 0 .. Name $ Map.size params])
+    (Set.fromList [Name 0 .. Name . pred $ Map.size params])
     rawType
   where makeParamMap = Map.fromList . flip zip [Name 0 ..]
 
-sig :: Map String Name -> Parser Type
+sig :: Map String Name -> Parser (Type Scalar)
 sig params = sig'
   where
 
   sig' = do
-    left <- many1 baseType
-    mRight <- optionMaybe $ match Token.Arrow *> many1 baseType
+    left <- many baseType
+    mRight <- optionMaybe $ match Token.Arrow *> many baseType
     case mRight of
-      Just right -> return $ composeTypes left :> composeTypes right
-      Nothing -> return $ composeTypes left
+      Just right -> return
+        $ Anno.Composition (reverse left)
+        :> Anno.Composition (reverse right)
+      Nothing -> return
+        $ Anno.Composition []
+        :> Anno.Composition (reverse left)
 
-  baseType = choice
-    [ Anno.Vec <$> between (match Token.VecBegin) (match Token.VecEnd) sig'
+  baseType = (<?> "base type") $ choice
+    [ Anno.Vec <$> between
+      (match Token.VecBegin)
+      (match Token.VecEnd)
+      sig'
     , Anno.Tuple <$> grouped (many baseType)
     , block sig'
+    , Anno.Bool <$ match Token.BoolType
+    , Anno.Text <$ match Token.TextType
+    , Anno.Int <$ match Token.IntType
     , var
     ]
 
-  var = do
+  var = (<?> "builtin type or type variable") $ do
     word <- identifier
-    return $ case Map.lookup word params of
-      Just param -> Anno.Var param
-      Nothing -> Anno.Word word
-
-  composeTypes = foldl' (:.) Anno.Empty
+    case Map.lookup word params of
+      Just param -> return $ Anno.Var param
+      Nothing -> unexpected word
 
 def :: Parser (Def Term)
 def = (<?> "definition") $ do

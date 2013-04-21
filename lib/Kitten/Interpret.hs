@@ -54,6 +54,16 @@ interpretValue value = case value of
     pushData $ Closure' values terms
   _ -> pushData value
 
+interpretFunction :: Value -> Interpret
+interpretFunction function = case function of
+  Fun terms -> mapM_ interpretTerm terms
+  Closure' values terms
+    -> withClosure values $ mapM_ interpretTerm terms
+  _ -> fail $ concat
+    [ "attempt to apply non-function "
+    , show function
+    ]
+
 interpretBuiltin :: Builtin -> Interpret
 interpretBuiltin builtin = case builtin of
   Builtin.Add -> intsToInt (+)
@@ -62,13 +72,7 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.AndInt -> intsToInt (.&.)
 
-  Builtin.Apply -> do
-    a <- popData
-    case a of
-      Fun terms -> mapM_ interpretTerm terms
-      Closure' values terms
-        -> withClosure values $ mapM_ interpretTerm terms
-      _ -> fail $ show a
+  Builtin.Apply -> interpretFunction =<< popData
 
   Builtin.At -> do
     Int b <- popData
@@ -118,11 +122,11 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.If -> do
     Bool condition <- popData
-    Fun false <- popData
-    Fun true <- popData
+    false <- popData
+    true <- popData
     if condition
-      then mapM_ interpretTerm true
-      else mapM_ interpretTerm false
+      then interpretFunction true
+      else interpretFunction false
 
   Builtin.Le -> intsToBool (<=)
 

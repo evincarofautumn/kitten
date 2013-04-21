@@ -1,18 +1,22 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE EmptyDataDecls #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Kitten.Type
   ( Row
   , Scalar
+  , Scheme(..)
   , Type(..)
-  , instanceOf
+  , fromAnno
   ) where
 
+import Data.Set (Set)
+
+import Kitten.Anno (Anno(..))
+import Kitten.Kind
 import Kitten.Name
 
-data Scalar
-data Row
+import qualified Kitten.Anno as Anno
 
 data Type a where
   BoolType :: Type Scalar
@@ -52,31 +56,26 @@ instance Show (Type a) where
   show (TupleType types)
     = "(" ++ unwords (map show types) ++ ")"
   show (a :> b)
-    = "(" ++ show a ++ " -> " ++ show b ++ ")"
+    = "{" ++ show a ++ " -> " ++ show b ++ "}"
   show (Composition as) = unwords (map show as)
   show EmptyType = "()"
 
-instanceOf :: Type Scalar -> Type Scalar -> Bool
-instanceOf type1 type2
-  | type1 == type2 = True
-  | otherwise = case (type1, type2) of
-    (ScalarVar a, ScalarVar b) -> a == b
-    (_, ScalarVar _) -> True
-    (a :> b, c :> d) -> instanceOfRow a c && instanceOfRow b d
-    (VecType a, VecType b) -> a `instanceOf` b
-    (TupleType as, TupleType bs) -> instancesOf as bs
-    _ -> False
+data Scheme a = Forall (Set Name) (Type a)
 
-instanceOfRow :: Type Row -> Type Row -> Bool
-instanceOfRow type1 type2
-  | type1 == type2 = True
-  | otherwise = case (type1, type2) of
-    (RowVar a, RowVar b) -> a == b
-    (_, RowVar _) -> True
-    (Composition as, Composition bs) -> instancesOf as bs
-    _ -> False
+fromAnno :: Anno -> Scheme Scalar
+fromAnno Anno{..} = Forall annoVars $ fromAnnoType annoType
 
-instancesOf :: [Type Scalar] -> [Type Scalar] -> Bool
-instancesOf as bs
-  = length as == length bs
-  && all (uncurry instanceOf) (zip as bs)
+fromAnnoType :: Anno.Type Scalar -> Type Scalar
+fromAnnoType annoType = case annoType of
+  a Anno.:> b -> fromAnnoRow a :> fromAnnoRow b
+  Anno.Vec type_ -> VecType $ fromAnnoType type_
+  Anno.Tuple types -> TupleType $ map fromAnnoType types
+  Anno.Var name -> ScalarVar name
+  Anno.Bool -> BoolType
+  Anno.Int -> IntType
+  Anno.Text -> TextType
+
+fromAnnoRow :: Anno.Type Row -> Type Row
+fromAnnoRow anno = case anno of
+  Anno.Composition types -> Composition
+    $ map fromAnnoType types
