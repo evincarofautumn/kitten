@@ -29,7 +29,7 @@ type Interpret = InterpretM ()
 
 interpret :: [Value] -> Fragment Resolved -> IO ()
 interpret stack Fragment{..} = void $ evalStateT
-  (interpretTerm fragmentTerm)
+  (mapM interpretTerm fragmentTerms)
   (Env stack [] fragmentDefs [])
 
 interpretTerm :: Resolved -> Interpret

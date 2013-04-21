@@ -34,6 +34,8 @@ library
     Kitten.Error,
     Kitten.Fragment,
     Kitten.Interpret,
+    Kitten.Kind,
+    Kitten.Location,
     Kitten.Name,
     Kitten.Resolve,
     Kitten.Scope,
@@ -43,6 +45,7 @@ library
     Kitten.Typecheck,
     Kitten.Util.Applicative,
     Kitten.Util.Either,
+    Kitten.Util.Function,
     Kitten.Util.List,
     Kitten.Util.Maybe,
     Kitten.Util.Tuple

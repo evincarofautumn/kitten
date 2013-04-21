@@ -9,12 +9,14 @@ module Kitten.Anno
 import Data.Set (Set)
 
 import Kitten.Kind
+import Kitten.Location
 import Kitten.Name
 
 data Anno = Anno
   { annoName :: String
   , annoVars :: Set Name
   , annoType :: Type Scalar
+  , annoLocation :: Location
   } deriving (Eq, Show)
 
 data Type a where

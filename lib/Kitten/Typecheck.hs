@@ -55,7 +55,7 @@ typecheck _prelude stack Fragment{..}
   } $ do
     mapM_ typecheckValue stack
     mapM_ typecheckDef fragmentDefs
-    typecheckTerm fragmentTerm
+    mapM_ typecheckTerm fragmentTerms
 
 typecheckDef :: Def Resolved -> Typecheck
 typecheckDef Def{..} = do

@@ -105,7 +105,7 @@ testInt :: String -> Int -> Spec
 testInt source expected = it ("int " ++ show source)
   $ case tokenize "test" source of
     Left message -> assertFailure $ show message
-    Right [Located _ _ _ (Int actual)]
+    Right [Located (Int actual) _]
       | actual == expected -> return ()
     Right actual -> expectedButGot
       (show expected) (showLocated actual)

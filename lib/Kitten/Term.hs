@@ -23,6 +23,7 @@ import Kitten.Builtin (Builtin)
 import Kitten.Def
 import Kitten.Fragment
 import Kitten.Kind
+import Kitten.Location
 import Kitten.Name
 import Kitten.Token (Located(..), Token)
 import Kitten.Util.Applicative
@@ -35,20 +36,20 @@ import qualified Kitten.Token as Token
 type Parser a = ParsecT [Located] () Identity a
 
 data Term
-  = Push Value
-  | Builtin Builtin
-  | Lambda String Term
-  | Compose [Term]
+  = Push Value Location
+  | Builtin Builtin Location
+  | Lambda String Term Location
+  | Compose [Term] Location
   deriving (Eq, Show)
 
 data Value
-  = Word String
-  | Int Int
-  | Bool Bool
-  | Text String
-  | Vec [Value]
-  | Tuple [Value]
-  | Fun [Term]
+  = Word String Location
+  | Int Int Location
+  | Bool Bool Location
+  | Text String Location
+  | Vec [Value] Location
+  | Tuple [Value] Location
+  | Fun [Term] Location
   deriving (Eq, Show)
 
 data Element
@@ -70,7 +71,7 @@ fragment :: Parser (Fragment Term)
 fragment = do
   elements <- many element <* eof
   let (annos, defs, terms) = partitionElements elements
-  return $ Fragment annos defs (Compose terms)
+  return $ Fragment annos defs terms
 
 element :: Parser Element
 element = choice
@@ -80,7 +81,7 @@ element = choice
   ]
 
 anno :: Parser Anno
-anno = do
+anno = locate $ do
   void $ match Token.Type
   params <- maybe mempty makeParamMap
     <$> optionMaybe (grouped $ many identifier)
@@ -133,12 +134,14 @@ def = (<?> "definition") $ do
   body <- oneOrBlock
   let
     body' = case mParams of
-      Just params -> foldr Lambda body $ reverse params
+      Just params -> foldr
+        (\ param lambda -> Lambda param lambda DerivedLocation)
+        body (reverse params)
       Nothing -> body
   return $ Def name body'
 
 term :: Parser Term
-term = choice
+term = locate $ choice
   [ Push <$> value
   , mapOne toBuiltin <?> "builtin"
   , lambda
@@ -147,13 +150,15 @@ term = choice
 
   lambda = (<?> "lambda") $ do
     name <- match Token.Lambda *> identifier
-    Lambda name . Compose <$> many term
+    terms <- many term
+    return $ Lambda name
+      (Compose terms DerivedLocation)
 
   toBuiltin (Token.Builtin name) = Just $ Builtin name
   toBuiltin _ = Nothing
 
 value :: Parser Value
-value = choice
+value = locate $ choice
   [ mapOne toLiteral <?> "literal"
   , mapOne toWord <?> "word"
   , vec
@@ -212,15 +217,20 @@ locatedVec inside = between
 layout :: Parser a -> Parser a
 layout inner = do
 
-  Token.Located startLocation _ startIndent _ <- located Token.Layout
-  firstToken@Token.Located{locatedStart = firstLocation} <- anyLocated
+  Token.Located _ Location
+    { locationStart = startLocation
+    , locationIndent = startIndent
+    } <- located Token.Layout
+  firstToken
+    @(Token.Located _ Location{locationStart = firstLocation})
+    <- anyLocated
 
   let
     inside = if sourceLine firstLocation == sourceLine startLocation
-      then \ Token.Located{..}
-        -> sourceColumn locatedStart > sourceColumn startLocation
-      else \ Token.Located{..}
-        -> sourceColumn locatedStart > startIndent
+      then \ (Token.Located _ Location{..})
+        -> sourceColumn locationStart > sourceColumn startLocation
+      else \ (Token.Located _ Location{..})
+        -> sourceColumn locationStart > startIndent
 
   innerTokens <- liftM concat . many $ choice
     [ locatedBlock inside $ many anyLocated
@@ -236,7 +246,7 @@ layout inner = do
   where
 
   closing :: Located -> Bool
-  closing Located{..} = any (== locatedToken)
+  closing (Located token _) = any (== token)
     [ Token.FunEnd
     , Token.VecEnd
     , Token.TupleEnd
@@ -250,22 +260,23 @@ identifier = mapOne toIdentifier
 
 oneOrBlock :: Parser Term
 oneOrBlock = choice
-  [ Compose <$> block (many term)
-  , Compose <$> layout (many term)
+  [ locate $ Compose <$> block (many term)
+  , locate $ Compose <$> layout (many term)
   , term
   ]
 
 advance :: SourcePos -> t -> [Located] -> SourcePos
-advance _ _ (Located{..} : _) = locatedStart
+advance _ _ (Located _ Location{..} : _) = locationStart
 advance sourcePos _ _ = sourcePos
 
 satisfy :: (Token -> Bool) -> Parser Token
 satisfy predicate = tokenPrim show advance
-  $ \ Located{..} -> justIf (predicate locatedToken) locatedToken
+  $ \ (Located locatedToken _)
+  -> justIf (predicate locatedToken) locatedToken
 
 mapOne :: (Token -> Maybe a) -> Parser a
 mapOne extract = tokenPrim show advance
-  $ \ Located{..} -> extract locatedToken
+  $ \ (Located locatedToken _) -> extract locatedToken
 
 locatedSatisfy :: (Located -> Bool) -> Parser Located
 locatedSatisfy predicate = tokenPrim show advance
@@ -274,11 +285,23 @@ locatedSatisfy predicate = tokenPrim show advance
 match :: Token -> Parser Token
 match = satisfy . (==)
 
+locate :: Parser (Location -> a) -> Parser a
+locate parser = do
+  start <- getPosition
+  result <- parser
+  end <- getPosition
+  return $ result Location
+    { locationStart = start
+    , locationEnd = end
+    , locationIndent = 0  -- FIXME
+    }
+
 located :: Token -> Parser Located
 located token = locatedSatisfy $ isLocated token
 
 isLocated :: Token -> Located -> Bool
-isLocated token Located{..} = token == locatedToken
+isLocated token (Located locatedToken _)
+  = token == locatedToken
 
 anyLocated :: Parser Located
 anyLocated = locatedSatisfy (const True)

@@ -72,7 +72,7 @@ fragment
   -> [Resolved]
   -> Fragment Resolved
 fragment annos defs terms
-  = Fragment annos defs $ Compose terms
+  = Fragment annos defs terms
 
 fun :: [Resolved] -> Resolved
 fun = Push . Fun

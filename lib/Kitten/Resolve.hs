@@ -97,8 +97,10 @@ resolve
   :: [Def Resolved]
   -> Fragment Term
   -> Either CompileError (Fragment Resolved)
-resolve prelude (Fragment _annos defs term) = flip evalStateT env0
-  $ Fragment _annos <$> resolveDefs defs <*> resolveTerm term
+resolve prelude (Fragment annos defs terms) = flip evalStateT env0
+  $ Fragment annos
+  <$> resolveDefs defs
+  <*> mapM resolveTerm terms
   where env0 = Env prelude defs []
 
 resolveDefs :: [Def Term] -> Resolution [Def Resolved]
@@ -107,10 +109,10 @@ resolveDefs defs = (<>) <$> gets envPrelude <*> mapM resolveDef defs
 
 resolveTerm :: Term -> Resolution Resolved
 resolveTerm unresolved = case unresolved of
-  Term.Push value -> resolveValue value
-  Term.Builtin name -> return $ Builtin name
-  Term.Compose terms -> Compose <$> mapM resolveTerm terms
-  Term.Lambda name term -> withLocal name
+  Term.Push value _ -> resolveValue value
+  Term.Builtin name _ -> return $ Builtin name
+  Term.Compose terms _ -> Compose <$> mapM resolveTerm terms
+  Term.Lambda name term _ -> withLocal name
     $ Scoped . (:[]) <$> resolveTerm term
 
 fromValue :: Resolved -> Value
@@ -119,7 +121,7 @@ fromValue _ = error "Resolve.fromValue: not a value"
 
 resolveValue :: Term.Value -> Resolution Resolved
 resolveValue unresolved = case unresolved of
-  Term.Word name -> do
+  Term.Word name _ -> do
     mLocalIndex <- gets $ localIndex name
     case mLocalIndex of
       Just index -> return . Local $ Name index
@@ -129,12 +131,12 @@ resolveValue unresolved = case unresolved of
           Just index -> return . Push . Word $ Name index
           Nothing -> lift . Left . CompileError $ concat
             ["Unable to resolve word '", name, "'"]
-  Term.Fun term -> Push . Fun <$> mapM resolveTerm term
-  Term.Vec terms -> Push . Vec <$> resolveVector terms
-  Term.Tuple terms -> Push . Tuple <$> resolveVector terms
-  Term.Int value -> return . Push $ Int value
-  Term.Bool value -> return . Push $ Bool value
-  Term.Text value -> return . Push $ Text value
+  Term.Fun term _ -> Push . Fun <$> mapM resolveTerm term
+  Term.Vec terms _ -> Push . Vec <$> resolveVector terms
+  Term.Tuple terms _ -> Push . Tuple <$> resolveVector terms
+  Term.Int value _ -> return . Push $ Int value
+  Term.Bool value _ -> return . Push $ Bool value
+  Term.Text value _ -> return . Push $ Text value
   where resolveVector = mapM $ fmap fromValue . resolveValue
 
 localIndex :: String -> Env -> Maybe Int

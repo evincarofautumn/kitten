@@ -6,10 +6,10 @@ import Test.Hspec
 
 import Test.Util
 
-import Kitten.Anno (Anno)
-import Kitten.Def
+import Kitten.Builtin (Builtin)
 import Kitten.Error
 import Kitten.Fragment
+import Kitten.Location
 import Kitten.Term
 import Kitten.Token (tokenize)
 
@@ -18,56 +18,56 @@ import qualified Kitten.Builtin as Builtin
 spec :: Spec
 spec = do
   describe "empty program"
-    $ testTerm "" (fragment [] [] [])
+    $ testTerm "" (Fragment [] [] [])
 
   describe "terms" $ do
     testTerm "1 2 3"
-      (fragment [] [] [int 1, int 2, int 3])
+      (Fragment [] [] [int 1, int 2, int 3])
     testTerm "dup swap drop vec cat fun compose apply"
-      $ fragment [] []
-        [ Builtin Builtin.Dup
-        , Builtin Builtin.Swap
-        , Builtin Builtin.Drop
-        , Builtin Builtin.Vec
-        , Builtin Builtin.Cat
-        , Builtin Builtin.Fun
-        , Builtin Builtin.Compose
-        , Builtin Builtin.Apply
+      $ Fragment [] []
+        [ builtin Builtin.Dup
+        , builtin Builtin.Swap
+        , builtin Builtin.Drop
+        , builtin Builtin.Vec
+        , builtin Builtin.Cat
+        , builtin Builtin.Fun
+        , builtin Builtin.Compose
+        , builtin Builtin.Apply
         ]
 
   describe "lambda" $ do
 
     testTerm
       "\\x x x *"
-      $ fragment [] []
+      $ Fragment [] []
         [ lambda "x"
           [ word "x"
           , word "x"
-          , Builtin Builtin.Mul
+          , builtin Builtin.Mul
           ]
         ]
 
     testTerm
       "\\x \\y x y *"
-      $ fragment [] []
+      $ Fragment [] []
         [ lambda "x"
           [ lambda "y"
             [ word "x"
             , word "y"
-            , Builtin Builtin.Mul
+            , builtin Builtin.Mul
             ]
           ]
         ]
 
     testTerm
       "{ \\x \\y x y * }"
-      $ fragment [] []
+      $ Fragment [] []
         [ fun
           [ lambda "x"
             [ lambda "y"
               [ word "x"
               , word "y"
-              , Builtin Builtin.Mul
+              , builtin Builtin.Mul
               ]
             ]
           ]
@@ -75,13 +75,13 @@ spec = do
 
     testTerm
       ": \\x \\y x y *"
-      $ fragment [] []
+      $ Fragment [] []
         [ fun
           [ lambda "x"
             [ lambda "y"
               [ word "x"
               , word "y"
-              , Builtin Builtin.Mul
+              , builtin Builtin.Mul
               ]
             ]
           ]
@@ -93,7 +93,7 @@ spec = do
       ": sameLine\n\
       \  nextLine\n\
       \  anotherLine\n"
-      $ fragment [] []
+      $ Fragment [] []
         [ fun
           [ word "sameLine"
           , word "nextLine"
@@ -105,7 +105,7 @@ spec = do
       "{ : sameLine\n\
       \    nextLine\n\
       \    anotherLine }\n"
-      $ fragment [] []
+      $ Fragment [] []
         [ fun
           [ fun
             [ word "sameLine"
@@ -116,7 +116,7 @@ spec = do
         ]
 
     testTerm "{ one : two three }"
-      $ fragment [] []
+      $ Fragment [] []
       [fun [word "one", fun [word "two", word "three"]]]
 
 testTerm :: String -> Fragment Term -> Spec
@@ -132,18 +132,23 @@ testTerm source expected = it (show source)
     = liftParseError . parse "test"
     <=< liftParseError . tokenize "test"
 
-fragment :: [Anno] -> [Def Term] -> [Term] -> Fragment Term
-fragment annos defs terms
-  = Fragment annos defs (Compose terms)
+builtin :: Builtin -> Term
+builtin b = Builtin b TestLocation
+
+compose :: [Term] -> Term
+compose terms = Compose terms TestLocation
 
 fun :: [Term] -> Term
-fun = Push . Fun
+fun terms = push $ Fun terms TestLocation
 
 int :: Int -> Term
-int = Push . Int
+int value = push $ Int value TestLocation
+
+push :: Value -> Term
+push value = Push value TestLocation
 
 lambda :: String -> [Term] -> Term
-lambda name terms = Lambda name $ Compose terms
+lambda name terms = Lambda name (compose terms) TestLocation
 
 word :: String -> Term
-word = Push . Word
+word value = push $ Word value TestLocation

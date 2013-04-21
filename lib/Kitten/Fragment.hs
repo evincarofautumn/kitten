@@ -8,5 +8,5 @@ import Kitten.Def
 data Fragment a = Fragment
   { fragmentAnnos :: [Anno]
   , fragmentDefs :: [Def a]
-  , fragmentTerm :: a
+  , fragmentTerms :: [a]
   } deriving (Eq, Show)

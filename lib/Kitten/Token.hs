@@ -12,6 +12,7 @@ import Data.Functor.Identity
 import Text.Parsec
   hiding ((<|>), many, newline, optional, token, tokens)
 
+import Kitten.Location
 import Kitten.Builtin (Builtin)
 
 import qualified Kitten.Builtin as Builtin
@@ -63,14 +64,12 @@ instance Show Token where
     Layout -> ":"
 
 data Located = Located
-  { locatedStart :: SourcePos
-  , locatedEnd :: SourcePos
-  , locatedIndent :: Column
-  , locatedToken :: Token
+  { locatedToken :: Token
+  , locatedLocation :: Location
   }
 
 instance Show Located where
-  show Located{..} = show locatedToken
+  show (Located locatedToken _) = show locatedToken
 
 tokenize :: String -> String -> Either ParseError [Located]
 tokenize = runParser file 1
@@ -83,7 +82,11 @@ located parser = do
   start <- getPosition
   result <- parser
   end <- getPosition
-  return $ Located start end indent result
+  return $ Located result Location
+    { locationStart = start
+    , locationEnd = end
+    , locationIndent = indent
+    }
 
 file :: Parser [Located]
 file = silence *> tokens <* eof
