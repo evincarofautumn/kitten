@@ -136,7 +136,7 @@ builtin :: Builtin -> Term
 builtin b = Builtin b TestLocation
 
 compose :: [Term] -> Term
-compose terms = Compose terms TestLocation
+compose terms = Compose terms
 
 fun :: [Term] -> Term
 fun terms = push $ Fun terms TestLocation
@@ -148,7 +148,7 @@ push :: Value -> Term
 push value = Push value TestLocation
 
 lambda :: String -> [Term] -> Term
-lambda name terms = Lambda name (compose terms) TestLocation
+lambda name terms = Lambda name (compose terms)
 
 word :: String -> Term
 word value = push $ Word value TestLocation

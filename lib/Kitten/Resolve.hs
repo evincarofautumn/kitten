@@ -16,28 +16,30 @@ import Data.Monoid
 import Kitten.Builtin (Builtin)
 import Kitten.Def
 import Kitten.Error
+import Kitten.Location
 import Kitten.Name
 import Kitten.Fragment
 import Kitten.Term (Term)
+import Kitten.Util.List
 
 import qualified Kitten.Term as Term
 
 data Resolved
-  = Push Value
-  | Builtin Builtin
+  = Push Value Location
+  | Builtin Builtin Location
   | Scoped [Resolved]
-  | Local Name
-  | Closed Name
+  | Local Name Location
+  | Closed Name Location
   | Compose [Resolved]
   deriving (Eq)
 
 instance Show Resolved where
   show resolved = case resolved of
-    Push value -> show value
-    Builtin builtin -> show builtin
+    Push value _ -> show value
+    Builtin builtin _ -> show builtin
     Scoped terms -> unwords $ "\\" : map show terms
-    Local (Name index) -> "local" ++ show index
-    Closed (Name index) -> "closed" ++ show index
+    Local (Name index) _ -> "local" ++ show index
+    Closed (Name index) _ -> "closed" ++ show index
     Compose terms -> unwords $ map show terms
 
 data Value
@@ -110,33 +112,38 @@ resolveDefs defs = (<>) <$> gets envPrelude <*> mapM resolveDef defs
 resolveTerm :: Term -> Resolution Resolved
 resolveTerm unresolved = case unresolved of
   Term.Push value _ -> resolveValue value
-  Term.Builtin name _ -> return $ Builtin name
-  Term.Compose terms _ -> Compose <$> mapM resolveTerm terms
-  Term.Lambda name term _ -> withLocal name
-    $ Scoped . (:[]) <$> resolveTerm term
+  Term.Builtin name loc -> return $ Builtin name loc
+  Term.Compose terms -> Compose
+    <$> mapM resolveTerm terms
+  Term.Lambda name term -> withLocal name
+    $ Scoped . list <$> resolveTerm term
 
 fromValue :: Resolved -> Value
-fromValue (Push value) = value
+fromValue (Push value _) = value
 fromValue _ = error "Resolve.fromValue: not a value"
 
 resolveValue :: Term.Value -> Resolution Resolved
 resolveValue unresolved = case unresolved of
-  Term.Word name _ -> do
+  Term.Word name loc -> do
     mLocalIndex <- gets $ localIndex name
     case mLocalIndex of
-      Just index -> return . Local $ Name index
+      Just index -> return $ Local (Name index) loc
       Nothing -> do
         mDefIndex <- gets $ defIndex name
         case mDefIndex of
-          Just index -> return . Push . Word $ Name index
+          Just index -> return
+            $ Push (Word $ Name index) loc
           Nothing -> lift . Left . CompileError $ concat
             ["Unable to resolve word '", name, "'"]
-  Term.Fun term _ -> Push . Fun <$> mapM resolveTerm term
-  Term.Vec terms _ -> Push . Vec <$> resolveVector terms
-  Term.Tuple terms _ -> Push . Tuple <$> resolveVector terms
-  Term.Int value _ -> return . Push $ Int value
-  Term.Bool value _ -> return . Push $ Bool value
-  Term.Text value _ -> return . Push $ Text value
+  Term.Fun term loc -> Push . Fun
+    <$> mapM resolveTerm term <*> pure loc
+  Term.Vec terms loc -> Push . Vec
+    <$> resolveVector terms <*> pure loc
+  Term.Tuple terms loc -> Push . Tuple
+    <$> resolveVector terms <*> pure loc
+  Term.Int value loc -> return $ Push (Int value) loc
+  Term.Bool value loc -> return $ Push (Bool value) loc
+  Term.Text value loc -> return $ Push (Text value) loc
   where resolveVector = mapM $ fmap fromValue . resolveValue
 
 localIndex :: String -> Env -> Maybe Int

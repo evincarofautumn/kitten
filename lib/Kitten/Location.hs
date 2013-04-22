@@ -12,7 +12,8 @@ data Location
     , locationEnd :: SourcePos
     , locationIndent :: Column
     }
-  | DerivedLocation
+  | UnknownLocation
+  | GeneratedLocation
   | TestLocation
 
 instance Eq Location where
@@ -29,5 +30,6 @@ instance Show Location where
     , "-"
     , show locationEnd
     ]
-  show DerivedLocation = "derived"  -- FIXME
+  show UnknownLocation = "(unknown)"
+  show GeneratedLocation = "(generated)"
   show TestLocation = ""

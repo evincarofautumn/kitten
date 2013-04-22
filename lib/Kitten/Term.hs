@@ -38,8 +38,8 @@ type Parser a = ParsecT [Located] () Identity a
 data Term
   = Push Value Location
   | Builtin Builtin Location
-  | Lambda String Term Location
-  | Compose [Term] Location
+  | Lambda String Term
+  | Compose [Term]
   deriving (Eq, Show)
 
 data Value
@@ -134,16 +134,14 @@ def = (<?> "definition") $ do
   body <- oneOrBlock
   let
     body' = case mParams of
-      Just params -> foldr
-        (\ param lambda -> Lambda param lambda DerivedLocation)
-        body (reverse params)
+      Just params -> foldr Lambda body (reverse params)
       Nothing -> body
   return $ Def name body'
 
 term :: Parser Term
-term = locate $ choice
-  [ Push <$> value
-  , mapOne toBuiltin <?> "builtin"
+term = choice
+  [ locate $ Push <$> value
+  , locate (mapOne toBuiltin <?> "builtin")
   , lambda
   ]
   where
@@ -151,8 +149,7 @@ term = locate $ choice
   lambda = (<?> "lambda") $ do
     name <- match Token.Lambda *> identifier
     terms <- many term
-    return $ Lambda name
-      (Compose terms DerivedLocation)
+    return $ Lambda name (Compose terms)
 
   toBuiltin (Token.Builtin name) = Just $ Builtin name
   toBuiltin _ = Nothing
@@ -260,8 +257,8 @@ identifier = mapOne toIdentifier
 
 oneOrBlock :: Parser Term
 oneOrBlock = choice
-  [ locate $ Compose <$> block (many term)
-  , locate $ Compose <$> layout (many term)
+  [ Compose <$> block (many term)
+  , Compose <$> layout (many term)
   , term
   ]
 

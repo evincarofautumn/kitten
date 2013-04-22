@@ -90,12 +90,12 @@ freshName = do
 
 typecheckTerm :: Resolved -> Typecheck
 typecheckTerm resolved = case resolved of
-  Push value -> typecheckValue value
-  Builtin builtin -> typecheckBuiltin builtin
+  Push value _ -> typecheckValue value
+  Builtin builtin _ -> typecheckBuiltin builtin
   Scoped terms -> do
     pushLocal =<< popData
     mapM_ typecheckTerm terms
-  Local name -> pushData =<< getLocal name
+  Local name _ -> pushData =<< getLocal name
   Closed{} -> internalError "TODO typecheck closed"
   Compose terms -> mapM_ typecheckTerm terms
 

@@ -13,6 +13,7 @@ import Data.List
 
 import Kitten.Def
 import Kitten.Fragment
+import Kitten.Location
 import Kitten.Name
 import Kitten.Resolve
 import Kitten.Util.List
@@ -29,7 +30,7 @@ scopeDef def@Def{..} = def
 
 scopeTerm :: [Int] -> Resolved -> Resolved
 scopeTerm stack resolved = case resolved of
-  Push value -> Push $ scopeValue stack value
+  Push value loc -> Push (scopeValue stack value) loc
   Builtin{} -> resolved
   Scoped terms -> Scoped
     $ map (scopeTerm (mapHead succ stack)) terms
@@ -47,7 +48,10 @@ scopeValue stack value = case value of
       [0 .. pred $ length capturedNames]
       where
         go :: Int -> [Resolved] -> [Resolved]
-        go index terms = [Closed $ Name index, Scoped terms]
+        go index terms =
+          [ Closed (Name index) GeneratedLocation
+          , Scoped terms
+          ]
 
     capturedTerms :: [Resolved]
     capturedNames :: [Name]
@@ -96,19 +100,19 @@ addName name = do
 captureTerm :: Resolved -> Capture Resolved
 captureTerm resolved = do
   case resolved of
-    Push value -> Push <$> captureValue value
+    Push value loc -> Push <$> captureValue value <*> pure loc
     Builtin{} -> return resolved
-    Scoped terms -> Scoped
-      <$> local (\ env@Env{..} -> env
-        { envStack = mapHead succ envStack
-        , envDepth = succ envDepth
-        })
-        (mapM captureTerm terms)
-    Local name -> do
+    Scoped terms -> let
+        inside env@Env{..} = env
+          { envStack = mapHead succ envStack
+          , envDepth = succ envDepth
+          }
+      in Scoped <$> local inside (mapM captureTerm terms)
+    Local name loc -> do
       closed <- closeLocal name
       return $ case closed of
         Nothing -> resolved
-        Just closedName -> Closed closedName
+        Just closedName -> Closed closedName loc
     Closed{} -> return resolved
     Compose terms -> Compose <$> mapM captureTerm terms
 
@@ -135,6 +139,6 @@ captureValue value = do
     Closure' _ _ -> return value
     Vec values -> Vec <$> mapM captureValue values
     Tuple values -> Tuple <$> mapM captureValue values
-    Fun terms -> Fun
-      <$> local (\ env@Env{..} -> env { envStack = 0 : envStack })
-        (mapM captureTerm terms)
+    Fun terms -> let
+        inside env@Env{..} = env { envStack = 0 : envStack }
+      in Fun <$> local inside (mapM captureTerm terms)

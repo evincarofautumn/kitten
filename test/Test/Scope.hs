@@ -8,6 +8,7 @@ import Test.Util
 import Kitten.Anno (Anno)
 import Kitten.Def
 import Kitten.Fragment
+import Kitten.Location
 import Kitten.Name
 import Kitten.Resolve
 import Kitten.Scope
@@ -52,19 +53,20 @@ testScope source expected = let
       $ expectedButGot (show expected) (show actual)
 
 biAdd :: Resolved
-biAdd = Builtin Builtin.Add
+biAdd = Builtin Builtin.Add TestLocation
 
 biFun :: Resolved
-biFun = Builtin Builtin.Fun
+biFun = Builtin Builtin.Fun TestLocation
 
 biCompose :: Resolved
-biCompose = Builtin Builtin.Compose
+biCompose = Builtin Builtin.Compose TestLocation
 
 closed :: Int -> Resolved
-closed = Closed . Name
+closed index = Closed (Name index) TestLocation
 
 closure :: [Int] -> [Resolved] -> Resolved
-closure names = Push . Closure (map Name names)
+closure names terms
+  = Push (Closure (map Name names) terms) TestLocation
 
 fragment
   :: [Anno]
@@ -75,10 +77,10 @@ fragment annos defs terms
   = Fragment annos defs terms
 
 fun :: [Resolved] -> Resolved
-fun = Push . Fun
+fun terms = Push (Fun terms) TestLocation
 
 local :: Int -> Resolved
-local = Local . Name
+local index = Local (Name index) TestLocation
 
 word :: Int -> Resolved
-word = Push . Word . Name
+word index = Push (Word (Name index)) TestLocation

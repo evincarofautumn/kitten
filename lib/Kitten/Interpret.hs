@@ -12,6 +12,7 @@ import Data.Bits
 import Kitten.Builtin (Builtin)
 import Kitten.Def
 import Kitten.Fragment
+import Kitten.Location
 import Kitten.Name
 import Kitten.Resolve (Resolved(..), Value(..))
 
@@ -22,6 +23,7 @@ data Env = Env
   , envLocals :: [Value]
   , envDefs :: [Def Resolved]
   , envClosure :: [Value]
+  , envLocations :: [Location]
   }
 
 type InterpretM a = StateT Env IO a
@@ -29,19 +31,24 @@ type Interpret = InterpretM ()
 
 interpret :: [Value] -> Fragment Resolved -> IO ()
 interpret stack Fragment{..} = void $ evalStateT
-  (mapM interpretTerm fragmentTerms)
-  (Env stack [] fragmentDefs [])
+  (mapM interpretTerm fragmentTerms) Env
+  { envData = stack
+  , envLocals = []
+  , envDefs = fragmentDefs
+  , envClosure = []
+  , envLocations = []
+  }              
 
 interpretTerm :: Resolved -> Interpret
 interpretTerm resolved = case resolved of
-  Push value -> interpretValue value
-  Builtin builtin -> interpretBuiltin builtin
+  Push value loc -> withLocation loc $ interpretValue value
+  Builtin builtin _ -> interpretBuiltin builtin
   Scoped terms -> do
     pushLocal =<< popData
     mapM_ interpretTerm terms
     popLocal
-  Local name -> pushData =<< getLocal name
-  Closed name -> pushData =<< getClosed name
+  Local name _ -> pushData =<< getLocal name
+  Closed name _ -> pushData =<< getClosed name
   Compose terms -> mapM_ interpretTerm terms
 
 interpretValue :: Value -> Interpret
@@ -114,7 +121,7 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.Fun -> do
     a <- popData
-    pushData $ Fun [Push a]
+    pushData $ Fun [Push a UnknownLocation]
 
   Builtin.Ge -> intsToBool (>=)
 
@@ -185,30 +192,30 @@ interpretBuiltin builtin = case builtin of
   boolToBool :: (Bool -> Bool) -> Interpret
   boolToBool f = do
     Bool a <- popData
-    pushData . Bool $ f a
+    pushData $ Bool (f a)
 
   boolsToBool :: (Bool -> Bool -> Bool) -> Interpret
   boolsToBool f = do
     Bool b <- popData
     Bool a <- popData
-    pushData . Bool $ f a b
+    pushData $ Bool (f a b)
 
   intsToBool :: (Int -> Int -> Bool) -> Interpret
   intsToBool f = do
     Int b <- popData
     Int a <- popData
-    pushData . Bool $ f a b
+    pushData $ Bool (f a b)
 
   intToInt :: (Int -> Int) -> Interpret
   intToInt f = do
     Int a <- popData
-    pushData . Int $ f a
+    pushData $ Int (f a)
 
   intsToInt :: (Int -> Int -> Int) -> Interpret
   intsToInt f = do
     Int b <- popData
     Int a <- popData
-    pushData . Int $ f a b
+    pushData $ Int (f a b)
 
 pushData :: Value -> Interpret
 pushData value = modify $ \ env@Env{..}
@@ -251,4 +258,20 @@ withClosure values action = do
   modify $ \ env@Env{..} -> env { envClosure = values }
   result <- action
   modify $ \ env@Env{..} -> env { envClosure = closure }
+  return result
+
+here :: InterpretM Location
+here = do
+  locations <- gets envLocations
+  return $ case locations of
+    [] -> UnknownLocation
+    (location : _) -> location
+
+withLocation :: Location -> InterpretM a -> InterpretM a
+withLocation location action = do
+  modify $ \ env@Env{..} -> env
+    { envLocations = location : envLocations }
+  result <- action
+  modify $ \ env@Env{..} -> env
+    { envLocations = tail envLocations }
   return result
