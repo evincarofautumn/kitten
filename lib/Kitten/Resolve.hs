@@ -107,7 +107,9 @@ resolve prelude (Fragment annos defs terms) = flip evalStateT env0
 
 resolveDefs :: [Def Term] -> Resolution [Def Resolved]
 resolveDefs defs = (<>) <$> gets envPrelude <*> mapM resolveDef defs
-  where resolveDef (Def name body) = Def name <$> resolveTerm body
+  where
+  resolveDef (Def name body loc)
+    = Def name <$> resolveTerm body <*> pure loc
 
 resolveTerm :: Term -> Resolution Resolved
 resolveTerm unresolved = case unresolved of
@@ -133,7 +135,7 @@ resolveValue unresolved = case unresolved of
         case mDefIndex of
           Just index -> return
             $ Push (Word $ Name index) loc
-          Nothing -> lift . Left . CompileError $ concat
+          Nothing -> lift . Left . CompileError loc $ concat
             ["Unable to resolve word '", name, "'"]
   Term.Fun term loc -> Push . Fun
     <$> mapM resolveTerm term <*> pure loc

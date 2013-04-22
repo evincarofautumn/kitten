@@ -5,18 +5,37 @@ module Kitten.Error
 
 import Text.Parsec.Error
 
+import Kitten.Location
 import Kitten.Util.Either
 
 data CompileError
-  = CompileError String
+  = CompileError Location String
   | InternalError String
-  | TypeError String
+  | TypeError Location String
 
 instance Show CompileError where
   show compileError = case compileError of
-    CompileError message -> "compile error: " ++ message
+    CompileError location message -> concat
+      [ show location
+      , ": compile error: "
+      , message
+      ]
     InternalError message -> "internal error: " ++ message
-    TypeError message -> "type error: " ++ message
+    TypeError location message -> concat
+      [ show location
+      , ": type error: "
+      , message
+      ]
 
 liftParseError :: Either ParseError a -> Either CompileError a
-liftParseError = mapLeft $ CompileError . show
+liftParseError = mapLeft $ \ parseError -> let
+    location = Location
+      { locationStart = errorPos parseError
+      , locationEnd = errorPos parseError
+      , locationIndent = 0  -- FIXME
+      }
+    message = showErrorMessages
+      "or" "unknown" "expecting" "unexpected" "end of input"
+      $ errorMessages parseError
+  in
+    CompileError location message

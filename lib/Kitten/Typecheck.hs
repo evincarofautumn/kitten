@@ -19,6 +19,7 @@ import Kitten.Builtin (Builtin)
 import Kitten.Def
 import Kitten.Error
 import Kitten.Fragment
+import Kitten.Location
 import Kitten.Name
 import Kitten.Resolve (Resolved(..), Value(..))
 import Kitten.Type
@@ -36,6 +37,7 @@ data Env = Env
   , envRowVars :: [(Name, Type Row)]
   , envNext :: Name
   , envHypothetical :: Bool
+  , envLocations :: [Location]
   }
 
 type TypecheckM a = StateT Env (Either CompileError) a
@@ -56,7 +58,7 @@ typecheck _prelude stack Fragment{..}
     mapM_ typecheckTerm fragmentTerms
 
 typecheckDef :: Def Resolved -> Typecheck
-typecheckDef Def{..} = do
+typecheckDef Def{..} = withLocation defLocation $ do
   mAnno <- gets
     $ find ((defName ==) . Anno.annoName) . envAnnos
   case mAnno of
@@ -77,6 +79,7 @@ emptyEnv = Env
   , envRowVars = []
   , envNext = Name 0
   , envHypothetical = False
+  , envLocations = []
   }
 
 freshName :: TypecheckM Name
@@ -88,12 +91,14 @@ freshName = do
 
 typecheckTerm :: Resolved -> Typecheck
 typecheckTerm resolved = case resolved of
-  Push value _ -> typecheckValue value
-  Builtin builtin _ -> typecheckBuiltin builtin
+  Push value loc -> withLocation loc $ typecheckValue value
+  Builtin builtin loc -> withLocation loc
+    $ typecheckBuiltin builtin
   Scoped terms -> do
     pushLocal =<< popData
     mapM_ typecheckTerm terms
-  Local name _ -> pushData =<< getLocal name
+  Local name loc -> withLocation loc
+    $ pushData =<< getLocal name
   Closed{} -> internalError "TODO typecheck closed"
   Compose terms -> mapM_ typecheckTerm terms
 
@@ -104,7 +109,7 @@ typecheckValue value = case value of
     case mDef of
       Nothing -> internalError
         "unresolved name appeared during type inference"
-      Just (Def name _) -> do
+      Just (Def name _ _) -> do
         mAnno <- gets
           $ find ((name ==) . Anno.annoName) . envAnnos
         case mAnno of
@@ -126,7 +131,7 @@ typecheckValue value = case value of
     (expected : rest) <- replicateM (length vs) popData
     forM_ rest $ unify expected
     pushData $ VecType expected
-  Tuple _values -> typeError "TODO typecheck tuple"
+  Tuple _values -> internalError "TODO typecheck tuple"
   Fun _terms -> do
     a <- freshName
     b <- freshName
@@ -292,7 +297,7 @@ typecheckBuiltin builtin = case builtin of
       $ RowVar y :> RowVar z
     if a == b
       then mapM_ pushData production
-      else typeError $ "Mismatched types in 'if' branches"
+      else typeError "Mismatched types in 'if' branches"
 
   Builtin.Le -> intsToBool
 
@@ -373,7 +378,9 @@ typecheckBuiltin builtin = case builtin of
     pushData BoolType
 
 typeError :: String -> TypecheckM a
-typeError = lift . Left . TypeError
+typeError message = do
+  location <- here
+  lift . Left $ TypeError location message
 
 internalError :: String -> TypecheckM a
 internalError = lift . Left . InternalError
@@ -389,7 +396,8 @@ popData = do
     else do
       dataStack <- gets envData
       case dataStack of
-        [] -> typeError "expecting value but got empty stack"
+        [] -> typeError
+          "expecting value but got empty stack"
         (top : down) -> do
           modify $ \ env -> env { envData = down }
           return top
@@ -555,3 +563,19 @@ declareScalar name type_ = modify $ \ env@Env{..}
 declareRow :: Name -> Type Row -> Typecheck
 declareRow name type_ = modify $ \ env@Env{..}
   -> env { envRowVars = (name, type_) : envRowVars }
+
+here :: TypecheckM Location
+here = do
+  locations <- gets envLocations
+  return $ case locations of
+    [] -> UnknownLocation
+    (location : _) -> location
+
+withLocation :: Location -> TypecheckM a -> TypecheckM a
+withLocation location action = do
+  modify $ \ env@Env{..} -> env
+    { envLocations = location : envLocations }
+  result <- action
+  modify $ \ env@Env{..} -> env
+    { envLocations = tail envLocations }
+  return result

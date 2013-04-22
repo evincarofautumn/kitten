@@ -127,7 +127,7 @@ sig params = sig'
       Nothing -> unexpected word
 
 def :: Parser (Def Term)
-def = (<?> "definition") $ do
+def = (<?> "definition") . locate $ do
   void $ match Token.Def
   mParams <- optionMaybe . grouped $ many identifier
   name <- identifier

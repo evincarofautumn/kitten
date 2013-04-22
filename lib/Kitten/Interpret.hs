@@ -54,8 +54,8 @@ interpretTerm resolved = case resolved of
 interpretValue :: Value -> Interpret
 interpretValue value = case value of
   Word (Name index) -> do
-    Def _ term <- gets ((!! index) . envDefs)
-    interpretTerm term
+    Def _ term loc <- gets ((!! index) . envDefs)
+    withLocation loc $ interpretTerm term
   Closure names terms -> do
     values <- mapM getLocal names
     pushData $ Closure' values terms
