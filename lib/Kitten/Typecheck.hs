@@ -27,8 +27,6 @@ import Kitten.Util.List
 import qualified Kitten.Anno as Anno
 import qualified Kitten.Builtin as Builtin
 
-import Debug.Trace
-
 data Env = Env
   { envData :: [Type Scalar]
   , envLocals :: [Type Scalar]
@@ -141,7 +139,6 @@ typecheckValue value = case value of
 typecheckAnno :: Anno -> Typecheck
 typecheckAnno anno = do
   type_ <- instantiate $ fromAnno anno
-  trace ("Anno: " ++ show anno ++ " Instantiated: " ++ show type_) (return ())
   case type_ of
     Composition as :> Composition bs -> do
       mapM_ popDataExpecting_ as
@@ -440,7 +437,7 @@ hypothetically action = do
   return (before, after)
 
 unify :: Type Scalar -> Type Scalar -> Typecheck
-unify a b = trace (show a ++ " = " ++ show b) $ do
+unify a b = do
   env <- get
   unify' (substChain env a) (substChain env b)
 
@@ -524,18 +521,17 @@ unifyRow
   :: Type Row
   -> Type Row
   -> Typecheck
-unifyRow type1 type2
-  = traceShow ("Row", type1, type2) $ case (type1, type2) of
-    (a, b) | a == b -> return ()
-    (RowVar a, _) -> unifyRowVar a type2
-    (_, RowVar b) -> unifyRowVar b type1
-    (Composition as, Composition bs) -> unifyEach as bs
-    _ -> typeError $ unwords
-      [ "unable to unify"
-      , show type1
-      , "with"
-      , show type2
-      ]
+unifyRow type1 type2 = case (type1, type2) of
+  (a, b) | a == b -> return ()
+  (RowVar a, _) -> unifyRowVar a type2
+  (_, RowVar b) -> unifyRowVar b type1
+  (Composition as, Composition bs) -> unifyEach as bs
+  _ -> typeError $ unwords
+    [ "unable to unify"
+    , show type1
+    , "with"
+    , show type2
+    ]
 
 unifyEach
   :: [Type Scalar]
@@ -553,9 +549,9 @@ unifyEach as bs
     ]
 
 declareScalar :: Name -> Type Scalar -> Typecheck
-declareScalar name type_ = trace ("declareScalar " ++ show name ++ " " ++ show type_) $ modify $ \ env@Env{..}
+declareScalar name type_ = modify $ \ env@Env{..}
   -> env { envScalarVars = (name, type_) : envScalarVars }
 
 declareRow :: Name -> Type Row -> Typecheck
-declareRow name type_ = trace ("declareRow " ++ show name ++ " " ++ show type_) $ modify $ \ env@Env{..}
+declareRow name type_ = modify $ \ env@Env{..}
   -> env { envRowVars = (name, type_) : envRowVars }
