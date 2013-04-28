@@ -20,48 +20,52 @@ import qualified Kitten.Builtin as Builtin
 type Parser a = ParsecT String Column Identity a
 
 data Token
-  = Word String
-  | Builtin Builtin
-  | Int Int
-  | IntType
-  | Bool Bool
-  | BoolType
-  | Text String
-  | TextType
-  | Arrow
-  | Def
-  | Type
-  | Lambda
-  | VectorBegin
-  | VectorEnd
+  = Arrow
   | BlockBegin
   | BlockEnd
+  | Bool Bool
+  | BoolType
+  | Builtin Builtin
+  | Def
+  | Else
   | GroupBegin
   | GroupEnd
+  | If
+  | Int Int
+  | IntType
+  | Lambda
   | Layout
+  | Text String
+  | TextType
+  | Then
+  | VectorBegin
+  | VectorEnd
+  | Word String
   deriving (Eq)
 
 instance Show Token where
   show t = case t of
-    Word word -> show word
-    Builtin name -> show name
-    Int value -> show value
-    IntType -> "int"
-    Bool value -> if value then "true" else "false"
-    BoolType -> "bool"
-    Text value -> show value
-    TextType -> "text"
     Arrow -> "->"
-    Def -> "def"
-    Type -> "type"
-    Lambda -> "\\"
-    VectorBegin -> "["
-    VectorEnd -> "]"
     BlockBegin -> "{"
     BlockEnd -> "}"
+    Bool value -> if value then "true" else "false"
+    BoolType -> "bool"
+    Builtin name -> show name
+    Def -> "def"
+    Else -> "else"
     GroupBegin -> "("
     GroupEnd -> ")"
+    If -> "if"
+    Int value -> show value
+    IntType -> "int"
+    Lambda -> "\\"
     Layout -> ":"
+    Then -> "then"
+    Text value -> show value
+    TextType -> "text"
+    VectorBegin -> "["
+    VectorEnd -> "]"
+    Word word -> show word
 
 data Located = Located
   { locatedToken :: Token
@@ -81,10 +85,8 @@ located parser = do
   indent <- getState
   start <- getPosition
   result <- parser
-  end <- getPosition
   return $ Located result Location
     { locationStart = start
-    , locationEnd = end
     , locationIndent = indent
     }
 
@@ -96,14 +98,14 @@ tokens = token `sepEndBy` silence
 
 token :: Parser Located
 token = (<?> "token") . located $ choice
-  [ Lambda <$ char '\\'
-  , VectorBegin <$ char '['
-  , VectorEnd <$ char ']'
-  , BlockBegin <$ char '{'
+  [ BlockBegin <$ char '{'
   , BlockEnd <$ char '}'
   , GroupBegin <$ char '('
   , GroupEnd <$ char ')'
+  , Lambda <$ char '\\'
   , Layout <$ char ':'
+  , VectorBegin <$ char '['
+  , VectorEnd <$ char ']'
   , text
   , try int
   , try arrow
@@ -135,12 +137,14 @@ token = (<?> "token") . located $ choice
 
   word = flip fmap (alphanumeric <|> symbolic) $ \ name -> case name of
     "bool" -> BoolType
+    "def" -> Def
+    "else" -> Else
+    "false" -> Bool False
+    "if" -> If
     "int" -> IntType
     "text" -> TextType
-    "def" -> Def
-    "type" -> Type
+    "then" -> Then
     "true" -> Bool True
-    "false" -> Bool False
     _ -> case Builtin.fromString name of
       Just builtin -> Builtin builtin
       _ -> Word name

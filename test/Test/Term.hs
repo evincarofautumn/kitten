@@ -18,13 +18,13 @@ import qualified Kitten.Builtin as Builtin
 spec :: Spec
 spec = do
   describe "empty program"
-    $ testTerm "" (Fragment [] [] [])
+    $ testTerm "" (Fragment [] [])
 
   describe "terms" $ do
     testTerm "1 2 3"
-      (Fragment [] [] [int 1, int 2, int 3])
+      (Fragment [] [int 1, int 2, int 3])
     testTerm "dup swap drop vector cat function compose apply"
-      $ Fragment [] []
+      $ Fragment []
         [ builtin Builtin.Dup
         , builtin Builtin.Swap
         , builtin Builtin.Drop
@@ -39,7 +39,7 @@ spec = do
 
     testTerm
       "\\x x x *"
-      $ Fragment [] []
+      $ Fragment []
         [ lambda "x"
           [ word "x"
           , word "x"
@@ -49,7 +49,7 @@ spec = do
 
     testTerm
       "\\x \\y x y *"
-      $ Fragment [] []
+      $ Fragment []
         [ lambda "x"
           [ lambda "y"
             [ word "x"
@@ -61,8 +61,8 @@ spec = do
 
     testTerm
       "{ \\x \\y x y * }"
-      $ Fragment [] []
-        [ block
+      $ Fragment []
+        [ Block
           [ lambda "x"
             [ lambda "y"
               [ word "x"
@@ -75,8 +75,8 @@ spec = do
 
     testTerm
       ": \\x \\y x y *"
-      $ Fragment [] []
-        [ block
+      $ Fragment []
+        [ Block
           [ lambda "x"
             [ lambda "y"
               [ word "x"
@@ -93,8 +93,8 @@ spec = do
       ": sameLine\n\
       \  nextLine\n\
       \  anotherLine\n"
-      $ Fragment [] []
-        [ block
+      $ Fragment []
+        [ Block
           [ word "sameLine"
           , word "nextLine"
           , word "anotherLine"
@@ -105,9 +105,9 @@ spec = do
       "{ : sameLine\n\
       \    nextLine\n\
       \    anotherLine }\n"
-      $ Fragment [] []
-        [ block
-          [ block
+      $ Fragment []
+        [ Block
+          [ Block
             [ word "sameLine"
             , word "nextLine"
             , word "anotherLine"
@@ -116,8 +116,8 @@ spec = do
         ]
 
     testTerm "{ one : two three }"
-      $ Fragment [] []
-      [block [word "one", block [word "two", word "three"]]]
+      $ Fragment []
+      [Block [word "one", Block [word "two", word "three"]]]
 
 testTerm :: String -> Fragment Term -> Spec
 testTerm source expected = it (show source)
@@ -135,20 +135,14 @@ testTerm source expected = it (show source)
 builtin :: Builtin -> Term
 builtin b = Builtin b TestLocation
 
-compose :: [Term] -> Term
-compose terms = Compose terms
-
-block :: [Term] -> Term
-block terms = push $ Block terms TestLocation
-
 int :: Int -> Term
 int value = push $ Int value TestLocation
 
+lambda :: String -> [Term] -> Term
+lambda name terms = Lambda name terms TestLocation
+
 push :: Value -> Term
 push value = Push value TestLocation
-
-lambda :: String -> [Term] -> Term
-lambda name terms = Lambda name (compose terms)
 
 word :: String -> Term
 word value = push $ Word value TestLocation

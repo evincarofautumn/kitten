@@ -31,7 +31,6 @@ liftParseError :: Either ParseError a -> Either CompileError a
 liftParseError = mapLeft $ \ parseError -> let
     location = Location
       { locationStart = errorPos parseError
-      , locationEnd = errorPos parseError
       , locationIndent = 0  -- FIXME
       }
     message = showErrorMessages

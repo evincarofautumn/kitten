@@ -30,17 +30,23 @@ scopeDef def@Def{..} = def
 
 scopeTerm :: [Int] -> Resolved -> Resolved
 scopeTerm stack resolved = case resolved of
-  Push value loc -> Push (scopeValue stack value) loc
+  Block terms -> Block $ map (scopeTerm stack) terms
   Builtin{} -> resolved
-  Scoped terms -> Scoped
-    $ map (scopeTerm (mapHead succ stack)) terms
-  Local{} -> resolved
   Closed{} -> resolved
-  Compose terms -> Compose $ map (scopeTerm stack) terms
+  If condition true false loc -> If
+    (map (scopeTerm stack) condition)
+    (map (scopeTerm stack) true)
+    (map (scopeTerm stack) false)
+    loc
+  Local{} -> resolved
+  Push value loc -> Push (scopeValue stack value) loc
+  Scoped terms loc -> Scoped
+    (map (scopeTerm (mapHead succ stack)) terms)
+    loc
 
 scopeValue :: [Int] -> Value -> Value
 scopeValue stack value = case value of
-  Function funTerms -> Closure capturedNames rescopedTerms
+  Function _ funTerms -> Closure capturedNames rescopedTerms
     where
 
     rescopedTerms :: [Resolved]
@@ -50,7 +56,7 @@ scopeValue stack value = case value of
         go :: Int -> [Resolved] -> [Resolved]
         go index terms =
           [ Closed (Name index) GeneratedLocation
-          , Scoped terms
+          , Scoped terms GeneratedLocation
           ]
 
     capturedTerms :: [Resolved]
@@ -71,9 +77,7 @@ scopeValue stack value = case value of
   Text{} -> value
   Closure{} -> value
   Closure'{} -> value
-  Vector values -> Vector
-    $ map (scopeValue stack) values
-  Tuple values -> Tuple
+  Vector anno values -> Vector anno
     $ map (scopeValue stack) values
 
 data Env = Env
@@ -100,21 +104,28 @@ addName name = do
 captureTerm :: Resolved -> Capture Resolved
 captureTerm resolved = do
   case resolved of
-    Push value loc -> Push <$> captureValue value <*> pure loc
+    Block terms -> Block <$> mapM captureTerm terms
     Builtin{} -> return resolved
-    Scoped terms -> let
-        inside env@Env{..} = env
-          { envStack = mapHead succ envStack
-          , envDepth = succ envDepth
-          }
-      in Scoped <$> local inside (mapM captureTerm terms)
+    Closed{} -> return resolved
+    If condition true false loc -> If
+      <$> mapM captureTerm condition
+      <*> mapM captureTerm true
+      <*> mapM captureTerm false
+      <*> pure loc
     Local name loc -> do
       closed <- closeLocal name
       return $ case closed of
         Nothing -> resolved
         Just closedName -> Closed closedName loc
-    Closed{} -> return resolved
-    Compose terms -> Compose <$> mapM captureTerm terms
+    Push value loc -> Push <$> captureValue value <*> pure loc
+    Scoped terms loc -> let
+        inside env@Env{..} = env
+          { envStack = mapHead succ envStack
+          , envDepth = succ envDepth
+          }
+      in Scoped
+        <$> local inside (mapM captureTerm terms)
+        <*> pure loc
 
 closeLocal :: Name -> Capture (Maybe Name)
 closeLocal (Name index) = do
@@ -137,8 +148,9 @@ captureValue value = do
       mapM_ closeLocal names
       return value
     Closure' _ _ -> return value
-    Vector values -> Vector <$> mapM captureValue values
-    Tuple values -> Tuple <$> mapM captureValue values
-    Function terms -> let
+    Vector anno values -> Vector anno
+      <$> mapM captureValue values
+    Function anno terms -> let
         inside env@Env{..} = env { envStack = 0 : envStack }
-      in Function <$> local inside (mapM captureTerm terms)
+      in Function anno
+         <$> local inside (mapM captureTerm terms)

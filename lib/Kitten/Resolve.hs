@@ -13,6 +13,7 @@ import Control.Monad.Trans.State
 import Data.List
 import Data.Monoid
 
+import Kitten.Anno (Anno)
 import Kitten.Builtin (Builtin)
 import Kitten.Def
 import Kitten.Error
@@ -20,49 +21,52 @@ import Kitten.Location
 import Kitten.Name
 import Kitten.Fragment
 import Kitten.Term (Term)
-import Kitten.Util.List
 
 import qualified Kitten.Term as Term
 
 data Resolved
-  = Push Value Location
+  = Block [Resolved]
   | Builtin Builtin Location
-  | Scoped [Resolved]
-  | Local Name Location
   | Closed Name Location
-  | Compose [Resolved]
+  | If [Resolved] [Resolved] [Resolved] Location
+  | Local Name Location
+  | Push Value Location
+  | Scoped [Resolved] Location
   deriving (Eq)
 
 instance Show Resolved where
   show resolved = case resolved of
-    Push value _ -> show value
+    Block terms -> unwords $ map show terms
     Builtin builtin _ -> show builtin
-    Scoped terms -> unwords $ "\\" : map show terms
-    Local (Name index) _ -> "local" ++ show index
     Closed (Name index) _ -> "closed" ++ show index
-    Compose terms -> unwords $ map show terms
+    If condition true false _ -> unwords
+      [ "if"
+      , unwords $ map show condition
+      , "then"
+      , unwords $ map show true
+      , "else"
+      , unwords $ map show false
+      ]
+    Local (Name index) _ -> "local" ++ show index
+    Push value _ -> show value
+    Scoped terms _ -> unwords $ "\\" : map show terms
 
 data Value
-  = Word Name
-  | Int Int
-  | Bool Bool
-  | Text String
-  | Vector [Value]
-  | Tuple [Value]
-  | Function [Resolved]
+  = Bool Bool
   | Closure [Name] [Resolved]
   | Closure' [Value] [Resolved]
+  | Function Anno [Resolved]
+  | Int Int
+  | Text String
+  | Vector (Maybe Anno) [Value]
+  | Word Name
   deriving (Eq)
 
 instance Show Value where
   show v = case v of
-    Word (Name name) -> '@' : show name
-    Int value -> show value
+
     Bool value -> if value then "true" else "false"
-    Text value -> show value
-    Vector values -> "[" ++ showVector values ++ "]"
-    Tuple values -> "(" ++ showVector values ++ ")"
-    Function terms -> "{" ++ unwords (map show terms) ++ "}"
+
     Closure names terms -> concat
       [ "$("
       , unwords $ map show names
@@ -70,6 +74,7 @@ instance Show Value where
       , unwords $ map show terms
       , "}"
       ]
+
     Closure' values terms -> concat
       [ "$("
       , unwords $ map show values
@@ -77,6 +82,28 @@ instance Show Value where
       , unwords $ map show terms
       , "}"
       ]
+
+    Function anno terms -> concat
+      [ "("
+      , show anno
+      , "){"
+      , unwords $ map show terms
+      , "}"
+      ]
+
+    Int value -> show value
+
+    Text value -> show value
+
+    Vector anno values -> concat
+      [ maybe "" (("(" ++) . (++ ")") . show) anno
+      , "["
+      , showVector values
+      , "]"
+      ]
+
+    Word (Name name) -> '@' : show name
+
     where
     showVector = unwords . map show . reverse
 
@@ -99,8 +126,8 @@ resolve
   :: [Def Resolved]
   -> Fragment Term
   -> Either CompileError (Fragment Resolved)
-resolve prelude (Fragment annos defs terms) = flip evalStateT env0
-  $ Fragment annos
+resolve prelude (Fragment defs terms)
+  = flip evalStateT env0 $ Fragment
   <$> resolveDefs defs
   <*> mapM resolveTerm terms
   where env0 = Env prelude defs []
@@ -115,10 +142,15 @@ resolveTerm :: Term -> Resolution Resolved
 resolveTerm unresolved = case unresolved of
   Term.Push value _ -> resolveValue value
   Term.Builtin name loc -> return $ Builtin name loc
-  Term.Compose terms -> Compose
+  Term.Block terms -> Block
     <$> mapM resolveTerm terms
-  Term.Lambda name term -> withLocal name
-    $ Scoped . list <$> resolveTerm term
+  Term.Lambda name terms loc -> withLocal name
+    $ Scoped <$> mapM resolveTerm terms <*> pure loc
+  Term.If condition true false loc -> If
+    <$> mapM resolveTerm condition
+    <*> mapM resolveTerm true
+    <*> mapM resolveTerm false
+    <*> pure loc
 
 fromValue :: Resolved -> Value
 fromValue (Push value _) = value
@@ -137,9 +169,9 @@ resolveValue unresolved = case unresolved of
             $ Push (Word $ Name index) loc
           Nothing -> lift . Left . CompileError loc $ concat
             ["Unable to resolve word '", name, "'"]
-  Term.Block term loc -> Push . Function
+  Term.Function anno term loc -> Push . Function anno
     <$> mapM resolveTerm term <*> pure loc
-  Term.Vector terms loc -> Push . Vector
+  Term.Vector anno terms loc -> Push . Vector anno
     <$> resolveVector terms <*> pure loc
   Term.Int value loc -> return $ Push (Int value) loc
   Term.Bool value loc -> return $ Push (Bool value) loc

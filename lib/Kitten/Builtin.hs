@@ -32,7 +32,6 @@ data Builtin
   | Function
   | Ge
   | Gt
-  | If
   | Le
   | Length
   | Lt
@@ -91,7 +90,6 @@ fromStringTable =
   , (,) "function" Function
   , (,) ">="       Ge
   , (,) ">"        Gt
-  , (,) "if"       If
   , (,) "<="       Le
   , (,) "length"   Length
   , (,) "<"        Lt

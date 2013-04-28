@@ -6,13 +6,9 @@ module Kitten.Typecheck
   ( typecheck
   ) where
 
-import Control.Applicative
 import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
-import Data.List
-
-import qualified Data.Foldable as Foldable
 
 import Kitten.Anno (Anno(..))
 import Kitten.Builtin (Builtin)
@@ -25,18 +21,12 @@ import Kitten.Resolve (Resolved(..), Value(..))
 import Kitten.Type
 import Kitten.Util.List
 
-import qualified Kitten.Anno as Anno
 import qualified Kitten.Builtin as Builtin
 
 data Env = Env
   { envData :: [Type Scalar]
   , envLocals :: [Type Scalar]
-  , envAnnos :: [Anno]
   , envDefs :: [Def Resolved]
-  , envScalarVars :: [(Name, Type Scalar)]
-  , envRowVars :: [(Name, Type Row)]
-  , envNext :: Name
-  , envHypothetical :: Bool
   , envLocations :: [Location]
   }
 
@@ -50,57 +40,66 @@ typecheck
   -> Either CompileError ()
 typecheck _prelude stack Fragment{..}
   = flip evalStateT emptyEnv
-  { envAnnos = fragmentAnnos
-  , envDefs = fragmentDefs
+  { envDefs = fragmentDefs
   } $ do
     mapM_ typecheckValue stack
     mapM_ typecheckDef fragmentDefs
-    mapM_ typecheckTerm fragmentTerms
+    typecheckTerms fragmentTerms
+
+typecheckTerms :: [Resolved] -> Typecheck
+typecheckTerms = mapM_ typecheckTerm
 
 typecheckDef :: Def Resolved -> Typecheck
-typecheckDef Def{..} = withLocation defLocation $ do
-  mAnno <- gets
-    $ find ((defName ==) . Anno.annoName) . envAnnos
-  case mAnno of
-    Nothing -> typeError $ concat
-      [ "missing type annotation for '"
-      , defName
-      , "'"
-      ]
-    Just anno -> void . hypothetically $ typecheckAnno anno
+typecheckDef Def{..} = withLocation defLocation
+  . void . hypothetically $ typecheckTerm defTerm
 
 emptyEnv :: Env
 emptyEnv = Env
   { envData = []
   , envLocals = []
-  , envAnnos = []
   , envDefs = []
-  , envScalarVars = []
-  , envRowVars = []
-  , envNext = Name 0
-  , envHypothetical = False
   , envLocations = []
   }
 
-freshName :: TypecheckM Name
-freshName = do
-  Name current <- gets envNext
-  modify $ \ env@Env{..} -> env
-    { envNext = Name (succ current) }
-  return $ Name current
+typecheckTermShallow :: Resolved -> Typecheck
+typecheckTermShallow resolved = case resolved of
+  Push value loc -> withLocation loc
+    $ typecheckValueShallow value
+  _ -> typecheckTerm resolved
 
 typecheckTerm :: Resolved -> Typecheck
 typecheckTerm resolved = case resolved of
-  Push value loc -> withLocation loc $ typecheckValue value
+  Block terms -> typecheckTerms terms
   Builtin builtin loc -> withLocation loc
     $ typecheckBuiltin builtin
-  Scoped terms -> do
-    pushLocal =<< popData
-    mapM_ typecheckTerm terms
+  Closed{} -> internalError "TODO typecheck closed"
+  If condition true false loc -> withLocation loc $ do
+    typecheckTerms condition
+    popDataExpecting_ BoolType
+    (_, afterTrue) <- hypothetically
+      $ typecheckTerms true
+    (_, afterFalse) <- hypothetically
+      $ typecheckTerms false
+    when (envData afterTrue /= envData afterFalse)
+      $ typeError "incompatible types in 'if' branches"
+    put afterTrue
   Local name loc -> withLocation loc
     $ pushData =<< getLocal name
-  Closed{} -> internalError "TODO typecheck closed"
-  Compose terms -> mapM_ typecheckTerm terms
+  Push value loc -> withLocation loc $ typecheckValue value
+  Scoped terms loc -> withLocation loc $ do
+    pushLocal =<< popData
+    typecheckTerms terms
+
+typecheckValueShallow :: Value -> Typecheck
+typecheckValueShallow value = case value of
+  Function anno _ -> typecheckAnno anno
+  Word (Name index) -> do
+    mDef <- gets $ (!? index) . envDefs
+    case mDef of
+      Nothing -> internalError
+        "unresolved name appeared during type inference"
+      Just Def{..} -> typecheckTermShallow defTerm
+  _ -> typecheckValue value
 
 typecheckValue :: Value -> Typecheck
 typecheckValue value = case value of
@@ -109,82 +108,31 @@ typecheckValue value = case value of
     case mDef of
       Nothing -> internalError
         "unresolved name appeared during type inference"
-      Just (Def name _ _) -> do
-        mAnno <- gets
-          $ find ((name ==) . Anno.annoName) . envAnnos
-        case mAnno of
-          Nothing -> typeError $ concat
-            [ "missing type annotation for '"
-            , name
-            , "'"
-            ]
-          Just anno -> typecheckAnno anno
+      Just Def{..} -> typecheckTermShallow defTerm
 
   Int _ -> pushData IntType
   Bool _ -> pushData BoolType
   Text _ -> pushData TextType
-  Vector [] -> do
-    a <- freshName
-    pushData $ VectorType (ScalarVar a)
-  Vector vs@(_ : _) -> do
+  Vector Nothing []
+    -> typeError "empty vectors require type annotations"
+  Vector (Just _) []
+    -> internalError "TODO typecheck annotated empty vector"
+  Vector _ vs@(_ : _) -> do
     mapM_ typecheckValue vs
     (expected : rest) <- replicateM (length vs) popData
-    forM_ rest $ unify expected
+    forM_ rest $ \ actual -> when (actual /= expected)
+      . typeError $ unwords
+      [ "expected"
+      , show expected
+      , "but got"
+      , show actual
+      ]
     pushData $ VectorType expected
-  Function _terms -> do
-    a <- freshName
-    b <- freshName
-    pushData $ RowVar a :> RowVar b
+  Function anno terms -> typecheckAnnotatedTerms anno terms
   Closure{} -> internalError
     "closures should not appear during inference"
   Closure'{} -> internalError
     "closures should not appear during inference"
-
-typecheckAnno :: Anno -> Typecheck
-typecheckAnno anno = do
-  type_ <- instantiate $ fromAnno anno
-  case type_ of
-    Composition as :> Composition bs -> do
-      mapM_ popDataExpecting_ as
-      mapM_ pushData bs
-    _ -> internalError
-      "TODO typecheck non-function type annotations"
-
-instantiate :: Scheme Scalar -> TypecheckM (Type Scalar)
-instantiate (Forall vars type_) = do
-  next <- gets envNext
-  let
-    substitution
-      = flip execStateT emptyEnv { envNext = next }
-      $ Foldable.mapM_ rename vars
-  substitution' <- lift substitution
-  modify $ \ env -> env { envNext = envNext substitution' }
-  return $ substScalarType substitution' type_
-  where
-  rename var = declareScalar var . ScalarVar <$> freshName
-
--- | Simplifies a chain of transitive equality constraints.
-substChain :: Env -> Type Scalar -> Type Scalar
-substChain env (ScalarVar var)
-  | Right type_ <- lookupScalar env var
-  = substChain env type_
-substChain _ type_ = type_
-
-substScalarType :: Env -> Type Scalar -> Type Scalar
-substScalarType env (a :> b)
-  = substRowType env a :> substRowType env b
-substScalarType env (ScalarVar name)
-  | Right type_ <- lookupScalar env name
-  = substScalarType env type_
-substScalarType _ type_ = type_
-
-substRowType :: Env -> Type Row -> Type Row
-substRowType env (Composition as)
-  = Composition $ map (substScalarType env) as
-substRowType env (RowVar name)
-  | Right type_ <- lookupRow env name
-  = substRowType env type_
-substRowType _ type_ = type_
 
 stackEffect :: TypecheckM a -> TypecheckM (Type Scalar)
 stackEffect action = do
@@ -192,11 +140,55 @@ stackEffect action = do
   let
     stackBefore = envData before
     stackAfter = envData after
-    (consumption, production)
-      = stripCommonPrefix (reverse stackBefore) (reverse stackAfter)
+    (consumption, production) = stripCommonPrefix
+      (reverse stackBefore)
+      (reverse stackAfter)
   return
     $ Composition (reverse consumption)
     :> Composition (reverse production)
+
+typecheckAnnotatedTerms :: Anno -> [Resolved] -> Typecheck
+typecheckAnnotatedTerms anno terms = do
+  void . hypothetically $ case type_ of
+    BoolType -> pushData type_
+    IntType -> pushData type_
+    TextType -> pushData type_
+    VectorType _ -> pushData type_
+    Composition consumption :> Composition production -> do
+      mapM_ pushData consumption
+      typecheckTerms terms
+      mapM_ popDataExpecting_ $ reverse production
+    AnyType :> Composition _ -> unknownTypeError
+    Composition _ :> AnyType -> unknownTypeError
+    AnyType :> AnyType -> unknownTypeError
+    AnyType -> unknownTypeError
+
+  pushData type_
+
+  where
+  type_ :: Type Scalar
+  type_ = fromAnno anno
+
+unknownTypeError :: Typecheck
+unknownTypeError = internalError
+  "unknown type appeared during typechecking"
+
+typecheckAnno :: Anno -> Typecheck
+typecheckAnno anno = go $ fromAnno anno
+  where
+  go :: Type Scalar -> Typecheck
+  go type_ = case type_ of
+    BoolType -> pushData type_
+    IntType -> pushData type_
+    TextType -> pushData type_
+    VectorType _ -> pushData type_
+    Composition consumption :> Composition production -> do
+      mapM_ popDataExpecting_ $ reverse consumption
+      mapM_ pushData production
+    AnyType :> Composition _ -> unknownTypeError
+    Composition _ :> AnyType -> unknownTypeError
+    AnyType :> AnyType -> unknownTypeError
+    AnyType -> unknownTypeError
 
 typecheckBuiltin :: Builtin -> Typecheck
 typecheckBuiltin builtin = case builtin of
@@ -207,28 +199,23 @@ typecheckBuiltin builtin = case builtin of
   Builtin.AndInt -> intsToInt
 
   Builtin.Apply -> do
-    a <- freshName
-    b <- freshName
-    (Composition consumption :> Composition production)
-      <- popDataExpecting $ RowVar a :> RowVar b
-    mapM_ popDataExpecting_ consumption
+    Composition consumption :> Composition production
+      <- popDataExpecting $ AnyType :> AnyType
+    mapM_ popDataExpecting_ $ reverse consumption
     mapM_ pushData production
 
   Builtin.At -> do
     popDataExpecting_ IntType
-    x <- freshName
-    VectorType a <- popDataExpecting $ VectorType (ScalarVar x)
+    VectorType a <- popDataExpecting $ VectorType AnyType
     pushData a
 
   Builtin.Bottom -> do
-    x <- freshName
-    VectorType a <- popDataExpecting $ VectorType (ScalarVar x)
+    VectorType a <- popDataExpecting $ VectorType AnyType
     pushData a
 
   Builtin.Cat -> do
-    x <- freshName
-    VectorType b <- popDataExpecting $ VectorType (ScalarVar x)
-    VectorType a <- popDataExpecting $ VectorType (ScalarVar x)
+    VectorType b <- popDataExpecting $ VectorType AnyType
+    VectorType a <- popDataExpecting $ VectorType AnyType
     if a == b
       then pushData $ VectorType a
       else typeError $ concat
@@ -240,14 +227,10 @@ typecheckBuiltin builtin = case builtin of
         ]
 
   Builtin.Compose -> do
-    w <- freshName
-    x <- freshName
-    y <- freshName
-    z <- freshName
     Composition c :> Composition d
-      <- popDataExpecting $ RowVar y :> RowVar z
+      <- popDataExpecting $ AnyType :> AnyType
     Composition a :> Composition b
-      <- popDataExpecting $ RowVar w :> RowVar x
+      <- popDataExpecting $ AnyType :> AnyType
     result <- stackEffect $ do
       mapM_ popDataExpecting a
       mapM_ pushData b
@@ -258,8 +241,7 @@ typecheckBuiltin builtin = case builtin of
   Builtin.Div -> intsToInt
 
   Builtin.Down -> do
-    x <- freshName
-    a <- popDataExpecting $ VectorType (ScalarVar x)
+    a <- popDataExpecting $ VectorType AnyType
     pushData a
 
   Builtin.Drop -> popData_
@@ -272,8 +254,7 @@ typecheckBuiltin builtin = case builtin of
   Builtin.Eq -> intsToBool
 
   Builtin.Empty -> do
-    x <- freshName
-    popDataExpecting_ $ VectorType (ScalarVar x)
+    popDataExpecting_ $ VectorType AnyType
     pushData BoolType
 
   Builtin.Function -> do
@@ -284,25 +265,10 @@ typecheckBuiltin builtin = case builtin of
 
   Builtin.Gt -> intsToBool
 
-  Builtin.If -> do
-    popDataExpecting_ BoolType
-    w <- freshName
-    x <- freshName
-    y <- freshName
-    z <- freshName
-    b <- popDataExpecting (RowVar w :> RowVar x)
-    -- FIXME Unsafe.
-    a@(_ :> Composition production) <- popDataExpecting
-      $ RowVar y :> RowVar z
-    if a == b
-      then mapM_ pushData production
-      else typeError "Mismatched types in 'if' branches"
-
   Builtin.Le -> intsToBool
 
   Builtin.Length -> do
-    x <- freshName
-    popDataExpecting_ $ VectorType (ScalarVar x)
+    popDataExpecting_ $ VectorType AnyType
     pushData IntType
 
   Builtin.Lt -> intsToBool
@@ -334,13 +300,11 @@ typecheckBuiltin builtin = case builtin of
     pushData b
 
   Builtin.Top -> do
-    x <- freshName
-    VectorType a <- popDataExpecting $ VectorType (ScalarVar x)
+    VectorType a <- popDataExpecting $ VectorType AnyType
     pushData a
 
   Builtin.Up -> do
-    x <- freshName
-    a <- popDataExpecting $ VectorType (ScalarVar x)
+    a <- popDataExpecting $ VectorType AnyType
     pushData a
 
   Builtin.Vector -> do
@@ -389,38 +353,27 @@ popData_ = void popData
 
 popData :: TypecheckM (Type Scalar)
 popData = do
-  hypothetical <- gets envHypothetical
-  if hypothetical
-    then ScalarVar <$> freshName
-    else do
-      dataStack <- gets envData
-      case dataStack of
-        [] -> typeError
-          "expecting value but got empty stack"
-        (top : down) -> do
-          modify $ \ env -> env { envData = down }
-          return top
+  dataStack <- gets envData
+  case dataStack of
+    [] -> typeError
+      "expected value but got empty stack"
+    (top : down) -> do
+      modify $ \ env -> env { envData = down }
+      return top
 
 popDataExpecting_ :: Type Scalar -> Typecheck
 popDataExpecting_ = void . popDataExpecting
 
 popDataExpecting :: Type Scalar -> TypecheckM (Type Scalar)
 popDataExpecting type_ = do
-  hypothetical <- gets envHypothetical
-  if hypothetical
-    then do
-      var <- ScalarVar <$> freshName
-      unify type_ var
-      return var
-    else do
-      dataStack <- gets envData
-      case dataStack of
-        [] -> typeError $ unwords
-          ["expecting", show type_, "but got empty stack"]
-        (top : down) -> do
-          modify $ \ env -> env { envData = down }
-          unify type_ top
-          return top
+  dataStack <- gets envData
+  case dataStack of
+    [] -> typeError $ unwords
+      ["expected", show type_, "but got empty stack"]
+    (top : down) -> do
+      modify $ \ env -> env { envData = down }
+      unify top type_
+      return top
 
 pushData :: Type Scalar -> Typecheck
 pushData type_ = modify $ \ env@Env{..}
@@ -436,131 +389,22 @@ pushLocal type_ = modify $ \ env@Env{..}
 hypothetically :: TypecheckM a -> TypecheckM (Env, Env)
 hypothetically action = do
   before <- get
-  modify $ \ env@Env{..} -> env { envHypothetical = True }
   void action
-  modify $ \ env@Env{..} -> env { envHypothetical = False }
   after <- get
   put before
   return (before, after)
 
-unify :: Type Scalar -> Type Scalar -> Typecheck
-unify a b = do
-  env <- get
-  unify' (substChain env a) (substChain env b)
-
-unify'
+unify
   :: Type Scalar
   -> Type Scalar
   -> Typecheck
-unify' type1 type2 = case (type1, type2) of
-  (a, b) | a == b -> return ()
-  (ScalarVar a, _) -> unifyScalarVar a type2
-  (_, ScalarVar b) -> unifyScalarVar b type1
-  (_, Composition [] :> Composition [b]) -> unify' type1 b
-  (Composition [] :> Composition [a], _) -> unify' a type2
-  (a :> b, c :> d) -> unifyRow a c >> unifyRow b d
-  (VectorType a, VectorType b) -> unify' a b
-  _ -> typeError $ unwords
-    [ "unable to unify"
-    , show type1
-    , "with"
-    , show type2
-    ]
-
--- TODO Occurs check.
-unifyScalarVar :: Name -> Type Scalar -> Typecheck
-unifyScalarVar name type_ = do
-  mExisting <- gets (lookup name . envScalarVars)
-  case mExisting of
-    Just existing -> unless (existing == type_)
-      . typeError $ unwords
-        [ "unable to unify"
-        , show type_
-        , "with"
-        , show existing
-        ]
-    Nothing -> declareScalar name type_
-
-lookupScalar
-  :: Env
-  -> Name
-  -> Either CompileError (Type Scalar)
-lookupScalar Env{..} name
-  = case lookup name envScalarVars of
-    Nothing -> Left . InternalError $ unwords
-      [ "nonexistent type variable "
-      , show $ ScalarVar name
-      , "!"
-      ]
-    Just existing -> Right existing
-
-lookupRow
-  :: Env
-  -> Name
-  -> Either CompileError (Type Row)
-lookupRow Env{..} name
-  = case lookup name envRowVars of
-    Nothing -> Left . InternalError $ unwords
-      [ "nonexistent type variable "
-      , show $ RowVar name
-      , "!"
-      ]
-    Just existing -> Right existing
-
--- TODO Occurs check.
-unifyRowVar :: Name -> Type Row -> Typecheck
-unifyRowVar name1 (RowVar name2)
-  | name1 == name2 = return ()
-unifyRowVar name type_ = do
-  mExisting <- gets (lookup name . envRowVars)
-  case mExisting of
-    Just existing -> unless (existing == type_)
-      . typeError $ unwords
-        [ "unable to unify"
-        , show $ RowVar name
-        , "with"
-        , show type_
-        ]
-    Nothing -> declareRow name type_
-
-unifyRow
-  :: Type Row
-  -> Type Row
-  -> Typecheck
-unifyRow type1 type2 = case (type1, type2) of
-  (a, b) | a == b -> return ()
-  (RowVar a, _) -> unifyRowVar a type2
-  (_, RowVar b) -> unifyRowVar b type1
-  (Composition as, Composition bs) -> unifyEach as bs
-  _ -> typeError $ unwords
-    [ "unable to unify"
-    , show type1
-    , "with"
-    , show type2
-    ]
-
-unifyEach
-  :: [Type Scalar]
-  -> [Type Scalar]
-  -> Typecheck
-unifyEach as bs
-  | length as == length bs
-  = mapM_ (uncurry unify') (zip as bs)
-unifyEach as bs
-  = typeError $ unwords
-    [ "unable to unify"
-    , show $ Composition as
-    , "with"
-    , show $ Composition bs
-    ]
-
-declareScalar :: Name -> Type Scalar -> Typecheck
-declareScalar name type_ = modify $ \ env@Env{..}
-  -> env { envScalarVars = (name, type_) : envScalarVars }
-
-declareRow :: Name -> Type Row -> Typecheck
-declareRow name type_ = modify $ \ env@Env{..}
-  -> env { envRowVars = (name, type_) : envRowVars }
+unify actual expected
+  = when (actual /= expected) . typeError $ unwords
+  [ "expected"
+  , show expected
+  , "but got"
+  , show actual
+  ]
 
 here :: TypecheckM Location
 here = do

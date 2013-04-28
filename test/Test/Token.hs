@@ -74,7 +74,6 @@ spec = do
     testTokens "int" [IntType]
     testTokens "text" [TextType]
     testTokens "def" [Def]
-    testTokens "type" [Type]
 
   describe "tokenize builtin" $ do
     testTokens "dup" [Builtin Builtin.Dup]

@@ -5,7 +5,7 @@ import Test.Hspec
 
 import Test.Util
 
-import Kitten.Anno (Anno)
+import Kitten.Anno (Anno(..))
 import Kitten.Def
 import Kitten.Fragment
 import Kitten.Location
@@ -13,34 +13,35 @@ import Kitten.Name
 import Kitten.Resolve
 import Kitten.Scope
 
+import qualified Kitten.Anno as Anno
 import qualified Kitten.Builtin as Builtin
 
 spec :: Spec
 spec = do
   describe "no change" $ do
     testScope
-      (fragment [] [] [function [Scoped [local 0]]])
-      (fragment [] [] [closure [] [Scoped [local 0]]])
+      (fragment [] [function [scoped [local 0]]])
+      (fragment [] [closure [] [scoped [local 0]]])
 
   describe "non-nested closure" $ do
     testScope
-      (fragment [] [] [Scoped [function [local 0]]])
-      (fragment [] [] [Scoped [closure [0] [closed 0, Scoped [closed 0]]]])
+      (fragment [] [scoped [function [local 0]]])
+      (fragment [] [scoped [closure [0] [closed 0, scoped [closed 0]]]])
 
   describe "nested closure" $ do
     testScope
-      (fragment [] [] [Scoped [function [Scoped [function [local 1, local 0, biAdd]]]]])
-      (fragment [] []
-        [ Scoped
+      (fragment [] [scoped [function [scoped [function [local 1, local 0, biAdd]]]]])
+      (fragment []
+        [ scoped
           [ closure [0]
             [ closed 0
-            , Scoped
-              [ Scoped
+            , scoped
+              [ scoped
                 [ closure [1, 0]
                   [ closed 0
-                  , Scoped
+                  , scoped
                     [ closed 1
-                    , Scoped
+                    , scoped
                       [ closed 0
                       , closed 1
                       , biAdd]]]]]]]])
@@ -69,18 +70,21 @@ closure names terms
   = Push (Closure (map Name names) terms) TestLocation
 
 fragment
-  :: [Anno]
-  -> [Def Resolved]
+  :: [Def Resolved]
   -> [Resolved]
   -> Fragment Resolved
-fragment annos defs terms
-  = Fragment annos defs terms
+fragment defs terms
+  = Fragment defs terms
 
 function :: [Resolved] -> Resolved
-function terms = Push (Function terms) TestLocation
+function terms = Push (Function emptyAnno terms) TestLocation
+  where emptyAnno = Anno Anno.Any TestLocation
 
 local :: Int -> Resolved
 local index = Local (Name index) TestLocation
 
 word :: Int -> Resolved
 word index = Push (Word (Name index)) TestLocation
+
+scoped :: [Resolved] -> Resolved
+scoped terms = Scoped terms TestLocation

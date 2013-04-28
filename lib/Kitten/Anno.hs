@@ -6,27 +6,23 @@ module Kitten.Anno
   , Type(..)
   ) where
 
-import Data.Set (Set)
-
 import Kitten.Kind
 import Kitten.Location
-import Kitten.Name
 
-data Anno = Anno
-  { annoName :: String
-  , annoVars :: Set Name
-  , annoType :: Type Scalar
-  , annoLocation :: Location
-  } deriving (Eq, Show)
+data Anno = Anno (Type Scalar) Location
+  deriving (Eq)
+
+instance Show Anno where
+  show (Anno type_ _) = show type_
 
 data Type a where
   (:>) :: Type Row -> Type Row -> Type Scalar
   Composition :: [Type Scalar] -> Type Row
   Vector :: Type Scalar -> Type Scalar
-  Var :: Name -> Type Scalar
   Bool :: Type Scalar
   Int :: Type Scalar
   Text :: Type Scalar
+  Any :: Type a
 
 instance Eq (Type a) where
   Bool == Bool = True
@@ -35,8 +31,16 @@ instance Eq (Type a) where
   (a :> b) == (c :> d) = a == c && b == d
   Composition as == Composition bs = as == bs
   Vector a == Vector b = a == b
-  Var a == Var b = a == b
+  Any == _ = True
+  _ == Any = True
   _ == _ = False
 
 instance Show (Type a) where
-  show _ = "(type signature)"
+  show type_ = case type_ of
+    a :> b -> concat ["(", show a, " -> ", show b, ")"]
+    Composition as -> unwords $ map show as
+    Vector a -> concat ["[", show a, "]"]
+    Bool -> "bool"
+    Int -> "int"
+    Text -> "text"
+    Any -> "*"

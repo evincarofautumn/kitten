@@ -10,21 +10,16 @@ import Control.Applicative
 import Control.Monad
 import Data.Functor.Identity
 import Data.Monoid
-import Data.Map (Map)
 import Text.Parsec
   hiding ((<|>), Empty, many, parse, satisfy, token, tokens)
 
-import qualified Data.Map as Map
-import qualified Data.Set as Set
 import qualified Text.Parsec as Parsec
 
 import Kitten.Anno (Anno(..), Type((:>)))
 import Kitten.Builtin (Builtin)
 import Kitten.Def
 import Kitten.Fragment
-import Kitten.Kind
 import Kitten.Location
-import Kitten.Name
 import Kitten.Token (Located(..), Token)
 import Kitten.Util.Applicative
 import Kitten.Util.Maybe
@@ -38,8 +33,9 @@ type Parser a = ParsecT [Located] () Identity a
 data Term
   = Push Value Location
   | Builtin Builtin Location
-  | Lambda String Term
-  | Compose [Term]
+  | Lambda String [Term] Location
+  | Block [Term]
+  | If [Term] [Term] [Term] Location
   deriving (Eq, Show)
 
 data Value
@@ -47,117 +43,97 @@ data Value
   | Int Int Location
   | Bool Bool Location
   | Text String Location
-  | Vector [Value] Location
-  | Block [Term] Location
+  | Vector (Maybe Anno) [Value] Location
+  | Function Anno [Term] Location
   deriving (Eq, Show)
 
 data Element
-  = AnnoElement Anno
-  | DefElement (Def Term)
+  = DefElement (Def Term)
   | TermElement Term
 
 parse :: String -> [Located] -> Either ParseError (Fragment Term)
 parse = Parsec.parse fragment
 
-partitionElements :: [Element] -> ([Anno], [Def Term], [Term])
+partitionElements :: [Element] -> ([Def Term], [Term])
 partitionElements = foldr partitionElement mempty
   where
-  partitionElement (AnnoElement a) (as, ds, ts) = (a : as, ds, ts)
-  partitionElement (DefElement d) (as, ds, ts) = (as, d : ds, ts)
-  partitionElement (TermElement t) (as, ds, ts) = (as, ds, t : ts)
+  partitionElement (DefElement d) (ds, ts) = (d : ds, ts)
+  partitionElement (TermElement t) (ds, ts) = (ds, t : ts)
 
 fragment :: Parser (Fragment Term)
 fragment = do
   elements <- many element <* eof
-  let (annos, defs, terms) = partitionElements elements
-  return $ Fragment annos defs terms
+  let (defs, terms) = partitionElements elements
+  return $ Fragment defs terms
 
 element :: Parser Element
 element = choice
-  [ AnnoElement <$> anno
-  , DefElement <$> def
+  [ DefElement <$> def
   , TermElement <$> term
   ]
 
-anno :: Parser Anno
-anno = locate $ do
-  void $ match Token.Type
-  params <- maybe mempty makeParamMap
-    <$> optionMaybe (grouped $ many identifier)
-  name <- identifier
-  rawType <- block (sig params) <|> layout (sig params)
-  return $ Anno name
-    (Set.fromList [Name 0 .. Name . pred $ Map.size params])
-    rawType
-  where makeParamMap = Map.fromList . flip zip [Name 0 ..]
-
-sig :: Map String Name -> Parser (Type Scalar)
-sig params = sig'
+signature :: Parser Anno
+signature = locate $ Anno <$> signature'
   where
 
-  sig' = do
+  signature' = do
     left <- many baseType
     mRight <- optionMaybe $ match Token.Arrow *> many baseType
-    case mRight of
-      Just right -> return
-        $ Anno.Composition (reverse left)
-        :> Anno.Composition (reverse right)
-      Nothing -> return
-        $ Anno.Composition []
-        :> Anno.Composition (reverse left)
+    return $ case mRight of
+      Just right
+        -> Anno.Composition left
+        :> Anno.Composition right
+      Nothing
+        -> Anno.Composition []
+        :> Anno.Composition left
 
   baseType = (<?> "base type") $ choice
     [ Anno.Vector <$> between
       (match Token.VectorBegin)
       (match Token.VectorEnd)
-      sig'
-    , block sig'
+      signature'
+    , grouped signature'
     , Anno.Bool <$ match Token.BoolType
     , Anno.Text <$ match Token.TextType
     , Anno.Int <$ match Token.IntType
-    , var
+    , Anno.Any <$ identifier  -- FIXME
     ]
 
-  var = (<?> "builtin type or type variable") $ do
-    word <- identifier
-    case Map.lookup word params of
-      Just param -> return $ Anno.Var param
-      Nothing -> unexpected word
-
 def :: Parser (Def Term)
-def = (<?> "definition") . locate $ do
-  void $ match Token.Def
-  mParams <- optionMaybe . grouped $ many identifier
-  name <- identifier
-  body <- oneOrBlock
-  let
-    body' = case mParams of
-      Just params -> foldr Lambda body (reverse params)
-      Nothing -> body
-  return $ Def name body'
+def = (<?> "definition") . locate
+  $ match Token.Def *> (Def <$> identifier <*> term)
 
 term :: Parser Term
 term = choice
   [ locate $ Push <$> value
   , locate (mapOne toBuiltin <?> "builtin")
-  , lambda
+  , locate lambda
+  , locate if_
+  , Block <$> block
   ]
   where
 
-  lambda = (<?> "lambda") $ do
-    name <- match Token.Lambda *> identifier
-    terms <- many term
-    return $ Lambda name (Compose terms)
+  lambda = (<?> "lambda") $ match Token.Lambda *>
+    (Lambda <$> identifier <*> many term)
+
+  if_ = If
+    <$> (match Token.If *> many term)
+    <*> (match Token.Then *> block)
+    <*> (match Token.Else *> block)
 
   toBuiltin (Token.Builtin name) = Just $ Builtin name
   toBuiltin _ = Nothing
+
+block :: Parser [Term]
+block = blocked (many term) <|> layout (many term)
+  <?> "block"
 
 value :: Parser Value
 value = locate $ choice
   [ mapOne toLiteral <?> "literal"
   , mapOne toWord <?> "word"
   , vector
-  , block_
+  , function
   ]
   where
 
@@ -169,22 +145,28 @@ value = locate $ choice
   toWord (Token.Word name) = Just $ Word name
   toWord _ = Nothing
 
-  vector = Vector . reverse
-    <$> between
+  vector = Vector
+    <$> pure Nothing
+    <*> (reverse <$> between
       (match Token.VectorBegin)
       (match Token.VectorEnd)
-      (many value)
+      (many value))
     <?> "vector"
 
-  block_ = Block
-    <$> (block (many term) <|> layout (many term))
+  function = Function
+    <$> grouped signature
+    <*> block
     <?> "function"
 
 grouped :: Parser a -> Parser a
-grouped = between (match Token.GroupBegin) (match Token.GroupEnd)
+grouped = between
+  (match Token.GroupBegin)
+  (match Token.GroupEnd)
 
-block :: Parser a -> Parser a
-block = between (match Token.BlockBegin) (match Token.BlockEnd)
+blocked :: Parser a -> Parser a
+blocked = between
+  (match Token.BlockBegin)
+  (match Token.BlockEnd)
 
 locatedBlock :: (Located -> Bool) -> Parser a -> Parser a
 locatedBlock inside = between
@@ -245,13 +227,6 @@ identifier = mapOne toIdentifier
   toIdentifier (Token.Word name) = Just name
   toIdentifier _ = Nothing
 
-oneOrBlock :: Parser Term
-oneOrBlock = choice
-  [ Compose <$> block (many term)
-  , Compose <$> layout (many term)
-  , term
-  ]
-
 advance :: SourcePos -> t -> [Located] -> SourcePos
 advance _ _ (Located _ Location{..} : _) = locationStart
 advance sourcePos _ _ = sourcePos
@@ -276,10 +251,8 @@ locate :: Parser (Location -> a) -> Parser a
 locate parser = do
   start <- getPosition
   result <- parser
-  end <- getPosition
   return $ result Location
     { locationStart = start
-    , locationEnd = end
     , locationIndent = 0  -- FIXME
     }
 

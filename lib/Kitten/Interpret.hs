@@ -41,21 +41,27 @@ interpret stack Fragment{..} = void $ evalStateT
 
 interpretTerm :: Resolved -> Interpret
 interpretTerm resolved = case resolved of
-  Push value loc -> withLocation loc $ interpretValue value
+  Block terms -> mapM_ interpretTerm terms
   Builtin builtin _ -> interpretBuiltin builtin
-  Scoped terms -> do
+  Closed name _ -> pushData =<< getClosed name
+  If condition true false loc -> withLocation loc $ do
+    mapM_ interpretTerm condition
+    Bool test <- popData
+    mapM_ interpretTerm $ if test then true else false
+  Local name _ -> pushData =<< getLocal name
+  Push value loc -> withLocation loc $ interpretValue value
+  Scoped terms loc -> withLocation loc $ do
     pushLocal =<< popData
     mapM_ interpretTerm terms
     popLocal
-  Local name _ -> pushData =<< getLocal name
-  Closed name _ -> pushData =<< getClosed name
-  Compose terms -> mapM_ interpretTerm terms
 
 interpretValue :: Value -> Interpret
 interpretValue value = case value of
   Word (Name index) -> do
     Def _ term loc <- gets ((!! index) . envDefs)
-    withLocation loc $ interpretTerm term
+    withLocation loc $ do
+      interpretTerm term
+      interpretBuiltin Builtin.Apply
   Closure names terms -> do
     values <- mapM getLocal names
     pushData $ Closure' values terms
@@ -63,7 +69,7 @@ interpretValue value = case value of
 
 interpretFunction :: Value -> Interpret
 interpretFunction function = case function of
-  Function terms -> mapM_ interpretTerm terms
+  Function _ terms -> mapM_ interpretTerm terms
   Closure' values terms
     -> withClosure values $ mapM_ interpretTerm terms
   _ -> fail $ concat
@@ -83,28 +89,28 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.At -> do
     Int b <- popData
-    Vector a <- popData
+    Vector _ a <- popData
     pushData $ a !! b
 
   Builtin.Bottom -> do
-    Vector a <- popData
+    Vector _ a <- popData
     pushData $ last a
 
   Builtin.Cat -> do
-    Vector b <- popData
-    Vector a <- popData
-    pushData $ Vector (b ++ a)
+    Vector _ b <- popData
+    Vector _ a <- popData
+    pushData $ Vector Nothing (b ++ a)
 
   Builtin.Compose -> do
-    Function b <- popData
-    Function a <- popData
-    pushData $ Function (b ++ a)
+    Function _ b <- popData
+    Function _ a <- popData
+    pushData $ Function undefined (b ++ a)  -- FIXME
 
   Builtin.Div -> intsToInt div
 
   Builtin.Down -> do
-    Vector a <- popData
-    pushData $ Vector (tail a)
+    Vector _ a <- popData
+    pushData $ Vector Nothing (tail a)
 
   Builtin.Drop -> void popData
 
@@ -116,29 +122,22 @@ interpretBuiltin builtin = case builtin of
   Builtin.Eq -> intsToBool (==)
 
   Builtin.Empty -> do
-    Vector a <- popData
+    Vector _ a <- popData
     pushData . Bool $ null a
 
   Builtin.Function -> do
     a <- popData
-    pushData $ Function [Push a UnknownLocation]
+    -- FIXME
+    pushData $ Function undefined [Push a UnknownLocation]
 
   Builtin.Ge -> intsToBool (>=)
 
   Builtin.Gt -> intsToBool (>)
 
-  Builtin.If -> do
-    Bool condition <- popData
-    false <- popData
-    true <- popData
-    if condition
-      then interpretFunction true
-      else interpretFunction false
-
   Builtin.Le -> intsToBool (<=)
 
   Builtin.Length -> do
-    Vector a <- popData
+    Vector _ a <- popData
     pushData . Int $ length a
 
   Builtin.Lt -> intsToBool (<)
@@ -172,16 +171,16 @@ interpretBuiltin builtin = case builtin of
     pushData a
 
   Builtin.Top -> do
-    Vector a <- popData
+    Vector _ a <- popData
     pushData $ head a
 
   Builtin.Up -> do
-    Vector a <- popData
-    pushData $ Vector (init a)
+    Vector _ a <- popData
+    pushData $ Vector Nothing (init a)
 
   Builtin.Vector -> do
     a <- popData
-    pushData $ Vector [a]
+    pushData $ Vector Nothing [a]
 
   Builtin.XorBool -> boolsToBool (/=)
 
