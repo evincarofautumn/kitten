@@ -77,7 +77,8 @@ fragment defs terms
   = Fragment defs terms
 
 function :: [Resolved] -> Resolved
-function terms = Push (Function emptyAnno terms) TestLocation
+function terms
+  = Push (Function emptyAnno terms) TestLocation
   where emptyAnno = Anno Anno.Any TestLocation
 
 local :: Int -> Resolved

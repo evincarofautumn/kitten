@@ -131,8 +131,8 @@ typecheckValue value = case value of
   Function anno terms -> typecheckAnnotatedTerms anno terms
   Closure{} -> internalError
     "closures should not appear during inference"
-  Closure'{} -> internalError
-    "closures should not appear during inference"
+  Activation{} -> internalError
+    "activations should not appear during inference"
 
 stackEffect :: TypecheckM a -> TypecheckM (Type Scalar)
 stackEffect action = do

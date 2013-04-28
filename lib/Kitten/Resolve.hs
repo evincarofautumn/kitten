@@ -52,9 +52,9 @@ instance Show Resolved where
     Scoped terms _ -> unwords $ "\\" : map show terms
 
 data Value
-  = Bool Bool
+  = Activation [Value] [Resolved]
+  | Bool Bool
   | Closure [Name] [Resolved]
-  | Closure' [Value] [Resolved]
   | Function Anno [Resolved]
   | Int Int
   | Text String
@@ -65,19 +65,19 @@ data Value
 instance Show Value where
   show v = case v of
 
-    Bool value -> if value then "true" else "false"
-
-    Closure names terms -> concat
+    Activation values terms -> concat
       [ "$("
-      , unwords $ map show names
+      , unwords $ map show values
       , "){"
       , unwords $ map show terms
       , "}"
       ]
 
-    Closure' values terms -> concat
+    Bool value -> if value then "true" else "false"
+
+    Closure names terms -> concat
       [ "$("
-      , unwords $ map show values
+      , unwords $ map show names
       , "){"
       , unwords $ map show terms
       , "}"

@@ -64,13 +64,12 @@ interpretValue value = case value of
       interpretBuiltin Builtin.Apply
   Closure names terms -> do
     values <- mapM getLocal names
-    pushData $ Closure' values terms
+    pushData $ Activation values terms
   _ -> pushData value
 
 interpretFunction :: Value -> Interpret
 interpretFunction function = case function of
-  Function _ terms -> mapM_ interpretTerm terms
-  Closure' values terms
+  Activation values terms
     -> withClosure values $ mapM_ interpretTerm terms
   _ -> fail $ concat
     [ "attempt to apply non-function "
@@ -101,10 +100,8 @@ interpretBuiltin builtin = case builtin of
     Vector _ a <- popData
     pushData $ Vector Nothing (b ++ a)
 
-  Builtin.Compose -> do
-    Function _ b <- popData
-    Function _ a <- popData
-    pushData $ Function undefined (b ++ a)  -- FIXME
+  Builtin.Compose -> fail
+    "TODO interpretBuiltin Builtin.Compose"
 
   Builtin.Div -> intsToInt div
 
@@ -125,10 +122,8 @@ interpretBuiltin builtin = case builtin of
     Vector _ a <- popData
     pushData . Bool $ null a
 
-  Builtin.Function -> do
-    a <- popData
-    -- FIXME
-    pushData $ Function undefined [Push a UnknownLocation]
+  Builtin.Function -> fail
+    "TODO interpretBuiltin Builtin.Function"
 
   Builtin.Ge -> intsToBool (>=)
 

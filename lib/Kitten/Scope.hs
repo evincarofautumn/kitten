@@ -46,7 +46,8 @@ scopeTerm stack resolved = case resolved of
 
 scopeValue :: [Int] -> Value -> Value
 scopeValue stack value = case value of
-  Function _ funTerms -> Closure capturedNames rescopedTerms
+  Function _ funTerms
+    -> Closure capturedNames rescopedTerms
     where
 
     rescopedTerms :: [Resolved]
@@ -76,7 +77,7 @@ scopeValue stack value = case value of
   Bool{} -> value
   Text{} -> value
   Closure{} -> value
-  Closure'{} -> value
+  Activation{} -> value
   Vector anno values -> Vector anno
     $ map (scopeValue stack) values
 
@@ -147,7 +148,7 @@ captureValue value = do
     Closure names _ -> do
       mapM_ closeLocal names
       return value
-    Closure' _ _ -> return value
+    Activation{} -> return value
     Vector anno values -> Vector anno
       <$> mapM captureValue values
     Function anno terms -> let
