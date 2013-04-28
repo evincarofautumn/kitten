@@ -40,7 +40,7 @@ scopeTerm stack resolved = case resolved of
 
 scopeValue :: [Int] -> Value -> Value
 scopeValue stack value = case value of
-  Fun funTerms -> Closure capturedNames rescopedTerms
+  Function funTerms -> Closure capturedNames rescopedTerms
     where
 
     rescopedTerms :: [Resolved]
@@ -71,7 +71,7 @@ scopeValue stack value = case value of
   Text{} -> value
   Closure{} -> value
   Closure'{} -> value
-  Vec values -> Vec
+  Vector values -> Vector
     $ map (scopeValue stack) values
   Tuple values -> Tuple
     $ map (scopeValue stack) values
@@ -137,8 +137,8 @@ captureValue value = do
       mapM_ closeLocal names
       return value
     Closure' _ _ -> return value
-    Vec values -> Vec <$> mapM captureValue values
+    Vector values -> Vector <$> mapM captureValue values
     Tuple values -> Tuple <$> mapM captureValue values
-    Fun terms -> let
+    Function terms -> let
         inside env@Env{..} = env { envStack = 0 : envStack }
-      in Fun <$> local inside (mapM captureTerm terms)
+      in Function <$> local inside (mapM captureTerm terms)

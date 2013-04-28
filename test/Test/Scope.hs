@@ -19,17 +19,17 @@ spec :: Spec
 spec = do
   describe "no change" $ do
     testScope
-      (fragment [] [] [fun [Scoped [local 0]]])
+      (fragment [] [] [function [Scoped [local 0]]])
       (fragment [] [] [closure [] [Scoped [local 0]]])
 
   describe "non-nested closure" $ do
     testScope
-      (fragment [] [] [Scoped [fun [local 0]]])
+      (fragment [] [] [Scoped [function [local 0]]])
       (fragment [] [] [Scoped [closure [0] [closed 0, Scoped [closed 0]]]])
 
   describe "nested closure" $ do
     testScope
-      (fragment [] [] [Scoped [fun [Scoped [fun [local 1, local 0, biAdd]]]]])
+      (fragment [] [] [Scoped [function [Scoped [function [local 1, local 0, biAdd]]]]])
       (fragment [] []
         [ Scoped
           [ closure [0]
@@ -55,8 +55,8 @@ testScope source expected = let
 biAdd :: Resolved
 biAdd = Builtin Builtin.Add TestLocation
 
-biFun :: Resolved
-biFun = Builtin Builtin.Fun TestLocation
+biFunction :: Resolved
+biFunction = Builtin Builtin.Function TestLocation
 
 biCompose :: Resolved
 biCompose = Builtin Builtin.Compose TestLocation
@@ -76,8 +76,8 @@ fragment
 fragment annos defs terms
   = Fragment annos defs terms
 
-fun :: [Resolved] -> Resolved
-fun terms = Push (Fun terms) TestLocation
+function :: [Resolved] -> Resolved
+function terms = Push (Function terms) TestLocation
 
 local :: Int -> Resolved
 local index = Local (Name index) TestLocation

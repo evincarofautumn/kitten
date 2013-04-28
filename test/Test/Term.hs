@@ -23,14 +23,14 @@ spec = do
   describe "terms" $ do
     testTerm "1 2 3"
       (Fragment [] [] [int 1, int 2, int 3])
-    testTerm "dup swap drop vec cat fun compose apply"
+    testTerm "dup swap drop vector cat function compose apply"
       $ Fragment [] []
         [ builtin Builtin.Dup
         , builtin Builtin.Swap
         , builtin Builtin.Drop
-        , builtin Builtin.Vec
+        , builtin Builtin.Vector
         , builtin Builtin.Cat
-        , builtin Builtin.Fun
+        , builtin Builtin.Function
         , builtin Builtin.Compose
         , builtin Builtin.Apply
         ]
@@ -62,7 +62,7 @@ spec = do
     testTerm
       "{ \\x \\y x y * }"
       $ Fragment [] []
-        [ fun
+        [ block
           [ lambda "x"
             [ lambda "y"
               [ word "x"
@@ -76,7 +76,7 @@ spec = do
     testTerm
       ": \\x \\y x y *"
       $ Fragment [] []
-        [ fun
+        [ block
           [ lambda "x"
             [ lambda "y"
               [ word "x"
@@ -94,7 +94,7 @@ spec = do
       \  nextLine\n\
       \  anotherLine\n"
       $ Fragment [] []
-        [ fun
+        [ block
           [ word "sameLine"
           , word "nextLine"
           , word "anotherLine"
@@ -106,8 +106,8 @@ spec = do
       \    nextLine\n\
       \    anotherLine }\n"
       $ Fragment [] []
-        [ fun
-          [ fun
+        [ block
+          [ block
             [ word "sameLine"
             , word "nextLine"
             , word "anotherLine"
@@ -117,7 +117,7 @@ spec = do
 
     testTerm "{ one : two three }"
       $ Fragment [] []
-      [fun [word "one", fun [word "two", word "three"]]]
+      [block [word "one", block [word "two", word "three"]]]
 
 testTerm :: String -> Fragment Term -> Spec
 testTerm source expected = it (show source)
@@ -138,8 +138,8 @@ builtin b = Builtin b TestLocation
 compose :: [Term] -> Term
 compose terms = Compose terms
 
-fun :: [Term] -> Term
-fun terms = push $ Fun terms TestLocation
+block :: [Term] -> Term
+block terms = push $ Block terms TestLocation
 
 int :: Int -> Term
 int value = push $ Int value TestLocation

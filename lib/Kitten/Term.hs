@@ -47,9 +47,8 @@ data Value
   | Int Int Location
   | Bool Bool Location
   | Text String Location
-  | Vec [Value] Location
-  | Tuple [Value] Location
-  | Fun [Term] Location
+  | Vector [Value] Location
+  | Block [Term] Location
   deriving (Eq, Show)
 
 data Element
@@ -108,11 +107,10 @@ sig params = sig'
         :> Anno.Composition (reverse left)
 
   baseType = (<?> "base type") $ choice
-    [ Anno.Vec <$> between
-      (match Token.VecBegin)
-      (match Token.VecEnd)
+    [ Anno.Vector <$> between
+      (match Token.VectorBegin)
+      (match Token.VectorEnd)
       sig'
-    , Anno.Tuple <$> grouped (many baseType)
     , block sig'
     , Anno.Bool <$ match Token.BoolType
     , Anno.Text <$ match Token.TextType
@@ -158,9 +156,8 @@ value :: Parser Value
 value = locate $ choice
   [ mapOne toLiteral <?> "literal"
   , mapOne toWord <?> "word"
-  , vec
-  , fun
-  , tuple
+  , vector
+  , block_
   ]
   where
 
@@ -172,44 +169,37 @@ value = locate $ choice
   toWord (Token.Word name) = Just $ Word name
   toWord _ = Nothing
 
-  vec = Vec . reverse
+  vector = Vector . reverse
     <$> between
-      (match Token.VecBegin)
-      (match Token.VecEnd)
+      (match Token.VectorBegin)
+      (match Token.VectorEnd)
       (many value)
     <?> "vector"
 
-  fun = Fun
+  block_ = Block
     <$> (block (many term) <|> layout (many term))
     <?> "function"
 
-  tuple = Tuple . reverse
-    <$> between
-      (match Token.TupleBegin)
-      (match Token.TupleEnd)
-      (many value)
-    <?> "tuple"
-
 grouped :: Parser a -> Parser a
-grouped = between (match Token.TupleBegin) (match Token.TupleEnd)
+grouped = between (match Token.GroupBegin) (match Token.GroupEnd)
 
 block :: Parser a -> Parser a
-block = between (match Token.FunBegin) (match Token.FunEnd)
+block = between (match Token.BlockBegin) (match Token.BlockEnd)
 
 locatedBlock :: (Located -> Bool) -> Parser a -> Parser a
 locatedBlock inside = between
-  (locatedSatisfy $ inside .&&. isLocated Token.FunBegin)
-  (match Token.FunEnd)
+  (locatedSatisfy $ inside .&&. isLocated Token.BlockBegin)
+  (match Token.BlockEnd)
 
-locatedTuple :: (Located -> Bool) -> Parser a -> Parser a
-locatedTuple inside = between
-  (locatedSatisfy $ inside .&&. isLocated Token.TupleBegin)
-  (match Token.TupleEnd)
+locatedGroup :: (Located -> Bool) -> Parser a -> Parser a
+locatedGroup inside = between
+  (locatedSatisfy $ inside .&&. isLocated Token.GroupBegin)
+  (match Token.GroupEnd)
 
-locatedVec :: (Located -> Bool) -> Parser a -> Parser a
-locatedVec inside = between
-  (locatedSatisfy $ inside .&&. isLocated Token.VecBegin)
-  (match Token.VecEnd)
+locatedVector :: (Located -> Bool) -> Parser a -> Parser a
+locatedVector inside = between
+  (locatedSatisfy $ inside .&&. isLocated Token.VectorBegin)
+  (match Token.VectorEnd)
 
 layout :: Parser a -> Parser a
 layout inner = do
@@ -231,8 +221,8 @@ layout inner = do
 
   innerTokens <- liftM concat . many $ choice
     [ locatedBlock inside $ many anyLocated
-    , locatedVec inside $ many anyLocated
-    , locatedTuple inside $ many anyLocated
+    , locatedVector inside $ many anyLocated
+    , locatedGroup inside $ many anyLocated
     , liftM list . locatedSatisfy $ inside .&&. not . closing
     ]
 
@@ -244,9 +234,9 @@ layout inner = do
 
   closing :: Located -> Bool
   closing (Located token _) = any (== token)
-    [ Token.FunEnd
-    , Token.VecEnd
-    , Token.TupleEnd
+    [ Token.BlockEnd
+    , Token.VectorEnd
+    , Token.GroupEnd
     ]
 
 identifier :: Parser String

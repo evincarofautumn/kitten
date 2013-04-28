@@ -29,7 +29,7 @@ data Builtin
   | Dup
   | Eq
   | Empty
-  | Fun
+  | Function
   | Ge
   | Gt
   | If
@@ -49,7 +49,7 @@ data Builtin
   | Swap
   | Top
   | Up
-  | Vec
+  | Vector
   | XorBool
   | XorInt
   deriving (Eq, Ord)
@@ -74,43 +74,43 @@ names = map fst fromStringTable
 
 fromStringTable :: [(String, Builtin)]
 fromStringTable =
-  [ (,) "+"       Add
-  , (,) "&&"      AndBool
-  , (,) "&"       AndInt
-  , (,) "apply"   Apply
-  , (,) "@"       At
-  , (,) "bottom"  Bottom
-  , (,) "cat"     Cat
-  , (,) "compose" Compose
-  , (,) "/"       Div
-  , (,) "down"    Down
-  , (,) "drop"    Drop
-  , (,) "dup"     Dup
-  , (,) "="       Eq
-  , (,) "empty"   Empty
-  , (,) "fun"     Fun
-  , (,) ">="      Ge
-  , (,) ">"       Gt
-  , (,) "if"      If
-  , (,) "<="      Le
-  , (,) "length"  Length
-  , (,) "<"       Lt
-  , (,) "%"       Mod
-  , (,) "*"       Mul
-  , (,) "!="      Ne
-  , (,) "neg"     Neg
-  , (,) "!"       NotBool
-  , (,) "~"       NotInt
-  , (,) "||"      OrBool
-  , (,) "|"       OrInt
-  , (,) "print"   Print
-  , (,) "-"       Sub
-  , (,) "swap"    Swap
-  , (,) "top"     Top
-  , (,) "up"      Up
-  , (,) "vec"     Vec
-  , (,) "^^"      XorBool
-  , (,) "^"       XorInt
+  [ (,) "+"        Add
+  , (,) "&&"       AndBool
+  , (,) "&"        AndInt
+  , (,) "apply"    Apply
+  , (,) "@"        At
+  , (,) "bottom"   Bottom
+  , (,) "cat"      Cat
+  , (,) "compose"  Compose
+  , (,) "/"        Div
+  , (,) "down"     Down
+  , (,) "drop"     Drop
+  , (,) "dup"      Dup
+  , (,) "="        Eq
+  , (,) "empty"    Empty
+  , (,) "function" Function
+  , (,) ">="       Ge
+  , (,) ">"        Gt
+  , (,) "if"       If
+  , (,) "<="       Le
+  , (,) "length"   Length
+  , (,) "<"        Lt
+  , (,) "%"        Mod
+  , (,) "*"        Mul
+  , (,) "!="       Ne
+  , (,) "neg"      Neg
+  , (,) "!"        NotBool
+  , (,) "~"        NotInt
+  , (,) "||"       OrBool
+  , (,) "|"        OrInt
+  , (,) "print"    Print
+  , (,) "-"        Sub
+  , (,) "swap"     Swap
+  , (,) "top"      Top
+  , (,) "up"       Up
+  , (,) "vector"   Vector
+  , (,) "^^"       XorBool
+  , (,) "^"        XorInt
   ]
 
 toStringTable :: [(Builtin, String)]

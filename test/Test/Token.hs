@@ -37,12 +37,12 @@ spec = do
 
   describe "single-character token" $ do
     testTokens "\\" [Lambda]
-    testTokens "[" [VecBegin]
-    testTokens "]" [VecEnd]
-    testTokens "{" [FunBegin]
-    testTokens "}" [FunEnd]
-    testTokens "(" [TupleBegin]
-    testTokens ")" [TupleEnd]
+    testTokens "[" [VectorBegin]
+    testTokens "]" [VectorEnd]
+    testTokens "{" [BlockBegin]
+    testTokens "}" [BlockEnd]
+    testTokens "(" [GroupBegin]
+    testTokens ")" [GroupEnd]
     testTokens ":" [Layout]
 
   describe "tokenize int" $ do
@@ -80,9 +80,9 @@ spec = do
     testTokens "dup" [Builtin Builtin.Dup]
     testTokens "swap" [Builtin Builtin.Swap]
     testTokens "drop" [Builtin Builtin.Drop]
-    testTokens "vec" [Builtin Builtin.Vec]
+    testTokens "vector" [Builtin Builtin.Vector]
     testTokens "cat" [Builtin Builtin.Cat]
-    testTokens "fun" [Builtin Builtin.Fun]
+    testTokens "function" [Builtin Builtin.Function]
     testTokens "compose" [Builtin Builtin.Compose]
     testTokens "apply" [Builtin Builtin.Apply]
 

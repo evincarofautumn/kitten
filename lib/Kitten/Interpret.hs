@@ -63,7 +63,7 @@ interpretValue value = case value of
 
 interpretFunction :: Value -> Interpret
 interpretFunction function = case function of
-  Fun terms -> mapM_ interpretTerm terms
+  Function terms -> mapM_ interpretTerm terms
   Closure' values terms
     -> withClosure values $ mapM_ interpretTerm terms
   _ -> fail $ concat
@@ -83,28 +83,28 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.At -> do
     Int b <- popData
-    Vec a <- popData
+    Vector a <- popData
     pushData $ a !! b
 
   Builtin.Bottom -> do
-    Vec a <- popData
+    Vector a <- popData
     pushData $ last a
 
   Builtin.Cat -> do
-    Vec b <- popData
-    Vec a <- popData
-    pushData $ Vec (b ++ a)
+    Vector b <- popData
+    Vector a <- popData
+    pushData $ Vector (b ++ a)
 
   Builtin.Compose -> do
-    Fun b <- popData
-    Fun a <- popData
-    pushData $ Fun (b ++ a)
+    Function b <- popData
+    Function a <- popData
+    pushData $ Function (b ++ a)
 
   Builtin.Div -> intsToInt div
 
   Builtin.Down -> do
-    Vec a <- popData
-    pushData $ Vec (tail a)
+    Vector a <- popData
+    pushData $ Vector (tail a)
 
   Builtin.Drop -> void popData
 
@@ -116,12 +116,12 @@ interpretBuiltin builtin = case builtin of
   Builtin.Eq -> intsToBool (==)
 
   Builtin.Empty -> do
-    Vec a <- popData
+    Vector a <- popData
     pushData . Bool $ null a
 
-  Builtin.Fun -> do
+  Builtin.Function -> do
     a <- popData
-    pushData $ Fun [Push a UnknownLocation]
+    pushData $ Function [Push a UnknownLocation]
 
   Builtin.Ge -> intsToBool (>=)
 
@@ -138,7 +138,7 @@ interpretBuiltin builtin = case builtin of
   Builtin.Le -> intsToBool (<=)
 
   Builtin.Length -> do
-    Vec a <- popData
+    Vector a <- popData
     pushData . Int $ length a
 
   Builtin.Lt -> intsToBool (<)
@@ -172,16 +172,16 @@ interpretBuiltin builtin = case builtin of
     pushData a
 
   Builtin.Top -> do
-    Vec a <- popData
+    Vector a <- popData
     pushData $ head a
 
   Builtin.Up -> do
-    Vec a <- popData
-    pushData $ Vec (init a)
+    Vector a <- popData
+    pushData $ Vector (init a)
 
-  Builtin.Vec -> do
+  Builtin.Vector -> do
     a <- popData
-    pushData $ Vec [a]
+    pushData $ Vector [a]
 
   Builtin.XorBool -> boolsToBool (/=)
 

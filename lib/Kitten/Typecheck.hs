@@ -123,16 +123,15 @@ typecheckValue value = case value of
   Int _ -> pushData IntType
   Bool _ -> pushData BoolType
   Text _ -> pushData TextType
-  Vec [] -> do
+  Vector [] -> do
     a <- freshName
-    pushData $ VecType (ScalarVar a)
-  Vec vs@(_ : _) -> do
+    pushData $ VectorType (ScalarVar a)
+  Vector vs@(_ : _) -> do
     mapM_ typecheckValue vs
     (expected : rest) <- replicateM (length vs) popData
     forM_ rest $ unify expected
-    pushData $ VecType expected
-  Tuple _values -> internalError "TODO typecheck tuple"
-  Fun _terms -> do
+    pushData $ VectorType expected
+  Function _terms -> do
     a <- freshName
     b <- freshName
     pushData $ RowVar a :> RowVar b
@@ -218,20 +217,20 @@ typecheckBuiltin builtin = case builtin of
   Builtin.At -> do
     popDataExpecting_ IntType
     x <- freshName
-    VecType a <- popDataExpecting $ VecType (ScalarVar x)
+    VectorType a <- popDataExpecting $ VectorType (ScalarVar x)
     pushData a
 
   Builtin.Bottom -> do
     x <- freshName
-    VecType a <- popDataExpecting $ VecType (ScalarVar x)
+    VectorType a <- popDataExpecting $ VectorType (ScalarVar x)
     pushData a
 
   Builtin.Cat -> do
     x <- freshName
-    VecType b <- popDataExpecting $ VecType (ScalarVar x)
-    VecType a <- popDataExpecting $ VecType (ScalarVar x)
+    VectorType b <- popDataExpecting $ VectorType (ScalarVar x)
+    VectorType a <- popDataExpecting $ VectorType (ScalarVar x)
     if a == b
-      then pushData $ VecType a
+      then pushData $ VectorType a
       else typeError $ concat
         [ "Mismatched element types "
         , show a
@@ -260,7 +259,7 @@ typecheckBuiltin builtin = case builtin of
 
   Builtin.Down -> do
     x <- freshName
-    a <- popDataExpecting $ VecType (ScalarVar x)
+    a <- popDataExpecting $ VectorType (ScalarVar x)
     pushData a
 
   Builtin.Drop -> popData_
@@ -274,10 +273,10 @@ typecheckBuiltin builtin = case builtin of
 
   Builtin.Empty -> do
     x <- freshName
-    popDataExpecting_ $ VecType (ScalarVar x)
+    popDataExpecting_ $ VectorType (ScalarVar x)
     pushData BoolType
 
-  Builtin.Fun -> do
+  Builtin.Function -> do
     a <- popData
     pushData $ Composition [] :> Composition [a]
 
@@ -303,7 +302,7 @@ typecheckBuiltin builtin = case builtin of
 
   Builtin.Length -> do
     x <- freshName
-    popDataExpecting_ $ VecType (ScalarVar x)
+    popDataExpecting_ $ VectorType (ScalarVar x)
     pushData IntType
 
   Builtin.Lt -> intsToBool
@@ -336,17 +335,17 @@ typecheckBuiltin builtin = case builtin of
 
   Builtin.Top -> do
     x <- freshName
-    VecType a <- popDataExpecting $ VecType (ScalarVar x)
+    VectorType a <- popDataExpecting $ VectorType (ScalarVar x)
     pushData a
 
   Builtin.Up -> do
     x <- freshName
-    a <- popDataExpecting $ VecType (ScalarVar x)
+    a <- popDataExpecting $ VectorType (ScalarVar x)
     pushData a
 
-  Builtin.Vec -> do
+  Builtin.Vector -> do
     a <- popData
-    pushData $ VecType a
+    pushData $ VectorType a
 
   Builtin.XorBool -> boolsToBool
 
@@ -460,8 +459,7 @@ unify' type1 type2 = case (type1, type2) of
   (_, Composition [] :> Composition [b]) -> unify' type1 b
   (Composition [] :> Composition [a], _) -> unify' a type2
   (a :> b, c :> d) -> unifyRow a c >> unifyRow b d
-  (VecType a, VecType b) -> unify' a b
-  (TupleType as, TupleType bs) -> unifyEach as bs
+  (VectorType a, VectorType b) -> unify' a b
   _ -> typeError $ unwords
     [ "unable to unify"
     , show type1

@@ -47,9 +47,9 @@ data Value
   | Int Int
   | Bool Bool
   | Text String
-  | Vec [Value]
+  | Vector [Value]
   | Tuple [Value]
-  | Fun [Resolved]
+  | Function [Resolved]
   | Closure [Name] [Resolved]
   | Closure' [Value] [Resolved]
   deriving (Eq)
@@ -60,9 +60,9 @@ instance Show Value where
     Int value -> show value
     Bool value -> if value then "true" else "false"
     Text value -> show value
-    Vec values -> "[" ++ showVector values ++ "]"
+    Vector values -> "[" ++ showVector values ++ "]"
     Tuple values -> "(" ++ showVector values ++ ")"
-    Fun terms -> "{" ++ unwords (map show terms) ++ "}"
+    Function terms -> "{" ++ unwords (map show terms) ++ "}"
     Closure names terms -> concat
       [ "$("
       , unwords $ map show names
@@ -137,11 +137,9 @@ resolveValue unresolved = case unresolved of
             $ Push (Word $ Name index) loc
           Nothing -> lift . Left . CompileError loc $ concat
             ["Unable to resolve word '", name, "'"]
-  Term.Fun term loc -> Push . Fun
+  Term.Block term loc -> Push . Function
     <$> mapM resolveTerm term <*> pure loc
-  Term.Vec terms loc -> Push . Vec
-    <$> resolveVector terms <*> pure loc
-  Term.Tuple terms loc -> Push . Tuple
+  Term.Vector terms loc -> Push . Vector
     <$> resolveVector terms <*> pure loc
   Term.Int value loc -> return $ Push (Int value) loc
   Term.Bool value loc -> return $ Push (Bool value) loc

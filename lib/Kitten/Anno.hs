@@ -22,8 +22,7 @@ data Anno = Anno
 data Type a where
   (:>) :: Type Row -> Type Row -> Type Scalar
   Composition :: [Type Scalar] -> Type Row
-  Vec :: Type Scalar -> Type Scalar
-  Tuple :: [Type Scalar] -> Type Scalar
+  Vector :: Type Scalar -> Type Scalar
   Var :: Name -> Type Scalar
   Bool :: Type Scalar
   Int :: Type Scalar
@@ -35,8 +34,7 @@ instance Eq (Type a) where
   Text == Text = True
   (a :> b) == (c :> d) = a == c && b == d
   Composition as == Composition bs = as == bs
-  Vec a == Vec b = a == b
-  Tuple as == Tuple bs = as == bs
+  Vector a == Vector b = a == b
   Var a == Var b = a == b
   _ == _ = False
 

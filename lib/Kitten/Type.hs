@@ -24,8 +24,7 @@ data Type a where
   TextType :: Type Scalar
   (:>) :: Type Row -> Type Row -> Type Scalar
   Composition :: [Type Scalar] -> Type Row
-  VecType :: Type Scalar -> Type Scalar
-  TupleType :: [Type Scalar] -> Type Scalar
+  VectorType :: Type Scalar -> Type Scalar
   ScalarVar :: Name -> Type Scalar
   RowVar :: Name -> Type Row
   EmptyType :: Type Row
@@ -36,8 +35,7 @@ instance Eq (Type a) where
   TextType == TextType = True
   (a :> b) == (c :> d) = a == c && b == d
   Composition as == Composition bs = as == bs
-  VecType a == VecType b = a == b
-  TupleType as == TupleType bs = as == bs
+  VectorType a == VectorType b = a == b
   ScalarVar a == ScalarVar b = a == b
   RowVar a == RowVar b = a == b
   EmptyType == EmptyType = True
@@ -51,10 +49,8 @@ instance Show (Type a) where
   show TextType = "text"
   show (ScalarVar name) = show name
   show (RowVar name) = show name
-  show (VecType type_)
+  show (VectorType type_)
     = "[" ++ show type_ ++ "]"
-  show (TupleType types)
-    = "(" ++ unwords (map show types) ++ ")"
   show (a :> b)
     = "{" ++ show a ++ " -> " ++ show b ++ "}"
   show (Composition as) = unwords (map show as)
@@ -68,8 +64,7 @@ fromAnno Anno{..} = Forall annoVars $ fromAnnoType annoType
 fromAnnoType :: Anno.Type Scalar -> Type Scalar
 fromAnnoType annoType = case annoType of
   a Anno.:> b -> fromAnnoRow a :> fromAnnoRow b
-  Anno.Vec type_ -> VecType $ fromAnnoType type_
-  Anno.Tuple types -> TupleType $ map fromAnnoType types
+  Anno.Vector type_ -> VectorType $ fromAnnoType type_
   Anno.Var name -> ScalarVar name
   Anno.Bool -> BoolType
   Anno.Int -> IntType

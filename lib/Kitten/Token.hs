@@ -32,12 +32,12 @@ data Token
   | Def
   | Type
   | Lambda
-  | VecBegin
-  | VecEnd
-  | FunBegin
-  | FunEnd
-  | TupleBegin
-  | TupleEnd
+  | VectorBegin
+  | VectorEnd
+  | BlockBegin
+  | BlockEnd
+  | GroupBegin
+  | GroupEnd
   | Layout
   deriving (Eq)
 
@@ -55,12 +55,12 @@ instance Show Token where
     Def -> "def"
     Type -> "type"
     Lambda -> "\\"
-    VecBegin -> "["
-    VecEnd -> "]"
-    FunBegin -> "{"
-    FunEnd -> "}"
-    TupleBegin -> "("
-    TupleEnd -> ")"
+    VectorBegin -> "["
+    VectorEnd -> "]"
+    BlockBegin -> "{"
+    BlockEnd -> "}"
+    GroupBegin -> "("
+    GroupEnd -> ")"
     Layout -> ":"
 
 data Located = Located
@@ -97,12 +97,12 @@ tokens = token `sepEndBy` silence
 token :: Parser Located
 token = (<?> "token") . located $ choice
   [ Lambda <$ char '\\'
-  , VecBegin <$ char '['
-  , VecEnd <$ char ']'
-  , FunBegin <$ char '{'
-  , FunEnd <$ char '}'
-  , TupleBegin <$ char '('
-  , TupleEnd <$ char ')'
+  , VectorBegin <$ char '['
+  , VectorEnd <$ char ']'
+  , BlockBegin <$ char '{'
+  , BlockEnd <$ char '}'
+  , GroupBegin <$ char '('
+  , GroupEnd <$ char ')'
   , Layout <$ char ':'
   , text
   , try int
