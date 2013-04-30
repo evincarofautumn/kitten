@@ -69,24 +69,43 @@ typecheckTermShallow resolved = case resolved of
 
 typecheckTerm :: Resolved -> Typecheck
 typecheckTerm resolved = case resolved of
+
   Block terms -> typecheckTerms terms
+
   Builtin builtin loc -> withLocation loc
     $ typecheckBuiltin builtin
+
   Closed{} -> internalError
     "closure variables should not appear during typechecking"
+
   If condition true false loc -> withLocation loc $ do
     typecheckTerms condition
     popDataExpecting_ BoolType
+
     (_, afterTrue) <- hypothetically
       $ typecheckTerms true
     (_, afterFalse) <- hypothetically
       $ typecheckTerms false
-    when (envData afterTrue /= envData afterFalse)
-      $ typeError "incompatible types in 'if' branches"
+
+    when (envData afterTrue /= envData afterFalse) $ let
+      (afterTrueSuffix, afterFalseSuffix)
+        = stripCommonPrefix
+          (reverse $ envData afterTrue)
+          (reverse $ envData afterFalse)
+      in typeError $ unwords
+       [ "incompatible types in 'then':"
+       , unwords $ map show afterTrueSuffix
+       , "and 'else':"
+       , unwords $ map show afterFalseSuffix
+       ]
+
     put afterTrue
+
   Local name loc -> withLocation loc
     $ pushData =<< getLocal name
+
   Push value loc -> withLocation loc $ typecheckValue value
+
   Scoped terms loc -> withLocation loc $ do
     pushLocal =<< popData
     typecheckTerms terms
@@ -114,24 +133,48 @@ typecheckValue value = case value of
   Int _ -> pushData IntType
   Bool _ -> pushData BoolType
   Text _ -> pushData TextType
-  Vector Nothing []
-    -> typeError "empty vectors require type annotations"
-  Vector (Just _) []
-    -> internalError "TODO typecheck annotated empty vector"
-  Vector _ vs@(_ : _) -> do
-    mapM_ typecheckValue vs
-    (expected : rest) <- replicateM (length vs) popData
-    forM_ rest $ \ actual -> when (actual /= expected)
-      . typeError $ unwords
-      [ "expected"
-      , show expected
-      , "but got"
-      , show actual
-      ]
+
+  Vector mAnno elements -> do
+
+    expected <- case elements of
+      _ : _ -> do
+        mapM_ typecheckValue elements
+        (expected : rest) <- replicateM (length elements) popData
+        forM_ rest $ \ actual -> when (actual /= expected)
+          . typeError $ unwords
+          [ "element type"
+          , show actual
+          , "does not match first element type"
+          , show expected
+          ]
+        return expected
+
+      [] -> case mAnno of
+        Nothing -> typeError
+          "empty vectors require type annotations"
+        Just anno -> return $ fromAnno anno
+
+    case mAnno of
+      Just anno -> do
+        let annotated = fromAnno anno
+        forM_ elements $ \ element -> do
+          typecheckValue element
+          actual <- popData
+          when (actual /= annotated) . typeError $ unwords
+            [ "element type"
+            , show actual
+            , "does not match annotated type"
+            , show annotated
+            ]
+      Nothing -> return ()
+
     pushData $ VectorType expected
+
   Function anno terms -> typecheckAnnotatedTerms anno terms
+
   Closure{} -> internalError
     "closures should not appear during typechecking"
+
   Activation{} -> internalError
     "activations should not appear during typechecking"
 
@@ -220,11 +263,11 @@ typecheckBuiltin builtin = case builtin of
     if a == b
       then pushData $ VectorType a
       else typeError $ concat
-        [ "Mismatched element types "
+        [ "mismatched element types "
         , show a
         , " and "
         , show b
-        , " in 'cat' arguments"
+        , " in 'cat'"
         ]
 
   Builtin.Compose -> do
@@ -356,8 +399,7 @@ popData :: TypecheckM (Type Scalar)
 popData = do
   dataStack <- gets envData
   case dataStack of
-    [] -> typeError
-      "expected value but got empty stack"
+    [] -> typeError "unexpected empty stack"
     (top : down) -> do
       modify $ \ env -> env { envData = down }
       return top
@@ -370,7 +412,9 @@ popDataExpecting type_ = do
   dataStack <- gets envData
   case dataStack of
     [] -> typeError $ unwords
-      ["expected", show type_, "but got empty stack"]
+      [ "stack underflow does not match expected type"
+      , show type_
+      ]
     (top : down) -> do
       modify $ \ env -> env { envData = down }
       unify top type_

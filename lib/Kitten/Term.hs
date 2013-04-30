@@ -132,8 +132,8 @@ value :: Parser Value
 value = locate $ choice
   [ mapOne toLiteral <?> "literal"
   , mapOne toWord <?> "word"
-  , vector
-  , function
+  , annotated
+  , Vector Nothing <$> vector
   ]
   where
 
@@ -145,18 +145,17 @@ value = locate $ choice
   toWord (Token.Word name) = Just $ Word name
   toWord _ = Nothing
 
-  vector = Vector
-    <$> pure Nothing
-    <*> (reverse <$> between
-      (match Token.VectorBegin)
-      (match Token.VectorEnd)
-      (many value))
-    <?> "vector"
+  annotated = do
+    anno <- grouped signature
+    (Vector (Just anno) <$> vector)
+      <|> (Function anno <$> block)
 
-  function = Function
-    <$> grouped signature
-    <*> block
-    <?> "function"
+  vector :: Parser [Value]
+  vector = (reverse <$> between
+    (match Token.VectorBegin)
+    (match Token.VectorEnd)
+    (many value))
+    <?> "vector"
 
 grouped :: Parser a -> Parser a
 grouped = between
