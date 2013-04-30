@@ -44,6 +44,8 @@ instance Show (Type a) where
   show TextType = "text"
   show (VectorType type_)
     = "[" ++ show type_ ++ "]"
+  show (Composition [] :> a)
+    = show a
   show (a :> b)
     = "(" ++ show a ++ " -> " ++ show b ++ ")"
   show (Composition as) = unwords (map show as)
