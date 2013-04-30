@@ -72,7 +72,8 @@ typecheckTerm resolved = case resolved of
   Block terms -> typecheckTerms terms
   Builtin builtin loc -> withLocation loc
     $ typecheckBuiltin builtin
-  Closed{} -> internalError "TODO typecheck closed"
+  Closed{} -> internalError
+    "closure variables should not appear during typechecking"
   If condition true false loc -> withLocation loc $ do
     typecheckTerms condition
     popDataExpecting_ BoolType
@@ -130,9 +131,9 @@ typecheckValue value = case value of
     pushData $ VectorType expected
   Function anno terms -> typecheckAnnotatedTerms anno terms
   Closure{} -> internalError
-    "closures should not appear during inference"
+    "closures should not appear during typechecking"
   Activation{} -> internalError
-    "activations should not appear during inference"
+    "activations should not appear during typechecking"
 
 stackEffect :: TypecheckM a -> TypecheckM (Type Scalar)
 stackEffect action = do
