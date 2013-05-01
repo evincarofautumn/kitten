@@ -167,20 +167,36 @@ blocked = between
   (match Token.BlockBegin)
   (match Token.BlockEnd)
 
-locatedBlock :: (Located -> Bool) -> Parser a -> Parser a
-locatedBlock inside = between
-  (locatedSatisfy $ inside .&&. isLocated Token.BlockBegin)
-  (match Token.BlockEnd)
 
-locatedGroup :: (Located -> Bool) -> Parser a -> Parser a
-locatedGroup inside = between
-  (locatedSatisfy $ inside .&&. isLocated Token.GroupBegin)
-  (match Token.GroupEnd)
+locatedBetween
+  :: Token
+  -> Token
+  -> (Located -> Bool)
+  -> Parser [Located]
+  -> Parser [Located]
+locatedBetween begin end inside parser = do
+  open <- locatedSatisfy $ inside .&&. isLocated begin
+  body <- parser
+  close <- located end
+  return $ open : body ++ [close]
 
-locatedVector :: (Located -> Bool) -> Parser a -> Parser a
-locatedVector inside = between
-  (locatedSatisfy $ inside .&&. isLocated Token.VectorBegin)
-  (match Token.VectorEnd)
+locatedBlock
+  :: (Located -> Bool)
+  -> Parser [Located]
+  -> Parser [Located]
+locatedBlock = locatedBetween Token.BlockBegin Token.BlockEnd
+
+locatedGroup
+  :: (Located -> Bool)
+  -> Parser [Located]
+  -> Parser [Located]
+locatedGroup = locatedBetween Token.GroupBegin Token.GroupEnd
+
+locatedVector
+  :: (Located -> Bool)
+  -> Parser [Located]
+  -> Parser [Located]
+locatedVector = locatedBetween Token.VectorBegin Token.VectorEnd
 
 layout :: Parser a -> Parser a
 layout inner = do
@@ -189,9 +205,8 @@ layout inner = do
     { locationStart = startLocation
     , locationIndent = startIndent
     } <- located Token.Layout
-  firstToken
-    @(Token.Located _ Location{locationStart = firstLocation})
-    <- anyLocated
+  Token.Located _ Location{locationStart = firstLocation}
+    <- lookAhead anyLocated
 
   let
     inside = if sourceLine firstLocation == sourceLine startLocation
@@ -200,24 +215,29 @@ layout inner = do
       else \ (Token.Located _ Location{..})
         -> sourceColumn locationStart > startIndent
 
-  innerTokens <- liftM concat . many $ choice
-    [ locatedBlock inside $ many anyLocated
-    , locatedVector inside $ many anyLocated
-    , locatedGroup inside $ many anyLocated
-    , liftM list . locatedSatisfy $ inside .&&. not . closing
-    ]
+    innerTokens = concat <$> many innerToken
 
-  let tokens = firstToken : innerTokens
+    innerToken = choice
+      [ locatedBlock inside innerTokens
+      , locatedVector inside innerTokens
+      , locatedGroup inside innerTokens
+      , liftM list . locatedSatisfy $ inside .&&. not . bracket
+      ]
+
+  tokens <- innerTokens
   case Parsec.parse (inner <* eof) "layout" tokens of
     Right result -> return result
     Left err -> fail $ show err
   where
 
-  closing :: Located -> Bool
-  closing (Located token _) = any (== token)
-    [ Token.BlockEnd
-    , Token.VectorEnd
+  bracket :: Located -> Bool
+  bracket (Located token _) = any (== token)
+    [ Token.BlockBegin
+    , Token.BlockEnd
+    , Token.GroupBegin
     , Token.GroupEnd
+    , Token.VectorBegin
+    , Token.VectorEnd
     ]
 
 identifier :: Parser String

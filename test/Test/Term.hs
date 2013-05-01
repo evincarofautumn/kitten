@@ -8,6 +8,7 @@ import Test.Util
 
 import Kitten.Anno (Anno(Anno), Type((:>)))
 import Kitten.Builtin (Builtin)
+import Kitten.Def
 import Kitten.Error
 import Kitten.Fragment
 import Kitten.Kind
@@ -43,7 +44,7 @@ spec = do
     testTerm
       "(){}"
       $ Fragment []
-        [ function
+        [ push $ function
           (Anno.Composition [] :> Anno.Composition [])
           []
         ]
@@ -51,7 +52,7 @@ spec = do
     testTerm
       "(int){3}"
       $ Fragment []
-        [ function
+        [ push $ function
           (Anno.Composition [] :> Anno.Composition [Anno.Int])
           [int 3]
         ]
@@ -59,7 +60,7 @@ spec = do
     testTerm
       "(int -> int){ 1 + }"
       $ Fragment []
-        [ function
+        [ push $ function
           (Anno.Composition [Anno.Int] :> Anno.Composition [Anno.Int])
           [int 1, builtin Builtin.Add]
         ]
@@ -67,7 +68,7 @@ spec = do
     testTerm
       "([a] (a -> b) -> [b]){ map }"
       $ Fragment []
-        [ function
+        [ push $ function
           (Anno.Composition
             [Anno.Vector Anno.Any, Anno.Any :> Anno.Any]
             :> Anno.Composition [Anno.Vector Anno.Any])
@@ -158,6 +159,45 @@ spec = do
       $ Fragment []
       [Block [word "one", Block [word "two", word "three"]]]
 
+    testTerm ": {one} {two}"
+      $ Fragment []
+      [Block [Block [word "one"], Block [word "two"]]]
+
+  describe "definition" $ do
+
+    testTerm
+      "def pi 3"
+      $ Fragment [def "pi" (int 3)]
+      []
+
+    testTerm
+      "def inc (int -> int){\n\
+      \  1 +\n\
+      \}\n"
+      $ Fragment
+        [ def "inc" . push $ function
+          (Anno.Composition [Anno.Int] :> Anno.Composition [Anno.Int])
+          [int 1, builtin Builtin.Add]
+        ]
+        []
+
+    testTerm
+      "def inc (int -> int):\n\
+      \  1 +\n\
+      \\n\
+      \def dec (int -> int):\n\
+      \  1 -\n\
+      \\n"
+      $ Fragment
+        [ def "inc" . push $ function
+          (Anno.Composition [Anno.Int] :> Anno.Composition [Anno.Int])
+          [int 1, builtin Builtin.Add]
+        , def "dec" . push $ function
+          (Anno.Composition [Anno.Int] :> Anno.Composition [Anno.Int])
+          [int 1, builtin Builtin.Sub]
+        ]
+        []
+
 testTerm :: String -> Fragment Term -> Spec
 testTerm source expected = it (show source)
   $ case parsed source of
@@ -174,9 +214,12 @@ testTerm source expected = it (show source)
 builtin :: Builtin -> Term
 builtin b = Builtin b TestLocation
 
-function :: Anno.Type Scalar -> [Term] -> Term
-function anno terms = push
-  $ Function (Anno anno TestLocation) terms TestLocation
+def :: String -> Term -> Def Term
+def name term = Def name term TestLocation
+
+function :: Anno.Type Scalar -> [Term] -> Value
+function anno terms
+  = Function (Anno anno TestLocation) terms TestLocation
 
 int :: Int -> Term
 int value = push $ Int value TestLocation
