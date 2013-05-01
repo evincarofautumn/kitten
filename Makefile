@@ -39,4 +39,4 @@ lint :
 
 .PHONY : loc
 loc :
-	@ find compiler -name '*.hs' -exec wc -l {} + | sort -n
+	@ find src lib test -name '*.hs' -exec wc -l {} + | sort -n
