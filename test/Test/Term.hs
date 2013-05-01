@@ -163,6 +163,22 @@ spec = do
       $ Fragment []
       [Block [Block [word "one"], Block [word "two"]]]
 
+    testTermFailure ":"
+
+    testTermFailure
+      "  :\n\
+      \3\n"
+
+    testTermFailure
+      ":\n\
+      \3\n"
+
+    testTerm
+      ": :\n\
+      \  3\n"
+      $ Fragment []
+      [Block [Block [int 3]]]
+
   describe "definition" $ do
 
     testTerm
@@ -206,10 +222,17 @@ testTerm source expected = it (show source)
       | expected == actual -> return ()
       | otherwise -> expectedButGot
         (show expected) (show actual)
-  where
-  parsed
-    = liftParseError . parse "test"
-    <=< liftParseError . tokenize "test"
+
+testTermFailure :: String -> Spec
+testTermFailure source = it ("should fail: " ++ show source)
+  $ case parsed source of
+    Left _ -> return ()
+    Right actual -> assertFailure $ show actual
+
+parsed :: String -> Either CompileError (Fragment Term)
+parsed
+  = liftParseError . parse "test"
+  <=< liftParseError . tokenize "test"
 
 builtin :: Builtin -> Term
 builtin b = Builtin b TestLocation

@@ -225,6 +225,9 @@ layout inner = do
       ]
 
   tokens <- innerTokens
+  when (null tokens)
+    $ fail "empty layout blocks are not allowed; use {} instead"
+
   case Parsec.parse (inner <* eof) "layout" tokens of
     Right result -> return result
     Left err -> fail $ show err
