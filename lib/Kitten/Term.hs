@@ -119,8 +119,8 @@ term = choice
 
   if_ = If
     <$> (match Token.If *> many term)
-    <*> (match Token.Then *> block)
-    <*> (match Token.Else *> block)
+    <*> (match Token.Then *> (block <|> list <$> term))
+    <*> (match Token.Else *> (block <|> list <$> term))
 
   toBuiltin (Token.Builtin name) = Just $ Builtin name
   toBuiltin _ = Nothing
