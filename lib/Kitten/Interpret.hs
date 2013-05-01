@@ -71,6 +71,11 @@ interpretFunction :: Value -> Interpret
 interpretFunction function = case function of
   Activation values terms
     -> withClosure values $ mapM_ interpretTerm terms
+  Escape (Name index) -> do
+    Def _ term loc <- gets ((!! index) . envDefs)
+    withLocation loc $ do
+      interpretTerm term
+      interpretBuiltin Builtin.Apply
   _ -> fail $ concat
     [ "attempt to apply non-function "
     , show function

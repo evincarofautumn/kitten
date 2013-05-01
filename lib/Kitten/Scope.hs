@@ -46,6 +46,15 @@ scopeTerm stack resolved = case resolved of
 
 scopeValue :: [Int] -> Value -> Value
 scopeValue stack value = case value of
+
+  Activation{} -> value
+
+  Bool{} -> value
+
+  Closure{} -> value
+
+  Escape{} -> value
+
   Function _ funTerms
     -> Closure capturedNames rescopedTerms
     where
@@ -72,14 +81,14 @@ scopeValue stack value = case value of
     stack' :: [Int]
     stack' = 0 : stack
 
-  Word{} -> value
   Int{} -> value
-  Bool{} -> value
+
   Text{} -> value
-  Closure{} -> value
-  Activation{} -> value
+
   Vector anno values -> Vector anno
     $ map (scopeValue stack) values
+
+  Word{} -> value
 
 data Env = Env
   { envStack :: [Int]
@@ -141,17 +150,18 @@ closeLocal (Name index) = do
 captureValue :: Value -> Capture Value
 captureValue value = do
   case value of
-    Word{} -> return value
-    Int{} -> return value
+    Activation{} -> return value
     Bool{} -> return value
-    Text{} -> return value
     Closure names _ -> do
       mapM_ closeLocal names
       return value
-    Activation{} -> return value
-    Vector anno values -> Vector anno
-      <$> mapM captureValue values
+    Escape{} -> return value
     Function anno terms -> let
         inside env@Env{..} = env { envStack = 0 : envStack }
       in Function anno
          <$> local inside (mapM captureTerm terms)
+    Int{} -> return value
+    Text{} -> return value
+    Vector anno values -> Vector anno
+      <$> mapM captureValue values
+    Word{} -> return value

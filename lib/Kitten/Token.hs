@@ -28,6 +28,7 @@ data Token
   | Builtin Builtin
   | Def
   | Else
+  | Escape
   | GroupBegin
   | GroupEnd
   | If
@@ -53,6 +54,7 @@ instance Show Token where
     Builtin name -> show name
     Def -> "def"
     Else -> "else"
+    Escape -> "`"
     GroupBegin -> "("
     GroupEnd -> ")"
     If -> "if"
@@ -100,6 +102,7 @@ token :: Parser Located
 token = (<?> "token") . located $ choice
   [ BlockBegin <$ char '{'
   , BlockEnd <$ char '}'
+  , Escape <$ char '`'
   , GroupBegin <$ char '('
   , GroupEnd <$ char ')'
   , Lambda <$ char '\\'

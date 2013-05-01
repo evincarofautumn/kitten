@@ -110,6 +110,20 @@ typecheckTerm resolved = case resolved of
     pushLocal =<< popData
     typecheckTerms terms
 
+manifestTermType :: Resolved -> TypecheckM (Type Scalar)
+manifestTermType resolved = case resolved of
+  Push value _ -> manifestValueType value
+  _ -> internalError "TODO manifest term type of non-function"
+
+manifestValueType :: Value -> TypecheckM (Type Scalar)
+manifestValueType value = case value of
+  Bool _ -> return BoolType
+  Function anno _ -> return $ fromAnno anno
+  Int _ -> return IntType
+  Text _ -> return TextType
+  Vector (Just anno) _ -> return . VectorType $ fromAnno anno
+  _ -> internalError "TODO manifest value type of non-literal"
+
 typecheckValueShallow :: Value -> Typecheck
 typecheckValueShallow value = case value of
   Function anno _ -> typecheckAnno anno
@@ -123,15 +137,26 @@ typecheckValueShallow value = case value of
 
 typecheckValue :: Value -> Typecheck
 typecheckValue value = case value of
-  Word (Name index) -> do
+
+  Activation{} -> internalError
+    "activations should not appear during typechecking"
+
+  Bool _ -> pushData BoolType
+
+  Closure{} -> internalError
+    "closures should not appear during typechecking"
+
+  Escape (Name index) -> do
     mDef <- gets $ (!? index) . envDefs
     case mDef of
       Nothing -> internalError
         "unresolved name appeared during type inference"
-      Just Def{..} -> typecheckTermShallow defTerm
+      Just Def{..} -> pushData =<< manifestTermType defTerm
+
+  Function anno terms -> typecheckAnnotatedTerms anno terms
 
   Int _ -> pushData IntType
-  Bool _ -> pushData BoolType
+
   Text _ -> pushData TextType
 
   Vector mAnno elements -> do
@@ -170,13 +195,12 @@ typecheckValue value = case value of
 
     pushData $ VectorType expected
 
-  Function anno terms -> typecheckAnnotatedTerms anno terms
-
-  Closure{} -> internalError
-    "closures should not appear during typechecking"
-
-  Activation{} -> internalError
-    "activations should not appear during typechecking"
+  Word (Name index) -> do
+    mDef <- gets $ (!? index) . envDefs
+    case mDef of
+      Nothing -> internalError
+        "unresolved name appeared during type inference"
+      Just Def{..} -> typecheckTermShallow defTerm
 
 stackEffect :: TypecheckM a -> TypecheckM (Type Scalar)
 stackEffect action = do

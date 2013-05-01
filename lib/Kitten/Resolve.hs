@@ -55,6 +55,7 @@ data Value
   = Activation [Value] [Resolved]
   | Bool Bool
   | Closure [Name] [Resolved]
+  | Escape Name
   | Function Anno [Resolved]
   | Int Int
   | Text String
@@ -82,6 +83,8 @@ instance Show Value where
       , unwords $ map show terms
       , "}"
       ]
+
+    Escape (Name name) -> '`' : show name
 
     Function anno terms -> concat
       [ "("
@@ -158,25 +161,34 @@ fromValue _ = error "Resolve.fromValue: not a value"
 
 resolveValue :: Term.Value -> Resolution Resolved
 resolveValue unresolved = case unresolved of
-  Term.Word name loc -> do
-    mLocalIndex <- gets $ localIndex name
-    case mLocalIndex of
-      Just index -> return $ Local (Name index) loc
-      Nothing -> do
-        mDefIndex <- gets $ defIndex name
-        case mDefIndex of
-          Just index -> return
-            $ Push (Word $ Name index) loc
-          Nothing -> lift . Left . CompileError loc $ concat
-            ["Unable to resolve word '", name, "'"]
+  Term.Word name loc -> resolveName Word name loc
   Term.Function anno term loc -> Push . Function anno
     <$> mapM resolveTerm term <*> pure loc
   Term.Vector anno terms loc -> Push . Vector anno
     <$> resolveVector terms <*> pure loc
+  Term.Escape name loc -> resolveName Escape name loc
   Term.Int value loc -> return $ Push (Int value) loc
   Term.Bool value loc -> return $ Push (Bool value) loc
   Term.Text value loc -> return $ Push (Text value) loc
-  where resolveVector = mapM $ fmap fromValue . resolveValue
+  where
+  resolveVector = mapM $ fmap fromValue . resolveValue
+
+resolveName
+  :: (Name -> Value)
+  -> String
+  -> Location
+  -> Resolution Resolved
+resolveName wrap name loc = do
+  mLocalIndex <- gets $ localIndex name
+  case mLocalIndex of
+    Just index -> return $ Local (Name index) loc
+    Nothing -> do
+      mDefIndex <- gets $ defIndex name
+      case mDefIndex of
+        Just index -> return
+          $ Push (wrap $ Name index) loc
+        Nothing -> lift . Left . CompileError loc $ concat
+          ["unable to resolve word '", name, "'"]
 
 localIndex :: String -> Env -> Maybe Int
 localIndex name = elemIndex name . envScope

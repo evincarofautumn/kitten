@@ -36,14 +36,15 @@ spec = do
       $ testComment "{- Nested {- multi-line -} comment. -}"
 
   describe "single-character token" $ do
-    testTokens "\\" [Lambda]
-    testTokens "[" [VectorBegin]
-    testTokens "]" [VectorEnd]
     testTokens "{" [BlockBegin]
     testTokens "}" [BlockEnd]
+    testTokens "`" [Escape]
     testTokens "(" [GroupBegin]
     testTokens ")" [GroupEnd]
+    testTokens "\\" [Lambda]
     testTokens ":" [Layout]
+    testTokens "[" [VectorBegin]
+    testTokens "]" [VectorEnd]
 
   describe "tokenize int" $ do
     testInt "0" 0
@@ -76,14 +77,14 @@ spec = do
     testTokens "def" [Def]
 
   describe "tokenize builtin" $ do
-    testTokens "dup" [Builtin Builtin.Dup]
-    testTokens "swap" [Builtin Builtin.Swap]
-    testTokens "drop" [Builtin Builtin.Drop]
-    testTokens "vector" [Builtin Builtin.Vector]
-    testTokens "cat" [Builtin Builtin.Cat]
-    testTokens "function" [Builtin Builtin.Function]
-    testTokens "compose" [Builtin Builtin.Compose]
-    testTokens "apply" [Builtin Builtin.Apply]
+    testTokens "__dup" [Builtin Builtin.Dup]
+    testTokens "__swap" [Builtin Builtin.Swap]
+    testTokens "__drop" [Builtin Builtin.Drop]
+    testTokens "__vector" [Builtin Builtin.Vector]
+    testTokens "__cat" [Builtin Builtin.Cat]
+    testTokens "__function" [Builtin Builtin.Function]
+    testTokens "__compose" [Builtin Builtin.Compose]
+    testTokens "__apply" [Builtin Builtin.Apply]
 
   describe "tokenize word" $ do
     testTokens "not_a_keyword" [Word "not_a_keyword"]

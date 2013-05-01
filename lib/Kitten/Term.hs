@@ -45,6 +45,7 @@ data Value
   | Text String Location
   | Vector (Maybe Anno) [Value] Location
   | Function Anno [Term] Location
+  | Escape String Location
   deriving (Eq, Show)
 
 data Element
@@ -133,22 +134,29 @@ value = locate $ choice
   [ mapOne toLiteral <?> "literal"
   , mapOne toWord <?> "word"
   , annotated
+  , escape
   , Vector Nothing <$> vector
   ]
   where
 
+  toLiteral :: Token -> Maybe (Location -> Value)
   toLiteral (Token.Int x) = Just $ Int x
   toLiteral (Token.Bool x) = Just $ Bool x
   toLiteral (Token.Text x) = Just $ Text x
   toLiteral _ = Nothing
 
+  toWord :: Token -> Maybe (Location -> Value)
   toWord (Token.Word name) = Just $ Word name
   toWord _ = Nothing
 
+  annotated :: Parser (Location -> Value)
   annotated = do
     anno <- grouped signature
     (Vector (Just anno) <$> vector)
       <|> (Function anno <$> block)
+
+  escape :: Parser (Location -> Value)
+  escape = Escape <$> (match Token.Escape *> identifier)
 
   vector :: Parser [Value]
   vector = (reverse <$> between
@@ -166,7 +174,6 @@ blocked :: Parser a -> Parser a
 blocked = between
   (match Token.BlockBegin)
   (match Token.BlockEnd)
-
 
 locatedBetween
   :: Token

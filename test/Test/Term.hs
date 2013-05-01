@@ -7,7 +7,6 @@ import Test.Hspec
 import Test.Util
 
 import Kitten.Anno (Anno(Anno), Type((:>)))
-import Kitten.Builtin (Builtin)
 import Kitten.Def
 import Kitten.Error
 import Kitten.Fragment
@@ -17,7 +16,6 @@ import Kitten.Term
 import Kitten.Token (tokenize)
 
 import qualified Kitten.Anno as Anno
-import qualified Kitten.Builtin as Builtin
 
 spec :: Spec
 spec = do
@@ -29,14 +27,14 @@ spec = do
       (Fragment [] [int 1, int 2, int 3])
     testTerm "dup swap drop vector cat function compose apply"
       $ Fragment []
-        [ builtin Builtin.Dup
-        , builtin Builtin.Swap
-        , builtin Builtin.Drop
-        , builtin Builtin.Vector
-        , builtin Builtin.Cat
-        , builtin Builtin.Function
-        , builtin Builtin.Compose
-        , builtin Builtin.Apply
+        [ word "dup"
+        , word "swap"
+        , word "drop"
+        , word "vector"
+        , word "cat"
+        , word "function"
+        , word "compose"
+        , word "apply"
         ]
 
   describe "function" $ do
@@ -62,7 +60,7 @@ spec = do
       $ Fragment []
         [ push $ function
           (Anno.Composition [Anno.Int] :> Anno.Composition [Anno.Int])
-          [int 1, builtin Builtin.Add]
+          [int 1, word "+"]
         ]
 
     testTerm
@@ -83,7 +81,7 @@ spec = do
         [ lambda "x"
           [ word "x"
           , word "x"
-          , builtin Builtin.Mul
+          , word "*"
           ]
         ]
 
@@ -94,7 +92,7 @@ spec = do
           [ lambda "y"
             [ word "x"
             , word "y"
-            , builtin Builtin.Mul
+            , word "*"
             ]
           ]
         ]
@@ -107,7 +105,7 @@ spec = do
             [ lambda "y"
               [ word "x"
               , word "y"
-              , builtin Builtin.Mul
+              , word "*"
               ]
             ]
           ]
@@ -121,7 +119,7 @@ spec = do
             [ lambda "y"
               [ word "x"
               , word "y"
-              , builtin Builtin.Mul
+              , word "*"
               ]
             ]
           ]
@@ -193,7 +191,7 @@ spec = do
       $ Fragment
         [ def "inc" . push $ function
           (Anno.Composition [Anno.Int] :> Anno.Composition [Anno.Int])
-          [int 1, builtin Builtin.Add]
+          [int 1, word "+"]
         ]
         []
 
@@ -207,10 +205,10 @@ spec = do
       $ Fragment
         [ def "inc" . push $ function
           (Anno.Composition [Anno.Int] :> Anno.Composition [Anno.Int])
-          [int 1, builtin Builtin.Add]
+          [int 1, word "+"]
         , def "dec" . push $ function
           (Anno.Composition [Anno.Int] :> Anno.Composition [Anno.Int])
-          [int 1, builtin Builtin.Sub]
+          [int 1, word "-"]
         ]
         []
 
@@ -233,9 +231,6 @@ parsed :: String -> Either CompileError (Fragment Term)
 parsed
   = liftParseError . parse "test"
   <=< liftParseError . tokenize "test"
-
-builtin :: Builtin -> Term
-builtin b = Builtin b TestLocation
 
 def :: String -> Term -> Def Term
 def name term = Def name term TestLocation
