@@ -28,6 +28,8 @@ instance Eq (Type a) where
   Bool == Bool = True
   Int == Int = True
   Text == Text = True
+  a == (Composition [] :> Composition [b]) = a == b
+  (Composition [] :> Composition [a]) == b = a == b
   (a :> b) == (c :> d) = a == c && b == d
   Composition as == Composition bs = as == bs
   Vector a == Vector b = a == b

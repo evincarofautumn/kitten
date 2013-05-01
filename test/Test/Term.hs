@@ -6,13 +6,16 @@ import Test.Hspec
 
 import Test.Util
 
+import Kitten.Anno (Anno(Anno), Type((:>)))
 import Kitten.Builtin (Builtin)
 import Kitten.Error
 import Kitten.Fragment
+import Kitten.Kind
 import Kitten.Location
 import Kitten.Term
 import Kitten.Token (tokenize)
 
+import qualified Kitten.Anno as Anno
 import qualified Kitten.Builtin as Builtin
 
 spec :: Spec
@@ -33,6 +36,42 @@ spec = do
         , builtin Builtin.Function
         , builtin Builtin.Compose
         , builtin Builtin.Apply
+        ]
+
+  describe "function" $ do
+
+    testTerm
+      "(){}"
+      $ Fragment []
+        [ function
+          (Anno.Composition [] :> Anno.Composition [])
+          []
+        ]
+
+    testTerm
+      "(int){3}"
+      $ Fragment []
+        [ function
+          (Anno.Composition [] :> Anno.Composition [Anno.Int])
+          [int 3]
+        ]
+
+    testTerm
+      "(int -> int){ 1 + }"
+      $ Fragment []
+        [ function
+          (Anno.Composition [Anno.Int] :> Anno.Composition [Anno.Int])
+          [int 1, builtin Builtin.Add]
+        ]
+
+    testTerm
+      "([a] (a -> b) -> [b]){ map }"
+      $ Fragment []
+        [ function
+          (Anno.Composition
+            [Anno.Vector Anno.Any, Anno.Any :> Anno.Any]
+            :> Anno.Composition [Anno.Vector Anno.Any])
+          [word "map"]
         ]
 
   describe "lambda" $ do
@@ -134,6 +173,10 @@ testTerm source expected = it (show source)
 
 builtin :: Builtin -> Term
 builtin b = Builtin b TestLocation
+
+function :: Anno.Type Scalar -> [Term] -> Term
+function anno terms = push
+  $ Function (Anno anno TestLocation) terms TestLocation
 
 int :: Int -> Term
 int value = push $ Int value TestLocation
