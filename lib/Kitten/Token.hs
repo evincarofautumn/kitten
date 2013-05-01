@@ -160,7 +160,8 @@ silence :: Parser ()
 silence = skipMany $ comment <|> whitespace
   where
 
-  whitespace = skipMany1 $ choice [newline, nonNewline]
+  whitespace = skipMany1 (newline <|> nonNewline)
+    <?> "whitespace"
 
   newline = do
     void $ char '\n' *> many nonNewline
@@ -170,6 +171,7 @@ silence = skipMany $ comment <|> whitespace
   nonNewline = void $ satisfy (`elem` "\t\v\f\r ")
 
   comment = single <|> multi
+    <?> "comment"
 
   single = try (string "--")
     *> (anyChar `skipManyTill` (void (char '\n') <|> eof))
