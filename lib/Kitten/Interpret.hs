@@ -157,6 +157,10 @@ interpretBuiltin builtin = case builtin of
     Text text <- popData
     lift $ putStr text
 
+  Builtin.ShowInt -> do
+    Int value <- popData
+    pushData $ Text (show value)
+
   Builtin.Sub -> intsToInt (-)
 
   Builtin.Swap -> do

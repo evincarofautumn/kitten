@@ -335,6 +335,10 @@ typecheckBuiltin builtin = case builtin of
 
   Builtin.Print -> popDataExpecting_ TextType
 
+  Builtin.ShowInt -> do
+    popDataExpecting_ IntType
+    pushData TextType
+
   Builtin.Sub -> intsToInt
 
   Builtin.Swap -> do

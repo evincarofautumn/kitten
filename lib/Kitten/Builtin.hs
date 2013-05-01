@@ -44,6 +44,7 @@ data Builtin
   | OrBool
   | OrInt
   | Print
+  | ShowInt
   | Sub
   | Swap
   | Top
@@ -102,6 +103,7 @@ fromStringTable =
   , (,) "||"       OrBool
   , (,) "|"        OrInt
   , (,) "print"    Print
+  , (,) "show_int" ShowInt
   , (,) "-"        Sub
   , (,) "swap"     Swap
   , (,) "top"      Top
