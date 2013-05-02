@@ -105,8 +105,16 @@ interpretBuiltin builtin = case builtin of
     Vector _ a <- popData
     pushData $ Vector Nothing (b ++ a)
 
-  Builtin.Compose -> fail
-    "TODO interpretBuiltin Builtin.Compose"
+  Builtin.Compose -> do
+    b <- popData
+    a <- popData
+    loc <- here
+    pushData $ Activation []
+      [ Push a loc
+      , Builtin Builtin.Apply loc
+      , Push b loc
+      , Builtin Builtin.Apply loc
+      ]
 
   Builtin.Div -> intsToInt div
 

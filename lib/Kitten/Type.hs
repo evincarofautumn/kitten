@@ -27,6 +27,8 @@ instance Eq (Type a) where
   BoolType == BoolType = True
   IntType == IntType = True
   TextType == TextType = True
+  _ == (AnyType :> AnyType) = True  -- HACK
+  (AnyType :> AnyType) == _ = True  -- HACK
   a == (Composition [] :> Composition [b]) = a == b
   (Composition [] :> Composition [a]) == b = a == b
   (a :> b) == (c :> d) = a == c && b == d
