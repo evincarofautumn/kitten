@@ -1,5 +1,3 @@
-AR := ar qc
-HC := ghc
 HLINT := hlint
 CABAL ?= cabal
 
