@@ -22,7 +22,7 @@ data Type a where
   Composition :: [Type Scalar] -> Type Row
   VectorType :: Type Scalar -> Type Scalar
   AnyType :: Type a
-  StackFrameType :: Type a
+  StackFrameType :: Type Scalar
 
 instance Eq (Type a) where
   BoolType == BoolType = True

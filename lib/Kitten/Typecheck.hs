@@ -228,6 +228,8 @@ typecheckAnnotatedTerms anno terms = do
       typecheckTerms terms
       mapM_ popDataExpecting_ $ reverse production
       popDataExpecting_ StackFrameType
+    StackFrameType -> internalError
+      "stack frames should not appear in annotations"
     AnyType :> Composition _ -> unknownTypeError
     Composition _ :> AnyType -> unknownTypeError
     AnyType :> AnyType -> unknownTypeError
@@ -259,6 +261,8 @@ typecheckAnno anno = go $ fromAnno anno
     Composition _ :> AnyType -> unknownTypeError
     AnyType :> AnyType -> unknownTypeError
     AnyType -> unknownTypeError
+    StackFrameType -> internalError
+      "stack frames should not appear in annotations"
 
 typecheckBuiltin :: Builtin -> Typecheck
 typecheckBuiltin builtin = case builtin of
