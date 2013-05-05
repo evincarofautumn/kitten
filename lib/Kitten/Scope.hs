@@ -55,6 +55,8 @@ scopeValue stack value = case value of
 
   Escape{} -> value
 
+  Float{} -> value
+
   Function _ funTerms
     -> Closure capturedNames rescopedTerms
     where
@@ -156,6 +158,7 @@ captureValue value = do
       mapM_ closeLocal names
       return value
     Escape{} -> return value
+    Float{} -> return value
     Function anno terms -> let
         inside env@Env{..} = env { envStack = 0 : envStack }
       in Function anno

@@ -40,13 +40,14 @@ data Term
   deriving (Eq, Show)
 
 data Value
-  = Word String Location
+  = Bool Bool Location
+  | Escape String Location
+  | Float Double Location
+  | Function Anno [Term] Location
   | Int Int Location
-  | Bool Bool Location
   | Text String Location
   | Vector (Maybe Anno) [Value] Location
-  | Function Anno [Term] Location
-  | Escape String Location
+  | Word String Location
   deriving (Eq, Show)
 
 data Element
@@ -101,6 +102,7 @@ signature = locate $ Anno <$> signature'
     , grouped signature'
     , Anno.Bool <$ match Token.BoolType
     , Anno.Text <$ match Token.TextType
+    , Anno.Float <$ match Token.FloatType
     , Anno.Int <$ match Token.IntType
     , Anno.Any <$ identifier
     ]
@@ -145,8 +147,9 @@ value = locate $ choice
   where
 
   toLiteral :: Token -> Maybe (Location -> Value)
-  toLiteral (Token.Int x) = Just $ Int x
   toLiteral (Token.Bool x) = Just $ Bool x
+  toLiteral (Token.Float x) = Just $ Float x
+  toLiteral (Token.Int x) = Just $ Int x
   toLiteral (Token.Text x) = Just $ Text x
   toLiteral _ = Nothing
 

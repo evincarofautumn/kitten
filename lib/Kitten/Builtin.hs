@@ -15,7 +15,8 @@ import qualified Data.Map as Map
 import Kitten.Util.Tuple
 
 data Builtin
-  = Add
+  = AddFloat
+  | AddInt
   | AndBool
   | AndInt
   | Apply
@@ -23,27 +24,39 @@ data Builtin
   | Bottom
   | Cat
   | Compose
-  | Div
+  | DivFloat
+  | DivInt
   | Down
-  | Eq
+  | EqFloat
+  | EqInt
   | Empty
   | Function
-  | Ge
-  | Gt
-  | Le
+  | GeFloat
+  | GeInt
+  | GtFloat
+  | GtInt
+  | LeFloat
+  | LeInt
   | Length
-  | Lt
-  | Mod
-  | Mul
-  | Ne
-  | Neg
+  | LtFloat
+  | LtInt
+  | ModFloat
+  | ModInt
+  | MulFloat
+  | MulInt
+  | NeFloat
+  | NeInt
+  | NegFloat
+  | NegInt
   | NotBool
   | NotInt
   | OrBool
   | OrInt
   | Print
+  | ShowFloat
   | ShowInt
-  | Sub
+  | SubFloat
+  | SubInt
   | Top
   | Up
   | Vector
@@ -71,40 +84,53 @@ names = map fst fromStringTable
 
 fromStringTable :: [(String, Builtin)]
 fromStringTable =
-  [ (,) "__add_int"   Add
-  , (,) "__and_bool"  AndBool
-  , (,) "__and_int"   AndInt
-  , (,) "__apply"     Apply
-  , (,) "__at"        At
-  , (,) "__bottom"    Bottom
-  , (,) "__cat"       Cat
-  , (,) "__compose"   Compose
-  , (,) "__div_int"   Div
-  , (,) "__down"      Down
-  , (,) "__eq_int"    Eq
-  , (,) "__empty"     Empty
-  , (,) "__function"  Function
-  , (,) "__ge_int"    Ge
-  , (,) "__gt_int"    Gt
-  , (,) "__le_int"    Le
-  , (,) "__length"    Length
-  , (,) "__lt_int"    Lt
-  , (,) "__mod_int"   Mod
-  , (,) "__mul_int"   Mul
-  , (,) "__ne_int"    Ne
-  , (,) "__neg_int"   Neg
-  , (,) "__not_bool"  NotBool
-  , (,) "__not_int"   NotInt
-  , (,) "__or_bool"   OrBool
-  , (,) "__or_int"    OrInt
-  , (,) "__print"     Print
-  , (,) "__show_int"  ShowInt
-  , (,) "__sub_int"   Sub
-  , (,) "__top"       Top
-  , (,) "__up"        Up
-  , (,) "__vector"    Vector
-  , (,) "__xor_bool"  XorBool
-  , (,) "__xor_int"   XorInt
+  [ (,) "__add_float"  AddFloat
+  , (,) "__add_int"    AddInt
+  , (,) "__and_bool"   AndBool
+  , (,) "__and_int"    AndInt
+  , (,) "__apply"      Apply
+  , (,) "__at"         At
+  , (,) "__bottom"     Bottom
+  , (,) "__cat"        Cat
+  , (,) "__compose"    Compose
+  , (,) "__div_float"  DivFloat
+  , (,) "__div_int"    DivInt
+  , (,) "__down"       Down
+  , (,) "__eq_float"   EqFloat
+  , (,) "__eq_int"     EqInt
+  , (,) "__empty"      Empty
+  , (,) "__function"   Function
+  , (,) "__ge_float"   GeFloat
+  , (,) "__ge_int"     GeInt
+  , (,) "__gt_float"   GtFloat
+  , (,) "__gt_int"     GtInt
+  , (,) "__le_float"   LeFloat
+  , (,) "__le_int"     LeInt
+  , (,) "__length"     Length
+  , (,) "__lt_float"   LtFloat
+  , (,) "__lt_int"     LtInt
+  , (,) "__mod_float"  ModFloat
+  , (,) "__mod_int"    ModInt
+  , (,) "__mul_float"  MulFloat
+  , (,) "__mul_int"    MulInt
+  , (,) "__ne_float"   NeFloat
+  , (,) "__ne_int"     NeInt
+  , (,) "__neg_float"  NegFloat
+  , (,) "__neg_int"    NegInt
+  , (,) "__not_bool"   NotBool
+  , (,) "__not_int"    NotInt
+  , (,) "__or_bool"    OrBool
+  , (,) "__or_int"     OrInt
+  , (,) "__print"      Print
+  , (,) "__show_float" ShowFloat
+  , (,) "__show_int"   ShowInt
+  , (,) "__sub_float"  SubFloat
+  , (,) "__sub_int"    SubInt
+  , (,) "__top"        Top
+  , (,) "__up"         Up
+  , (,) "__vector"     Vector
+  , (,) "__xor_bool"   XorBool
+  , (,) "__xor_int"    XorInt
   ]
 
 toStringTable :: [(Builtin, String)]

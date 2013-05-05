@@ -31,6 +31,8 @@ data Token
   | Escape
   | GroupBegin
   | GroupEnd
+  | Float Double
+  | FloatType
   | If
   | Int Int
   | IntType
@@ -57,6 +59,8 @@ instance Show Token where
     Escape -> "`"
     GroupBegin -> "("
     GroupEnd -> ")"
+    Float value -> show value
+    FloatType -> "float"
     If -> "if"
     Int value -> show value
     IntType -> "int"
@@ -110,7 +114,7 @@ token = (<?> "token") . located $ choice
   , VectorBegin <$ char '['
   , VectorEnd <$ char ']'
   , text
-  , try int
+  , try number
   , try arrow
   , word
   ]
@@ -118,10 +122,16 @@ token = (<?> "token") . located $ choice
 
   arrow = Arrow <$ string "->"
 
-  int = do
+  number = do
     sign <- optionMaybe $ oneOf "+-"
-    value <- read <$> many1 digit
-    return . Int $ if sign == Just '-' then negate value else value
+    let
+      applySign :: (Num a) => a -> a
+      applySign = if sign == Just '-' then negate else id
+    integer <- many1 digit
+    mFraction <- optionMaybe $ (:) <$> char '.' <*> many1 digit
+    return $ case mFraction of
+      Just fraction -> Float . applySign . read $ integer ++ fraction
+      Nothing -> Int . applySign $ read integer
 
   text = Text <$> (char '"' *> textContents <* char '"')
 
@@ -143,6 +153,7 @@ token = (<?> "token") . located $ choice
     "def" -> Def
     "else" -> Else
     "false" -> Bool False
+    "float" -> FloatType
     "if" -> If
     "int" -> IntType
     "text" -> TextType

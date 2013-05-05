@@ -20,12 +20,14 @@ data Type a where
   Composition :: [Type Scalar] -> Type Row
   Vector :: Type Scalar -> Type Scalar
   Bool :: Type Scalar
+  Float :: Type Scalar
   Int :: Type Scalar
   Text :: Type Scalar
   Any :: Type a
 
 instance Eq (Type a) where
   Bool == Bool = True
+  Float == Float = True
   Int == Int = True
   Text == Text = True
   a == (Composition [] :> Composition [b]) = a == b
@@ -43,6 +45,7 @@ instance Show (Type a) where
     Composition as -> unwords $ map show as
     Vector a -> concat ["[", show a, "]"]
     Bool -> "bool"
+    Float -> "float"
     Int -> "int"
     Text -> "text"
     Any -> "*"

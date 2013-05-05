@@ -54,7 +54,7 @@ testScope source expected = let
       $ expectedButGot (show expected) (show actual)
 
 biAdd :: Resolved
-biAdd = Builtin Builtin.Add TestLocation
+biAdd = Builtin Builtin.AddInt TestLocation
 
 biFunction :: Resolved
 biFunction = Builtin Builtin.Function TestLocation

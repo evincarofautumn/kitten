@@ -117,6 +117,7 @@ manifestTermType resolved = case resolved of
 manifestValueType :: Value -> TypecheckM (Type Scalar)
 manifestValueType value = case value of
   Bool _ -> return BoolType
+  Float _ -> return FloatType
   Function anno _ -> return $ fromAnno anno
   Int _ -> return IntType
   Text _ -> return TextType
@@ -151,6 +152,8 @@ typecheckValue value = case value of
       Nothing -> internalError
         "unresolved name appeared during type inference"
       Just Def{..} -> pushData =<< manifestTermType defTerm
+
+  Float _ -> pushData FloatType
 
   Function anno terms -> typecheckAnnotatedTerms anno terms
 
@@ -218,6 +221,7 @@ typecheckAnnotatedTerms :: Anno -> [Resolved] -> Typecheck
 typecheckAnnotatedTerms anno terms = do
   void . hypothetically $ case type_ of
     BoolType -> pushData type_
+    FloatType -> pushData type_
     IntType -> pushData type_
     TextType -> pushData type_
     VectorType _ -> pushData type_
@@ -250,6 +254,7 @@ typecheckAnno anno = go $ fromAnno anno
   go :: Type Scalar -> Typecheck
   go type_ = case type_ of
     BoolType -> pushData type_
+    FloatType -> pushData type_
     IntType -> pushData type_
     TextType -> pushData type_
     VectorType _ -> pushData type_
@@ -265,7 +270,8 @@ typecheckAnno anno = go $ fromAnno anno
 
 typecheckBuiltin :: Builtin -> Typecheck
 typecheckBuiltin builtin = case builtin of
-  Builtin.Add -> intsToInt
+  Builtin.AddFloat -> floatsToFloat
+  Builtin.AddInt -> intsToInt
 
   Builtin.AndBool -> boolsToBool
 
@@ -311,13 +317,15 @@ typecheckBuiltin builtin = case builtin of
       mapM_ pushData d
     pushData result
 
-  Builtin.Div -> intsToInt
+  Builtin.DivFloat -> floatsToFloat
+  Builtin.DivInt -> intsToInt
 
   Builtin.Down -> do
     a <- popDataExpecting $ VectorType AnyType
     pushData a
 
-  Builtin.Eq -> intsToBool
+  Builtin.EqFloat -> floatsToBool
+  Builtin.EqInt -> intsToBool
 
   Builtin.Empty -> do
     popDataExpecting_ $ VectorType AnyType
@@ -327,25 +335,33 @@ typecheckBuiltin builtin = case builtin of
     a <- popData
     pushData $ Composition [] :> Composition [a]
 
-  Builtin.Ge -> intsToBool
+  Builtin.GeFloat -> floatsToBool
+  Builtin.GeInt -> intsToBool
 
-  Builtin.Gt -> intsToBool
+  Builtin.GtFloat -> floatsToBool
+  Builtin.GtInt -> intsToBool
 
-  Builtin.Le -> intsToBool
+  Builtin.LeFloat -> floatsToBool
+  Builtin.LeInt -> intsToBool
 
   Builtin.Length -> do
     popDataExpecting_ $ VectorType AnyType
     pushData IntType
 
-  Builtin.Lt -> intsToBool
+  Builtin.LtFloat -> floatsToBool
+  Builtin.LtInt -> intsToBool
 
-  Builtin.Mod -> intsToInt
+  Builtin.ModFloat -> floatsToFloat
+  Builtin.ModInt -> intsToInt
 
-  Builtin.Mul -> intsToInt
+  Builtin.MulFloat -> floatsToFloat
+  Builtin.MulInt -> intsToInt
 
-  Builtin.Ne -> intsToBool
+  Builtin.NeFloat -> floatsToBool
+  Builtin.NeInt -> intsToBool
 
-  Builtin.Neg -> intToInt
+  Builtin.NegFloat -> floatToFloat
+  Builtin.NegInt -> intToInt
 
   Builtin.NotBool -> boolToBool
 
@@ -357,11 +373,16 @@ typecheckBuiltin builtin = case builtin of
 
   Builtin.Print -> popDataExpecting_ TextType
 
+  Builtin.ShowFloat -> do
+    popDataExpecting_ FloatType
+    pushData TextType
+
   Builtin.ShowInt -> do
     popDataExpecting_ IntType
     pushData TextType
 
-  Builtin.Sub -> intsToInt
+  Builtin.SubFloat -> floatsToFloat
+  Builtin.SubInt -> intsToInt
 
   Builtin.Top -> do
     VectorType a <- popDataExpecting $ VectorType AnyType
@@ -390,14 +411,28 @@ typecheckBuiltin builtin = case builtin of
     popDataExpecting_ BoolType
     pushData BoolType
 
+  floatToFloat = do
+    popDataExpecting_ FloatType
+    pushData FloatType
+
   intToInt = do
     popDataExpecting_ IntType
     pushData IntType
+
+  floatsToFloat = do
+    popDataExpecting_ FloatType
+    popDataExpecting_ FloatType
+    pushData FloatType
 
   intsToInt = do
     popDataExpecting_ IntType
     popDataExpecting_ IntType
     pushData IntType
+
+  floatsToBool = do
+    popDataExpecting_ FloatType
+    popDataExpecting_ FloatType
+    pushData BoolType
 
   intsToBool = do
     popDataExpecting_ IntType

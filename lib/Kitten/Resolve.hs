@@ -58,6 +58,7 @@ data Value
   | Bool Bool
   | Closure [Name] [Resolved]
   | Escape Name
+  | Float Double
   | Function Anno [Resolved]
   | Int Int
   | Text String
@@ -87,6 +88,8 @@ instance Show Value where
       ]
 
     Escape (Name name) -> '`' : show name
+
+    Float value -> show value
 
     Function anno terms -> concat
       [ "("
@@ -182,15 +185,16 @@ fromValue _ = error "Resolve.fromValue: not a value"
 
 resolveValue :: Term.Value -> Resolution Resolved
 resolveValue unresolved = case unresolved of
-  Term.Word name loc -> resolveName Word name loc
+  Term.Escape name loc -> resolveName Escape name loc
+  Term.Float value loc -> return $ Push (Float value) loc
   Term.Function anno term loc -> Push . Function anno
     <$> mapM resolveTerm term <*> pure loc
-  Term.Vector anno terms loc -> Push . Vector anno
-    <$> resolveVector terms <*> pure loc
-  Term.Escape name loc -> resolveName Escape name loc
   Term.Int value loc -> return $ Push (Int value) loc
   Term.Bool value loc -> return $ Push (Bool value) loc
   Term.Text value loc -> return $ Push (Text value) loc
+  Term.Vector anno terms loc -> Push . Vector anno
+    <$> resolveVector terms <*> pure loc
+  Term.Word name loc -> resolveName Word name loc
   where
   resolveVector = mapM $ fmap fromValue . resolveValue
 

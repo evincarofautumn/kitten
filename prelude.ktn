@@ -1,5 +1,6 @@
 -- Builtin
 
+def +. (float float -> float): __add_float
 def + (int int -> int): __add_int
 def && (bool bool -> bool): __and_bool
 def & (int int -> int): __and_int
@@ -14,38 +15,42 @@ def cat ([a] [a] -> [a]): __cat
 -- FIXME Cannot express row types.
 -- def compose ((A -> B) (B -> C) -> (A -> C)): __compose
 
+def /. (float float -> float): __div_float
 def / (int int -> int): __div_int
 def down ([a] -> [a]): __down
-
-def drop (a ->):
-  \x
-
-def dup (a -> a a):
-  \x x x
-
+def drop (a ->): \x
+def dup (a -> a a): \x x x
+def =. (float float -> bool): __eq_float
 def = (int int -> bool): __eq_int
 def empty ([a] -> bool): __empty
 def function (a -> (-> a)): __function
+def >=. (float float -> bool): __ge_float
 def >= (int int -> bool): __ge_int
+def >. (float float -> bool): __gt_float
 def > (int int -> bool): __gt_int
+def <=. (float float -> bool): __le_float
 def <= (int int -> bool): __le_int
 def length ([a] -> int): __length
+def <. (float float -> bool): __lt_float
 def < (int int -> bool): __lt_int
+def %. (float float -> float): __mod_float
 def % (int int -> int): __mod_int
+def *. (float float -> float): __mul_float
 def * (int int -> int): __mul_int
+def !=. (float float -> bool): __ne_float
 def != (int int -> bool): __ne_int
+def negf (float -> float): __neg_float
 def neg (int -> int): __neg_int
 def ! (bool -> bool): __not_bool
 def ~ (int -> int): __not_int
 def || (bool bool -> bool): __or_bool
 def | (int int -> int): __or_int
 def print (text ->): __print
-def show_int (int -> text): __show_int
+def showi (int -> text): __show_int
+def showf (float -> text): __show_float
+def -. (float float -> float): __sub_float
 def - (int int -> int): __sub_int
-
-def swap (a b -> b a):
-  \a \b a b
-
+def swap (a b -> b a): \a \b a b
 def top ([a] -> a): __top
 def up ([a] -> [a]): __up
 def vector (a -> [a]): __vector
@@ -54,18 +59,16 @@ def ^ (int int -> int): __xor_int
 
 -- Core
 
-def dec (int -> int):
-  1 -
+def dec (int -> int): 1 -
+def decf (float -> float): 1.0 -.
+def id (a -> a) {}
+def inc (int -> int): 1 +
+def incf (float -> float): 1.0 +.
 
-def id (a -> a)
-  {}
-
-def inc (int -> int):
-  1 +
+def showb (bool -> text): \x if x then "true" else "false"
 
 -- Pushes a value to the top of a vector.
-def push ([a] a -> [a]):
-  vector cat
+def push ([a] a -> [a]): vector cat
 
 -- Impure
 
@@ -74,43 +77,40 @@ def each ([a] (a ->) ->):
   \f (a -> a){ dup f __apply } map drop
 
 def newline (->): "\n" print
+def printb (bool ->): showb print
+def printf (float ->): showf print
+def printi (int ->): showi print
 
-def print_int (int ->):
-  show_int print
-
-def print_int_vector ([int] ->):
+def printiv ([int] ->):
   "[ " print
-  (int ->){ show_int print " " print } each
+  (int ->){ printi space } each
   "]" print
 
-def say (text ->):
-  print newline
+def printfv ([float] ->):
+  "[ " print
+  (float ->){ printf space } each
+  "]" print
 
-def say_int (int ->):
-  print_int newline
-
-def say_int_vector ([int] ->):
-  print_int_vector newline
+def say (text ->): print newline
+def sayb (bool ->): printb newline
+def sayf (float ->): printf newline
+def sayi (int ->): printi newline
+def sayfv ([float] ->): printfv newline
+def sayiv ([int] ->): printiv newline
+def space (->): " " print
 
 -- Math and Logic
 
-def and ([bool] -> bool):
-  true `&& fold_up
-
-def even (int -> bool):
-  2 % 0 =
-
-def odd (int -> bool):
-  even !
-
-def or ([bool] -> bool):
-  false `|| fold_up
-
-def product ([int] -> int):
-  1 `* fold_up
-
-def sum ([int] -> int):
-  0 `+ fold_up
+def and ([bool] -> bool): true `&& fold_up
+def even (int -> bool): 2 % 0 =
+def evenf (float -> bool): 2.0 %. 0.0 =.
+def odd (int -> bool): even !
+def oddf (float -> bool): evenf !
+def or ([bool] -> bool): false `|| fold_up
+def product ([int] -> int): 1 `* fold_up
+def productf ([float] -> float): 1.0 `*. fold_up
+def sum ([int] -> int): 0 `+ fold_up
+def sumf ([float] -> float): 0.0 `+. fold_up
 
 -- Iterates a function on a value until a predicate holds.
 def until (a (a -> a) (a -> bool) -> a):
