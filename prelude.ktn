@@ -65,7 +65,7 @@ def id (a -> a) {}
 def inc (int -> int): 1 +
 def incf (float -> float): 1.0 +.
 
-def showb (bool -> text): \x if x then "true" else "false"
+def showb (bool -> text): if then "true" else "false"
 
 -- Pushes a value to the top of a vector.
 def push ([a] a -> [a]): vector cat
