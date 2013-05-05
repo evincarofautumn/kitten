@@ -63,8 +63,7 @@ emptyEnv = Env
 
 typecheckTermShallow :: Resolved -> Typecheck
 typecheckTermShallow resolved = case resolved of
-  Push value loc -> withLocation loc
-    $ typecheckValueShallow value
+  Push value _ -> typecheckValueShallow value
   _ -> typecheckTerm resolved
 
 typecheckTerm :: Resolved -> Typecheck
