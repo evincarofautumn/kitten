@@ -8,6 +8,7 @@ module Kitten.Anno
 
 import Kitten.Kind
 import Kitten.Location
+import Kitten.Util.Show
 
 data Anno = Anno (Type Scalar) Location
   deriving (Eq)
@@ -42,7 +43,7 @@ instance Eq (Type a) where
 instance Show (Type a) where
   show type_ = case type_ of
     a :> b -> concat ["(", show a, " -> ", show b, ")"]
-    Composition as -> unwords $ map show as
+    Composition as -> showWords as
     Vector a -> concat ["[", show a, "]"]
     Bool -> "bool"
     Float -> "float"

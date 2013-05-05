@@ -23,6 +23,7 @@ import Kitten.Name
 import Kitten.Fragment
 import Kitten.Term (Term)
 import Kitten.Util.Applicative
+import Kitten.Util.Show
 
 import qualified Kitten.Term as Term
 
@@ -38,16 +39,16 @@ data Resolved
 
 instance Show Resolved where
   show resolved = case resolved of
-    Block terms -> unwords $ map show terms
+    Block terms -> showWords terms
     Builtin builtin _ -> show builtin
     Closed (Name index) _ -> "closed" ++ show index
     If condition true false _ -> unwords
       [ "if"
-      , unwords $ map show condition
+      , showWords condition
       , "then"
-      , unwords $ map show true
+      , showWords true
       , "else"
-      , unwords $ map show false
+      , showWords false
       ]
     Local (Name index) _ -> "local" ++ show index
     Push value _ -> show value
@@ -71,9 +72,9 @@ instance Show Value where
 
     Activation values terms -> concat
       [ "$("
-      , unwords $ map show values
+      , showWords values
       , "){"
-      , unwords $ map show terms
+      , showWords terms
       , "}"
       ]
 
@@ -81,9 +82,9 @@ instance Show Value where
 
     Closure names terms -> concat
       [ "$("
-      , unwords $ map show names
+      , showWords names
       , "){"
-      , unwords $ map show terms
+      , showWords terms
       , "}"
       ]
 
@@ -95,7 +96,7 @@ instance Show Value where
       [ "("
       , show anno
       , "){"
-      , unwords $ map show terms
+      , showWords terms
       , "}"
       ]
 
@@ -113,7 +114,7 @@ instance Show Value where
     Word (Name name) -> '@' : show name
 
     where
-    showVector = unwords . map show . reverse
+    showVector = showWords . reverse
 
 data Env = Env
   { envPrelude :: [Def Resolved]

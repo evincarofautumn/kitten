@@ -11,6 +11,7 @@ module Kitten.Type
 
 import Kitten.Anno (Anno(..))
 import Kitten.Kind
+import Kitten.Util.Show
 
 import qualified Kitten.Anno as Anno
 
@@ -53,7 +54,7 @@ instance Show (Type a) where
     VectorType a -> "[" ++ show a ++ "]"
     Composition [] :> a -> show a
     a :> b -> "(" ++ show a ++ " -> " ++ show b ++ ")"
-    Composition as -> unwords (map show as)
+    Composition as -> showWords as
     AnyType -> "*"
     StackFrameType -> "empty stack"
 

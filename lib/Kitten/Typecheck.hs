@@ -20,6 +20,7 @@ import Kitten.Name
 import Kitten.Resolve (Resolved(..), Value(..))
 import Kitten.Type
 import Kitten.Util.List
+import Kitten.Util.Show
 
 import qualified Kitten.Builtin as Builtin
 
@@ -93,9 +94,9 @@ typecheckTerm resolved = case resolved of
           (reverse $ envData afterFalse)
       in typeError $ unwords
        [ "incompatible types in 'then':"
-       , unwords $ map show afterTrueSuffix
+       , showWords afterTrueSuffix
        , "and 'else':"
-       , unwords $ map show afterFalseSuffix
+       , showWords afterFalseSuffix
        ]
 
     put afterTrue
