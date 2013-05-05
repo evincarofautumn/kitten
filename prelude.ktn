@@ -18,7 +18,7 @@ def / (int int -> int): __div_int
 def down ([a] -> [a]): __down
 def drop (a ->): __drop
 def dup (a -> a a): __dup
-def == (int int -> bool): __eq_int
+def = (int int -> bool): __eq_int
 def empty ([a] -> bool): __empty
 def function (a -> (-> a)): __function
 def >= (int int -> bool): __ge_int
@@ -90,7 +90,7 @@ def and ([bool] -> bool):
   true `&& fold_up
 
 def even (int -> bool):
-  2 % 0 ==
+  2 % 0 =
 
 def odd (int -> bool):
   even !
