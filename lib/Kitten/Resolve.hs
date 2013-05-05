@@ -10,6 +10,7 @@ module Kitten.Resolve
 import Control.Applicative
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
+import Data.Foldable (forM_)
 import Data.List
 import Data.Monoid
 
@@ -21,6 +22,7 @@ import Kitten.Location
 import Kitten.Name
 import Kitten.Fragment
 import Kitten.Term (Term)
+import Kitten.Util.Applicative
 
 import qualified Kitten.Term as Term
 
@@ -129,11 +131,30 @@ resolve
   :: [Def Resolved]
   -> Fragment Term
   -> Either CompileError (Fragment Resolved)
-resolve prelude (Fragment defs terms)
-  = flip evalStateT env0 $ Fragment
-  <$> resolveDefs defs
-  <*> mapM resolveTerm terms
+resolve prelude (Fragment defs terms) = do
+  -- TODO Don't fail so eagerly.
+  resolveDuplicateDefs defs
+  flip evalStateT env0 $ Fragment
+    <$> resolveDefs defs
+    <*> mapM resolveTerm terms
   where env0 = Env prelude defs []
+
+resolveDuplicateDefs
+  :: [Def Term]
+  -> Either CompileError ()
+resolveDuplicateDefs defs = forM_ defs $ \ def
+  -> case filter (duplicate def) defs of
+    [] -> Right ()
+    duplicates -> Left $ DuplicateError
+      (defLocation def)
+      (map defLocation duplicates)
+      (defName def)
+
+  where
+  duplicate :: Def Term -> Def Term -> Bool
+  duplicate def
+    = (== defName def) . defName
+    .&&. (/= defLocation def) . defLocation
 
 resolveDefs :: [Def Term] -> Resolution [Def Resolved]
 resolveDefs defs = (<>) <$> gets envPrelude <*> mapM resolveDef defs

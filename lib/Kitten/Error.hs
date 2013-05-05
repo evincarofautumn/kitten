@@ -10,17 +10,29 @@ import Kitten.Util.Either
 
 data CompileError
   = CompileError Location String
+  | DuplicateError Location [Location] String
   | InternalError String
   | TypeError Location String
 
 instance Show CompileError where
   show compileError = case compileError of
+
     CompileError location message -> concat
       [ show location
       , ": compile error: "
       , message
       ]
+
+    DuplicateError location locations name -> unlines
+      $ concat
+        [ show location
+        , ": duplicate definition of "
+        , name
+        ]
+      : map ((++ ": also defined here") . show) locations
+
     InternalError message -> "internal error: " ++ message
+
     TypeError location message -> concat
       [ show location
       , ": type error: "
