@@ -223,9 +223,11 @@ typecheckAnnotatedTerms anno terms = do
     TextType -> pushData type_
     VectorType _ -> pushData type_
     Composition consumption :> Composition production -> do
+      pushData StackFrameType
       mapM_ pushData consumption
       typecheckTerms terms
       mapM_ popDataExpecting_ $ reverse production
+      popDataExpecting_ StackFrameType
     AnyType :> Composition _ -> unknownTypeError
     Composition _ :> AnyType -> unknownTypeError
     AnyType :> AnyType -> unknownTypeError

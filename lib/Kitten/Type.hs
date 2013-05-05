@@ -22,6 +22,7 @@ data Type a where
   Composition :: [Type Scalar] -> Type Row
   VectorType :: Type Scalar -> Type Scalar
   AnyType :: Type a
+  StackFrameType :: Type a
 
 instance Eq (Type a) where
   BoolType == BoolType = True
@@ -34,6 +35,7 @@ instance Eq (Type a) where
   (a :> b) == (c :> d) = a == c && b == d
   Composition as == Composition bs = as == bs
   VectorType a == VectorType b = a == b
+  StackFrameType == StackFrameType = True
   AnyType == _ = True
   _ == AnyType = True
   _ == _ = False
@@ -41,17 +43,16 @@ instance Eq (Type a) where
 infix 4 :>
 
 instance Show (Type a) where
-  show IntType = "int"
-  show BoolType = "bool"
-  show TextType = "text"
-  show (VectorType type_)
-    = "[" ++ show type_ ++ "]"
-  show (Composition [] :> a)
-    = show a
-  show (a :> b)
-    = "(" ++ show a ++ " -> " ++ show b ++ ")"
-  show (Composition as) = unwords (map show as)
-  show AnyType = "*"
+  show type_ = case type_ of
+    IntType -> "int"
+    BoolType -> "bool"
+    TextType -> "text"
+    VectorType a -> "[" ++ show a ++ "]"
+    Composition [] :> a -> show a
+    a :> b -> "(" ++ show a ++ " -> " ++ show b ++ ")"
+    Composition as -> unwords (map show as)
+    AnyType -> "*"
+    StackFrameType -> "empty stack"
 
 fromAnno :: Anno -> Type Scalar
 fromAnno (Anno type_ _) = fromAnnoType type_
