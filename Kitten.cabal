@@ -79,7 +79,8 @@ test-suite test
     containers,
     hspec == 1.4.*,
     HUnit,
-    QuickCheck == 2.6.*
+    QuickCheck == 2.6.*,
+    transformers
 
   ghc-options:
     -Wall

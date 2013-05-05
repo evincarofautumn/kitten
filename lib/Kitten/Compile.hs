@@ -2,6 +2,8 @@ module Kitten.Compile
   ( compile
   ) where
 
+import Data.Functor.Identity
+
 import Kitten.Def
 import Kitten.Error
 import Kitten.Fragment
@@ -21,7 +23,7 @@ compile
   -> Either CompileError (Fragment Resolved)
 compile stack prelude name source = do
   tokenized <- liftParseError $ tokenize name source
-  parsed <- liftParseError $ parse name tokenized
+  parsed <- liftParseError . runIdentity $ parse name tokenized
   resolved <- resolve prelude parsed
   typecheck prelude stack resolved
   return $ scope resolved

@@ -1,6 +1,7 @@
 module Test.Term where
 
 import Control.Monad
+import Data.Functor.Identity
 import Test.HUnit.Lang (assertFailure)
 import Test.Hspec
 
@@ -229,7 +230,7 @@ testTermFailure source = it ("should fail: " ++ show source)
 
 parsed :: String -> Either CompileError (Fragment Term)
 parsed
-  = liftParseError . parse "test"
+  = liftParseError . runIdentity . parse "test"
   <=< liftParseError . tokenize "test"
 
 def :: String -> Term -> Def Term

@@ -1,4 +1,6 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Kitten.Term
   ( Term(..)
@@ -8,7 +10,6 @@ module Kitten.Term
 
 import Control.Applicative
 import Control.Monad
-import Data.Functor.Identity
 import Data.Monoid
 import Text.Parsec
   hiding ((<|>), Empty, many, parse, satisfy, token, tokens)
@@ -28,7 +29,7 @@ import Kitten.Util.List
 import qualified Kitten.Anno as Anno
 import qualified Kitten.Token as Token
 
-type Parser a = ParsecT [Located] () Identity a
+type Parser m a = ParsecT [Located] () m a
 
 data Term
   = Push Value Location
@@ -52,8 +53,12 @@ data Element
   = DefElement (Def Term)
   | TermElement Term
 
-parse :: String -> [Located] -> Either ParseError (Fragment Term)
-parse = Parsec.parse fragment
+parse
+  :: (Monad m)
+  => String
+  -> [Located]
+  -> m (Either ParseError (Fragment Term))
+parse name tokens = Parsec.runParserT fragment () name tokens
 
 partitionElements :: [Element] -> ([Def Term], [Term])
 partitionElements = foldr partitionElement mempty
@@ -61,19 +66,19 @@ partitionElements = foldr partitionElement mempty
   partitionElement (DefElement d) (ds, ts) = (d : ds, ts)
   partitionElement (TermElement t) (ds, ts) = (ds, t : ts)
 
-fragment :: Parser (Fragment Term)
+fragment :: (Monad m) => Parser m (Fragment Term)
 fragment = do
   elements <- many element <* eof
   let (defs, terms) = partitionElements elements
   return $ Fragment defs terms
 
-element :: Parser Element
+element :: (Monad m) => Parser m Element
 element = choice
   [ DefElement <$> def
   , TermElement <$> term
   ]
 
-signature :: Parser Anno
+signature :: (Monad m) => Parser m Anno
 signature = locate $ Anno <$> signature'
   where
 
@@ -97,14 +102,14 @@ signature = locate $ Anno <$> signature'
     , Anno.Bool <$ match Token.BoolType
     , Anno.Text <$ match Token.TextType
     , Anno.Int <$ match Token.IntType
-    , Anno.Any <$ identifier  -- FIXME
+    , Anno.Any <$ identifier
     ]
 
-def :: Parser (Def Term)
+def :: (Monad m) => Parser m (Def Term)
 def = (<?> "definition") . locate
   $ match Token.Def *> (Def <$> identifier <*> term)
 
-term :: Parser Term
+term :: (Monad m) => Parser m Term
 term = choice
   [ locate $ Push <$> value
   , locate (mapOne toBuiltin <?> "builtin")
@@ -125,11 +130,11 @@ term = choice
   toBuiltin (Token.Builtin name) = Just $ Builtin name
   toBuiltin _ = Nothing
 
-block :: Parser [Term]
+block :: (Monad m) => Parser m [Term]
 block = blocked (many term) <|> layout (many term)
   <?> "block"
 
-value :: Parser Value
+value :: forall m. (Monad m) => Parser m Value
 value = locate $ choice
   [ mapOne toLiteral <?> "literal"
   , mapOne toWord <?> "word"
@@ -149,38 +154,39 @@ value = locate $ choice
   toWord (Token.Word name) = Just $ Word name
   toWord _ = Nothing
 
-  annotated :: Parser (Location -> Value)
+  annotated :: Parser m (Location -> Value)
   annotated = do
     anno <- grouped signature
     (Vector (Just anno) <$> vector)
       <|> (Function anno <$> block)
 
-  escape :: Parser (Location -> Value)
+  escape :: Parser m (Location -> Value)
   escape = Escape <$> (match Token.Escape *> identifier)
 
-  vector :: Parser [Value]
+  vector :: Parser m [Value]
   vector = (reverse <$> between
     (match Token.VectorBegin)
     (match Token.VectorEnd)
     (many value))
     <?> "vector"
 
-grouped :: Parser a -> Parser a
+grouped :: (Monad m) => Parser m a -> Parser m a
 grouped = between
   (match Token.GroupBegin)
   (match Token.GroupEnd)
 
-blocked :: Parser a -> Parser a
+blocked :: (Monad m) => Parser m a -> Parser m a
 blocked = between
   (match Token.BlockBegin)
   (match Token.BlockEnd)
 
 locatedBetween
-  :: Token
+  :: (Monad m)
+  => Token
   -> Token
   -> (Located -> Bool)
-  -> Parser [Located]
-  -> Parser [Located]
+  -> Parser m [Located]
+  -> Parser m [Located]
 locatedBetween begin end inside parser = do
   open <- locatedSatisfy $ inside .&&. isLocated begin
   body <- parser
@@ -188,24 +194,27 @@ locatedBetween begin end inside parser = do
   return $ open : body ++ [close]
 
 locatedBlock
-  :: (Located -> Bool)
-  -> Parser [Located]
-  -> Parser [Located]
+  :: (Monad m)
+  => (Located -> Bool)
+  -> Parser m [Located]
+  -> Parser m [Located]
 locatedBlock = locatedBetween Token.BlockBegin Token.BlockEnd
 
 locatedGroup
-  :: (Located -> Bool)
-  -> Parser [Located]
-  -> Parser [Located]
+  :: (Monad m)
+  => (Located -> Bool)
+  -> Parser m [Located]
+  -> Parser m [Located]
 locatedGroup = locatedBetween Token.GroupBegin Token.GroupEnd
 
 locatedVector
-  :: (Located -> Bool)
-  -> Parser [Located]
-  -> Parser [Located]
+  :: (Monad m)
+  => (Located -> Bool)
+  -> Parser m [Located]
+  -> Parser m [Located]
 locatedVector = locatedBetween Token.VectorBegin Token.VectorEnd
 
-layout :: Parser a -> Parser a
+layout :: (Monad m) => (forall n. (Monad n) => Parser n a) -> Parser m a
 layout inner = do
 
   Token.Located _ Location
@@ -235,9 +244,12 @@ layout inner = do
   when (null tokens)
     $ fail "empty layout blocks are not allowed; use {} instead"
 
-  case Parsec.parse (inner <* eof) "layout" tokens of
+  position <- getPosition
+  parsed <- parseLocal (inner <* eof) position tokens
+  case parsed of
     Right result -> return result
     Left err -> fail $ show err
+
   where
 
   bracket :: Located -> Bool
@@ -250,7 +262,25 @@ layout inner = do
     , Token.VectorEnd
     ]
 
-identifier :: Parser String
+parseLocal
+  :: (Monad m)
+  => Parser m a
+  -> SourcePos
+  -> [Located]
+  -> m (Either ParseError a)
+parseLocal parser position input = do
+  parsed <- runParsecT parser (State input position ())
+  reply <- parserReply parsed
+  case reply of
+    Ok result _ _ -> return $ Right result
+    Error parseError -> return $ Left parseError
+
+  where
+  parserReply res = case res of
+    Parsec.Consumed r -> r
+    Parsec.Empty r -> r
+
+identifier :: (Monad m) => Parser m String
 identifier = mapOne toIdentifier
   where
   toIdentifier (Token.Word name) = Just name
@@ -260,23 +290,23 @@ advance :: SourcePos -> t -> [Located] -> SourcePos
 advance _ _ (Located _ Location{..} : _) = locationStart
 advance sourcePos _ _ = sourcePos
 
-satisfy :: (Token -> Bool) -> Parser Token
+satisfy :: (Monad m) => (Token -> Bool) -> Parser m Token
 satisfy predicate = tokenPrim show advance
   $ \ (Located locatedToken _)
   -> justIf (predicate locatedToken) locatedToken
 
-mapOne :: (Token -> Maybe a) -> Parser a
+mapOne :: (Monad m) => (Token -> Maybe a) -> Parser m a
 mapOne extract = tokenPrim show advance
   $ \ (Located locatedToken _) -> extract locatedToken
 
-locatedSatisfy :: (Located -> Bool) -> Parser Located
+locatedSatisfy :: (Monad m) => (Located -> Bool) -> Parser m Located
 locatedSatisfy predicate = tokenPrim show advance
   $ \ location -> justIf (predicate location) location
 
-match :: Token -> Parser Token
+match :: (Monad m) => Token -> Parser m Token
 match = satisfy . (==)
 
-locate :: Parser (Location -> a) -> Parser a
+locate :: (Monad m) => Parser m (Location -> a) -> Parser m a
 locate parser = do
   start <- getPosition
   result <- parser
@@ -285,12 +315,12 @@ locate parser = do
     , locationIndent = 0  -- FIXME
     }
 
-located :: Token -> Parser Located
+located :: (Monad m) => Token -> Parser m Located
 located token = locatedSatisfy $ isLocated token
 
 isLocated :: Token -> Located -> Bool
 isLocated token (Located locatedToken _)
   = token == locatedToken
 
-anyLocated :: Parser Located
+anyLocated :: (Monad m) => Parser m Located
 anyLocated = locatedSatisfy (const True)
