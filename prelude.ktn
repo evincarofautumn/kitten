@@ -1,0 +1,180 @@
+-- Builtin
+
+def + (int int -> int): __add_int
+def && (bool bool -> bool): __and_bool
+def & (int int -> int): __and_int
+
+-- FIXME Cannot express row types.
+-- def apply (A (A -> B) -> B): __apply
+
+def at ([a] int -> a): __at
+def bottom ([a] -> a): __bottom
+def cat ([a] [a] -> [a]): __cat
+
+-- FIXME Cannot express row types.
+-- def compose ((A -> B) (B -> C) -> (A -> C)): __compose
+
+def / (int int -> int): __div_int
+def down ([a] -> [a]): __down
+def drop (a ->): __drop
+def dup (a -> a a): __dup
+def == (int int -> bool): __eq_int
+def empty ([a] -> bool): __empty
+def function (a -> (-> a)): __function
+def >= (int int -> bool): __ge_int
+def > (int int -> bool): __gt_int
+def <= (int int -> bool): __le_int
+def length ([a] -> int): __length
+def < (int int -> bool): __lt_int
+def % (int int -> int): __mod_int
+def * (int int -> int): __mul_int
+def != (int int -> bool): __ne_int
+def neg (int -> int): __neg_int
+def ! (bool -> bool): __not_bool
+def ~ (int -> int): __not_int
+def || (bool bool -> bool): __or_bool
+def | (int int -> int): __or_int
+def print (text ->): __print
+def show_int (int -> text): __show_int
+def - (int int -> int): __sub_int
+def swap (a b -> b a): __swap
+def top ([a] -> a): __top
+def up ([a] -> [a]): __up
+def vector (a -> [a]): __vector
+def ^^ (bool bool -> bool): __xor_bool
+def ^ (int int -> int): __xor_int
+
+-- Core
+
+def dec (int -> int):
+  1 -
+
+def id (a -> a)
+  {}
+
+def inc (int -> int):
+  1 +
+
+-- Pushes a value to the top of a vector.
+def push ([a] a -> [a]):
+  vector cat
+
+-- Impure
+
+-- Maps an impure function over each element of a vector.
+def each ([a] (a ->) ->):
+  \f (a -> a){ dup f __apply } map drop
+
+def newline (->): "\n" print
+
+def print_int (int ->):
+  show_int print
+
+def print_int_vector ([int] ->):
+  "[ " print
+  (int ->){ show_int print " " print } each
+  "]" print
+
+def say (text ->):
+  print newline
+
+def say_int (int ->):
+  print_int newline
+
+def say_int_vector ([int] ->):
+  print_int_vector newline
+
+-- Math and Logic
+
+def and ([bool] -> bool):
+  true `&& fold_up
+
+def even (int -> bool):
+  2 % 0 ==
+
+def odd (int -> bool):
+  even !
+
+def or ([bool] -> bool):
+  false `|| fold_up
+
+def product ([int] -> int):
+  1 `* fold_up
+
+def sum ([int] -> int):
+  0 `+ fold_up
+
+-- Iterates a function on a value until a predicate holds.
+def until (a (a -> a) (a -> bool) -> a):
+  \p  -- Predicate
+  \f  -- Function
+  \x  -- Initial value
+  if x p __apply then:
+    x
+  else:
+    x f __apply
+    f p until
+
+-- Vector
+
+-- Folds elements of a vector bottom-up (right-associatively).
+def fold_up ([a] b (a b -> b) -> b):
+  \f   -- Function
+  \z   -- Starting value
+  \xs  -- Vector
+  if xs empty then:
+    z
+  else:
+    xs up z f fold_up
+    xs bottom
+    f __apply
+
+-- Filters a vector by a predicate.
+def filter ([a] (a -> bool) -> [a]):
+  \p   -- Predicate
+  \xs  -- Vector
+  if xs empty then:
+    xs
+  else if xs bottom p __apply then:
+    xs bottom vector
+    xs up p filter
+    cat
+  else:
+    xs up p filter
+
+-- Keeps the topmost n elements of a vector, tossing the rest.
+def keep ([a] int -> [a]):
+  \n   -- Number of elements
+  \xs  -- Vector
+  if  n 0 <=  xs empty  ||  then:
+    (a)[]
+  else:
+    xs down  n dec  keep
+    xs top push
+
+-- Maps a function over the elements of a vector.
+def map ([a] (a -> b) -> [b]):
+  \f   -- Function
+  \xs  -- Vector
+  if xs empty then:
+    xs
+  else:
+    xs bottom f __apply \y
+    xs up f map \ys
+    ys y push
+
+-- Splits a vector at the given index.
+def split_at ([a] int -> [a] [a]):
+  \n   -- Number of elements
+  \xs  -- Vector
+  xs n toss
+  xs n keep
+
+-- Tosses the first n elements of a vector, keeping the rest.
+def toss ([a] int -> [a]):
+  \n   -- Number of elements
+  \xs  -- Vector
+  if  n 0 <=  xs empty  ||  then:
+    xs
+  else:
+    xs down  n dec  toss
