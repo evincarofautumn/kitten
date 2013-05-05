@@ -4,6 +4,8 @@ module Kitten.Location
   ( Location(..)
   ) where
 
+import Data.List
+
 import Text.Parsec.Pos
 
 data Location
@@ -24,7 +26,11 @@ instance Eq Location where
   _ == _ = False
 
 instance Show Location where
-  show Location{..} = show locationStart
+  show Location{..} = intercalate ":"
+    [ sourceName locationStart
+    , show $ sourceLine locationStart
+    , show $ sourceColumn locationStart
+    ]
   show UnknownLocation = "(unknown)"
   show GeneratedLocation = "(generated)"
   show TestLocation = ""
