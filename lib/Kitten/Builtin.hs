@@ -25,8 +25,6 @@ data Builtin
   | Compose
   | Div
   | Down
-  | Drop
-  | Dup
   | Eq
   | Empty
   | Function
@@ -46,7 +44,6 @@ data Builtin
   | Print
   | ShowInt
   | Sub
-  | Swap
   | Top
   | Up
   | Vector
@@ -84,8 +81,6 @@ fromStringTable =
   , (,) "__compose"   Compose
   , (,) "__div_int"   Div
   , (,) "__down"      Down
-  , (,) "__drop"      Drop
-  , (,) "__dup"       Dup
   , (,) "__eq_int"    Eq
   , (,) "__empty"     Empty
   , (,) "__function"  Function
@@ -105,7 +100,6 @@ fromStringTable =
   , (,) "__print"     Print
   , (,) "__show_int"  ShowInt
   , (,) "__sub_int"   Sub
-  , (,) "__swap"      Swap
   , (,) "__top"       Top
   , (,) "__up"        Up
   , (,) "__vector"    Vector

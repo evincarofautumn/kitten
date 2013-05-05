@@ -16,8 +16,13 @@ def cat ([a] [a] -> [a]): __cat
 
 def / (int int -> int): __div_int
 def down ([a] -> [a]): __down
-def drop (a ->): __drop
-def dup (a -> a a): __dup
+
+def drop (a ->):
+  \x
+
+def dup (a -> a a):
+  \x x x
+
 def = (int int -> bool): __eq_int
 def empty ([a] -> bool): __empty
 def function (a -> (-> a)): __function
@@ -37,7 +42,10 @@ def | (int int -> int): __or_int
 def print (text ->): __print
 def show_int (int -> text): __show_int
 def - (int int -> int): __sub_int
-def swap (a b -> b a): __swap
+
+def swap (a b -> b a):
+  \a \b a b
+
 def top ([a] -> a): __top
 def up ([a] -> [a]): __up
 def vector (a -> [a]): __vector

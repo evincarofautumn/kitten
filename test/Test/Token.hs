@@ -77,9 +77,6 @@ spec = do
     testTokens "def" [Def]
 
   describe "tokenize builtin" $ do
-    testTokens "__dup" [Builtin Builtin.Dup]
-    testTokens "__swap" [Builtin Builtin.Swap]
-    testTokens "__drop" [Builtin Builtin.Drop]
     testTokens "__vector" [Builtin Builtin.Vector]
     testTokens "__cat" [Builtin Builtin.Cat]
     testTokens "__function" [Builtin Builtin.Function]

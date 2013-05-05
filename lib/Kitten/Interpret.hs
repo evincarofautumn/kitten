@@ -122,13 +122,6 @@ interpretBuiltin builtin = case builtin of
     Vector _ a <- popData
     pushData $ Vector Nothing (tail a)
 
-  Builtin.Drop -> void popData
-
-  Builtin.Dup -> do
-    a <- popData
-    pushData a
-    pushData a
-
   Builtin.Eq -> intsToBool (==)
 
   Builtin.Empty -> do
@@ -175,12 +168,6 @@ interpretBuiltin builtin = case builtin of
     pushData $ Text (show value)
 
   Builtin.Sub -> intsToInt (-)
-
-  Builtin.Swap -> do
-    b <- popData
-    a <- popData
-    pushData b
-    pushData a
 
   Builtin.Top -> do
     Vector _ a <- popData

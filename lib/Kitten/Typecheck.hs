@@ -318,13 +318,6 @@ typecheckBuiltin builtin = case builtin of
     a <- popDataExpecting $ VectorType AnyType
     pushData a
 
-  Builtin.Drop -> popData_
-
-  Builtin.Dup -> do
-    a <- popData
-    pushData a
-    pushData a
-
   Builtin.Eq -> intsToBool
 
   Builtin.Empty -> do
@@ -370,12 +363,6 @@ typecheckBuiltin builtin = case builtin of
     pushData TextType
 
   Builtin.Sub -> intsToInt
-
-  Builtin.Swap -> do
-    a <- popData
-    b <- popData
-    pushData a
-    pushData b
 
   Builtin.Top -> do
     VectorType a <- popDataExpecting $ VectorType AnyType
@@ -425,9 +412,6 @@ typeError message = do
 
 internalError :: String -> TypecheckM a
 internalError = lift . Left . InternalError
-
-popData_ :: Typecheck
-popData_ = void popData
 
 popData :: TypecheckM (Type Scalar)
 popData = do
