@@ -30,6 +30,7 @@ instance Show Location where
     [ sourceName locationStart
     , show $ sourceLine locationStart
     , show $ sourceColumn locationStart
+    , '(' : show locationIndent ++ ")"
     ]
   show UnknownLocation = "(unknown)"
   show GeneratedLocation = "(generated)"

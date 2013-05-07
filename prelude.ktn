@@ -65,7 +65,7 @@ def id (a -> a) {}
 def inc (int -> int): 1 +
 def incf (float -> float): 1.0 +.
 
-def showb (bool -> text): if then "true" else "false"
+def showb (bool -> text): if: "true" else: "false"
 
 -- Pushes a value to the top of a vector.
 def push ([a] a -> [a]): vector cat
@@ -117,7 +117,7 @@ def until (a (a -> a) (a -> bool) -> a):
   \p  -- Predicate
   \f  -- Function
   \x  -- Initial value
-  if x p __apply then:
+  if x p __apply:
     x
   else:
     x f __apply
@@ -130,7 +130,7 @@ def fold_up ([a] b (a b -> b) -> b):
   \f   -- Function
   \z   -- Starting value
   \xs  -- Vector
-  if xs empty then:
+  if xs empty:
     z
   else:
     xs up z f fold_up
@@ -141,9 +141,9 @@ def fold_up ([a] b (a b -> b) -> b):
 def filter ([a] (a -> bool) -> [a]):
   \p   -- Predicate
   \xs  -- Vector
-  if xs empty then:
+  if xs empty:
     xs
-  else if xs bottom p __apply then:
+  else: if xs bottom p __apply:
     xs bottom vector
     xs up p filter
     cat
@@ -154,7 +154,7 @@ def filter ([a] (a -> bool) -> [a]):
 def keep ([a] int -> [a]):
   \n   -- Number of elements
   \xs  -- Vector
-  if  n 0 <=  xs empty  ||  then:
+  if n 0 <=  xs empty  || :
     (a)[]
   else:
     xs down  n dec  keep
@@ -164,7 +164,7 @@ def keep ([a] int -> [a]):
 def map ([a] (a -> b) -> [b]):
   \f   -- Function
   \xs  -- Vector
-  if xs empty then:
+  if xs empty:
     xs
   else:
     xs bottom f __apply \y
@@ -182,7 +182,7 @@ def split_at ([a] int -> [a] [a]):
 def toss ([a] int -> [a]):
   \n   -- Number of elements
   \xs  -- Vector
-  if  n 0 <=  xs empty  ||  then:
+  if n 0 <=  xs empty  || :
     xs
   else:
     xs down  n dec  toss

@@ -40,7 +40,6 @@ data Token
   | Layout
   | Text String
   | TextType
-  | Then
   | VectorBegin
   | VectorEnd
   | Word String
@@ -66,12 +65,11 @@ instance Show Token where
     IntType -> "int"
     Lambda -> "\\"
     Layout -> ":"
-    Then -> "then"
     Text value -> show value
     TextType -> "text"
     VectorBegin -> "["
     VectorEnd -> "]"
-    Word word -> show word
+    Word word -> word
 
 data Located = Located
   { locatedToken :: Token
@@ -157,7 +155,6 @@ token = (<?> "token") . located $ choice
     "if" -> If
     "int" -> IntType
     "text" -> TextType
-    "then" -> Then
     "true" -> Bool True
     _ -> case Builtin.fromString name of
       Just builtin -> Builtin builtin
