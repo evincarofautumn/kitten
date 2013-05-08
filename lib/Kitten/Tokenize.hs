@@ -13,6 +13,7 @@ import qualified Text.Parsec as Parsec
 import Kitten.Parsec
 import Kitten.Location
 import Kitten.Token
+import Kitten.Util.Parsec
 
 import qualified Kitten.Builtin as Builtin
 
@@ -50,15 +51,14 @@ token = (<?> "token") . located $ choice
   , Layout <$ char ':'
   , VectorBegin <$ char '['
   , VectorEnd <$ char ']'
-  , text
+  , Text <$> (char '"' *> text <* char '"')
   , try number
-  , try arrow
+  , try $ Arrow <$ string "->"
   , word
   ]
   where
 
-  arrow = Arrow <$ string "->"
-
+  number :: Parser Token
   number = do
     sign <- optionMaybe $ oneOf "+-"
     let
@@ -70,11 +70,11 @@ token = (<?> "token") . located $ choice
       Just fraction -> Float . applySign . read $ integer ++ fraction
       Nothing -> Int . applySign $ read integer
 
-  text = Text <$> (char '"' *> textContents <* char '"')
+  text :: Parser String
+  text = many (noneOf "\\\"" <|> escape)
 
-  textContents = many (noneOf "\\\"" <|> textEscape)
-
-  textEscape = char '\\' *> choice
+  escape :: Parser Char
+  escape = char '\\' *> choice
     [ oneOf "\\\""
     , '\a' <$ char 'a'
     , '\b' <$ char 'b'
@@ -85,6 +85,7 @@ token = (<?> "token") . located $ choice
     , '\v' <$ char 'v'
     ]
 
+  word :: Parser Token
   word = flip fmap (alphanumeric <|> symbolic) $ \ name -> case name of
     "bool" -> BoolType
     "def" -> Def
@@ -100,10 +101,12 @@ token = (<?> "token") . located $ choice
       _ -> Word name
     where
 
+    alphanumeric :: Parser String
     alphanumeric = (:)
       <$> (letter <|> char '_')
       <*> many (letter <|> digit <|> char '_')
 
+    symbolic :: Parser String
     symbolic = many1 $ oneOf "!#$%&*+,-./;<=>?@^|~"
 
 silence :: Parser ()
@@ -120,8 +123,7 @@ silence = skipMany $ comment <|> whitespace
 
   nonNewline = void $ Parsec.satisfy (`elem` "\t\v\f\r ")
 
-  comment = single <|> multi
-    <?> "comment"
+  comment = single <|> multi <?> "comment"
 
   single = try (string "--")
     *> (anyChar `skipManyTill` (void (char '\n') <|> eof))
@@ -132,9 +134,3 @@ silence = skipMany $ comment <|> whitespace
     characters = skipMany $ notFollowedBy (start <|> end) *> anyChar
     start = try $ string "{-"
     end = string "-}"
-
-skipManyTill
-  :: Parser a
-  -> Parser b
-  -> Parser ()
-a `skipManyTill` b = void (try b) <|> a *> (a `skipManyTill` b)
