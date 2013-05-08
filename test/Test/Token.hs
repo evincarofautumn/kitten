@@ -6,6 +6,7 @@ import Test.Hspec
 import Test.Util
 
 import Kitten.Token
+import Kitten.Tokenize
 
 import qualified Kitten.Builtin as Builtin
 

@@ -43,6 +43,7 @@ library
     Kitten.Scope,
     Kitten.Term,
     Kitten.Token,
+    Kitten.Tokenize,
     Kitten.Type,
     Kitten.Typecheck,
     Kitten.Typecheck.Anno,

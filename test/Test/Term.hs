@@ -13,7 +13,7 @@ import Kitten.Fragment
 import Kitten.Kind
 import Kitten.Location
 import Kitten.Term
-import Kitten.Token (tokenize)
+import Kitten.Tokenize
 
 import qualified Kitten.Anno as Anno
 

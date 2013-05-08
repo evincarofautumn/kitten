@@ -9,7 +9,7 @@ import Kitten.Resolve
 import Kitten.Resolved as Resolved
 import Kitten.Scope
 import Kitten.Term
-import Kitten.Token
+import Kitten.Tokenize
 import Kitten.Typecheck
 
 compile
