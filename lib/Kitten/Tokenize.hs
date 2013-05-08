@@ -7,9 +7,10 @@ module Kitten.Tokenize
 import Control.Applicative
 import Control.Monad
 import Data.Functor.Identity
-import Text.Parsec
-  hiding ((<|>), many, newline, optional, token, tokens)
 
+import qualified Text.Parsec as Parsec
+
+import Kitten.Parsec
 import Kitten.Location
 import Kitten.Token
 
@@ -117,7 +118,7 @@ silence = skipMany $ comment <|> whitespace
     pos <- getPosition
     putState $ sourceColumn pos
 
-  nonNewline = void $ satisfy (`elem` "\t\v\f\r ")
+  nonNewline = void $ Parsec.satisfy (`elem` "\t\v\f\r ")
 
   comment = single <|> multi
     <?> "comment"

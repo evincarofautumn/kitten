@@ -12,6 +12,7 @@ import Kitten.Error
 import Kitten.Fragment
 import Kitten.Kind
 import Kitten.Location
+import Kitten.Parse
 import Kitten.Term
 import Kitten.Tokenize
 

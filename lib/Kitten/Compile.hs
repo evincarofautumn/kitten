@@ -5,10 +5,10 @@ module Kitten.Compile
 import Kitten.Def
 import Kitten.Error
 import Kitten.Fragment
+import Kitten.Parse
 import Kitten.Resolve
 import Kitten.Resolved as Resolved
 import Kitten.Scope
-import Kitten.Term
 import Kitten.Tokenize
 import Kitten.Typecheck
 
