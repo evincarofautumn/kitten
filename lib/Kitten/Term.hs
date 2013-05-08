@@ -190,7 +190,7 @@ term = nonblock <|> Block <$> block
   if_ = If
     <$> (match Token.If *> many nonblock)
     <*> block
-    <*> (match Token.Else *> block)
+    <*> (match Token.Else *> (block <|> list <$> locate if_))
 
   toBuiltin :: Token -> Maybe (Location -> Term)
   toBuiltin (Token.Builtin name) = Just $ Builtin name
