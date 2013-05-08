@@ -15,7 +15,7 @@ import Kitten.Def
 import Kitten.Fragment
 import Kitten.Location
 import Kitten.Name
-import Kitten.Resolve
+import Kitten.Resolved
 import Kitten.Util.List
 
 scope :: Fragment Resolved -> Fragment Resolved

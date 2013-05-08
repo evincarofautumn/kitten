@@ -2,134 +2,26 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Kitten.Resolve
-  ( Resolved(..)
-  , Value(..)
-  , resolve
+  ( resolve
   ) where
 
 import Control.Applicative
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.Foldable (forM_)
-import Data.List
 import Data.Monoid
 
-import Kitten.Anno (Anno)
-import Kitten.Builtin (Builtin)
 import Kitten.Def
 import Kitten.Error
 import Kitten.Location
 import Kitten.Name
 import Kitten.Fragment
+import Kitten.Resolve.Monad
+import Kitten.Resolved
 import Kitten.Term (Term)
 import Kitten.Util.Applicative
-import Kitten.Util.Show
 
 import qualified Kitten.Term as Term
-
-data Resolved
-  = Block [Resolved]
-  | Builtin Builtin Location
-  | Closed Name Location
-  | If [Resolved] [Resolved] [Resolved] Location
-  | Local Name Location
-  | Push Value Location
-  | Scoped [Resolved] Location
-  deriving (Eq)
-
-instance Show Resolved where
-  show resolved = case resolved of
-    Block terms -> showWords terms
-    Builtin builtin _ -> show builtin
-    Closed (Name index) _ -> "closed" ++ show index
-    If condition true false _ -> unwords
-      [ "if"
-      , showWords condition
-      , "then"
-      , showWords true
-      , "else"
-      , showWords false
-      ]
-    Local (Name index) _ -> "local" ++ show index
-    Push value _ -> show value
-    Scoped terms _ -> unwords $ "\\" : map show terms
-
-data Value
-  = Activation [Value] [Resolved]
-  | Bool Bool
-  | Closure [Name] [Resolved]
-  | Escape Name
-  | Float Double
-  | Function Anno [Resolved]
-  | Int Int
-  | Text String
-  | Vector (Maybe Anno) [Value]
-  | Word Name
-  deriving (Eq)
-
-instance Show Value where
-  show v = case v of
-
-    Activation values terms -> concat
-      [ "$("
-      , showWords values
-      , "){"
-      , showWords terms
-      , "}"
-      ]
-
-    Bool value -> if value then "true" else "false"
-
-    Closure names terms -> concat
-      [ "$("
-      , showWords names
-      , "){"
-      , showWords terms
-      , "}"
-      ]
-
-    Escape (Name name) -> '`' : show name
-
-    Float value -> show value
-
-    Function anno terms -> concat
-      [ "("
-      , show anno
-      , "){"
-      , showWords terms
-      , "}"
-      ]
-
-    Int value -> show value
-
-    Text value -> show value
-
-    Vector anno values -> concat
-      [ maybe "" (("(" ++) . (++ ")") . show) anno
-      , "["
-      , showVector values
-      , "]"
-      ]
-
-    Word (Name name) -> '@' : show name
-
-    where
-    showVector = showWords . reverse
-
-data Env = Env
-  { envPrelude :: [Def Resolved]
-  , envDefs :: [Def Term]
-  , envScope :: [String]
-  }
-
-withLocal :: String -> Resolution a -> Resolution a
-withLocal name action = do
-  modify $ \ env@Env{..} -> env { envScope = name : envScope }
-  result <- action
-  modify $ \ env@Env{..} -> env { envScope = tail envScope }
-  return result
-
-type Resolution = StateT Env (Either CompileError)
 
 resolve
   :: [Def Resolved]
@@ -138,10 +30,10 @@ resolve
 resolve prelude (Fragment defs terms) = do
   -- TODO Don't fail so eagerly.
   resolveDuplicateDefs defs
-  flip evalStateT env0 $ Fragment
+  flip evalStateT emptyEnv $ Fragment
     <$> resolveDefs defs
     <*> mapM resolveTerm terms
-  where env0 = Env prelude defs []
+  where emptyEnv = Env prelude defs []
 
 resolveDuplicateDefs
   :: [Def Term]
@@ -215,11 +107,3 @@ resolveName wrap name loc = do
           $ Push (wrap $ Name index) loc
         Nothing -> lift . Left . CompileError loc $ concat
           ["unable to resolve word '", name, "'"]
-
-localIndex :: String -> Env -> Maybe Int
-localIndex name = elemIndex name . envScope
-
-defIndex :: String -> Env -> Maybe Int
-defIndex expected Env{..} = findExpected envPrelude
-  <|> ((+ length envPrelude) <$> findExpected envDefs)
-  where findExpected = findIndex $ (== expected) . defName

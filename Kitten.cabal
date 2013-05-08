@@ -38,6 +38,8 @@ library
     Kitten.Location,
     Kitten.Name,
     Kitten.Resolve,
+    Kitten.Resolve.Monad,
+    Kitten.Resolved,
     Kitten.Scope,
     Kitten.Term,
     Kitten.Token,

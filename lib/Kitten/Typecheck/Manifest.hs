@@ -4,7 +4,7 @@ module Kitten.Typecheck.Manifest
   ) where
 
 import Kitten.Kind
-import Kitten.Resolve
+import Kitten.Resolved
 import Kitten.Type
 import Kitten.Typecheck.Monad
 

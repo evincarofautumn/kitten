@@ -28,7 +28,7 @@ import Kitten.Def
 import Kitten.Error
 import Kitten.Location
 import Kitten.Name
-import Kitten.Resolve
+import Kitten.Resolved
 import Kitten.Type
 import Kitten.Util.List
 

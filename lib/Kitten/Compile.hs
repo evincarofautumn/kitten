@@ -6,15 +6,14 @@ import Kitten.Def
 import Kitten.Error
 import Kitten.Fragment
 import Kitten.Resolve
+import Kitten.Resolved as Resolved
 import Kitten.Scope
 import Kitten.Term
 import Kitten.Token
 import Kitten.Typecheck
 
-import qualified Kitten.Resolve as Resolve
-
 compile
-  :: [Resolve.Value]
+  :: [Resolved.Value]
   -> [Def Resolved]
   -> String
   -> String

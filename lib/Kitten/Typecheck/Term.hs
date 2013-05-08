@@ -11,7 +11,7 @@ import Control.Monad.Trans.State
 
 import Kitten.Def
 import Kitten.Name
-import Kitten.Resolve
+import Kitten.Resolved
 import Kitten.Type
 import Kitten.Typecheck.Anno
 import Kitten.Typecheck.Builtin

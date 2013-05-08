@@ -12,7 +12,7 @@ import Control.Monad.Trans.State
 import Kitten.Def
 import Kitten.Error
 import Kitten.Fragment
-import Kitten.Resolve (Resolved(..), Value(..))
+import Kitten.Resolved
 import Kitten.Typecheck.Term
 import Kitten.Typecheck.Monad
 

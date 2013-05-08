@@ -15,7 +15,7 @@ import Kitten.Def
 import Kitten.Fragment
 import Kitten.Location
 import Kitten.Name
-import Kitten.Resolve (Resolved(..), Value(..))
+import Kitten.Resolved
 
 import qualified Kitten.Builtin as Builtin
 
