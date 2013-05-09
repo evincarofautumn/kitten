@@ -61,7 +61,7 @@ term = nonblock <|> Block <$> block
     ]
 
   lambda :: Parser (Location -> Term)
-  lambda = (<?> "lambda") $ match Token.Lambda *>
+  lambda = (<?> "lambda") $ match Token.Arrow *>
     (Lambda <$> identifier <*> many term)
 
   if_ :: Parser (Location -> Term)

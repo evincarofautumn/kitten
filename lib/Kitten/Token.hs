@@ -25,7 +25,6 @@ data Token
   | If
   | Int Int
   | IntType
-  | Lambda
   | Layout
   | Text String
   | TextType
@@ -52,7 +51,6 @@ instance Show Token where
     If -> "if"
     Int value -> show value
     IntType -> "int"
-    Lambda -> "\\"
     Layout -> ":"
     Text value -> show value
     TextType -> "text"

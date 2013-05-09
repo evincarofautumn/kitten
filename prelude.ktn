@@ -18,8 +18,6 @@ def cat ([a] [a] -> [a]): __cat
 def /. (float float -> float): __div_float
 def / (int int -> int): __div_int
 def down ([a] -> [a]): __down
-def drop (a ->): \x
-def dup (a -> a a): \x x x
 def =. (float float -> bool): __eq_float
 def = (int int -> bool): __eq_int
 def empty ([a] -> bool): __empty
@@ -50,7 +48,6 @@ def showi (int -> text): __show_int
 def showf (float -> text): __show_float
 def -. (float float -> float): __sub_float
 def - (int int -> int): __sub_int
-def swap (a b -> b a): \a \b a b
 def top ([a] -> a): __top
 def up ([a] -> [a]): __up
 def vector (a -> [a]): __vector
@@ -61,20 +58,40 @@ def ^ (int int -> int): __xor_int
 
 def dec (int -> int): 1 -
 def decf (float -> float): 1.0 -.
+
+def drop (a ->):
+  -> x
+
+def dup (a -> a a):
+  -> x
+  x x
+
 def id (a -> a) {}
 def inc (int -> int): 1 +
 def incf (float -> float): 1.0 +.
+
+def swap (a b -> b a):
+  -> a
+  -> b
+  a b
 
 def showb (bool -> text): if: "true" else: "false"
 
 -- Pushes a value to the top of a vector.
 def push ([a] a -> [a]): vector cat
 
+-- Prepends a value to the bottom of a vector.
+def prepend (a [a] -> [a]):
+  -> xs
+  -> x
+  x vector xs cat
+
 -- Impure
 
 -- Maps an impure function over each element of a vector.
 def each ([a] (a ->) ->):
-  \f (a -> a){ dup f __apply } map drop
+  -> f
+  (a -> a){ dup f __apply } map drop
 
 def newline (->): "\n" print
 def printb (bool ->): showb print
@@ -114,9 +131,9 @@ def sumf ([float] -> float): 0.0 `+. fold_up
 
 -- Iterates a function on a value until a predicate holds.
 def until (a (a -> a) (a -> bool) -> a):
-  \p  -- Predicate
-  \f  -- Function
-  \x  -- Initial value
+  -> p  -- Predicate
+  -> f  -- Function
+  -> x  -- Initial value
   if x p __apply:
     x
   else:
@@ -127,9 +144,9 @@ def until (a (a -> a) (a -> bool) -> a):
 
 -- Folds elements of a vector bottom-up (right-associatively).
 def fold_up ([a] b (a b -> b) -> b):
-  \f   -- Function
-  \z   -- Starting value
-  \xs  -- Vector
+  -> f   -- Function
+  -> z   -- Starting value
+  -> xs  -- Vector
   if xs empty:
     z
   else:
@@ -139,8 +156,8 @@ def fold_up ([a] b (a b -> b) -> b):
 
 -- Filters a vector by a predicate.
 def filter ([a] (a -> bool) -> [a]):
-  \p   -- Predicate
-  \xs  -- Vector
+  -> p   -- Predicate
+  -> xs  -- Vector
   if xs empty:
     xs
   else if xs bottom p __apply:
@@ -152,8 +169,8 @@ def filter ([a] (a -> bool) -> [a]):
 
 -- Keeps the topmost n elements of a vector, tossing the rest.
 def keep ([a] int -> [a]):
-  \n   -- Number of elements
-  \xs  -- Vector
+  -> n   -- Number of elements
+  -> xs  -- Vector
   if n 0 <=  xs empty  || :
     (a)[]
   else:
@@ -162,26 +179,26 @@ def keep ([a] int -> [a]):
 
 -- Maps a function over the elements of a vector.
 def map ([a] (a -> b) -> [b]):
-  \f   -- Function
-  \xs  -- Vector
+  -> f   -- Function
+  -> xs  -- Vector
   if xs empty:
     xs
   else:
-    xs bottom f __apply \y
-    xs up f map \ys
-    ys y push
+    xs bottom f __apply
+    xs up f map
+    prepend
 
 -- Splits a vector at the given index.
 def split_at ([a] int -> [a] [a]):
-  \n   -- Number of elements
-  \xs  -- Vector
+  -> n   -- Number of elements
+  -> xs  -- Vector
   xs n toss
   xs n keep
 
 -- Tosses the first n elements of a vector, keeping the rest.
 def toss ([a] int -> [a]):
-  \n   -- Number of elements
-  \xs  -- Vector
+  -> n   -- Number of elements
+  -> xs  -- Vector
   if n 0 <=  xs empty  || :
     xs
   else:

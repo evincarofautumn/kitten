@@ -42,7 +42,6 @@ spec = do
     testTokens "`" [Escape]
     testTokens "(" [GroupBegin]
     testTokens ")" [GroupEnd]
-    testTokens "\\" [Lambda]
     testTokens ":" [Layout]
     testTokens "[" [VectorBegin]
     testTokens "]" [VectorEnd]

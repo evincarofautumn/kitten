@@ -77,7 +77,7 @@ spec = do
   describe "lambda" $ do
 
     testTerm
-      "\\x x x *"
+      "->x x x *"
       $ Fragment []
         [ lambda "x"
           [ word "x"
@@ -87,7 +87,7 @@ spec = do
         ]
 
     testTerm
-      "\\x \\y x y *"
+      "->x ->y x y *"
       $ Fragment []
         [ lambda "x"
           [ lambda "y"
@@ -99,7 +99,7 @@ spec = do
         ]
 
     testTerm
-      "{ \\x \\y x y * }"
+      "{ ->x ->y x y * }"
       $ Fragment []
         [ Block
           [ lambda "x"
@@ -113,7 +113,7 @@ spec = do
         ]
 
     testTerm
-      ": \\x \\y x y *"
+      ": ->x ->y x y *"
       $ Fragment []
         [ Block
           [ lambda "x"

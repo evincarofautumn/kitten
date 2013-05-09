@@ -47,7 +47,6 @@ token = (<?> "token") . located $ choice
   , Escape <$ char '`'
   , GroupBegin <$ char '('
   , GroupEnd <$ char ')'
-  , Lambda <$ char '\\'
   , Layout <$ char ':'
   , VectorBegin <$ char '['
   , VectorEnd <$ char ']'
