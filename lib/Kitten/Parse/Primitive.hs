@@ -1,7 +1,8 @@
 module Kitten.Parse.Primitive
-  ( blocked
-  , identifier
+  ( bigWord
+  , blocked
   , grouped
+  , littleWord
   ) where
 
 import Kitten.Parse.Monad
@@ -14,11 +15,15 @@ blocked = between
   (match Token.BlockBegin)
   (match Token.BlockEnd)
 
-identifier :: Parser String
-identifier = mapOne toIdentifier
-  where
-  toIdentifier (Token.Word name) = Just name
-  toIdentifier _ = Nothing
+littleWord :: Parser String
+littleWord = mapOne $ \ token -> case token of
+  Token.LittleWord name -> Just name
+  _ -> Nothing
+
+bigWord :: Parser String
+bigWord = mapOne $ \ token -> case token of
+  Token.BigWord name -> Just name
+  _ -> Nothing
 
 grouped :: Parser a -> Parser a
 grouped = between

@@ -6,6 +6,7 @@ module Kitten.Tokenize
 
 import Control.Applicative
 import Control.Monad
+import Data.Char
 import Data.Functor.Identity
 
 import qualified Text.Parsec as Parsec
@@ -13,6 +14,7 @@ import qualified Text.Parsec as Parsec
 import Kitten.Parsec
 import Kitten.Location
 import Kitten.Token
+import Kitten.Util.Applicative
 import Kitten.Util.Parsec
 
 import qualified Kitten.Builtin as Builtin
@@ -85,19 +87,20 @@ token = (<?> "token") . located $ choice
     ]
 
   word :: Parser Token
-  word = flip fmap (alphanumeric <|> symbolic) $ \ name -> case name of
-    "bool" -> BoolType
+  word = ffor (alphanumeric <|> symbolic) $ \ name -> case name of
+    "Bool" -> BoolType
+    "Float" -> FloatType
+    "Int" -> IntType
+    "Text" -> TextType
     "def" -> Def
     "else" -> Else
     "false" -> Bool False
-    "float" -> FloatType
     "if" -> If
-    "int" -> IntType
-    "text" -> TextType
     "true" -> Bool True
+    (first : _) | isUpper first -> BigWord name
     _ -> case Builtin.fromString name of
       Just builtin -> Builtin builtin
-      _ -> Word name
+      _ -> LittleWord name
     where
 
     alphanumeric :: Parser String

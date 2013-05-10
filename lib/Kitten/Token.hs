@@ -10,6 +10,7 @@ import Kitten.Builtin (Builtin)
 
 data Token
   = Arrow
+  | BigWord String
   | BlockBegin
   | BlockEnd
   | Bool Bool
@@ -26,20 +27,21 @@ data Token
   | Int Int
   | IntType
   | Layout
+  | LittleWord String
   | Text String
   | TextType
   | VectorBegin
   | VectorEnd
-  | Word String
   deriving (Eq)
 
 instance Show Token where
   show t = case t of
     Arrow -> "->"
+    BigWord word -> word
     BlockBegin -> "{"
     BlockEnd -> "}"
     Bool value -> if value then "true" else "false"
-    BoolType -> "bool"
+    BoolType -> "Bool"
     Builtin name -> show name
     Def -> "def"
     Else -> "else"
@@ -47,16 +49,16 @@ instance Show Token where
     GroupBegin -> "("
     GroupEnd -> ")"
     Float value -> show value
-    FloatType -> "float"
+    FloatType -> "Float"
     If -> "if"
     Int value -> show value
-    IntType -> "int"
+    IntType -> "Int"
     Layout -> ":"
+    LittleWord word -> word
     Text value -> show value
-    TextType -> "text"
+    TextType -> "Text"
     VectorBegin -> "["
     VectorEnd -> "]"
-    Word word -> word
 
 data Located = Located
   { locatedToken :: Token

@@ -37,5 +37,5 @@ signature = locate $ Anno <$> signature'
     , Anno.Text <$ match Token.TextType
     , Anno.Float <$ match Token.FloatType
     , Anno.Int <$ match Token.IntType
-    , Anno.Any <$ identifier
+    , Anno.Any <$ littleWord
     ]

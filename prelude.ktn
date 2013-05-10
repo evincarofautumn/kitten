@@ -1,63 +1,63 @@
 -- Builtin
 
-def +. (float float -> float): __add_float
-def + (int int -> int): __add_int
-def && (bool bool -> bool): __and_bool
-def & (int int -> int): __and_int
+def +. (Float Float -> Float): __add_float
+def + (Int Int -> Int): __add_int
+def && (Bool Bool -> Bool): __and_bool
+def & (Int Int -> Int): __and_int
 
 -- FIXME Cannot express row types.
 -- def apply (A (A -> B) -> B): __apply
 
-def at ([a] int -> a): __at
+def at ([a] Int -> a): __at
 def bottom ([a] -> a): __bottom
 def cat ([a] [a] -> [a]): __cat
 
 -- FIXME Cannot express row types.
 -- def compose ((A -> B) (B -> C) -> (A -> C)): __compose
 
-def /. (float float -> float): __div_float
-def / (int int -> int): __div_int
+def /. (Float Float -> Float): __div_float
+def / (Int Int -> Int): __div_int
 def down ([a] -> [a]): __down
-def =. (float float -> bool): __eq_float
-def = (int int -> bool): __eq_int
-def empty ([a] -> bool): __empty
+def =. (Float Float -> Bool): __eq_float
+def = (Int Int -> Bool): __eq_int
+def empty ([a] -> Bool): __empty
 def function (a -> (-> a)): __function
-def >=. (float float -> bool): __ge_float
-def >= (int int -> bool): __ge_int
-def >. (float float -> bool): __gt_float
-def > (int int -> bool): __gt_int
-def <=. (float float -> bool): __le_float
-def <= (int int -> bool): __le_int
-def length ([a] -> int): __length
-def <. (float float -> bool): __lt_float
-def < (int int -> bool): __lt_int
-def %. (float float -> float): __mod_float
-def % (int int -> int): __mod_int
-def *. (float float -> float): __mul_float
-def * (int int -> int): __mul_int
-def !=. (float float -> bool): __ne_float
-def != (int int -> bool): __ne_int
-def negf (float -> float): __neg_float
-def neg (int -> int): __neg_int
-def ! (bool -> bool): __not_bool
-def ~ (int -> int): __not_int
-def || (bool bool -> bool): __or_bool
-def | (int int -> int): __or_int
-def print (text ->): __print
-def showi (int -> text): __show_int
-def showf (float -> text): __show_float
-def -. (float float -> float): __sub_float
-def - (int int -> int): __sub_int
+def >=. (Float Float -> Bool): __ge_float
+def >= (Int Int -> Bool): __ge_int
+def >. (Float Float -> Bool): __gt_float
+def > (Int Int -> Bool): __gt_int
+def <=. (Float Float -> Bool): __le_float
+def <= (Int Int -> Bool): __le_int
+def length ([a] -> Int): __length
+def <. (Float Float -> Bool): __lt_float
+def < (Int Int -> Bool): __lt_int
+def %. (Float Float -> Float): __mod_float
+def % (Int Int -> Int): __mod_int
+def *. (Float Float -> Float): __mul_float
+def * (Int Int -> Int): __mul_int
+def !=. (Float Float -> Bool): __ne_float
+def != (Int Int -> Bool): __ne_int
+def negf (Float -> Float): __neg_float
+def neg (Int -> Int): __neg_int
+def ! (Bool -> Bool): __not_bool
+def ~ (Int -> Int): __not_int
+def || (Bool Bool -> Bool): __or_bool
+def | (Int Int -> Int): __or_int
+def print (Text ->): __print
+def showi (Int -> Text): __show_int
+def showf (Float -> Text): __show_float
+def -. (Float Float -> Float): __sub_float
+def - (Int Int -> Int): __sub_int
 def top ([a] -> a): __top
 def up ([a] -> [a]): __up
 def vector (a -> [a]): __vector
-def ^^ (bool bool -> bool): __xor_bool
-def ^ (int int -> int): __xor_int
+def ^^ (Bool Bool -> Bool): __xor_bool
+def ^ (Int Int -> Int): __xor_int
 
 -- Core
 
-def dec (int -> int): 1 -
-def decf (float -> float): 1.0 -.
+def dec (Int -> Int): 1 -
+def decf (Float -> Float): 1.0 -.
 
 def drop (a ->):
   -> x
@@ -67,15 +67,15 @@ def dup (a -> a a):
   x x
 
 def id (a -> a) {}
-def inc (int -> int): 1 +
-def incf (float -> float): 1.0 +.
+def inc (Int -> Int): 1 +
+def incf (Float -> Float): 1.0 +.
 
 def swap (a b -> b a):
   -> a
   -> b
   a b
 
-def showb (bool -> text): if: "true" else: "false"
+def showb (Bool -> Text): if: "true" else: "false"
 
 -- Pushes a value to the top of a vector.
 def push ([a] a -> [a]): vector cat
@@ -94,43 +94,43 @@ def each ([a] (a ->) ->):
   (a -> a){ dup f __apply } map drop
 
 def newline (->): "\n" print
-def printb (bool ->): showb print
-def printf (float ->): showf print
-def printi (int ->): showi print
+def printb (Bool ->): showb print
+def printf (Float ->): showf print
+def printi (Int ->): showi print
 
-def printiv ([int] ->):
+def printiv ([Int] ->):
   "[ " print
-  (int ->){ printi space } each
+  (Int ->){ printi space } each
   "]" print
 
-def printfv ([float] ->):
+def printfv ([Float] ->):
   "[ " print
-  (float ->){ printf space } each
+  (Float ->){ printf space } each
   "]" print
 
-def say (text ->): print newline
-def sayb (bool ->): printb newline
-def sayf (float ->): printf newline
-def sayi (int ->): printi newline
-def sayfv ([float] ->): printfv newline
-def sayiv ([int] ->): printiv newline
+def say (Text ->): print newline
+def sayb (Bool ->): printb newline
+def sayf (Float ->): printf newline
+def sayi (Int ->): printi newline
+def sayfv ([Float] ->): printfv newline
+def sayiv ([Int] ->): printiv newline
 def space (->): " " print
 
 -- Math and Logic
 
-def and ([bool] -> bool): true `&& fold_up
-def even (int -> bool): 2 % 0 =
-def evenf (float -> bool): 2.0 %. 0.0 =.
-def odd (int -> bool): even !
-def oddf (float -> bool): evenf !
-def or ([bool] -> bool): false `|| fold_up
-def product ([int] -> int): 1 `* fold_up
-def productf ([float] -> float): 1.0 `*. fold_up
-def sum ([int] -> int): 0 `+ fold_up
-def sumf ([float] -> float): 0.0 `+. fold_up
+def and ([Bool] -> Bool): true `&& fold_up
+def even (Int -> Bool): 2 % 0 =
+def evenf (Float -> Bool): 2.0 %. 0.0 =.
+def odd (Int -> Bool): even !
+def oddf (Float -> Bool): evenf !
+def or ([Bool] -> Bool): false `|| fold_up
+def product ([Int] -> Int): 1 `* fold_up
+def productf ([Float] -> Float): 1.0 `*. fold_up
+def sum ([Int] -> Int): 0 `+ fold_up
+def sumf ([Float] -> Float): 0.0 `+. fold_up
 
 -- Iterates a function on a value until a predicate holds.
-def until (a (a -> a) (a -> bool) -> a):
+def until (a (a -> a) (a -> Bool) -> a):
   -> p  -- Predicate
   -> f  -- Function
   -> x  -- Initial value
@@ -155,7 +155,7 @@ def fold_up ([a] b (a b -> b) -> b):
     f __apply
 
 -- Filters a vector by a predicate.
-def filter ([a] (a -> bool) -> [a]):
+def filter ([a] (a -> Bool) -> [a]):
   -> p   -- Predicate
   -> xs  -- Vector
   if xs empty:
@@ -168,7 +168,7 @@ def filter ([a] (a -> bool) -> [a]):
     xs up p filter
 
 -- Keeps the topmost n elements of a vector, tossing the rest.
-def keep ([a] int -> [a]):
+def keep ([a] Int -> [a]):
   -> n   -- Number of elements
   -> xs  -- Vector
   if n 0 <=  xs empty  || :
@@ -189,14 +189,14 @@ def map ([a] (a -> b) -> [b]):
     prepend
 
 -- Splits a vector at the given index.
-def split_at ([a] int -> [a] [a]):
+def split_at ([a] Int -> [a] [a]):
   -> n   -- Number of elements
   -> xs  -- Vector
   xs n toss
   xs n keep
 
 -- Tosses the first n elements of a vector, keeping the rest.
-def toss ([a] int -> [a]):
+def toss ([a] Int -> [a]):
   -> n   -- Number of elements
   -> xs  -- Vector
   if n 0 <=  xs empty  || :

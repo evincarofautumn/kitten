@@ -46,7 +46,7 @@ element = choice
 
 def :: Parser (Def Term)
 def = (<?> "definition") . locate
-  $ match Token.Def *> (Def <$> identifier <*> term)
+  $ match Token.Def *> (Def <$> littleWord <*> term)
 
 term :: Parser Term
 term = nonblock <|> Block <$> block
@@ -62,7 +62,7 @@ term = nonblock <|> Block <$> block
 
   lambda :: Parser (Location -> Term)
   lambda = (<?> "lambda") $ match Token.Arrow *>
-    (Lambda <$> identifier <*> many term)
+    (Lambda <$> littleWord <*> many term)
 
   if_ :: Parser (Location -> Term)
   if_ = If
@@ -77,7 +77,7 @@ term = nonblock <|> Block <$> block
 value :: Parser Value
 value = locate $ choice
   [ mapOne toLiteral <?> "literal"
-  , mapOne toWord <?> "word"
+  , Word <$> littleWord <?> "word"
   , annotated
   , escape
   , Vector Nothing <$> vector
@@ -91,10 +91,6 @@ value = locate $ choice
   toLiteral (Token.Text x) = Just $ Text x
   toLiteral _ = Nothing
 
-  toWord :: Token -> Maybe (Location -> Value)
-  toWord (Token.Word name) = Just $ Word name
-  toWord _ = Nothing
-
   annotated :: Parser (Location -> Value)
   annotated = do
     anno <- grouped signature
@@ -102,7 +98,7 @@ value = locate $ choice
       <|> (Function anno <$> block)
 
   escape :: Parser (Location -> Value)
-  escape = Escape <$> (match Token.Escape *> identifier)
+  escape = Escape <$> (match Token.Escape *> littleWord)
 
   vector :: Parser [Value]
   vector = (reverse <$> between

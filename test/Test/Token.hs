@@ -71,9 +71,10 @@ spec = do
     testTokens "false" [Bool False]
 
   describe "tokenize keyword" $ do
-    testTokens "bool" [BoolType]
-    testTokens "int" [IntType]
-    testTokens "text" [TextType]
+    testTokens "Bool" [BoolType]
+    testTokens "Float" [FloatType]
+    testTokens "Int" [IntType]
+    testTokens "Text" [TextType]
     testTokens "def" [Def]
 
   describe "tokenize builtin" $ do
@@ -84,13 +85,13 @@ spec = do
     testTokens "__apply" [Builtin Builtin.Apply]
 
   describe "tokenize word" $ do
-    testTokens "not_a_keyword" [Word "not_a_keyword"]
-    testTokens "alsoNot" [Word "alsoNot"]
-    testTokens "thisThat123" [Word "thisThat123"]
-    testTokens "+-" [Word "+-"]
-    testTokens "<=>" [Word "<=>"]
+    testTokens "not_a_keyword" [LittleWord "not_a_keyword"]
+    testTokens "alsoNot" [LittleWord "alsoNot"]
+    testTokens "thisThat123" [LittleWord "thisThat123"]
+    testTokens "+-" [LittleWord "+-"]
+    testTokens "<=>" [LittleWord "<=>"]
     testTokens "!#$%&*+,-./;<=>?@^|~"
-      [Word "!#$%&*+,-./;<=>?@^|~"]
+      [LittleWord "!#$%&*+,-./;<=>?@^|~"]
 
 testComment :: String -> Assertion
 testComment source = case tokenize "test" source of
