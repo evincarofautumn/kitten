@@ -8,7 +8,6 @@ def & (Int Int -> Int): __and_int
 -- FIXME Cannot express row types.
 -- def apply (A (A -> B) -> B): __apply
 
-def at ([a] Int -> a): __at
 def bottom ([a] -> a): __bottom
 def ++ ([a] [a] -> [a]): __cat_vector
 
@@ -30,6 +29,7 @@ def function (a -> (-> a)): __function
 def >=. (Float Float -> Bool): __ge_float
 def >= (Int Int -> Bool): __ge_int
 def >=+ ([a] [a] -> Bool): __ge_vector
+def get ([a] Int -> a): __get
 def >. (Float Float -> Bool): __gt_float
 def > (Int Int -> Bool): __gt_int
 def >+ ([a] [a] -> Bool): __gt_vector
@@ -56,6 +56,7 @@ def ~ (Int -> Int): __not_int
 def || (Bool Bool -> Bool): __or_bool
 def | (Int Int -> Int): __or_int
 def print ([Char] ->): __print
+def set ([a] a Int -> [a]): __set
 def showi (Int -> [Char]): __show_int
 def showf (Float -> [Char]): __show_float
 def -. (Float Float -> Float): __sub_float

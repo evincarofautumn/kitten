@@ -20,7 +20,6 @@ data Builtin
   | AndBool
   | AndInt
   | Apply
-  | At
   | Bottom
   | CatVector
   | Compose
@@ -39,6 +38,7 @@ data Builtin
   | GeFloat
   | GeInt
   | GeVector
+  | Get
   | GtFloat
   | GtInt
   | GtVector
@@ -65,6 +65,7 @@ data Builtin
   | OrBool
   | OrInt
   | Print
+  | Set
   | ShowFloat
   | ShowInt
   | SubFloat
@@ -102,7 +103,6 @@ fromStringTable =
   , (,) "__and_bool"   AndBool
   , (,) "__and_int"    AndInt
   , (,) "__apply"      Apply
-  , (,) "__at"         At
   , (,) "__bottom"     Bottom
   , (,) "__cat_vector" CatVector
   , (,) "__compose"    Compose
@@ -121,6 +121,7 @@ fromStringTable =
   , (,) "__ge_float"   GeFloat
   , (,) "__ge_int"     GeInt
   , (,) "__ge_vector"  GeVector
+  , (,) "__get"        Get
   , (,) "__gt_float"   GtFloat
   , (,) "__gt_int"     GtInt
   , (,) "__gt_vector"  GtVector
@@ -147,6 +148,7 @@ fromStringTable =
   , (,) "__or_bool"    OrBool
   , (,) "__or_int"     OrInt
   , (,) "__print"      Print
+  , (,) "__set"        Set
   , (,) "__show_float" ShowFloat
   , (,) "__show_int"   ShowInt
   , (,) "__sub_float"  SubFloat

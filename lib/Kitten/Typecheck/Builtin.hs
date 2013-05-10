@@ -27,11 +27,6 @@ typecheckBuiltin builtin = case builtin of
     mapM_ popDataExpecting_ $ reverse consumption
     mapM_ pushData production
 
-  Builtin.At -> do
-    popDataExpecting_ IntType
-    VectorType a <- popDataExpecting $ VectorType AnyType
-    pushData a
-
   Builtin.Bottom -> do
     VectorType a <- popDataExpecting $ VectorType AnyType
     pushData a
@@ -41,13 +36,7 @@ typecheckBuiltin builtin = case builtin of
     VectorType a <- popDataExpecting $ VectorType AnyType
     if a == b
       then pushData $ VectorType a
-      else typeError $ concat
-        [ "mismatched element types "
-        , show a
-        , " and "
-        , show b
-        , " in 'cat'"
-        ]
+      else mismatchedElements a b
 
   Builtin.Compose -> do
     Composition c :> Composition d
@@ -94,6 +83,11 @@ typecheckBuiltin builtin = case builtin of
   Builtin.GeInt -> intsToBool
   Builtin.GeVector -> vectorsToBool
 
+  Builtin.Get -> do
+    popDataExpecting_ IntType
+    VectorType a <- popDataExpecting $ VectorType AnyType
+    pushData a
+
   Builtin.GtFloat -> floatsToBool
   Builtin.GtInt -> intsToBool
   Builtin.GtVector -> vectorsToBool
@@ -135,6 +129,14 @@ typecheckBuiltin builtin = case builtin of
   Builtin.OrInt -> intsToInt
 
   Builtin.Print -> popDataExpecting_ $ VectorType CharType
+
+  Builtin.Set -> do
+    popDataExpecting_ IntType
+    b <- popData
+    VectorType a <- popDataExpecting $ VectorType AnyType
+    if a == b
+      then pushData $ VectorType a
+      else mismatchedElements a b
 
   Builtin.ShowFloat -> do
     popDataExpecting_ FloatType
@@ -212,3 +214,14 @@ typecheckBuiltin builtin = case builtin of
     popDataExpecting_ $ VectorType AnyType
     popDataExpecting_ $ VectorType AnyType
     pushData BoolType
+
+mismatchedElements
+  :: Type Scalar
+  -> Type Scalar
+  -> Typecheck
+mismatchedElements a b = typeError $ concat
+  [ "mismatched element types "
+  , show a
+  , " and "
+  , show b
+  ]

@@ -82,11 +82,6 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.Apply -> interpretFunction =<< popData
 
-  Builtin.At -> do
-    Int b <- popData
-    Vector _ a <- popData
-    pushData $ a !! b
-
   Builtin.Bottom -> do
     Vector _ a <- popData
     pushData $ last a
@@ -139,6 +134,11 @@ interpretBuiltin builtin = case builtin of
   Builtin.GeInt -> intsToBool (>=)
   Builtin.GeVector -> vectorsToBool (>=)
 
+  Builtin.Get -> do
+    Int b <- popData
+    Vector _ a <- popData
+    pushData $ a !! b
+
   Builtin.GtFloat -> floatsToBool (>)
   Builtin.GtInt -> intsToBool (>)
   Builtin.GtVector -> vectorsToBool (>)
@@ -182,6 +182,15 @@ interpretBuiltin builtin = case builtin of
   Builtin.Print -> do
     Vector _ a <- popData
     lift $ putStr (stringFromChars a)
+
+  Builtin.Set -> do
+    Int c <- popData
+    b <- popData
+    Vector _ a <- popData
+    pushData . Vector Nothing $ if c >= 0
+      then let (before, after) = splitAt c a
+        in before ++ b : drop 1 after
+      else b : a
 
   Builtin.ShowFloat -> do
     Float value <- popData
