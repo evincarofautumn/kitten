@@ -59,6 +59,9 @@ typecheckBuiltin builtin = case builtin of
       mapM_ pushData d
     pushData result
 
+  Builtin.DecFloat -> floatToFloat
+  Builtin.DecInt -> intToInt
+
   Builtin.DivFloat -> floatsToFloat
   Builtin.DivInt -> intsToInt
 
@@ -82,6 +85,9 @@ typecheckBuiltin builtin = case builtin of
 
   Builtin.GtFloat -> floatsToBool
   Builtin.GtInt -> intsToBool
+
+  Builtin.IncFloat -> floatToFloat
+  Builtin.IncInt -> intToInt
 
   Builtin.LeFloat -> floatsToBool
   Builtin.LeInt -> intsToBool

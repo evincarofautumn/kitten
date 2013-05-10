@@ -24,6 +24,8 @@ data Builtin
   | Bottom
   | Cat
   | Compose
+  | DecFloat
+  | DecInt
   | DivFloat
   | DivInt
   | Down
@@ -35,6 +37,8 @@ data Builtin
   | GeInt
   | GtFloat
   | GtInt
+  | IncFloat
+  | IncInt
   | LeFloat
   | LeInt
   | Length
@@ -93,6 +97,8 @@ fromStringTable =
   , (,) "__bottom"     Bottom
   , (,) "__cat"        Cat
   , (,) "__compose"    Compose
+  , (,) "__dec_float"  DecFloat
+  , (,) "__dec_int"    DecInt
   , (,) "__div_float"  DivFloat
   , (,) "__div_int"    DivInt
   , (,) "__down"       Down
@@ -104,6 +110,8 @@ fromStringTable =
   , (,) "__ge_int"     GeInt
   , (,) "__gt_float"   GtFloat
   , (,) "__gt_int"     GtInt
+  , (,) "__inc_float"  IncFloat
+  , (,) "__inc_int"    IncInt
   , (,) "__le_float"   LeFloat
   , (,) "__le_int"     LeInt
   , (,) "__length"     Length

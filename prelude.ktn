@@ -15,6 +15,8 @@ def cat ([a] [a] -> [a]): __cat
 -- FIXME Cannot express row types.
 -- def compose ((A -> B) (B -> C) -> (A -> C)): __compose
 
+def decf (Float -> Float): __dec_float
+def dec (Int -> Int): __dec_int
 def /. (Float Float -> Float): __div_float
 def / (Int Int -> Int): __div_int
 def down ([a] -> [a]): __down
@@ -26,6 +28,8 @@ def >=. (Float Float -> Bool): __ge_float
 def >= (Int Int -> Bool): __ge_int
 def >. (Float Float -> Bool): __gt_float
 def > (Int Int -> Bool): __gt_int
+def incf (Float -> Float): __inc_float
+def inc (Int -> Int): __inc_int
 def <=. (Float Float -> Bool): __le_float
 def <= (Int Int -> Bool): __le_int
 def length ([a] -> Int): __length
@@ -56,9 +60,6 @@ def ^ (Int Int -> Int): __xor_int
 
 -- Core
 
-def dec (Int -> Int): 1 -
-def decf (Float -> Float): 1.0 -.
-
 def drop (a ->):
   -> x
 
@@ -67,8 +68,6 @@ def dup (a -> a a):
   x x
 
 def id (a -> a) {}
-def inc (Int -> Int): 1 +
-def incf (Float -> Float): 1.0 +.
 
 def swap (a b -> b a):
   -> a

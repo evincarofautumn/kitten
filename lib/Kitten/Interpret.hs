@@ -107,6 +107,9 @@ interpretBuiltin builtin = case builtin of
       , Builtin Builtin.Apply loc
       ]
 
+  Builtin.DecFloat -> floatToFloat pred
+  Builtin.DecInt -> intToInt pred
+
   Builtin.DivFloat -> floatsToFloat (/)
   Builtin.DivInt -> intsToInt div
 
@@ -129,6 +132,9 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.GtFloat -> floatsToBool (>)
   Builtin.GtInt -> intsToBool (>)
+
+  Builtin.IncFloat -> floatToFloat succ
+  Builtin.IncInt -> intToInt succ
 
   Builtin.LeFloat -> floatsToBool (<=)
   Builtin.LeInt -> intsToBool (<=)
