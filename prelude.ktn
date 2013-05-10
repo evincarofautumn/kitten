@@ -17,6 +17,8 @@ def cat ([a] [a] -> [a]): __cat
 
 def decf (Float -> Float): __dec_float
 def dec (Int -> Int): __dec_int
+def drop (a ->): __drop
+def dup (a -> a a): __dup
 def /. (Float Float -> Float): __div_float
 def / (Int Int -> Int): __div_int
 def down ([a] -> [a]): __down
@@ -52,6 +54,7 @@ def showi (Int -> Text): __show_int
 def showf (Float -> Text): __show_float
 def -. (Float Float -> Float): __sub_float
 def - (Int Int -> Int): __sub_int
+def swap (a b -> b a): __swap
 def top ([a] -> a): __top
 def up ([a] -> [a]): __up
 def vector (a -> [a]): __vector
@@ -60,19 +63,7 @@ def ^ (Int Int -> Int): __xor_int
 
 -- Core
 
-def drop (a ->):
-  -> x
-
-def dup (a -> a a):
-  -> x
-  x x
-
 def id (a -> a) {}
-
-def swap (a b -> b a):
-  -> a
-  -> b
-  a b
 
 def showb (Bool -> Text): if: "true" else: "false"
 

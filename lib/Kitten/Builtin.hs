@@ -29,9 +29,11 @@ data Builtin
   | DivFloat
   | DivInt
   | Down
+  | Drop
+  | Dup
+  | Empty
   | EqFloat
   | EqInt
-  | Empty
   | Function
   | GeFloat
   | GeInt
@@ -61,6 +63,7 @@ data Builtin
   | ShowInt
   | SubFloat
   | SubInt
+  | Swap
   | Top
   | Up
   | Vector
@@ -102,6 +105,8 @@ fromStringTable =
   , (,) "__div_float"  DivFloat
   , (,) "__div_int"    DivInt
   , (,) "__down"       Down
+  , (,) "__drop"       Drop
+  , (,) "__dup"        Dup
   , (,) "__eq_float"   EqFloat
   , (,) "__eq_int"     EqInt
   , (,) "__empty"      Empty
@@ -134,6 +139,7 @@ fromStringTable =
   , (,) "__show_int"   ShowInt
   , (,) "__sub_float"  SubFloat
   , (,) "__sub_int"    SubInt
+  , (,) "__swap"       Swap
   , (,) "__top"        Top
   , (,) "__up"         Up
   , (,) "__vector"     Vector

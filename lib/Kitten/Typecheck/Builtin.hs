@@ -4,6 +4,8 @@ module Kitten.Typecheck.Builtin
   ( typecheckBuiltin
   ) where
 
+import Control.Monad
+
 import Kitten.Builtin (Builtin)
 import Kitten.Type
 import Kitten.Typecheck.Monad
@@ -69,6 +71,13 @@ typecheckBuiltin builtin = case builtin of
     a <- popDataExpecting $ VectorType AnyType
     pushData a
 
+  Builtin.Drop -> void popData
+
+  Builtin.Dup -> do
+    a <- popData
+    pushData a
+    pushData a
+
   Builtin.EqFloat -> floatsToBool
   Builtin.EqInt -> intsToBool
 
@@ -131,6 +140,12 @@ typecheckBuiltin builtin = case builtin of
 
   Builtin.SubFloat -> floatsToFloat
   Builtin.SubInt -> intsToInt
+
+  Builtin.Swap -> do
+    b <- popData
+    a <- popData
+    pushData b
+    pushData a
 
   Builtin.Top -> do
     VectorType a <- popDataExpecting $ VectorType AnyType
