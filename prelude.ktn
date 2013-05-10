@@ -10,7 +10,7 @@ def & (Int Int -> Int): __and_int
 
 def at ([a] Int -> a): __at
 def bottom ([a] -> a): __bottom
-def cat ([a] [a] -> [a]): __cat
+def ++ ([a] [a] -> [a]): __cat_vector
 
 -- FIXME Cannot express row types.
 -- def compose ((A -> B) (B -> C) -> (A -> C)): __compose
@@ -24,34 +24,40 @@ def / (Int Int -> Int): __div_int
 def down ([a] -> [a]): __down
 def =. (Float Float -> Bool): __eq_float
 def = (Int Int -> Bool): __eq_int
+def =+ ([a] [a] -> Bool): __eq_vector
 def empty ([a] -> Bool): __empty
 def function (a -> (-> a)): __function
 def >=. (Float Float -> Bool): __ge_float
 def >= (Int Int -> Bool): __ge_int
+def >=+ ([a] [a] -> Bool): __ge_vector
 def >. (Float Float -> Bool): __gt_float
 def > (Int Int -> Bool): __gt_int
+def >+ ([a] [a] -> Bool): __gt_vector
 def incf (Float -> Float): __inc_float
 def inc (Int -> Int): __inc_int
 def <=. (Float Float -> Bool): __le_float
 def <= (Int Int -> Bool): __le_int
+def <=+ ([a] [a] -> Bool): __le_vector
 def length ([a] -> Int): __length
 def <. (Float Float -> Bool): __lt_float
 def < (Int Int -> Bool): __lt_int
+def <+ ([a] [a] -> Bool): __lt_vector
 def %. (Float Float -> Float): __mod_float
 def % (Int Int -> Int): __mod_int
 def *. (Float Float -> Float): __mul_float
 def * (Int Int -> Int): __mul_int
 def !=. (Float Float -> Bool): __ne_float
 def != (Int Int -> Bool): __ne_int
+def !=+ ([a] [a] -> Bool): __ne_vector
 def negf (Float -> Float): __neg_float
 def neg (Int -> Int): __neg_int
 def ! (Bool -> Bool): __not_bool
 def ~ (Int -> Int): __not_int
 def || (Bool Bool -> Bool): __or_bool
 def | (Int Int -> Int): __or_int
-def print (Text ->): __print
-def showi (Int -> Text): __show_int
-def showf (Float -> Text): __show_float
+def print ([Char] ->): __print
+def showi (Int -> [Char]): __show_int
+def showf (Float -> [Char]): __show_float
 def -. (Float Float -> Float): __sub_float
 def - (Int Int -> Int): __sub_int
 def swap (a b -> b a): __swap
@@ -65,16 +71,16 @@ def ^ (Int Int -> Int): __xor_int
 
 def id (a -> a) {}
 
-def showb (Bool -> Text): if: "true" else: "false"
+def showb (Bool -> [Char]): if: "true" else: "false"
 
 -- Pushes a value to the top of a vector.
-def push ([a] a -> [a]): vector cat
+def push ([a] a -> [a]): vector ++
 
 -- Prepends a value to the bottom of a vector.
 def prepend (a [a] -> [a]):
   -> xs
   -> x
-  x vector xs cat
+  x vector xs ++
 
 -- Impure
 
@@ -98,7 +104,7 @@ def printfv ([Float] ->):
   (Float ->){ printf space } each
   "]" print
 
-def say (Text ->): print newline
+def say ([Char] ->): print newline
 def sayb (Bool ->): printb newline
 def sayf (Float ->): printf newline
 def sayi (Int ->): printi newline
@@ -153,7 +159,7 @@ def filter ([a] (a -> Bool) -> [a]):
   else if xs bottom p __apply:
     xs bottom vector
     xs up p filter
-    cat
+    ++
   else:
     xs up p filter
 

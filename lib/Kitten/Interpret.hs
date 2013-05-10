@@ -91,7 +91,7 @@ interpretBuiltin builtin = case builtin of
     Vector _ a <- popData
     pushData $ last a
 
-  Builtin.Cat -> do
+  Builtin.CatVector -> do
     Vector _ b <- popData
     Vector _ a <- popData
     pushData $ Vector Nothing (b ++ a)
@@ -126,6 +126,7 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.EqFloat -> floatsToBool (==)
   Builtin.EqInt -> intsToBool (==)
+  Builtin.EqVector -> vectorsToBool (==)
 
   Builtin.Empty -> do
     Vector _ a <- popData
@@ -136,15 +137,18 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.GeFloat -> floatsToBool (>=)
   Builtin.GeInt -> intsToBool (>=)
+  Builtin.GeVector -> vectorsToBool (>=)
 
   Builtin.GtFloat -> floatsToBool (>)
   Builtin.GtInt -> intsToBool (>)
+  Builtin.GtVector -> vectorsToBool (>)
 
   Builtin.IncFloat -> floatToFloat succ
   Builtin.IncInt -> intToInt succ
 
   Builtin.LeFloat -> floatsToBool (<=)
   Builtin.LeInt -> intsToBool (<=)
+  Builtin.LeVector -> vectorsToBool (<=)
 
   Builtin.Length -> do
     Vector _ a <- popData
@@ -152,6 +156,7 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.LtFloat -> floatsToBool (<)
   Builtin.LtInt -> intsToBool (<)
+  Builtin.LtVector -> vectorsToBool (<)
 
   Builtin.ModFloat -> floatsToFloat mod'
   Builtin.ModInt -> intsToInt mod
@@ -161,6 +166,7 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.NeFloat -> floatsToBool (/=)
   Builtin.NeInt -> intsToBool (/=)
+  Builtin.NeVector -> vectorsToBool (/=)
 
   Builtin.NegFloat -> floatToFloat negate
   Builtin.NegInt -> intToInt negate
@@ -174,16 +180,16 @@ interpretBuiltin builtin = case builtin of
   Builtin.OrInt -> intsToInt (.|.)
 
   Builtin.Print -> do
-    Text text <- popData
-    lift $ putStr text
+    Vector _ a <- popData
+    lift $ putStr (stringFromChars a)
 
   Builtin.ShowFloat -> do
     Float value <- popData
-    pushData $ Text (show value)
+    pushData $ Vector Nothing (charsFromString $ show value)
 
   Builtin.ShowInt -> do
     Int value <- popData
-    pushData $ Text (show value)
+    pushData $ Vector Nothing (charsFromString $ show value)
 
   Builtin.SubFloat -> floatsToFloat (-)
   Builtin.SubInt -> intsToInt (-)
@@ -223,27 +229,16 @@ interpretBuiltin builtin = case builtin of
     Bool a <- popData
     pushData $ Bool (f a b)
 
-  floatsToBool :: (Double -> Double -> Bool) -> Interpret
-  floatsToBool f = do
-    Float b <- popData
-    Float a <- popData
-    pushData $ Bool (f a b)
-
-  intsToBool :: (Int -> Int -> Bool) -> Interpret
-  intsToBool f = do
-    Int b <- popData
-    Int a <- popData
-    pushData $ Bool (f a b)
-
   floatToFloat :: (Double -> Double) -> Interpret
   floatToFloat f = do
     Float a <- popData
     pushData $ Float (f a)
 
-  intToInt :: (Int -> Int) -> Interpret
-  intToInt f = do
-    Int a <- popData
-    pushData $ Int (f a)
+  floatsToBool :: (Double -> Double -> Bool) -> Interpret
+  floatsToBool f = do
+    Float b <- popData
+    Float a <- popData
+    pushData $ Bool (f a b)
 
   floatsToFloat :: (Double -> Double -> Double) -> Interpret
   floatsToFloat f = do
@@ -251,8 +246,31 @@ interpretBuiltin builtin = case builtin of
     Float a <- popData
     pushData $ Float (f a b)
 
+  intToInt :: (Int -> Int) -> Interpret
+  intToInt f = do
+    Int a <- popData
+    pushData $ Int (f a)
+
+  intsToBool :: (Int -> Int -> Bool) -> Interpret
+  intsToBool f = do
+    Int b <- popData
+    Int a <- popData
+    pushData $ Bool (f a b)
+
   intsToInt :: (Int -> Int -> Int) -> Interpret
   intsToInt f = do
     Int b <- popData
     Int a <- popData
     pushData $ Int (f a b)
+
+  vectorsToBool :: (String -> String -> Bool) -> Interpret
+  vectorsToBool f = do
+    Vector _ b <- popData
+    Vector _ a <- popData
+    pushData . Bool $ f (stringFromChars a) (stringFromChars b)
+
+stringFromChars :: [Value] -> String
+stringFromChars = map $ \ (Char c) -> c
+
+charsFromString :: String -> [Value]
+charsFromString = map Char

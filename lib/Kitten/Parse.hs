@@ -86,9 +86,11 @@ value = locate $ choice
 
   toLiteral :: Token -> Maybe (Location -> Value)
   toLiteral (Token.Bool x) = Just $ Bool x
+  toLiteral (Token.Char x) = Just $ Char x
   toLiteral (Token.Float x) = Just $ Float x
   toLiteral (Token.Int x) = Just $ Int x
-  toLiteral (Token.Text x) = Just $ Text x
+  toLiteral (Token.Text x) = Just $ \ loc
+    -> Vector Nothing (map (\ c -> Char c loc) x) loc
   toLiteral _ = Nothing
 
   annotated :: Parser (Location -> Value)

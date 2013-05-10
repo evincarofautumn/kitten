@@ -22,7 +22,7 @@ data Builtin
   | Apply
   | At
   | Bottom
-  | Cat
+  | CatVector
   | Compose
   | DecFloat
   | DecInt
@@ -34,24 +34,30 @@ data Builtin
   | Empty
   | EqFloat
   | EqInt
+  | EqVector
   | Function
   | GeFloat
   | GeInt
+  | GeVector
   | GtFloat
   | GtInt
+  | GtVector
   | IncFloat
   | IncInt
   | LeFloat
   | LeInt
+  | LeVector
   | Length
   | LtFloat
   | LtInt
+  | LtVector
   | ModFloat
   | ModInt
   | MulFloat
   | MulInt
   | NeFloat
   | NeInt
+  | NeVector
   | NegFloat
   | NegInt
   | NotBool
@@ -98,7 +104,7 @@ fromStringTable =
   , (,) "__apply"      Apply
   , (,) "__at"         At
   , (,) "__bottom"     Bottom
-  , (,) "__cat"        Cat
+  , (,) "__cat_vector" CatVector
   , (,) "__compose"    Compose
   , (,) "__dec_float"  DecFloat
   , (,) "__dec_int"    DecInt
@@ -109,25 +115,31 @@ fromStringTable =
   , (,) "__dup"        Dup
   , (,) "__eq_float"   EqFloat
   , (,) "__eq_int"     EqInt
+  , (,) "__eq_vector"  EqVector
   , (,) "__empty"      Empty
   , (,) "__function"   Function
   , (,) "__ge_float"   GeFloat
   , (,) "__ge_int"     GeInt
+  , (,) "__ge_vector"  GeVector
   , (,) "__gt_float"   GtFloat
   , (,) "__gt_int"     GtInt
+  , (,) "__gt_vector"  GtVector
   , (,) "__inc_float"  IncFloat
   , (,) "__inc_int"    IncInt
   , (,) "__le_float"   LeFloat
   , (,) "__le_int"     LeInt
+  , (,) "__le_vector"  LeVector
   , (,) "__length"     Length
   , (,) "__lt_float"   LtFloat
   , (,) "__lt_int"     LtInt
+  , (,) "__lt_vector"  LtVector
   , (,) "__mod_float"  ModFloat
   , (,) "__mod_int"    ModInt
   , (,) "__mul_float"  MulFloat
   , (,) "__mul_int"    MulInt
   , (,) "__ne_float"   NeFloat
   , (,) "__ne_int"     NeInt
+  , (,) "__ne_vector"  NeVector
   , (,) "__neg_float"  NegFloat
   , (,) "__neg_int"    NegInt
   , (,) "__not_bool"   NotBool

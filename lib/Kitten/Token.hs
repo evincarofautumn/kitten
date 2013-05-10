@@ -16,6 +16,8 @@ data Token
   | Bool Bool
   | BoolType
   | Builtin Builtin
+  | Char Char
+  | CharType
   | Def
   | Else
   | Escape
@@ -29,7 +31,6 @@ data Token
   | Layout
   | LittleWord String
   | Text String
-  | TextType
   | VectorBegin
   | VectorEnd
   deriving (Eq)
@@ -43,6 +44,8 @@ instance Show Token where
     Bool value -> if value then "true" else "false"
     BoolType -> "Bool"
     Builtin name -> show name
+    Char char -> show char
+    CharType -> "Char"
     Def -> "def"
     Else -> "else"
     Escape -> "`"
@@ -56,7 +59,6 @@ instance Show Token where
     Layout -> ":"
     LittleWord word -> word
     Text value -> show value
-    TextType -> "Text"
     VectorBegin -> "["
     VectorEnd -> "]"
 

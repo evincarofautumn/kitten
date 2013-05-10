@@ -17,9 +17,9 @@ import qualified Kitten.Anno as Anno
 
 data Type a where
   BoolType :: Type Scalar
+  CharType :: Type Scalar
   FloatType :: Type Scalar
   IntType :: Type Scalar
-  TextType :: Type Scalar
   (:>) :: Type Row -> Type Row -> Type Scalar
   Composition :: [Type Scalar] -> Type Row
   VectorType :: Type Scalar -> Type Scalar
@@ -28,9 +28,9 @@ data Type a where
 
 instance Eq (Type a) where
   BoolType == BoolType = True
+  CharType == CharType = True
   FloatType == FloatType = True
   IntType == IntType = True
-  TextType == TextType = True
   _ == (AnyType :> AnyType) = True  -- HACK
   (AnyType :> AnyType) == _ = True  -- HACK
   a == (Composition [] :> Composition [b]) = a == b
@@ -47,10 +47,10 @@ infix 4 :>
 
 instance Show (Type a) where
   show type_ = case type_ of
-    FloatType -> "float"
-    IntType -> "int"
-    BoolType -> "bool"
-    TextType -> "text"
+    FloatType -> "Float"
+    IntType -> "Int"
+    BoolType -> "Bool"
+    CharType -> "Char"
     VectorType a -> "[" ++ show a ++ "]"
     Composition [] :> a -> show a
     a :> b -> "(" ++ show a ++ " -> " ++ show b ++ ")"
@@ -66,9 +66,9 @@ fromAnnoType annoType = case annoType of
   a Anno.:> b -> fromAnnoRow a :> fromAnnoRow b
   Anno.Vector type_ -> VectorType $ fromAnnoType type_
   Anno.Bool -> BoolType
+  Anno.Char -> CharType
   Anno.Float -> FloatType
   Anno.Int -> IntType
-  Anno.Text -> TextType
   Anno.Any -> AnyType
 
 fromAnnoRow :: Anno.Type Row -> Type Row

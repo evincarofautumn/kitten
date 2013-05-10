@@ -18,9 +18,9 @@ typecheckAnno anno = go $ fromAnno anno
   go :: Type Scalar -> Typecheck
   go type_ = case type_ of
     BoolType -> pushData type_
+    CharType -> pushData type_
     FloatType -> pushData type_
     IntType -> pushData type_
-    TextType -> pushData type_
     VectorType _ -> pushData type_
     Composition consumption :> Composition production -> do
       mapM_ popDataExpecting_ $ reverse consumption
@@ -38,7 +38,7 @@ typecheckAnnotatedTerms anno action = do
     BoolType -> pushData type_
     FloatType -> pushData type_
     IntType -> pushData type_
-    TextType -> pushData type_
+    CharType -> pushData type_
     VectorType _ -> pushData type_
     Composition consumption :> Composition production -> do
       pushData StackFrameType

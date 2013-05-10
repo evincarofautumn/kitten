@@ -46,6 +46,7 @@ token :: Parser Located
 token = (<?> "token") . located $ choice
   [ BlockBegin <$ char '{'
   , BlockEnd <$ char '}'
+  , Char <$> (char '\'' *> character '\'' <* char '\'')
   , Escape <$ char '`'
   , GroupBegin <$ char '('
   , GroupEnd <$ char ')'
@@ -72,11 +73,14 @@ token = (<?> "token") . located $ choice
       Nothing -> Int . applySign $ read integer
 
   text :: Parser String
-  text = many (noneOf "\\\"" <|> escape)
+  text = many $ character '"'
+
+  character :: Char -> Parser Char
+  character quote = noneOf ('\\' : [quote]) <|> escape
 
   escape :: Parser Char
   escape = char '\\' *> choice
-    [ oneOf "\\\""
+    [ oneOf "\\\"'"
     , '\a' <$ char 'a'
     , '\b' <$ char 'b'
     , '\f' <$ char 'f'
@@ -89,9 +93,9 @@ token = (<?> "token") . located $ choice
   word :: Parser Token
   word = ffor (alphanumeric <|> symbolic) $ \ name -> case name of
     "Bool" -> BoolType
+    "Char" -> CharType
     "Float" -> FloatType
     "Int" -> IntType
-    "Text" -> TextType
     "def" -> Def
     "else" -> Else
     "false" -> Bool False

@@ -36,7 +36,7 @@ typecheckBuiltin builtin = case builtin of
     VectorType a <- popDataExpecting $ VectorType AnyType
     pushData a
 
-  Builtin.Cat -> do
+  Builtin.CatVector -> do
     VectorType b <- popDataExpecting $ VectorType AnyType
     VectorType a <- popDataExpecting $ VectorType AnyType
     if a == b
@@ -80,6 +80,7 @@ typecheckBuiltin builtin = case builtin of
 
   Builtin.EqFloat -> floatsToBool
   Builtin.EqInt -> intsToBool
+  Builtin.EqVector -> vectorsToBool
 
   Builtin.Empty -> do
     popDataExpecting_ $ VectorType AnyType
@@ -91,15 +92,18 @@ typecheckBuiltin builtin = case builtin of
 
   Builtin.GeFloat -> floatsToBool
   Builtin.GeInt -> intsToBool
+  Builtin.GeVector -> vectorsToBool
 
   Builtin.GtFloat -> floatsToBool
   Builtin.GtInt -> intsToBool
+  Builtin.GtVector -> vectorsToBool
 
   Builtin.IncFloat -> floatToFloat
   Builtin.IncInt -> intToInt
 
   Builtin.LeFloat -> floatsToBool
   Builtin.LeInt -> intsToBool
+  Builtin.LeVector -> vectorsToBool
 
   Builtin.Length -> do
     popDataExpecting_ $ VectorType AnyType
@@ -107,6 +111,7 @@ typecheckBuiltin builtin = case builtin of
 
   Builtin.LtFloat -> floatsToBool
   Builtin.LtInt -> intsToBool
+  Builtin.LtVector -> vectorsToBool
 
   Builtin.ModFloat -> floatsToFloat
   Builtin.ModInt -> intsToInt
@@ -116,6 +121,7 @@ typecheckBuiltin builtin = case builtin of
 
   Builtin.NeFloat -> floatsToBool
   Builtin.NeInt -> intsToBool
+  Builtin.NeVector -> vectorsToBool
 
   Builtin.NegFloat -> floatToFloat
   Builtin.NegInt -> intToInt
@@ -128,15 +134,15 @@ typecheckBuiltin builtin = case builtin of
 
   Builtin.OrInt -> intsToInt
 
-  Builtin.Print -> popDataExpecting_ TextType
+  Builtin.Print -> popDataExpecting_ $ VectorType CharType
 
   Builtin.ShowFloat -> do
     popDataExpecting_ FloatType
-    pushData TextType
+    pushData $ VectorType CharType
 
   Builtin.ShowInt -> do
     popDataExpecting_ IntType
-    pushData TextType
+    pushData $ VectorType CharType
 
   Builtin.SubFloat -> floatsToFloat
   Builtin.SubInt -> intsToInt
@@ -178,26 +184,31 @@ typecheckBuiltin builtin = case builtin of
     popDataExpecting_ FloatType
     pushData FloatType
 
-  intToInt = do
-    popDataExpecting_ IntType
-    pushData IntType
+  floatsToBool = do
+    popDataExpecting_ FloatType
+    popDataExpecting_ FloatType
+    pushData BoolType
 
   floatsToFloat = do
     popDataExpecting_ FloatType
     popDataExpecting_ FloatType
     pushData FloatType
 
+  intToInt = do
+    popDataExpecting_ IntType
+    pushData IntType
+
+  intsToBool = do
+    popDataExpecting_ IntType
+    popDataExpecting_ IntType
+    pushData BoolType
+
   intsToInt = do
     popDataExpecting_ IntType
     popDataExpecting_ IntType
     pushData IntType
 
-  floatsToBool = do
-    popDataExpecting_ FloatType
-    popDataExpecting_ FloatType
-    pushData BoolType
-
-  intsToBool = do
-    popDataExpecting_ IntType
-    popDataExpecting_ IntType
+  vectorsToBool = do
+    popDataExpecting_ $ VectorType AnyType
+    popDataExpecting_ $ VectorType AnyType
     pushData BoolType

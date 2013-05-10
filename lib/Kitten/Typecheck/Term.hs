@@ -90,6 +90,8 @@ typecheckValue value = case value of
 
   Bool _ -> pushData BoolType
 
+  Char _ -> pushData CharType
+
   Closure{} -> internalError
     "closures should not appear during typechecking"
 
@@ -106,8 +108,6 @@ typecheckValue value = case value of
     $ typecheckTerms terms
 
   Int _ -> pushData IntType
-
-  Text _ -> pushData TextType
 
   Vector mAnno elements -> do
 

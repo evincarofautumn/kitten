@@ -39,12 +39,12 @@ instance Show Resolved where
 data Value
   = Activation [Value] [Resolved]
   | Bool Bool
+  | Char Char
   | Closure [Name] [Resolved]
   | Escape Name
   | Float Double
   | Function Anno [Resolved]
   | Int Int
-  | Text String
   | Vector (Maybe Anno) [Value]
   | Word Name
   deriving (Eq)
@@ -61,6 +61,8 @@ instance Show Value where
       ]
 
     Bool value -> if value then "true" else "false"
+
+    Char value -> show value
 
     Closure names terms -> concat
       [ "$("
@@ -83,8 +85,6 @@ instance Show Value where
       ]
 
     Int value -> show value
-
-    Text value -> show value
 
     Vector anno values -> concat
       [ maybe "" (("(" ++) . (++ ")") . show) anno

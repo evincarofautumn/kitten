@@ -19,11 +19,11 @@ data Term
 
 data Value
   = Bool Bool Location
+  | Char Char Location
   | Escape String Location
   | Float Double Location
   | Function Anno [Term] Location
   | Int Int Location
-  | Text String Location
   | Vector (Maybe Anno) [Value] Location
   | Word String Location
   deriving (Eq, Show)

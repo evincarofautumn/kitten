@@ -34,7 +34,7 @@ signature = locate $ Anno <$> signature'
       signature'
     , grouped signature'
     , Anno.Bool <$ match Token.BoolType
-    , Anno.Text <$ match Token.TextType
+    , Anno.Char <$ match Token.CharType
     , Anno.Float <$ match Token.FloatType
     , Anno.Int <$ match Token.IntType
     , Anno.Any <$ littleWord

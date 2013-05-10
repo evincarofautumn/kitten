@@ -51,6 +51,8 @@ scopeValue stack value = case value of
 
   Bool{} -> value
 
+  Char{} -> value
+
   Closure{} -> value
 
   Escape{} -> value
@@ -84,8 +86,6 @@ scopeValue stack value = case value of
     stack' = 0 : stack
 
   Int{} -> value
-
-  Text{} -> value
 
   Vector anno values -> Vector anno
     $ map (scopeValue stack) values
@@ -154,6 +154,7 @@ captureValue value = do
   case value of
     Activation{} -> return value
     Bool{} -> return value
+    Char{} -> return value
     Closure names _ -> do
       mapM_ closeLocal names
       return value
@@ -164,7 +165,6 @@ captureValue value = do
       in Function anno
          <$> local inside (mapM captureTerm terms)
     Int{} -> return value
-    Text{} -> return value
     Vector anno values -> Vector anno
       <$> mapM captureValue values
     Word{} -> return value

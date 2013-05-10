@@ -60,6 +60,12 @@ spec = do
     testInt "+123" 123
     testInt "-123" (-123)
 
+  describe "tokenize char" $ do
+    testTokens "'\\''" [Char '\'']
+    testTokens "'a'" [Char 'a']
+    testTokens "'\\\"'" [Char '"']
+    testTokens "'\\\\'" [Char '\\']
+
   describe "tokenize text" $ do
     testTokens "\"\"" [Text ""]
     testTokens "\"abc\"" [Text "abc"]
@@ -72,14 +78,14 @@ spec = do
 
   describe "tokenize keyword" $ do
     testTokens "Bool" [BoolType]
+    testTokens "Char" [CharType]
     testTokens "Float" [FloatType]
     testTokens "Int" [IntType]
-    testTokens "Text" [TextType]
     testTokens "def" [Def]
 
   describe "tokenize builtin" $ do
     testTokens "__vector" [Builtin Builtin.Vector]
-    testTokens "__cat" [Builtin Builtin.Cat]
+    testTokens "__cat_vector" [Builtin Builtin.CatVector]
     testTokens "__function" [Builtin Builtin.Function]
     testTokens "__compose" [Builtin Builtin.Compose]
     testTokens "__apply" [Builtin Builtin.Apply]
