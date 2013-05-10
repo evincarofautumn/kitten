@@ -39,6 +39,7 @@ data Builtin
   | GeInt
   | GeVector
   | Get
+  | GetLine
   | GtFloat
   | GtInt
   | GtVector
@@ -122,6 +123,7 @@ fromStringTable =
   , (,) "__ge_int"     GeInt
   , (,) "__ge_vector"  GeVector
   , (,) "__get"        Get
+  , (,) "__get_line"   GetLine
   , (,) "__gt_float"   GtFloat
   , (,) "__gt_int"     GtInt
   , (,) "__gt_vector"  GtVector

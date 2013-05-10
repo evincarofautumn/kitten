@@ -9,6 +9,7 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.Bits
 import Data.Fixed
+import System.IO
 
 import Kitten.Builtin (Builtin)
 import Kitten.Def
@@ -139,6 +140,10 @@ interpretBuiltin builtin = case builtin of
     Vector _ a <- popData
     pushData $ a !! b
 
+  Builtin.GetLine -> do
+    line <- lift getLine
+    pushData $ Vector Nothing (charsFromString line)
+
   Builtin.GtFloat -> floatsToBool (>)
   Builtin.GtInt -> intsToBool (>)
   Builtin.GtVector -> vectorsToBool (>)
@@ -181,7 +186,7 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.Print -> do
     Vector _ a <- popData
-    lift $ putStr (stringFromChars a)
+    lift $ putStr (stringFromChars a) >> hFlush stdout
 
   Builtin.Set -> do
     Int c <- popData

@@ -30,6 +30,7 @@ def >=. (Float Float -> Bool): __ge_float
 def >= (Int Int -> Bool): __ge_int
 def >=+ ([a] [a] -> Bool): __ge_vector
 def get ([a] Int -> a): __get
+def getLine (-> [Char]): __get_line
 def >. (Float Float -> Bool): __gt_float
 def > (Int Int -> Bool): __gt_int
 def >+ ([a] [a] -> Bool): __gt_vector

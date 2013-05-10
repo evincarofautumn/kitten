@@ -88,6 +88,8 @@ typecheckBuiltin builtin = case builtin of
     VectorType a <- popDataExpecting $ VectorType AnyType
     pushData a
 
+  Builtin.GetLine -> pushData $ VectorType CharType
+
   Builtin.GtFloat -> floatsToBool
   Builtin.GtInt -> intsToBool
   Builtin.GtVector -> vectorsToBool
