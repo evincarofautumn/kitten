@@ -187,10 +187,9 @@ interpretBuiltin builtin = case builtin of
     Int c <- popData
     b <- popData
     Vector _ a <- popData
-    pushData . Vector Nothing $ if c >= 0
-      then let (before, after) = splitAt c a
-        in before ++ b : drop 1 after
-      else b : a
+    pushData . Vector Nothing
+      $ let (before, after) = splitAt c a
+      in before ++ b : drop 1 after
 
   Builtin.ShowFloat -> do
     Float value <- popData
