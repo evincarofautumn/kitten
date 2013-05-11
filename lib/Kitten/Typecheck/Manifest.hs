@@ -22,4 +22,5 @@ manifestValueType value = case value of
   Closure anno _ _ -> return $ fromAnno anno
   Int _ -> return IntType
   Vector (Just anno) _ -> return . VectorType $ fromAnno anno
-  _ -> internalError "TODO manifest value type of non-literal"
+  _ -> internalError
+   $ "manifest value type of non-literal: " ++ show value
