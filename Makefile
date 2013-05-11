@@ -17,7 +17,8 @@ default : build prelude unit test
 all : deps configure build prelude unit test lint
 
 .PHONY : build
-build : $(KITTEN)
+build $(KITTEN) :
+	$(CABAL) build
 
 .PHONY : clean
 clean :
@@ -32,13 +33,10 @@ configure :
 deps :
 	$(CABAL) install $(CABALFLAGS) --only-dependencies
 
-$(KITTEN) :
-	$(CABAL) build
-
 .PHONY : prelude
 prelude : $(PRELUDE)
 
-$(PRELUDE) : $(KITTEN)
+$(PRELUDE) : $(KITTEN) prelude.ktn
 	cp prelude.ktn $(PRELUDE)
 	$(KITTEN) $(PRELUDE)
 
@@ -47,7 +45,7 @@ unit:
 	$(CABAL) test
 
 define TESTRULE
-test-$1 : $(KITTEN)
+test-$1 : $(KITTEN) $(PRELUDE)
 	@$(TESTER) $$(realpath $(KITTEN)) $1
 test : test-$1
 endef
