@@ -148,8 +148,8 @@ def fold_up ([a] b (a b -> b) -> b):
   if xs empty:
     z
   else:
-    xs up z f fold_up
     xs bottom
+    xs up z f fold_up
     f __apply
 
 -- Filters a vector by a predicate.
