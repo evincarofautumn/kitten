@@ -287,7 +287,13 @@ interpretBuiltin builtin = case builtin of
     pushData . Bool $ f (stringFromChars a) (stringFromChars b)
 
 stringFromChars :: [Value] -> String
-stringFromChars = map $ \ (Char c) -> c
+stringFromChars = map fromChar
+  where
+  fromChar :: Value -> Char
+  fromChar (Char c) = c
+  fromChar value = error
+    $ "Kitten.Interpret.stringFromChars: "
+    ++ show value
 
 charsFromString :: String -> [Value]
 charsFromString = map Char
