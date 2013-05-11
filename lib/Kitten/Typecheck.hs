@@ -21,9 +21,9 @@ typecheck
   -> [Value]
   -> Fragment Resolved
   -> Either CompileError ()
-typecheck _prelude stack Fragment{..}
+typecheck prelude stack Fragment{..}
   = flip evalStateT emptyEnv
-  { envDefs = fragmentDefs
+  { envDefs = prelude ++ fragmentDefs
   } $ do
     mapM_ typecheckValue stack
     mapM_ typecheckDef fragmentDefs

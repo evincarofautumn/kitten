@@ -9,7 +9,6 @@ import Control.Applicative
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.Foldable (forM_)
-import Data.Monoid
 
 import Kitten.Def
 import Kitten.Error
@@ -53,7 +52,7 @@ resolveDuplicateDefs defs = forM_ defs $ \ def
     .&&. (/= defLocation def) . defLocation
 
 resolveDefs :: [Def Term] -> Resolution [Def Resolved]
-resolveDefs defs = (<>) <$> gets envPrelude <*> mapM resolveDef defs
+resolveDefs defs = mapM resolveDef defs
   where
   resolveDef (Def name body loc)
     = Def name <$> resolveTerm body <*> pure loc

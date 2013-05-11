@@ -17,6 +17,7 @@ library
   build-depends:
     base >= 2,
     containers == 0.4.*,
+    either == 3.4.*,
     parsec == 3.1.*,
     transformers == 0.3.*
 
@@ -46,6 +47,7 @@ library
     Kitten.Parse.Primitive,
     Kitten.Parse.Type,
     Kitten.Parsec,
+    Kitten.Prelude,
     Kitten.Resolve,
     Kitten.Resolve.Monad,
     Kitten.Resolved,

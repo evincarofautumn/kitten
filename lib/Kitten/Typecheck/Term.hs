@@ -92,8 +92,7 @@ typecheckValue value = case value of
 
   Char _ -> pushData CharType
 
-  Closure{} -> internalError
-    "closures should not appear during typechecking"
+  Closure anno _ _ -> typecheckAnno anno
 
   Escape (Name index) -> do
     mDef <- gets $ (!? index) . envDefs

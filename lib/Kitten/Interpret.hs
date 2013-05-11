@@ -20,12 +20,16 @@ import Kitten.Resolved
 
 import qualified Kitten.Builtin as Builtin
 
-interpret :: [Value] -> Fragment Resolved -> IO ()
-interpret stack Fragment{..} = void $ evalStateT
+interpret
+  :: [Value]
+  -> [Def Resolved]
+  -> Fragment Resolved
+  -> IO ()
+interpret stack prelude Fragment{..} = void $ evalStateT
   (mapM interpretTerm fragmentTerms) Env
   { envData = stack
   , envLocals = []
-  , envDefs = fragmentDefs
+  , envDefs = prelude ++ fragmentDefs
   , envClosure = []
   , envLocations = []
   }              
@@ -53,7 +57,7 @@ interpretValue value = case value of
     withLocation loc $ do
       interpretTerm term
       interpretBuiltin Builtin.Apply
-  Closure names terms -> do
+  Closure _ names terms -> do
     values <- mapM getLocal names
     pushData $ Activation values terms
   _ -> pushData value

@@ -66,8 +66,12 @@ closed :: Int -> Resolved
 closed index = Closed (Name index) TestLocation
 
 closure :: [Int] -> [Resolved] -> Resolved
-closure names terms
-  = Push (Closure (map Name names) terms) TestLocation
+closure names terms = Push
+  (Closure emptyAnno (map Name names) terms)
+  TestLocation
+
+emptyAnno :: Anno
+emptyAnno = Anno Anno.Any TestLocation
 
 fragment
   :: [Def Resolved]
@@ -79,7 +83,6 @@ fragment defs terms
 function :: [Resolved] -> Resolved
 function terms
   = Push (Function emptyAnno terms) TestLocation
-  where emptyAnno = Anno Anno.Any TestLocation
 
 local :: Int -> Resolved
 local index = Local (Name index) TestLocation

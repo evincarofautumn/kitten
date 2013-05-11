@@ -59,8 +59,8 @@ scopeValue stack value = case value of
 
   Float{} -> value
 
-  Function _ funTerms
-    -> Closure capturedNames rescopedTerms
+  Function anno funTerms
+    -> Closure anno capturedNames rescopedTerms
     where
 
     rescopedTerms :: [Resolved]
@@ -155,7 +155,7 @@ captureValue value = do
     Activation{} -> return value
     Bool{} -> return value
     Char{} -> return value
-    Closure names _ -> do
+    Closure _ names _ -> do
       mapM_ closeLocal names
       return value
     Escape{} -> return value

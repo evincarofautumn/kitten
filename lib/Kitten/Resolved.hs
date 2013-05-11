@@ -40,7 +40,7 @@ data Value
   = Activation [Value] [Resolved]
   | Bool Bool
   | Char Char
-  | Closure [Name] [Resolved]
+  | Closure Anno [Name] [Resolved]
   | Escape Name
   | Float Double
   | Function Anno [Resolved]
@@ -64,7 +64,7 @@ instance Show Value where
 
     Char value -> show value
 
-    Closure names terms -> concat
+    Closure _ names terms -> concat
       [ "$("
       , showWords names
       , "){"
