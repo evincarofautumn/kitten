@@ -94,7 +94,7 @@ interpretBuiltin builtin = case builtin of
   Builtin.CatVector -> do
     Vector _ b <- popData
     Vector _ a <- popData
-    pushData $ Vector Nothing (a ++ b)
+    pushData $ Vector Nothing (b ++ a)
 
   Builtin.Compose -> do
     b <- popData
