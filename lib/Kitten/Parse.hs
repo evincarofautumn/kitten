@@ -93,7 +93,7 @@ value = locate $ choice
   toLiteral (Token.Int x) = Just $ Int x
   toLiteral (Token.Text x) = Just $ \ loc
     -> Vector (Just $ Anno Anno.Char loc)
-      (map (\ c -> Char c loc) x) loc
+      (map (\ c -> Char c loc) $ reverse x) loc
   toLiteral _ = Nothing
 
   annotated :: Parser (Location -> Value)

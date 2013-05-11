@@ -287,7 +287,7 @@ interpretBuiltin builtin = case builtin of
     pushData . Bool $ f (stringFromChars a) (stringFromChars b)
 
 stringFromChars :: [Value] -> String
-stringFromChars = map fromChar
+stringFromChars = map fromChar . reverse
   where
   fromChar :: Value -> Char
   fromChar (Char c) = c
@@ -296,4 +296,4 @@ stringFromChars = map fromChar
     ++ show value
 
 charsFromString :: String -> [Value]
-charsFromString = map Char
+charsFromString = map Char . reverse
