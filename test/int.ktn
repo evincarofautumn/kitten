@@ -6,15 +6,15 @@ def binary (-> Int Int):
 
 def ii ((Int -> Int) ->):
   -> f
-  unary f __apply sayi
+  unary f __apply sayI
 
 def iib ((Int Int -> Bool) ->):
   -> f
-  binary f __apply sayb
+  binary f __apply sayB
 
 def iii ((Int Int -> Int) ->):
   -> f
-  binary f __apply sayi
+  binary f __apply sayI
 
 `+ iii
 `& iii

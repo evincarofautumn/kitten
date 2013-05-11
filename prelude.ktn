@@ -14,7 +14,7 @@ def ++ ([a] [a] -> [a]): __cat_vector
 -- FIXME Cannot express row types.
 -- def compose ((A -> B) (B -> C) -> (A -> C)): __compose
 
-def decf (Float -> Float): __dec_float
+def decF (Float -> Float): __dec_float
 def dec (Int -> Int): __dec_int
 def drop (a ->): __drop
 def dup (a -> a a): __dup
@@ -34,7 +34,7 @@ def getLine (-> [Char]): __get_line
 def >. (Float Float -> Bool): __gt_float
 def > (Int Int -> Bool): __gt_int
 def >+ ([a] [a] -> Bool): __gt_vector
-def incf (Float -> Float): __inc_float
+def incF (Float -> Float): __inc_float
 def inc (Int -> Int): __inc_int
 def <=. (Float Float -> Bool): __le_float
 def <= (Int Int -> Bool): __le_int
@@ -50,7 +50,7 @@ def * (Int Int -> Int): __mul_int
 def !=. (Float Float -> Bool): __ne_float
 def != (Int Int -> Bool): __ne_int
 def !=+ ([a] [a] -> Bool): __ne_vector
-def negf (Float -> Float): __neg_float
+def negF (Float -> Float): __neg_float
 def neg (Int -> Int): __neg_int
 def ! (Bool -> Bool): __not_bool
 def ~ (Int -> Int): __not_int
@@ -58,8 +58,8 @@ def || (Bool Bool -> Bool): __or_bool
 def | (Int Int -> Int): __or_int
 def print ([Char] ->): __print
 def set ([a] a Int -> [a]): __set
-def showi (Int -> [Char]): __show_int
-def showf (Float -> [Char]): __show_float
+def showI (Int -> [Char]): __show_int
+def showF (Float -> [Char]): __show_float
 def -. (Float Float -> Float): __sub_float
 def - (Int Int -> Int): __sub_int
 def swap (a b -> b a): __swap
@@ -84,13 +84,13 @@ def prepend (a [a] -> [a]):
 
 -- Show
 
-def showb (Bool -> [Char]): if: "true" else: "false"
-def showbv ([Bool] -> [Char]): `showb showv
-def showiv ([Int] -> [Char]): `showi showv
-def showfv ([Float] -> [Char]): `showf showv
-def showtv ([[Char]] -> [Char]): `id showv
+def showB (Bool -> [Char]): if: "true" else: "false"
+def showBV ([Bool] -> [Char]): `showB showV
+def showIV ([Int] -> [Char]): `showI showV
+def showFV ([Float] -> [Char]): `showF showV
+def showTV ([[Char]] -> [Char]): `id showV
 
-def showv ([a] (a -> [Char]) -> [Char]):
+def showV ([a] (a -> [Char]) -> [Char]):
   -> show
   -> xs
   "[ "
@@ -99,7 +99,7 @@ def showv ([a] (a -> [Char]) -> [Char]):
     -> value
     value show __apply " " ++
     acc ++
-  } fold_up ++
+  } foldUp ++
   "]" ++
 
 -- Impure
@@ -110,36 +110,36 @@ def each ([a] (a ->) ->):
   (a -> a){ dup f __apply } map drop
 
 def newline (->): "\n" print
-def printb (Bool ->): showb print
-def printbv ([Bool] ->): showbv print
-def printf (Float ->): showf print
-def printfv ([Float] ->): showfv print
-def printi (Int ->): showi print
-def printiv ([Int] ->): showiv print
-def printtv ([[Char]] ->): showtv print
+def printB (Bool ->): showB print
+def printBV ([Bool] ->): showBV print
+def printF (Float ->): showF print
+def printFV ([Float] ->): showFV print
+def printI (Int ->): showI print
+def printIV ([Int] ->): showIV print
+def printTV ([[Char]] ->): showTV print
 
 def say ([Char] ->): print newline
-def sayb (Bool ->): printb newline
-def saybv ([Bool] ->): printbv newline
-def sayf (Float ->): printf newline
-def sayfv ([Float] ->): printfv newline
-def sayi (Int ->): printi newline
-def sayiv ([Int] ->): printiv newline
-def saytv ([[Char]] ->): printtv newline
+def sayB (Bool ->): printB newline
+def sayBV ([Bool] ->): printBV newline
+def sayF (Float ->): printF newline
+def sayFV ([Float] ->): printFV newline
+def sayI (Int ->): printI newline
+def sayIV ([Int] ->): printIV newline
+def sayTV ([[Char]] ->): printTV newline
 def space (->): " " print
 
 -- Math and Logic
 
-def and ([Bool] -> Bool): true `&& fold_up
+def and ([Bool] -> Bool): true `&& foldUp
 def even (Int -> Bool): 2 % 0 =
-def evenf (Float -> Bool): 2.0 %. 0.0 =.
+def evenF (Float -> Bool): 2.0 %. 0.0 =.
 def odd (Int -> Bool): even !
-def oddf (Float -> Bool): evenf !
-def or ([Bool] -> Bool): false `|| fold_up
-def product ([Int] -> Int): 1 `* fold_up
-def productf ([Float] -> Float): 1.0 `*. fold_up
-def sum ([Int] -> Int): 0 `+ fold_up
-def sumf ([Float] -> Float): 0.0 `+. fold_up
+def oddF (Float -> Bool): evenF !
+def or ([Bool] -> Bool): false `|| foldUp
+def product ([Int] -> Int): 1 `* foldUp
+def productF ([Float] -> Float): 1.0 `*. foldUp
+def sum ([Int] -> Int): 0 `+ foldUp
+def sumF ([Float] -> Float): 0.0 `+. foldUp
 
 -- Iterates a function on a value until a predicate holds.
 def until (a (a -> a) (a -> Bool) -> a):
@@ -155,7 +155,7 @@ def until (a (a -> a) (a -> Bool) -> a):
 -- Vector
 
 -- Folds elements of a vector bottom-up.
-def fold_up ([a] b (a b -> b) -> b):
+def foldUp ([a] b (a b -> b) -> b):
   -> f   -- Function
   -> z   -- Starting value
   -> xs  -- Vector
@@ -163,18 +163,18 @@ def fold_up ([a] b (a b -> b) -> b):
     z
   else:
     xs bottom
-    xs up z f fold_up
+    xs up z f foldUp
     f __apply
 
 -- Folds elements of a vector top-down.
-def fold_down ([a] b (b a -> b) -> b):
+def foldDown ([a] b (b a -> b) -> b):
   -> f   -- Function
   -> z   -- Starting value
   -> xs  -- Vector
   if xs empty:
     z
   else:
-    xs down z f fold_down
+    xs down z f foldDown
     xs top
     f __apply
 
@@ -203,10 +203,10 @@ def keep ([a] Int -> [a]):
 
 -- Maps a function downward over the elements of a vector.
 def map ([a] (a -> b) -> [b]):
-  0 map_from
+  0 mapFrom
 
 -- Maps a function over part of a vector.
-def map_from ([a] (a -> b) Int -> [b]):
+def mapFrom ([a] (a -> b) Int -> [b]):
   -> offset
   -> function
   -> vec
@@ -214,7 +214,7 @@ def map_from ([a] (a -> b) Int -> [b]):
     vec
   else:
     vec function offset modify
-    function offset inc map_from
+    function offset inc mapFrom
 
 -- Maps a function over an element of a vector.
 def modify ([a] (a -> a) Int -> [a]):
