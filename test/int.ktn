@@ -1,0 +1,36 @@
+def unary (-> Int):
+  1
+
+def binary (-> Int Int):
+  1 2
+
+def ii ((Int -> Int) ->):
+  -> f
+  unary f __apply sayi
+
+def iib ((Int Int -> Bool) ->):
+  -> f
+  binary f __apply sayb
+
+def iii ((Int Int -> Int) ->):
+  -> f
+  binary f __apply sayi
+
+`+ iii
+`& iii
+`dec ii
+`/ iii
+`= iib
+`>= iib
+`> iib
+`inc ii
+`<= iib
+`< iib
+`% iii
+`* iii
+`!= iib
+`neg ii
+`~ ii
+`| iii
+`- iii
+`^ iii
