@@ -9,6 +9,7 @@ import Control.Monad
 
 import qualified Text.Parsec as Parsec
 
+import Kitten.Anno (Anno(..))
 import Kitten.Def
 import Kitten.Fragment
 import Kitten.Location
@@ -22,6 +23,7 @@ import Kitten.Term
 import Kitten.Token (Located(..), Token)
 import Kitten.Util.List
 
+import qualified Kitten.Anno as Anno
 import qualified Kitten.Token as Token
 
 parse
@@ -90,7 +92,8 @@ value = locate $ choice
   toLiteral (Token.Float x) = Just $ Float x
   toLiteral (Token.Int x) = Just $ Int x
   toLiteral (Token.Text x) = Just $ \ loc
-    -> Vector Nothing (map (\ c -> Char c loc) x) loc
+    -> Vector (Just $ Anno Anno.Char loc)
+      (map (\ c -> Char c loc) x) loc
   toLiteral _ = Nothing
 
   annotated :: Parser (Location -> Value)
