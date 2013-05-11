@@ -1,0 +1,5 @@
+[1 2 3 4 5] -> vec
+vec `even filter sayiv
+vec `odd filter sayiv
+vec (Int -> Bool){ 2 > } filter sayiv
+vec (Int -> Bool){ 2 <= } filter sayiv
