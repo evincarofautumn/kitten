@@ -73,8 +73,6 @@ def ^ (Int Int -> Int): __xor_int
 
 def id (a -> a) {}
 
-def showb (Bool -> [Char]): if: "true" else: "false"
-
 -- Pushes a value to the top of a vector.
 def push ([a] a -> [a]): vector ++
 
@@ -83,6 +81,25 @@ def prepend (a [a] -> [a]):
   -> xs
   -> x
   x vector xs ++
+
+-- Show
+
+def showb (Bool -> [Char]): if: "true" else: "false"
+def showbv ([Bool] -> [Char]): `showb showv
+def showiv ([Int] -> [Char]): `showi showv
+def showfv ([Float] -> [Char]): `showf showv
+
+def showv ([a] (a -> [Char]) -> [Char]):
+  -> show
+  -> xs
+  "[ "
+  xs "" (a [Char] -> [Char]){
+    -> acc
+    -> value
+    value show __apply " " ++
+    acc ++
+  } fold_up ++
+  "]" ++
 
 -- Impure
 
@@ -93,24 +110,18 @@ def each ([a] (a ->) ->):
 
 def newline (->): "\n" print
 def printb (Bool ->): showb print
+def printbv ([Bool] ->): showbv print
 def printf (Float ->): showf print
+def printfv ([Float] ->): showfv print
 def printi (Int ->): showi print
-
-def printiv ([Int] ->):
-  "[ " print
-  (Int ->){ printi space } each
-  "]" print
-
-def printfv ([Float] ->):
-  "[ " print
-  (Float ->){ printf space } each
-  "]" print
+def printiv ([Int] ->): showiv print
 
 def say ([Char] ->): print newline
 def sayb (Bool ->): printb newline
+def saybv ([Bool] ->): printbv newline
 def sayf (Float ->): printf newline
-def sayi (Int ->): printi newline
 def sayfv ([Float] ->): printfv newline
+def sayi (Int ->): printi newline
 def sayiv ([Int] ->): printiv newline
 def space (->): " " print
 
