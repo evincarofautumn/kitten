@@ -88,6 +88,7 @@ def showb (Bool -> [Char]): if: "true" else: "false"
 def showbv ([Bool] -> [Char]): `showb showv
 def showiv ([Int] -> [Char]): `showi showv
 def showfv ([Float] -> [Char]): `showf showv
+def showtv ([[Char]] -> [Char]): `id showv
 
 def showv ([a] (a -> [Char]) -> [Char]):
   -> show
@@ -115,6 +116,7 @@ def printf (Float ->): showf print
 def printfv ([Float] ->): showfv print
 def printi (Int ->): showi print
 def printiv ([Int] ->): showiv print
+def printtv ([[Char]] ->): showtv print
 
 def say ([Char] ->): print newline
 def sayb (Bool ->): printb newline
@@ -123,6 +125,7 @@ def sayf (Float ->): printf newline
 def sayfv ([Float] ->): printfv newline
 def sayi (Int ->): printi newline
 def sayiv ([Int] ->): printiv newline
+def saytv ([[Char]] ->): printtv newline
 def space (->): " " print
 
 -- Math and Logic
@@ -151,7 +154,7 @@ def until (a (a -> a) (a -> Bool) -> a):
 
 -- Vector
 
--- Folds elements of a vector bottom-up (right-associatively).
+-- Folds elements of a vector bottom-up.
 def fold_up ([a] b (a b -> b) -> b):
   -> f   -- Function
   -> z   -- Starting value
@@ -161,6 +164,18 @@ def fold_up ([a] b (a b -> b) -> b):
   else:
     xs bottom
     xs up z f fold_up
+    f __apply
+
+-- Folds elements of a vector top-down.
+def fold_down ([a] b (b a -> b) -> b):
+  -> f   -- Function
+  -> z   -- Starting value
+  -> xs  -- Vector
+  if xs empty:
+    z
+  else:
+    xs down z f fold_down
+    xs top
     f __apply
 
 -- Filters a vector by a predicate.
@@ -186,16 +201,28 @@ def keep ([a] Int -> [a]):
     xs down  n dec  keep
     xs top push
 
--- Maps a function over the elements of a vector.
+-- Maps a function downward over the elements of a vector.
 def map ([a] (a -> b) -> [b]):
-  -> f   -- Function
-  -> xs  -- Vector
-  if xs empty:
-    xs
+  0 map_from
+
+-- Maps a function over part of a vector.
+def map_from ([a] (a -> b) Int -> [b]):
+  -> offset
+  -> function
+  -> vec
+  if vec empty  offset vec length >=  || :
+    vec
   else:
-    xs bottom f __apply
-    xs up f map
-    prepend
+    vec function offset modify
+    function offset inc map_from
+
+-- Maps a function over an element of a vector.
+def modify ([a] (a -> a) Int -> [a]):
+  -> offset
+  -> function
+  -> vec
+  vec offset get function __apply -> value
+  vec value offset set
 
 -- Splits a vector at the given index.
 def split_at ([a] Int -> [a] [a]):
