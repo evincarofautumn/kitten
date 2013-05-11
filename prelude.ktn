@@ -180,16 +180,16 @@ def fold_down ([a] b (b a -> b) -> b):
 
 -- Filters a vector by a predicate.
 def filter ([a] (a -> Bool) -> [a]):
-  -> p   -- Predicate
-  -> xs  -- Vector
-  if xs empty:
-    xs
-  else if xs bottom p __apply:
-    xs bottom vector
-    xs up p filter
+  -> predicate
+  -> vec
+  if vec empty:
+    vec
+  else if vec bottom predicate __apply:
+    vec bottom vector
+    vec up predicate filter
     ++
   else:
-    xs up p filter
+    vec up predicate filter
 
 -- Keeps the topmost n elements of a vector, tossing the rest.
 def keep ([a] Int -> [a]):
