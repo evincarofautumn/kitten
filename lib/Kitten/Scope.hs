@@ -87,6 +87,10 @@ scopeValue stack value = case value of
 
   Int{} -> value
 
+  Pair a b -> Pair (scopeValue stack a) (scopeValue stack b)
+
+  Unit -> Unit
+
   Vector anno values -> Vector anno
     $ map (scopeValue stack) values
 
@@ -165,6 +169,10 @@ captureValue value = do
       in Function anno
          <$> local inside (mapM captureTerm terms)
     Int{} -> return value
+    Pair a b -> Pair
+      <$> captureValue a
+      <*> captureValue b
+    Unit{} -> return value
     Vector anno values -> Vector anno
       <$> mapM captureValue values
     Word{} -> return value

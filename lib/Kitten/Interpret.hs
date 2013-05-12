@@ -132,6 +132,10 @@ interpretBuiltin builtin = case builtin of
     Vector _ a <- popData
     pushData . Bool $ null a
 
+  Builtin.First -> do
+    Pair a _ <- popData
+    pushData a
+
   Builtin.Function -> fail
     "TODO interpretBuiltin Builtin.Function"
 
@@ -191,6 +195,10 @@ interpretBuiltin builtin = case builtin of
   Builtin.Print -> do
     Vector _ a <- popData
     lift $ putStr (stringFromChars a) >> hFlush stdout
+
+  Builtin.Rest -> do
+    Pair _ b <- popData
+    pushData b
 
   Builtin.Set -> do
     Int c <- popData

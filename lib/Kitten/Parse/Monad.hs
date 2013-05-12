@@ -46,7 +46,7 @@ mapOne extract = tokenPrim show advance
   $ \ (Located locatedToken _) -> extract locatedToken
 
 match :: Token -> Parser Token
-match = satisfy . (==)
+match token = satisfy (== token) <?> show token
 
 satisfy :: (Token -> Bool) -> Parser Token
 satisfy predicate = tokenPrim show advance $ \ Located{..}

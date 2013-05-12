@@ -20,10 +20,12 @@ data Type a where
   (:>) :: Type Row -> Type Row -> Type Scalar
   Composition :: [Type Scalar] -> Type Row
   Vector :: Type Scalar -> Type Scalar
+  Tuple :: [Type Scalar] -> Type Scalar
   Bool :: Type Scalar
   Char :: Type Scalar
   Float :: Type Scalar
   Int :: Type Scalar
+  Unit :: Type Scalar
   Any :: Type a
 
 instance Eq (Type a) where
@@ -36,6 +38,8 @@ instance Eq (Type a) where
   (a :> b) == (c :> d) = a == c && b == d
   Composition as == Composition bs = as == bs
   Vector a == Vector b = a == b
+  Tuple as == Tuple bs = as == bs
+  Unit == Unit = True
   Any == _ = True
   _ == Any = True
   _ == _ = False
@@ -45,8 +49,10 @@ instance Show (Type a) where
     a :> b -> concat ["(", show a, " -> ", show b, ")"]
     Composition as -> showWords as
     Vector a -> concat ["[", show a, "]"]
+    Tuple as -> concat ["[", showWords as, "]"]
     Bool -> "Bool"
     Char -> "Char"
     Float -> "Float"
     Int -> "Int"
+    Unit -> "()"
     Any -> "*"

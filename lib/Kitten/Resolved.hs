@@ -45,6 +45,8 @@ data Value
   | Float Double
   | Function Anno [Resolved]
   | Int Int
+  | Pair Value Value
+  | Unit
   | Vector (Maybe Anno) [Value]
   | Word Name
   deriving (Eq)
@@ -85,6 +87,10 @@ instance Show Value where
       ]
 
     Int value -> show value
+
+    Pair a b -> concat ["(", show a, ", ", show b, ")"]
+
+    Unit -> "()"
 
     Vector anno values -> concat
       [ maybe "" (("(" ++) . (++ ")") . show) anno

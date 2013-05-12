@@ -80,7 +80,8 @@ value :: Parser Value
 value = locate $ choice
   [ mapOne toLiteral <?> "literal"
   , Word <$> littleWord <?> "word"
-  , annotated
+  , try annotated
+  , pair <$> tuple
   , escape
   , Vector Nothing <$> vector
   ]
@@ -109,8 +110,15 @@ value = locate $ choice
   vector = (reverse <$> between
     (match Token.VectorBegin)
     (match Token.VectorEnd)
-    (many value))
+    (value `sepEndBy` match Token.Comma))
     <?> "vector"
+
+  tuple :: Parser [Value]
+  tuple = grouped (value `sepEndBy` match Token.Comma)
+    <?> "tuple"
+
+  pair values loc
+    = foldr (\ x y -> Pair x y loc) (Unit loc) values
 
 block :: Parser [Term]
 block = blocked (many term) <?> "block"

@@ -1,4 +1,4 @@
-[1 2 3 4 5] -> vec
+[1, 2, 3, 4, 5] -> vec
 vec `even filter sayIV
 vec `odd filter sayIV
 vec (Int -> Bool){ 2 > } filter sayIV

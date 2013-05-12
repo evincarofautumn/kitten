@@ -82,6 +82,18 @@ def prepend (a [a] -> [a]):
   -> x
   x vector xs ++
 
+def first ((a,) -> a):
+  __first
+
+def second ((a, b) -> b):
+  __rest __first
+
+def third ((a, b, c) -> c):
+  __rest __rest __first
+
+def fourth ((a, b, c, d) -> d):
+  __rest __rest __rest __first
+
 -- Show
 
 def showB (Bool -> [Char]): if: "true" else: "false"

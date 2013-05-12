@@ -21,12 +21,14 @@ typecheckAnno anno = go $ fromAnno anno
     CharType -> pushData type_
     FloatType -> pushData type_
     IntType -> pushData type_
-    VectorType _ -> pushData type_
+    PairType{} -> pushData type_
+    UnitType -> pushData type_
+    VectorType{} -> pushData type_
     Composition consumption :> Composition production -> do
       mapM_ popDataExpecting_ $ reverse consumption
       mapM_ pushData production
-    AnyType :> Composition _ -> unknownTypeError
-    Composition _ :> AnyType -> unknownTypeError
+    AnyType :> Composition{} -> unknownTypeError
+    Composition{} :> AnyType -> unknownTypeError
     AnyType :> AnyType -> unknownTypeError
     AnyType -> unknownTypeError
     StackFrameType -> internalError
@@ -39,7 +41,9 @@ typecheckAnnotatedTerms anno action = do
     FloatType -> pushData type_
     IntType -> pushData type_
     CharType -> pushData type_
-    VectorType _ -> pushData type_
+    UnitType -> pushData type_
+    VectorType{} -> pushData type_
+    PairType{} -> pushData type_
     Composition consumption :> Composition production -> do
       pushData StackFrameType
       mapM_ pushData consumption
@@ -48,8 +52,8 @@ typecheckAnnotatedTerms anno action = do
       popDataExpecting_ StackFrameType
     StackFrameType -> internalError
       "stack frames should not appear in annotations"
-    AnyType :> Composition _ -> unknownTypeError
-    Composition _ :> AnyType -> unknownTypeError
+    AnyType :> Composition{} -> unknownTypeError
+    Composition{} :> AnyType -> unknownTypeError
     AnyType :> AnyType -> unknownTypeError
     AnyType -> unknownTypeError
 

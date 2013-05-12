@@ -47,6 +47,7 @@ token = (<?> "token") . located $ choice
   [ BlockBegin <$ char '{'
   , BlockEnd <$ char '}'
   , Char <$> (char '\'' *> character '\'' <* char '\'')
+  , Comma <$ char ','
   , Escape <$ char '`'
   , GroupBegin <$ char '('
   , GroupEnd <$ char ')'
@@ -113,7 +114,7 @@ token = (<?> "token") . located $ choice
       <*> many (letter <|> digit <|> char '_')
 
     symbolic :: Parser String
-    symbolic = many1 $ oneOf "!#$%&*+,-./;<=>?@^|~"
+    symbolic = many1 $ oneOf "!#$%&*+-./;<=>?@^|~"
 
 silence :: Parser ()
 silence = skipMany $ comment <|> whitespace

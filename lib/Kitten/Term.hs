@@ -24,6 +24,8 @@ data Value
   | Float Double Location
   | Function Anno [Term] Location
   | Int Int Location
+  | Pair Value Value Location
+  | Unit Location
   | Vector (Maybe Anno) [Value] Location
   | Word String Location
   deriving (Eq, Show)

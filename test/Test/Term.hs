@@ -41,7 +41,7 @@ spec = do
   describe "function" $ do
 
     testTerm
-      "(){}"
+      "(->){}"
       $ Fragment []
         [ push $ function
           (Anno.Composition [] :> Anno.Composition [])

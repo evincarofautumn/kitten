@@ -1,4 +1,4 @@
-[1 2] -> vec
+[1, 2] -> vec
 vec bottom sayI
 vec up sayIV
 vec top sayI
@@ -7,4 +7,4 @@ vec down sayIV
 1 vector sayIV
 
 [1] [2] ++ sayIV
-[1 2 3] [4 5 6] ++ sayIV
+[1, 2, 3] [4, 5, 6] ++ sayIV

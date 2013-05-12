@@ -1,9 +1,9 @@
 false sayB
 true sayB
-[false true false true] sayBV
+[false, true, false, true] sayBV
 0 sayI
 1 sayI
-[0 1 2 3] sayIV
+[0, 1, 2, 3] sayIV
 0.0 sayF
 1.0 sayF
-[0.0 1.1 2.2 3.3] sayFV
+[0.0, 1.1, 2.2, 3.3] sayFV

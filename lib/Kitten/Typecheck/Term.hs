@@ -108,6 +108,15 @@ typecheckValue value = case value of
 
   Int _ -> pushData IntType
 
+  Pair a b -> do
+    typecheckValue b
+    typecheckValue a
+    aType <- popData
+    bType <- popData
+    pushData $ PairType aType bType
+
+  Unit -> pushData $ UnitType
+
   Vector mAnno elements -> do
 
     expected <- case elements of

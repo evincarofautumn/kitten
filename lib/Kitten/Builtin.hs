@@ -34,6 +34,7 @@ data Builtin
   | EqFloat
   | EqInt
   | EqVector
+  | First
   | Function
   | GeFloat
   | GeInt
@@ -66,6 +67,7 @@ data Builtin
   | OrBool
   | OrInt
   | Print
+  | Rest
   | Set
   | ShowFloat
   | ShowInt
@@ -118,6 +120,7 @@ fromStringTable =
   , (,) "__eq_int"     EqInt
   , (,) "__eq_vector"  EqVector
   , (,) "__empty"      Empty
+  , (,) "__first"      First
   , (,) "__function"   Function
   , (,) "__ge_float"   GeFloat
   , (,) "__ge_int"     GeInt
@@ -150,6 +153,7 @@ fromStringTable =
   , (,) "__or_bool"    OrBool
   , (,) "__or_int"     OrInt
   , (,) "__print"      Print
+  , (,) "__rest"       Rest
   , (,) "__set"        Set
   , (,) "__show_float" ShowFloat
   , (,) "__show_int"   ShowInt

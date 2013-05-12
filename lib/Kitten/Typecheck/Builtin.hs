@@ -75,6 +75,10 @@ typecheckBuiltin builtin = case builtin of
     popDataExpecting_ $ VectorType AnyType
     pushData BoolType
 
+  Builtin.First -> do
+    PairType a _ <- popDataExpecting $ PairType AnyType AnyType
+    pushData a
+
   Builtin.Function -> do
     a <- popData
     pushData $ Composition [] :> Composition [a]
@@ -131,6 +135,10 @@ typecheckBuiltin builtin = case builtin of
   Builtin.OrInt -> intsToInt
 
   Builtin.Print -> popDataExpecting_ $ VectorType CharType
+
+  Builtin.Rest -> do
+    PairType _ b <- popDataExpecting $ PairType AnyType AnyType
+    pushData b
 
   Builtin.Set -> do
     popDataExpecting_ IntType

@@ -18,6 +18,7 @@ data Token
   | Builtin Builtin
   | Char Char
   | CharType
+  | Comma
   | Def
   | Else
   | Escape
@@ -46,6 +47,7 @@ instance Show Token where
     Builtin name -> show name
     Char char -> show char
     CharType -> "Char"
+    Comma -> ","
     Def -> "def"
     Else -> "else"
     Escape -> "`"

@@ -1,0 +1,9 @@
+(0, 0.0, false, "") -> quad
+quad first sayI
+quad second sayF
+quad third sayB
+quad fourth say
+
+(0, 1) -> pair
+pair first sayI
+pair second sayI

@@ -84,8 +84,13 @@ resolveValue unresolved = case unresolved of
   Term.Int value loc -> return $ Push (Int value) loc
   Term.Bool value loc -> return $ Push (Bool value) loc
   Term.Char value loc -> return $ Push (Char value) loc
-  Term.Vector anno terms loc -> Push . Vector anno
-    <$> resolveVector terms <*> pure loc
+  Term.Pair a b loc -> do
+    a' <- fromValue <$> resolveValue a
+    b' <- fromValue <$> resolveValue b
+    return $ Push (Pair a' b') loc
+  Term.Unit loc -> return $ Push Unit loc
+  Term.Vector anno values loc -> Push . Vector anno
+    <$> resolveVector values <*> pure loc
   Term.Word name loc -> resolveName Word name loc
   where
   resolveVector = mapM $ fmap fromValue . resolveValue
