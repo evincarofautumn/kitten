@@ -26,6 +26,7 @@ data Token
   | GroupEnd
   | Float Double
   | FloatType
+  | HandleType
   | If
   | Int Int
   | IntType
@@ -55,6 +56,7 @@ instance Show Token where
     GroupEnd -> ")"
     Float value -> show value
     FloatType -> "Float"
+    HandleType -> "Handle"
     If -> "if"
     Int value -> show value
     IntType -> "Int"

@@ -96,6 +96,7 @@ token = (<?> "token") . located $ choice
     "Bool" -> BoolType
     "Char" -> CharType
     "Float" -> FloatType
+    "Handle" -> HandleType
     "Int" -> IntType
     "def" -> Def
     "else" -> Else

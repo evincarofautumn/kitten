@@ -22,6 +22,7 @@ data Builtin
   | Apply
   | Bottom
   | CatVector
+  | Close
   | Compose
   | DecFloat
   | DecInt
@@ -64,6 +65,8 @@ data Builtin
   | NegInt
   | NotBool
   | NotInt
+  | OpenIn
+  | OpenOut
   | OrBool
   | OrInt
   | Print
@@ -73,6 +76,9 @@ data Builtin
   | ShowInt
   | SubFloat
   | SubInt
+  | Stderr
+  | Stdin
+  | Stdout
   | Swap
   | Top
   | Up
@@ -108,6 +114,7 @@ fromStringTable =
   , (,) "__apply"      Apply
   , (,) "__bottom"     Bottom
   , (,) "__cat_vector" CatVector
+  , (,) "__close"      Close
   , (,) "__compose"    Compose
   , (,) "__dec_float"  DecFloat
   , (,) "__dec_int"    DecInt
@@ -150,6 +157,8 @@ fromStringTable =
   , (,) "__neg_int"    NegInt
   , (,) "__not_bool"   NotBool
   , (,) "__not_int"    NotInt
+  , (,) "__open_in"    OpenIn
+  , (,) "__open_out"   OpenOut
   , (,) "__or_bool"    OrBool
   , (,) "__or_int"     OrInt
   , (,) "__print"      Print
@@ -159,6 +168,9 @@ fromStringTable =
   , (,) "__show_int"   ShowInt
   , (,) "__sub_float"  SubFloat
   , (,) "__sub_int"    SubInt
+  , (,) "__stderr"     Stderr
+  , (,) "__stdin"      Stdin
+  , (,) "__stdout"     Stdout
   , (,) "__swap"       Swap
   , (,) "__top"        Top
   , (,) "__up"         Up

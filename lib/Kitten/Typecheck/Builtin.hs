@@ -38,6 +38,8 @@ typecheckBuiltin builtin = case builtin of
       then pushData $ VectorType a
       else mismatchedElements a b
 
+  Builtin.Close -> popDataExpecting_ HandleType
+
   Builtin.Compose -> do
     Composition c :> Composition d
       <- popDataExpecting $ AnyType :> AnyType
@@ -92,7 +94,9 @@ typecheckBuiltin builtin = case builtin of
     VectorType a <- popDataExpecting $ VectorType AnyType
     pushData a
 
-  Builtin.GetLine -> pushData $ VectorType CharType
+  Builtin.GetLine -> do
+    popDataExpecting_ HandleType
+    pushData $ VectorType CharType
 
   Builtin.GtFloat -> floatsToBool
   Builtin.GtInt -> intsToBool
@@ -130,11 +134,21 @@ typecheckBuiltin builtin = case builtin of
 
   Builtin.NotInt -> intToInt
 
+  Builtin.OpenIn -> do
+    popDataExpecting_ $ VectorType CharType
+    pushData HandleType
+
+  Builtin.OpenOut -> do
+    popDataExpecting_ $ VectorType CharType
+    pushData HandleType
+
   Builtin.OrBool -> boolsToBool
 
   Builtin.OrInt -> intsToInt
 
-  Builtin.Print -> popDataExpecting_ $ VectorType CharType
+  Builtin.Print -> do
+    popDataExpecting_ HandleType
+    popDataExpecting_ $ VectorType CharType
 
   Builtin.Rest -> do
     PairType _ b <- popDataExpecting $ PairType AnyType AnyType
@@ -155,6 +169,10 @@ typecheckBuiltin builtin = case builtin of
   Builtin.ShowInt -> do
     popDataExpecting_ IntType
     pushData $ VectorType CharType
+
+  Builtin.Stderr -> pushData HandleType
+  Builtin.Stdin -> pushData HandleType
+  Builtin.Stdout -> pushData HandleType
 
   Builtin.SubFloat -> floatsToFloat
   Builtin.SubInt -> intsToInt

@@ -18,41 +18,44 @@ instance Show Anno where
 
 data Type a where
   (:>) :: Type Row -> Type Row -> Type Scalar
-  Composition :: [Type Scalar] -> Type Row
-  Vector :: Type Scalar -> Type Scalar
-  Tuple :: [Type Scalar] -> Type Scalar
+  Any :: Type a
   Bool :: Type Scalar
   Char :: Type Scalar
+  Composition :: [Type Scalar] -> Type Row
   Float :: Type Scalar
+  Handle :: Type Scalar
   Int :: Type Scalar
+  Tuple :: [Type Scalar] -> Type Scalar
   Unit :: Type Scalar
-  Any :: Type a
+  Vector :: Type Scalar -> Type Scalar
 
 instance Eq (Type a) where
-  Bool == Bool = True
-  Char == Char = True
-  Float == Float = True
-  Int == Int = True
+  Any == _ = True
+  _ == Any = True
   a == (Composition [] :> Composition [b]) = a == b
   (Composition [] :> Composition [a]) == b = a == b
   (a :> b) == (c :> d) = a == c && b == d
   Composition as == Composition bs = as == bs
-  Vector a == Vector b = a == b
+  Bool == Bool = True
+  Char == Char = True
+  Float == Float = True
+  Handle == Handle = True
+  Int == Int = True
   Tuple as == Tuple bs = as == bs
   Unit == Unit = True
-  Any == _ = True
-  _ == Any = True
+  Vector a == Vector b = a == b
   _ == _ = False
 
 instance Show (Type a) where
   show type_ = case type_ of
     a :> b -> concat ["(", show a, " -> ", show b, ")"]
-    Composition as -> showWords as
-    Vector a -> concat ["[", show a, "]"]
-    Tuple as -> concat ["[", showWords as, "]"]
+    Any -> "*"
     Bool -> "Bool"
     Char -> "Char"
+    Composition as -> showWords as
     Float -> "Float"
+    Handle -> "Handle"
     Int -> "Int"
+    Tuple as -> concat ["[", showWords as, "]"]
     Unit -> "()"
-    Any -> "*"
+    Vector a -> concat ["[", show a, "]"]

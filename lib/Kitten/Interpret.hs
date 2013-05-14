@@ -96,6 +96,10 @@ interpretBuiltin builtin = case builtin of
     Vector _ a <- popData
     pushData $ Vector Nothing (b ++ a)
 
+  Builtin.Close -> do
+    Handle a <- popData
+    lift $ hClose a
+
   Builtin.Compose -> do
     b <- popData
     a <- popData
@@ -149,7 +153,8 @@ interpretBuiltin builtin = case builtin of
     pushData $ a !! b
 
   Builtin.GetLine -> do
-    line <- lift getLine
+    Handle a <- popData
+    line <- lift $ hGetLine a
     pushData $ Vector Nothing (charsFromString line)
 
   Builtin.GtFloat -> floatsToBool (>)
@@ -192,9 +197,22 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.OrInt -> intsToInt (.|.)
 
-  Builtin.Print -> do
+  Builtin.OpenIn -> do
     Vector _ a <- popData
-    lift $ putStr (stringFromChars a) >> hFlush stdout
+    let fileName = stringFromChars a
+    handle <- lift $ openFile fileName ReadMode
+    pushData $ Handle handle
+
+  Builtin.OpenOut -> do
+    Vector _ a <- popData
+    let fileName = stringFromChars a
+    handle <- lift $ openFile fileName WriteMode
+    pushData $ Handle handle
+
+  Builtin.Print -> do
+    Handle b <- popData
+    Vector _ a <- popData
+    lift $ hPutStr b (stringFromChars a) >> hFlush b
 
   Builtin.Rest -> do
     Pair _ b <- popData
@@ -215,6 +233,10 @@ interpretBuiltin builtin = case builtin of
   Builtin.ShowInt -> do
     Int value <- popData
     pushData $ Vector Nothing (charsFromString $ show value)
+
+  Builtin.Stderr -> pushData $ Handle stderr
+  Builtin.Stdin -> pushData $ Handle stdin
+  Builtin.Stdout -> pushData $ Handle stdout
 
   Builtin.SubFloat -> floatsToFloat (-)
   Builtin.SubInt -> intsToInt (-)

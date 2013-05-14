@@ -3,6 +3,8 @@ module Kitten.Resolved
   , Value(..)
   ) where
 
+import System.IO
+
 import Kitten.Anno (Anno)
 import Kitten.Builtin (Builtin)
 import Kitten.Location
@@ -44,6 +46,7 @@ data Value
   | Escape Name
   | Float Double
   | Function Anno [Resolved]
+  | Handle Handle
   | Int Int
   | Pair Value Value
   | Unit
@@ -85,6 +88,8 @@ instance Show Value where
       , showWords terms
       , "}"
       ]
+
+    Handle{} -> "<handle>"
 
     Int value -> show value
 

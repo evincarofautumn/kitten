@@ -88,9 +88,9 @@ typecheckValue value = case value of
   Activation{} -> internalError
     "activations should not appear during typechecking"
 
-  Bool _ -> pushData BoolType
+  Bool{} -> pushData BoolType
 
-  Char _ -> pushData CharType
+  Char{} -> pushData CharType
 
   Closure anno _ _ -> typecheckAnno anno
 
@@ -101,12 +101,14 @@ typecheckValue value = case value of
         "unresolved name appeared during type inference"
       Just Def{..} -> pushData =<< manifestTermType defTerm
 
-  Float _ -> pushData FloatType
+  Float{} -> pushData FloatType
 
   Function anno terms -> typecheckAnnotatedTerms anno
     $ typecheckTerms terms
 
-  Int _ -> pushData IntType
+  Handle{} -> pushData HandleType
+
+  Int{} -> pushData IntType
 
   Pair a b -> do
     typecheckValue b

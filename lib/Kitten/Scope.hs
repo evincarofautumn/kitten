@@ -85,6 +85,8 @@ scopeValue stack value = case value of
     stack' :: [Int]
     stack' = 0 : stack
 
+  Handle{} -> value
+
   Int{} -> value
 
   Pair a b -> Pair (scopeValue stack a) (scopeValue stack b)
@@ -168,6 +170,7 @@ captureValue value = do
         inside env@Env{..} = env { envStack = 0 : envStack }
       in Function anno
          <$> local inside (mapM captureTerm terms)
+    Handle{} -> return value
     Int{} -> return value
     Pair a b -> Pair
       <$> captureValue a

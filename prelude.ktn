@@ -30,7 +30,6 @@ def >=. (Float Float -> Bool): __ge_float
 def >= (Int Int -> Bool): __ge_int
 def >=+ ([a] [a] -> Bool): __ge_vector
 def get ([a] Int -> a): __get
-def getLine (-> [Char]): __get_line
 def >. (Float Float -> Bool): __gt_float
 def > (Int Int -> Bool): __gt_int
 def >+ ([a] [a] -> Bool): __gt_vector
@@ -56,7 +55,7 @@ def ! (Bool -> Bool): __not_bool
 def ~ (Int -> Int): __not_int
 def || (Bool Bool -> Bool): __or_bool
 def | (Int Int -> Int): __or_int
-def print ([Char] ->): __print
+def print ([Char] ->): stdout __print
 def set ([a] a Int -> [a]): __set
 def showI (Int -> [Char]): __show_int
 def showF (Float -> [Char]): __show_float
@@ -115,6 +114,16 @@ def showV ([a] (a -> [Char]) -> [Char]):
   "]" ++
 
 -- Impure
+
+def handleClose (Handle ->): __close
+def handleGetLine (Handle -> [Char]): __get_line
+def handlePrint ([Char] Handle ->): __print
+def getLine (-> [Char]): stdin __get_line
+def openInput ([Char] -> Handle): __open_in
+def openOutput ([Char] -> Handle): __open_out
+def stderr (Handle): __stderr
+def stdin (Handle): __stdin
+def stdout (Handle): __stdout
 
 -- Maps an impure function over each element of a vector.
 def each ([a] (a ->) ->):

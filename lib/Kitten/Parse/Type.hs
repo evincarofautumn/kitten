@@ -36,6 +36,7 @@ signature = locate $ Anno <$> functionType
     [ Anno.Bool <$ match Token.BoolType
     , Anno.Char <$ match Token.CharType
     , Anno.Float <$ match Token.FloatType
+    , Anno.Handle <$ match Token.HandleType
     , Anno.Int <$ match Token.IntType
     , Anno.Any <$ littleWord
     , vector

@@ -17,45 +17,47 @@ typecheckAnno anno = go $ fromAnno anno
   where
   go :: Type Scalar -> Typecheck
   go type_ = case type_ of
-    BoolType -> pushData type_
-    CharType -> pushData type_
-    FloatType -> pushData type_
-    IntType -> pushData type_
-    PairType{} -> pushData type_
-    UnitType -> pushData type_
-    VectorType{} -> pushData type_
     Composition consumption :> Composition production -> do
       mapM_ popDataExpecting_ $ reverse consumption
       mapM_ pushData production
-    AnyType :> Composition{} -> unknownTypeError
-    Composition{} :> AnyType -> unknownTypeError
-    AnyType :> AnyType -> unknownTypeError
     AnyType -> unknownTypeError
+    AnyType :> AnyType -> unknownTypeError
+    AnyType :> Composition{} -> unknownTypeError
+    BoolType -> pushData type_
+    CharType -> pushData type_
+    Composition{} :> AnyType -> unknownTypeError
+    FloatType -> pushData type_
+    HandleType -> pushData type_
+    IntType -> pushData type_
+    PairType{} -> pushData type_
     StackFrameType -> internalError
       "stack frames should not appear in annotations"
+    UnitType -> pushData type_
+    VectorType{} -> pushData type_
 
 typecheckAnnotatedTerms :: Anno -> Typecheck -> Typecheck
 typecheckAnnotatedTerms anno action = do
   void . hypothetically $ case type_ of
+    AnyType -> unknownTypeError
+    AnyType :> AnyType -> unknownTypeError
+    AnyType :> Composition{} -> unknownTypeError
     BoolType -> pushData type_
-    FloatType -> pushData type_
-    IntType -> pushData type_
     CharType -> pushData type_
-    UnitType -> pushData type_
-    VectorType{} -> pushData type_
-    PairType{} -> pushData type_
     Composition consumption :> Composition production -> do
       pushData StackFrameType
       mapM_ pushData consumption
       action
       mapM_ popDataExpecting_ $ reverse production
       popDataExpecting_ StackFrameType
+    Composition{} :> AnyType -> unknownTypeError
+    FloatType -> pushData type_
+    HandleType -> pushData type_
+    IntType -> pushData type_
+    PairType{} -> pushData type_
     StackFrameType -> internalError
       "stack frames should not appear in annotations"
-    AnyType :> Composition{} -> unknownTypeError
-    Composition{} :> AnyType -> unknownTypeError
-    AnyType :> AnyType -> unknownTypeError
-    AnyType -> unknownTypeError
+    UnitType -> pushData type_
+    VectorType{} -> pushData type_
 
   pushData type_
 

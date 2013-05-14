@@ -1,0 +1,9 @@
+"file-output.txt" openOutput -> output
+"Hello, world!\n" output handlePrint
+output handleClose
+
+"file-output.txt" openInput -> input
+input handleGetLine -> line
+input handleClose
+
+line say
