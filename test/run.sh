@@ -11,7 +11,11 @@ fi
 KITTEN="$1"
 shift
 
-cd "$(dirname "$KITTEN")"
+KITTEN_DIR="$(dirname "$KITTEN")"
+
+function run_kitten {
+  "$KITTEN" -L "$KITTEN_DIR" $*
+}
 
 function run_test {
 
@@ -33,7 +37,7 @@ function run_test {
     expect_err="/dev/null"
   fi
 
-  "$KITTEN" "$test_file" \
+  run_kitten "$test_file" \
     < "$test_in" \
     > "$actual_out" \
     2> "$actual_err"

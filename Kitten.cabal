@@ -47,7 +47,6 @@ library
     Kitten.Parse.Primitive,
     Kitten.Parse.Type,
     Kitten.Parsec,
-    Kitten.Prelude,
     Kitten.Resolve,
     Kitten.Resolve.Monad,
     Kitten.Resolved,
@@ -81,7 +80,10 @@ executable kitten
 
   build-depends:
     Kitten,
-    base
+    base,
+    cmdargs == 0.10.*,
+    directory == 1.1.*,
+    filepath == 1.3.*
 
 test-suite test
 

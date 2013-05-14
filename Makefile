@@ -38,7 +38,7 @@ prelude : $(PRELUDE)
 
 $(PRELUDE) : $(KITTEN) prelude.ktn
 	cp prelude.ktn $(PRELUDE)
-	$(KITTEN) $(PRELUDE)
+	$(KITTEN) --no-implicit-prelude $(PRELUDE)
 
 .PHONY: unit
 unit:
