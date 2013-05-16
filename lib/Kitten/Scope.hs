@@ -137,10 +137,10 @@ captureTerm resolved = do
         Just closedName -> Closed closedName loc
     Push value loc -> Push <$> captureValue value <*> pure loc
     Scoped terms loc -> let
-        inside env@Env{..} = env
-          { envStack = mapHead succ envStack
-          , envDepth = succ envDepth
-          }
+      inside env@Env{..} = env
+        { envStack = mapHead succ envStack
+        , envDepth = succ envDepth
+        }
       in Scoped
         <$> local inside (mapM captureTerm terms)
         <*> pure loc
@@ -167,7 +167,7 @@ captureValue value = do
     Escape{} -> return value
     Float{} -> return value
     Function anno terms -> let
-        inside env@Env{..} = env { envStack = 0 : envStack }
+      inside env@Env{..} = env { envStack = 0 : envStack }
       in Function anno
          <$> local inside (mapM captureTerm terms)
     Handle{} -> return value

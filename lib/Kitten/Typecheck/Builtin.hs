@@ -14,12 +14,12 @@ import qualified Kitten.Builtin as Builtin
 
 typecheckBuiltin :: Builtin -> Typecheck
 typecheckBuiltin builtin = case builtin of
-  Builtin.AddFloat -> floatsToFloat
-  Builtin.AddInt -> intsToInt
+  Builtin.AddFloat -> binary FloatType
+  Builtin.AddInt -> binary IntType
 
-  Builtin.AndBool -> boolsToBool
+  Builtin.AndBool -> relational BoolType
 
-  Builtin.AndInt -> intsToInt
+  Builtin.AndInt -> binary IntType
 
   Builtin.Apply -> do
     Composition consumption :> Composition production
@@ -52,11 +52,11 @@ typecheckBuiltin builtin = case builtin of
       mapM_ pushData d
     pushData result
 
-  Builtin.DecFloat -> floatToFloat
-  Builtin.DecInt -> intToInt
+  Builtin.DecFloat -> unary FloatType
+  Builtin.DecInt -> unary IntType
 
-  Builtin.DivFloat -> floatsToFloat
-  Builtin.DivInt -> intsToInt
+  Builtin.DivFloat -> binary FloatType
+  Builtin.DivInt -> binary IntType
 
   Builtin.Down -> do
     a <- popDataExpecting $ VectorType AnyType
@@ -69,9 +69,10 @@ typecheckBuiltin builtin = case builtin of
     pushData a
     pushData a
 
-  Builtin.EqFloat -> floatsToBool
-  Builtin.EqInt -> intsToBool
-  Builtin.EqVector -> vectorsToBool
+  Builtin.EqChar -> relational CharType
+  Builtin.EqFloat -> relational FloatType
+  Builtin.EqInt -> relational IntType
+  Builtin.EqVector -> relational (VectorType AnyType)
 
   Builtin.Empty -> do
     popDataExpecting_ $ VectorType AnyType
@@ -85,9 +86,10 @@ typecheckBuiltin builtin = case builtin of
     a <- popData
     pushData $ Composition [] :> Composition [a]
 
-  Builtin.GeFloat -> floatsToBool
-  Builtin.GeInt -> intsToBool
-  Builtin.GeVector -> vectorsToBool
+  Builtin.GeChar -> relational CharType
+  Builtin.GeFloat -> relational FloatType
+  Builtin.GeInt -> relational IntType
+  Builtin.GeVector -> relational (VectorType AnyType)
 
   Builtin.Get -> do
     popDataExpecting_ IntType
@@ -98,41 +100,45 @@ typecheckBuiltin builtin = case builtin of
     popDataExpecting_ HandleType
     pushData $ VectorType CharType
 
-  Builtin.GtFloat -> floatsToBool
-  Builtin.GtInt -> intsToBool
-  Builtin.GtVector -> vectorsToBool
+  Builtin.GtChar -> relational CharType
+  Builtin.GtFloat -> relational FloatType
+  Builtin.GtInt -> relational IntType
+  Builtin.GtVector -> relational (VectorType AnyType)
 
-  Builtin.IncFloat -> floatToFloat
-  Builtin.IncInt -> intToInt
+  Builtin.IncFloat -> unary FloatType
+  Builtin.IncInt -> unary IntType
 
-  Builtin.LeFloat -> floatsToBool
-  Builtin.LeInt -> intsToBool
-  Builtin.LeVector -> vectorsToBool
+  Builtin.LeChar -> relational CharType
+  Builtin.LeFloat -> relational FloatType
+  Builtin.LeInt -> relational IntType
+  Builtin.LeVector -> relational (VectorType AnyType)
 
   Builtin.Length -> do
     popDataExpecting_ $ VectorType AnyType
     pushData IntType
 
-  Builtin.LtFloat -> floatsToBool
-  Builtin.LtInt -> intsToBool
-  Builtin.LtVector -> vectorsToBool
+  Builtin.LtChar -> relational CharType
+  Builtin.LtFloat -> relational FloatType
+  Builtin.LtInt -> relational IntType
+  Builtin.LtVector -> relational (VectorType AnyType)
 
-  Builtin.ModFloat -> floatsToFloat
-  Builtin.ModInt -> intsToInt
+  Builtin.ModFloat -> binary FloatType
+  Builtin.ModInt -> binary IntType
 
-  Builtin.MulFloat -> floatsToFloat
-  Builtin.MulInt -> intsToInt
+  Builtin.MulFloat -> binary FloatType
+  Builtin.MulInt -> binary IntType
 
-  Builtin.NeFloat -> floatsToBool
-  Builtin.NeInt -> intsToBool
-  Builtin.NeVector -> vectorsToBool
+  Builtin.NeChar -> relational CharType
+  Builtin.NeFloat -> relational FloatType
+  Builtin.NeInt -> relational IntType
+  Builtin.NeVector -> relational (VectorType AnyType)
 
-  Builtin.NegFloat -> floatToFloat
-  Builtin.NegInt -> intToInt
+  Builtin.NegFloat -> unary FloatType
+  Builtin.NegInt -> unary IntType
 
-  Builtin.NotBool -> boolToBool
+  Builtin.NotBool -> unary BoolType
 
-  Builtin.NotInt -> intToInt
+  Builtin.NotInt -> unary IntType
 
   Builtin.OpenIn -> do
     popDataExpecting_ $ VectorType CharType
@@ -142,9 +148,9 @@ typecheckBuiltin builtin = case builtin of
     popDataExpecting_ $ VectorType CharType
     pushData HandleType
 
-  Builtin.OrBool -> boolsToBool
+  Builtin.OrBool -> relational BoolType
 
-  Builtin.OrInt -> intsToInt
+  Builtin.OrInt -> binary IntType
 
   Builtin.Print -> do
     popDataExpecting_ HandleType
@@ -174,8 +180,8 @@ typecheckBuiltin builtin = case builtin of
   Builtin.Stdin -> pushData HandleType
   Builtin.Stdout -> pushData HandleType
 
-  Builtin.SubFloat -> floatsToFloat
-  Builtin.SubInt -> intsToInt
+  Builtin.SubFloat -> binary FloatType
+  Builtin.SubInt -> binary IntType
 
   Builtin.Swap -> do
     b <- popData
@@ -195,52 +201,24 @@ typecheckBuiltin builtin = case builtin of
     a <- popData
     pushData $ VectorType a
 
-  Builtin.XorBool -> boolsToBool
+  Builtin.XorBool -> relational BoolType
 
-  Builtin.XorInt -> intsToInt
+  Builtin.XorInt -> binary IntType
 
   where
 
-  boolToBool = do
-    popDataExpecting_ BoolType
-    pushData BoolType
+  unary a = do
+    popDataExpecting_ a
+    pushData a
 
-  boolsToBool = do
-    popDataExpecting_ BoolType
-    popDataExpecting_ BoolType
-    pushData BoolType
+  binary a = do
+    popDataExpecting_ a
+    popDataExpecting_ a
+    pushData a
 
-  floatToFloat = do
-    popDataExpecting_ FloatType
-    pushData FloatType
-
-  floatsToBool = do
-    popDataExpecting_ FloatType
-    popDataExpecting_ FloatType
-    pushData BoolType
-
-  floatsToFloat = do
-    popDataExpecting_ FloatType
-    popDataExpecting_ FloatType
-    pushData FloatType
-
-  intToInt = do
-    popDataExpecting_ IntType
-    pushData IntType
-
-  intsToBool = do
-    popDataExpecting_ IntType
-    popDataExpecting_ IntType
-    pushData BoolType
-
-  intsToInt = do
-    popDataExpecting_ IntType
-    popDataExpecting_ IntType
-    pushData IntType
-
-  vectorsToBool = do
-    popDataExpecting_ $ VectorType AnyType
-    popDataExpecting_ $ VectorType AnyType
+  relational a = do
+    popDataExpecting_ a
+    popDataExpecting_ a
     pushData BoolType
 
 mismatchedElements

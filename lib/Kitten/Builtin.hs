@@ -32,25 +32,30 @@ data Builtin
   | Drop
   | Dup
   | Empty
+  | EqChar
   | EqFloat
   | EqInt
   | EqVector
   | First
   | Function
+  | GeChar
   | GeFloat
   | GeInt
   | GeVector
   | Get
   | GetLine
+  | GtChar
   | GtFloat
   | GtInt
   | GtVector
   | IncFloat
   | IncInt
+  | LeChar
   | LeFloat
   | LeInt
   | LeVector
   | Length
+  | LtChar
   | LtFloat
   | LtInt
   | LtVector
@@ -58,6 +63,7 @@ data Builtin
   | ModInt
   | MulFloat
   | MulInt
+  | NeChar
   | NeFloat
   | NeInt
   | NeVector
@@ -123,26 +129,31 @@ fromStringTable =
   , (,) "__down"       Down
   , (,) "__drop"       Drop
   , (,) "__dup"        Dup
+  , (,) "__eq_char"    EqChar
   , (,) "__eq_float"   EqFloat
   , (,) "__eq_int"     EqInt
   , (,) "__eq_vector"  EqVector
   , (,) "__empty"      Empty
   , (,) "__first"      First
   , (,) "__function"   Function
+  , (,) "__ge_char"    GeChar
   , (,) "__ge_float"   GeFloat
   , (,) "__ge_int"     GeInt
   , (,) "__ge_vector"  GeVector
   , (,) "__get"        Get
   , (,) "__get_line"   GetLine
+  , (,) "__gt_char"    GtChar
   , (,) "__gt_float"   GtFloat
   , (,) "__gt_int"     GtInt
   , (,) "__gt_vector"  GtVector
   , (,) "__inc_float"  IncFloat
   , (,) "__inc_int"    IncInt
+  , (,) "__le_char"    LeChar
   , (,) "__le_float"   LeFloat
   , (,) "__le_int"     LeInt
   , (,) "__le_vector"  LeVector
   , (,) "__length"     Length
+  , (,) "__lt_char"    LtChar
   , (,) "__lt_float"   LtFloat
   , (,) "__lt_int"     LtInt
   , (,) "__lt_vector"  LtVector
@@ -150,6 +161,7 @@ fromStringTable =
   , (,) "__mod_int"    ModInt
   , (,) "__mul_float"  MulFloat
   , (,) "__mul_int"    MulInt
+  , (,) "__ne_char"    NeChar
   , (,) "__ne_float"   NeFloat
   , (,) "__ne_int"     NeInt
   , (,) "__ne_vector"  NeVector

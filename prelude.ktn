@@ -21,24 +21,29 @@ def dup (a -> a a): __dup
 def /. (Float Float -> Float): __div_float
 def / (Int Int -> Int): __div_int
 def down ([a] -> [a]): __down
+def =^ (Char Char -> Bool): __eq_char
 def =. (Float Float -> Bool): __eq_float
 def = (Int Int -> Bool): __eq_int
 def =+ ([a] [a] -> Bool): __eq_vector
 def empty ([a] -> Bool): __empty
 def function (a -> (-> a)): __function
+def >=^ (Char Char -> Bool): __ge_char
 def >=. (Float Float -> Bool): __ge_float
 def >= (Int Int -> Bool): __ge_int
 def >=+ ([a] [a] -> Bool): __ge_vector
 def get ([a] Int -> a): __get
+def >^ (Char Char -> Bool): __gt_char
 def >. (Float Float -> Bool): __gt_float
 def > (Int Int -> Bool): __gt_int
 def >+ ([a] [a] -> Bool): __gt_vector
 def incF (Float -> Float): __inc_float
 def inc (Int -> Int): __inc_int
+def <=^ (Char Char -> Bool): __le_char
 def <=. (Float Float -> Bool): __le_float
 def <= (Int Int -> Bool): __le_int
 def <=+ ([a] [a] -> Bool): __le_vector
 def length ([a] -> Int): __length
+def <^ (Char Char -> Bool): __lt_char
 def <. (Float Float -> Bool): __lt_float
 def < (Int Int -> Bool): __lt_int
 def <+ ([a] [a] -> Bool): __lt_vector
@@ -46,6 +51,7 @@ def %. (Float Float -> Float): __mod_float
 def % (Int Int -> Int): __mod_int
 def *. (Float Float -> Float): __mul_float
 def * (Int Int -> Int): __mul_int
+def !=^ (Char Char -> Bool): __ne_char
 def !=. (Float Float -> Bool): __ne_float
 def != (Int Int -> Bool): __ne_int
 def !=+ ([a] [a] -> Bool): __ne_vector
@@ -92,6 +98,17 @@ def third ((a, b, c) -> c):
 
 def fourth ((a, b, c, d) -> d):
   __rest __rest __rest __first
+
+-- Read
+
+def readB ([Char] -> [Bool]):
+  -> x
+  if x "true" =+ :
+    [true]
+  else if x "false" =+ :
+    [false]
+  else:
+    (Bool)[]
 
 -- Show
 

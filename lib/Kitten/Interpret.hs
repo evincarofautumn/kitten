@@ -128,6 +128,7 @@ interpretBuiltin builtin = case builtin of
     pushData a
     pushData a
 
+  Builtin.EqChar -> charsToBool (==)
   Builtin.EqFloat -> floatsToBool (==)
   Builtin.EqInt -> intsToBool (==)
   Builtin.EqVector -> vectorsToBool (==)
@@ -143,6 +144,7 @@ interpretBuiltin builtin = case builtin of
   Builtin.Function -> fail
     "TODO interpretBuiltin Builtin.Function"
 
+  Builtin.GeChar -> charsToBool (>=)
   Builtin.GeFloat -> floatsToBool (>=)
   Builtin.GeInt -> intsToBool (>=)
   Builtin.GeVector -> vectorsToBool (>=)
@@ -157,6 +159,7 @@ interpretBuiltin builtin = case builtin of
     line <- lift $ hGetLine a
     pushData $ Vector Nothing (charsFromString line)
 
+  Builtin.GtChar -> charsToBool (>)
   Builtin.GtFloat -> floatsToBool (>)
   Builtin.GtInt -> intsToBool (>)
   Builtin.GtVector -> vectorsToBool (>)
@@ -164,6 +167,7 @@ interpretBuiltin builtin = case builtin of
   Builtin.IncFloat -> floatToFloat succ
   Builtin.IncInt -> intToInt succ
 
+  Builtin.LeChar -> charsToBool (<=)
   Builtin.LeFloat -> floatsToBool (<=)
   Builtin.LeInt -> intsToBool (<=)
   Builtin.LeVector -> vectorsToBool (<=)
@@ -172,6 +176,7 @@ interpretBuiltin builtin = case builtin of
     Vector _ a <- popData
     pushData . Int $ length a
 
+  Builtin.LtChar -> charsToBool (<)
   Builtin.LtFloat -> floatsToBool (<)
   Builtin.LtInt -> intsToBool (<)
   Builtin.LtVector -> vectorsToBool (<)
@@ -182,6 +187,7 @@ interpretBuiltin builtin = case builtin of
   Builtin.MulFloat -> floatsToFloat (*)
   Builtin.MulInt -> intsToInt (*)
 
+  Builtin.NeChar -> charsToBool (/=)
   Builtin.NeFloat -> floatsToBool (/=)
   Builtin.NeInt -> intsToBool (/=)
   Builtin.NeVector -> vectorsToBool (/=)
@@ -274,6 +280,18 @@ interpretBuiltin builtin = case builtin of
   boolsToBool f = do
     Bool b <- popData
     Bool a <- popData
+    pushData $ Bool (f a b)
+
+  charsToBool :: (Char -> Char -> Bool) -> Interpret
+  charsToBool f = do
+    mb <- popData
+    b <- case mb of
+      Char b -> return b
+      _ -> error $ "expected Char but got " ++ show mb
+    ma <- popData
+    a <- case ma of
+      Char a -> return a
+      _ -> error $ "expected Char but got " ++ show ma
     pushData $ Bool (f a b)
 
   floatToFloat :: (Double -> Double) -> Interpret
