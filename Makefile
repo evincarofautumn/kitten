@@ -45,7 +45,7 @@ unit:
 	$(CABAL) test
 
 define TESTRULE
-test-$1 : $(KITTEN) $(PRELUDE)
+test-$1 : $(KITTEN) $(PRELUDE) $(TESTER)
 	@$(TESTER) $$(realpath $(KITTEN)) $1
 test : test-$1
 endef
