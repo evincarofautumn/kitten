@@ -10,12 +10,16 @@ import System.Exit
 import System.FilePath
 import System.IO
 
-import Kitten.Compile
+import Kitten.Compile (compile)
 import Kitten.Fragment
 import Kitten.Interpret
 
+import qualified Kitten.Compile as Compile
+
 data Arguments = Arguments
-  { enableImplicitPrelude :: Bool
+  { dumpResolved :: Bool
+  , dumpScoped :: Bool
+  , enableImplicitPrelude :: Bool
   , entryPoints :: [FilePath]
   , libraryDirectories :: [FilePath]
   , showHelp :: Bool
@@ -39,16 +43,27 @@ main = do
       return []
 
     [filename] -> do
+
       source <- readFile filename
-      let mPrelude = compile [] [] filename source
+      mPrelude <- compile Compile.Config
+        { Compile.stack = []
+        , Compile.prelude = []
+        , Compile.name = filename
+        , Compile.source = source
+        , Compile.dumpResolved = dumpResolved arguments
+        , Compile.dumpScoped = dumpScoped arguments
+        }
+
       Fragment{..} <- case mPrelude of
         Left compileError -> do
           hPrint stderr $ show compileError
           exitFailure
         Right prelude -> return prelude
+
       unless (null fragmentTerms) $ do
         hPutStrLn stderr "Prelude includes executable code."
         exitFailure
+
       return fragmentDefs
 
     _ -> do
@@ -57,7 +72,15 @@ main = do
 
   forM_ (entryPoints arguments) $ \ filename -> do
     program <- readFile filename
-    case compile [] prelude filename program of
+    result <- compile Compile.Config
+      { Compile.stack = []
+      , Compile.prelude = prelude
+      , Compile.name = filename
+      , Compile.source = program
+      , Compile.dumpResolved = dumpResolved arguments
+      , Compile.dumpScoped = dumpScoped arguments
+      }
+    case result of
       Left compileError -> print compileError
       Right resolved -> interpret [] prelude resolved
 
@@ -82,7 +105,9 @@ argumentsMode = mode "kitten" defaultArguments
 
   defaultArguments :: Arguments
   defaultArguments = Arguments
-    { enableImplicitPrelude = True
+    { dumpResolved = False
+    , dumpScoped = False
+    , enableImplicitPrelude = True
     , entryPoints = []
     , libraryDirectories = []
     , showHelp = False
@@ -116,7 +141,17 @@ argumentsMode = mode "kitten" defaultArguments
 
   options :: [Flag Arguments]
   options =
-    [ flagReq' ["L", "library"] "DIR"
+    [ flagBool' ["dump-resolved"]
+      "Output result of name resolution."
+      $ \ flag acc@Arguments{..} -> acc
+      { dumpResolved = flag }
+
+    , flagBool' ["dump-scoped"]
+      "Output result of scope resolution."
+      $ \ flag acc@Arguments{..} -> acc
+      { dumpScoped = flag }
+
+    , flagReq' ["L", "library"] "DIR"
       "Add library search directory."
       $ \ path acc@Arguments{..} -> Right $ acc
       { libraryDirectories = path : libraryDirectories }
