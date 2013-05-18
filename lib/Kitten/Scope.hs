@@ -13,7 +13,6 @@ import Data.List
 
 import Kitten.Def
 import Kitten.Fragment
-import Kitten.Location
 import Kitten.Name
 import Kitten.Resolved
 import Kitten.Util.List
@@ -60,18 +59,8 @@ scopeValue stack value = case value of
   Float{} -> value
 
   Function anno funTerms
-    -> Closure anno capturedNames rescopedTerms
+    -> Closure anno (map ClosedName capturedNames) capturedTerms
     where
-
-    rescopedTerms :: [Resolved]
-    rescopedTerms = foldr go capturedTerms
-      [0 .. pred $ length capturedNames]
-      where
-        go :: Int -> [Resolved] -> [Resolved]
-        go index terms =
-          [ Closed (Name index) GeneratedLocation
-          , Scoped terms GeneratedLocation
-          ]
 
     capturedTerms :: [Resolved]
     capturedNames :: [Name]
@@ -161,9 +150,17 @@ captureValue value = do
     Activation{} -> return value
     Bool{} -> return value
     Char{} -> return value
-    Closure _ names _ -> do
-      mapM_ closeLocal names
-      return value
+    Closure anno names terms
+      -> Closure anno <$> mapM close names <*> pure terms
+      where
+      close :: ClosedName -> Capture ClosedName
+      close original@(ClosedName name) = do
+        closed <- closeLocal name
+        return $ case closed of
+          Nothing -> original
+          Just closedLocal -> ReclosedName closedLocal
+      close original@(ReclosedName _) = return original
+
     Escape{} -> return value
     Float{} -> return value
     Function anno terms -> let

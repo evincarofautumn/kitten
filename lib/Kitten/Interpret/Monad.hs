@@ -3,6 +3,7 @@
 module Kitten.Interpret.Monad
   ( Env(..)
   , Interpret
+  , InterpretM
   , getClosed
   , getLocal
   , here

@@ -52,14 +52,21 @@ interpretTerm resolved = case resolved of
 
 interpretValue :: Value -> Interpret
 interpretValue value = case value of
+
   Word (Name index) -> do
     Def _ term loc <- gets ((!! index) . envDefs)
     withLocation loc $ do
       interpretTerm term
       interpretBuiltin Builtin.Apply
+
   Closure _ names terms -> do
-    values <- mapM getLocal names
+    values <- mapM getClosedName names
     pushData $ Activation values terms
+    where
+    getClosedName :: ClosedName -> InterpretM Value
+    getClosedName (ClosedName name) = getLocal name
+    getClosedName (ReclosedName name) = getClosed name
+
   _ -> pushData value
 
 interpretFunction :: Value -> Interpret

@@ -1,0 +1,50 @@
+def levenshtein ([Char] [Char] -> Int):
+  -> t
+  -> s
+  s length -> m
+  t length -> n
+
+  -- For all i and j, "d i get j get" gives the Levenshtein
+  -- distance between the first i characters of s and the
+  -- first j characters of t.
+  0  n inc replicate  m inc replicate
+
+  -- The distance of any first string to an empty second string.
+  ([[Int]] Int -> [[Int]]){
+    -> i
+    i i 0 set2
+  } 0 m mapRange
+
+  -- The distance of any second string to an empty first string.
+  ([[Int]] Int -> [[Int]]){
+    -> j
+    j 0 j set2
+  } 0 n mapRange
+
+  ([[Int]] Int -> [[Int]]){
+    -> j
+
+    ([[Int]] Int -> [[Int]]){
+      -> i
+      -> d
+      s i dec get -> sc
+      t j dec get -> tc
+
+      if sc tc =^ :
+        d  d i dec get  j dec get  i j set2
+      else:
+        d
+          d i dec get j get inc  -- deletion
+          d i get j dec get inc  -- insertion
+          d i dec get j dec get inc  -- substitution
+          min3
+        i j set2
+
+    } 1 m mapRange
+
+  } 1 n mapRange
+
+  m get n get
+ 
+"kitten" "sitting" levenshtein sayI
+"rosettacode" "raisethysword" levenshtein sayI

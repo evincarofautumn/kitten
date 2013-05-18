@@ -1,5 +1,6 @@
 module Kitten.Resolved
-  ( Resolved(..)
+  ( ClosedName(..)
+  , Resolved(..)
   , Value(..)
   ) where
 
@@ -42,7 +43,7 @@ data Value
   = Activation [Value] [Resolved]
   | Bool Bool
   | Char Char
-  | Closure Anno [Name] [Resolved]
+  | Closure Anno [ClosedName] [Resolved]
   | Escape Name
   | Float Double
   | Function Anno [Resolved]
@@ -108,3 +109,8 @@ instance Show Value where
 
     where
     showVector = showWords . reverse
+
+data ClosedName
+  = ClosedName Name
+  | ReclosedName Name
+  deriving (Eq, Show)

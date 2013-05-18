@@ -26,25 +26,19 @@ spec = do
   describe "non-nested closure" $ do
     testScope
       (fragment [] [scoped [function [local 0]]])
-      (fragment [] [scoped [closure [0] [closed 0, scoped [closed 0]]]])
+      (fragment [] [scoped [closure [closedName 0] [closed 0]]])
 
   describe "nested closure" $ do
     testScope
       (fragment [] [scoped [function [scoped [function [local 1, local 0, biAdd]]]]])
       (fragment []
-        [ scoped
-          [ closure [0]
-            [ closed 0
-            , scoped
-              [ scoped
-                [ closure [1, 0]
-                  [ closed 0
-                  , scoped
-                    [ closed 1
-                    , scoped
-                      [ closed 0
-                      , closed 1
-                      , biAdd]]]]]]]])
+        [scoped
+          [ closure [closedName 0]
+            [ scoped
+              [ closure [reclosedName 0, closedName 0]
+                [ closed 0
+                , closed 1
+                , biAdd]]]]])
 
 testScope :: Fragment Resolved -> Fragment Resolved -> Spec
 testScope source expected = let
@@ -65,9 +59,12 @@ biCompose = Builtin Builtin.Compose TestLocation
 closed :: Int -> Resolved
 closed index = Closed (Name index) TestLocation
 
-closure :: [Int] -> [Resolved] -> Resolved
+closedName :: Int -> ClosedName
+closedName = ClosedName . Name
+
+closure :: [ClosedName] -> [Resolved] -> Resolved
 closure names terms = Push
-  (Closure emptyAnno (map Name names) terms)
+  (Closure emptyAnno names terms)
   TestLocation
 
 emptyAnno :: Anno
@@ -87,8 +84,11 @@ function terms
 local :: Int -> Resolved
 local index = Local (Name index) TestLocation
 
-word :: Int -> Resolved
-word index = Push (Word (Name index)) TestLocation
+reclosedName :: Int -> ClosedName
+reclosedName = ReclosedName . Name
 
 scoped :: [Resolved] -> Resolved
 scoped terms = Scoped terms TestLocation
+
+word :: Int -> Resolved
+word index = Push (Word (Name index)) TestLocation
