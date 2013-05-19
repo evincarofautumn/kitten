@@ -248,6 +248,12 @@ def filter ([a] (a -> Bool) -> [a]):
   else:
     vec up predicate filter
 
+-- Gets a value from a 2D vector.
+def get2 ([[a]] Int Int -> a):
+  -> j
+  -> i
+  i get j get
+
 -- Keeps the topmost n elements of a vector, tossing the rest.
 def keep ([a] Int -> [a]):
   -> n   -- Number of elements

@@ -10,39 +10,41 @@ def levenshtein ([Char] [Char] -> Int):
   0  n inc replicate  m inc replicate
 
   -- The distance of any first string to an empty second string.
-  ([[Int]] Int -> [[Int]]){
+  ([[Int]] Int -> [[Int]]):
     -> i
     i i 0 set2
-  } 0 m mapRange
+  0 m mapRange
 
   -- The distance of any second string to an empty first string.
-  ([[Int]] Int -> [[Int]]){
+  ([[Int]] Int -> [[Int]]):
     -> j
     j 0 j set2
-  } 0 n mapRange
+  0 n mapRange
 
-  ([[Int]] Int -> [[Int]]){
+  ([[Int]] Int -> [[Int]]):
     -> j
 
-    ([[Int]] Int -> [[Int]]){
+    ([[Int]] Int -> [[Int]]):
       -> i
       -> d
       s i dec get -> sc
       t j dec get -> tc
 
+      d
       if sc tc =^ :
-        d  d i dec get  j dec get  i j set2
-      else:
         d
-          d i dec get j get inc  -- deletion
-          d i get j dec get inc  -- insertion
-          d i dec get j dec get inc  -- substitution
-          min3
+        i dec j dec get2
+        i j set2
+      else:
+        d i dec j     get2  -- deletion
+        d i     j dec get2  -- insertion
+        d i dec j dec get2  -- substitution
+        min3 inc
         i j set2
 
-    } 1 m mapRange
+    1 m mapRange
 
-  } 1 n mapRange
+  1 n mapRange
 
   m get n get
  
