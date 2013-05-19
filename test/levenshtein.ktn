@@ -1,52 +1,52 @@
 def levenshtein ([Char] [Char] -> Int):
-  -> t
-  -> s
-  s length -> m
-  t length -> n
+  -> second
+  -> first
+  first length -> rows
+  second length -> columns
 
-  -- For all i and j, "d i get j get" gives the Levenshtein
-  -- distance between the first i characters of s and the
-  -- first j characters of t.
-  0  n inc replicate  m inc replicate
+  // A matrix such that the value at row i, column j is the
+  // Levenshtein distance between the first i characters of
+  // the first string and the first j characters of the
+  // second string.
+  0 columns++ replicate rows++ replicate
 
-  -- The distance of any first string to an empty second string.
-  ([[Int]] Int -> [[Int]]):
-    -> i
-    i i 0 set2
-  0 m mapRange
+  // Distance from any first string to empty second string.
+  ([[Int]] Int -> [[Int]]) {
+    -> row
+    row row 0 set2
+  } 0 rows mapRange
 
-  -- The distance of any second string to an empty first string.
-  ([[Int]] Int -> [[Int]]):
-    -> j
-    j 0 j set2
-  0 n mapRange
+  // Distance from any second string to empty first string.
+  ([[Int]] Int -> [[Int]]) {
+    -> column
+    column 0 column set2
+  } 0 columns mapRange
 
-  ([[Int]] Int -> [[Int]]):
-    -> j
+  ([[Int]] Int -> [[Int]]) {
+    -> row
 
-    ([[Int]] Int -> [[Int]]):
-      -> i
-      -> d
-      s i dec get -> sc
-      t j dec get -> tc
+    ([[Int]] Int -> [[Int]]) {
+      -> column
+      -> distances
+      first row-- get -> firstChar
+      second column-- get -> secondChar
 
-      d
-      if sc tc =^ :
-        d
-        i dec j dec get2
-        i j set2
+      distances
+      if firstChar secondChar =^ :
+        distances row-- column-- get2
+        row column set2
       else:
-        d i dec j     get2  -- deletion
-        d i     j dec get2  -- insertion
-        d i dec j dec get2  -- substitution
-        min3 inc
-        i j set2
+        distances row-- column   get2  // deletion
+        distances row   column-- get2  // insertion
+        distances row-- column-- get2  // substitution
+        min3 ++
+        row column set2
 
-    1 m mapRange
+    } 1 columns mapRange
 
-  1 n mapRange
+  } 1 rows mapRange
 
-  m get n get
+  rows columns get2
  
 "kitten" "sitting" levenshtein sayI
 "rosettacode" "raisethysword" levenshtein sayI

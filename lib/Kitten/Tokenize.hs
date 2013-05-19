@@ -133,12 +133,12 @@ silence = skipMany $ comment <|> whitespace
 
   comment = single <|> multi <?> "comment"
 
-  single = try (string "--")
+  single = try (string "//")
     *> (anyChar `skipManyTill` (void (char '\n') <|> eof))
 
   multi = void $ start *> contents <* end
     where
     contents = characters *> optional multi <* characters
     characters = skipMany $ notFollowedBy (start <|> end) *> anyChar
-    start = try $ string "{-"
-    end = string "-}"
+    start = try $ string "/*"
+    end = string "*/"

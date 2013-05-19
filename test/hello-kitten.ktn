@@ -2,4 +2,4 @@ def prompt (text -> text):
   print getLine
 
 "What is your name? " prompt -> name
-"Hello, " name ++ "!" ++ say
+"Hello, " name +* "!" +* say

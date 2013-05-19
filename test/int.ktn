@@ -18,12 +18,12 @@ def iii ((Int Int -> Int) ->):
 
 `+ iii
 `& iii
-`dec ii
+`-- ii
 `/ iii
 `= iib
 `>= iib
 `> iib
-`inc ii
+`++ ii
 `<= iib
 `< iib
 `% iii
