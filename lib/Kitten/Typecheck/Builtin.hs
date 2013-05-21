@@ -4,6 +4,7 @@ module Kitten.Typecheck.Builtin
   ( typecheckBuiltin
   ) where
 
+import Control.Applicative
 import Control.Monad
 
 import Kitten.Builtin (Builtin)
@@ -12,8 +13,8 @@ import Kitten.Typecheck.Monad
 
 import qualified Kitten.Builtin as Builtin
 
-typecheckBuiltin :: Builtin -> Typecheck
-typecheckBuiltin builtin = case builtin of
+typecheckBuiltin :: Builtin -> Typecheck Builtin
+typecheckBuiltin builtin = builtin <$ case builtin of
   Builtin.AddFloat -> binary FloatType
   Builtin.AddInt -> binary IntType
 
@@ -224,7 +225,7 @@ typecheckBuiltin builtin = case builtin of
 mismatchedElements
   :: Type Scalar
   -> Type Scalar
-  -> Typecheck
+  -> Typecheck ()
 mismatchedElements a b = typeError $ concat
   [ "mismatched element types "
   , show a

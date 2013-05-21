@@ -6,9 +6,12 @@ module Kitten.Resolve
   ) where
 
 import Control.Applicative
+import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
-import Data.Foldable (forM_)
+import Data.Set (Set)
+
+import qualified Data.Set as Set
 
 import Kitten.Def
 import Kitten.Error
@@ -18,7 +21,6 @@ import Kitten.Fragment
 import Kitten.Resolve.Monad
 import Kitten.Resolved
 import Kitten.Term (Term)
-import Kitten.Util.Applicative
 
 import qualified Kitten.Term as Term
 
@@ -28,28 +30,10 @@ resolve
   -> Either CompileError (Fragment Resolved)
 resolve prelude (Fragment defs terms) = do
   -- TODO Don't fail so eagerly.
-  resolveDuplicateDefs defs
   flip evalStateT emptyEnv $ Fragment
     <$> resolveDefs defs
     <*> mapM resolveTerm terms
   where emptyEnv = Env prelude defs []
-
-resolveDuplicateDefs
-  :: [Def Term]
-  -> Either CompileError ()
-resolveDuplicateDefs defs = forM_ defs $ \ def
-  -> case filter (duplicate def) defs of
-    [] -> Right ()
-    duplicates -> Left $ DuplicateError
-      (defLocation def)
-      (map defLocation duplicates)
-      (defName def)
-
-  where
-  duplicate :: Def Term -> Def Term -> Bool
-  duplicate def
-    = (== defName def) . defName
-    .&&. (/= defLocation def) . defLocation
 
 resolveDefs :: [Def Term] -> Resolution [Def Resolved]
 resolveDefs defs = mapM resolveDef defs
@@ -96,7 +80,7 @@ resolveValue unresolved = case unresolved of
   resolveVector = mapM $ fmap fromValue . resolveValue
 
 resolveName
-  :: (Name -> Value)
+  :: (Set Name -> Value)
   -> String
   -> Location
   -> Resolution Resolved
@@ -105,9 +89,10 @@ resolveName wrap name loc = do
   case mLocalIndex of
     Just index -> return $ Local (Name index) loc
     Nothing -> do
-      mDefIndex <- gets $ defIndex name
-      case mDefIndex of
-        Just index -> return
-          $ Push (wrap $ Name index) loc
-        Nothing -> lift . Left . CompileError loc $ concat
+      indices <- gets $ defIndices name
+      when (null indices)
+        . lift . Left . CompileError loc $ concat
           ["unable to resolve word '", name, "'"]
+      return $ Push
+        (wrap . Set.fromList $ map Name indices)
+        loc

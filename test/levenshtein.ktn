@@ -28,11 +28,15 @@ def levenshtein ([Char] [Char] -> Int):
     ([[Int]] Int -> [[Int]]) {
       -> column
       -> distances
-      first row-- get -> firstChar
-      second column-- get -> secondChar
+
+      // FIXME: Type variables are not checked, so the
+      // builtin '__get' is required to disambiguate
+      // overloads.
+      first row-- __get -> firstChar
+      second column-- __get -> secondChar
 
       distances
-      if firstChar secondChar =^ :
+      if firstChar secondChar = :
         distances row-- column-- get2
         row column set2
       else:
@@ -48,5 +52,5 @@ def levenshtein ([Char] [Char] -> Int):
 
   rows columns get2
  
-"kitten" "sitting" levenshtein sayI
-"rosettacode" "raisethysword" levenshtein sayI
+"kitten" "sitting" levenshtein say
+"rosettacode" "raisethysword" levenshtein say

@@ -1,10 +1,10 @@
 [1, 2] -> vec
-vec bottom sayI
-vec up sayIV
-vec top sayI
-vec down sayIV
+vec bottom (Int ->){say} __apply
+vec up ([Int] ->){say} __apply
+vec top (Int ->){say} __apply
+vec down ([Int] ->){say} __apply
 
-1 vector sayIV
+1 vector ([Int] ->){say} __apply
 
-[1] [2] +* sayIV
-[1, 2, 3] [4, 5, 6] +* sayIV
+[1] [2] + ([Int] ->){say} __apply
+[1, 2, 3] [4, 5, 6] + ([Int] ->){say} __apply

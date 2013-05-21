@@ -40,8 +40,8 @@ compile Config{..} = runEitherT $ do
     resolve prelude parsed
 
   when dumpResolved . lift $ hPrint stderr resolved
-  hoistEither $ typecheck prelude stack resolved
+  typechecked <- hoistEither $ typecheck prelude stack resolved
 
-  let scoped = scope resolved
+  let scoped = scope typechecked
   when dumpScoped . lift $ hPrint stderr scoped
   return scoped

@@ -8,12 +8,12 @@ import Kitten.Resolved
 import Kitten.Type
 import Kitten.Typecheck.Monad
 
-manifestTermType :: Resolved -> TypecheckM (Type Scalar)
+manifestTermType :: Resolved -> Typecheck (Type Scalar)
 manifestTermType resolved = case resolved of
   Push value _ -> manifestValueType value
   _ -> internalError "TODO manifest term type of non-function"
 
-manifestValueType :: Value -> TypecheckM (Type Scalar)
+manifestValueType :: Value -> Typecheck (Type Scalar)
 manifestValueType value = case value of
   Bool _ -> return BoolType
   Char _ -> return CharType

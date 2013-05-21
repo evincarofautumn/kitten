@@ -1,5 +1,5 @@
 [1, 2, 3, 4, 5] -> vec
-vec `even filter sayIV
-vec `odd filter sayIV
-vec (Int -> Bool){ 2 > } filter sayIV
-vec (Int -> Bool){ 2 <= } filter sayIV
+vec (Int -> Bool){even} filter ([Int] ->){say} __apply
+vec (Int -> Bool){odd} filter ([Int] ->){say} __apply
+vec (Int -> Bool){ 2 > } filter ([Int] ->){say} __apply
+vec (Int -> Bool){ 2 <= } filter ([Int] ->){say} __apply

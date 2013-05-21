@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Kitten.Interpret
   ( interpret
@@ -9,7 +10,10 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.Bits
 import Data.Fixed
+import Data.Set (Set)
 import System.IO
+
+import qualified Data.Set as Set
 
 import Kitten.Builtin (Builtin)
 import Kitten.Def
@@ -53,7 +57,8 @@ interpretTerm resolved = case resolved of
 interpretValue :: Value -> Interpret
 interpretValue value = case value of
 
-  Word (Name index) -> do
+  Word names -> do
+    index <- overloadIndex names
     Def _ term loc <- gets ((!! index) . envDefs)
     withLocation loc $ do
       interpretTerm term
@@ -73,11 +78,14 @@ interpretFunction :: Value -> Interpret
 interpretFunction function = case function of
   Activation values terms
     -> withClosure values $ mapM_ interpretTerm terms
-  Escape (Name index) -> do
+
+  Escape names -> do
+    index <- overloadIndex names
     Def _ term loc <- gets ((!! index) . envDefs)
     withLocation loc $ do
       interpretTerm term
       interpretBuiltin Builtin.Apply
+
   _ -> fail $ concat
     [ "attempt to apply non-function "
     , show function
@@ -352,3 +360,14 @@ stringFromChars = map fromChar . reverse
 
 charsFromString :: String -> [Value]
 charsFromString = map Char . reverse
+
+overloadIndex :: Set Name -> InterpretM Int
+overloadIndex (Set.toList -> names) = case names of
+  [Name index] -> return index
+  _ -> do
+    loc <- here
+    fail $ concat
+      [ show loc
+      , ": unresolved overloads: "
+      , show names
+      ]

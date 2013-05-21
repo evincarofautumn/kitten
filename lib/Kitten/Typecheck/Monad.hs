@@ -3,7 +3,6 @@
 module Kitten.Typecheck.Monad
   ( Env(..)
   , Typecheck
-  , TypecheckM
   , emptyEnv
   , getLocal
   , hypothetically
@@ -32,9 +31,7 @@ import Kitten.Resolved
 import Kitten.Type
 import Kitten.Util.List
 
-type Typecheck = TypecheckM ()
-
-type TypecheckM a = StateT Env (Either CompileError) a
+type Typecheck a = StateT Env (Either CompileError) a
 
 data Env = Env
   { envData :: [Type Scalar]
@@ -51,28 +48,28 @@ emptyEnv = Env
   , envLocations = []
   }
 
-getLocal :: Name -> TypecheckM (Type Scalar)
+getLocal :: Name -> Typecheck (Type Scalar)
 getLocal (Name index) = gets ((!! index) . envLocals)
 
-here :: TypecheckM Location
+here :: Typecheck Location
 here = do
   locations <- gets envLocations
   return $ case locations of
     [] -> UnknownLocation
     (location : _) -> location
 
-hypothetically :: TypecheckM a -> TypecheckM (Env, Env)
+hypothetically :: Typecheck a -> Typecheck (a, Env)
 hypothetically action = do
   before <- get
-  void action
+  result <- action
   after <- get
   put before
-  return (before, after)
+  return (result, after)
 
-internalError :: String -> TypecheckM a
+internalError :: String -> Typecheck a
 internalError = lift . Left . InternalError
 
-popData :: TypecheckM (Type Scalar)
+popData :: Typecheck (Type Scalar)
 popData = do
   dataStack <- gets envData
   case dataStack of
@@ -81,7 +78,7 @@ popData = do
       modify $ \ env -> env { envData = down }
       return top
 
-popDataExpecting :: Type Scalar -> TypecheckM (Type Scalar)
+popDataExpecting :: Type Scalar -> Typecheck (Type Scalar)
 popDataExpecting type_ = do
   dataStack <- gets envData
   case dataStack of
@@ -94,20 +91,21 @@ popDataExpecting type_ = do
       unify top type_
       return top
 
-popDataExpecting_ :: Type Scalar -> Typecheck
+popDataExpecting_ :: Type Scalar -> Typecheck ()
 popDataExpecting_ = void . popDataExpecting
 
-pushData :: Type Scalar -> Typecheck
+pushData :: Type Scalar -> Typecheck ()
 pushData type_ = modify $ \ env@Env{..}
   -> env { envData = type_ : envData }
 
-pushLocal :: Type Scalar -> Typecheck
+pushLocal :: Type Scalar -> Typecheck ()
 pushLocal type_ = modify $ \ env@Env{..}
   -> env { envLocals = type_ : envLocals }
 
-stackEffect :: TypecheckM a -> TypecheckM (Type Scalar)
+stackEffect :: Typecheck a -> Typecheck (Type Scalar)
 stackEffect action = do
-  (before, after) <- hypothetically action
+  before <- get
+  (_, after) <- hypothetically action
   let
     stackBefore = envData before
     stackAfter = envData after
@@ -118,7 +116,7 @@ stackEffect action = do
     $ Composition (reverse consumption)
     :> Composition (reverse production)
 
-typeError :: String -> TypecheckM a
+typeError :: String -> Typecheck a
 typeError message = do
   location <- here
   lift . Left $ TypeError location message
@@ -126,7 +124,7 @@ typeError message = do
 unify
   :: Type Scalar
   -> Type Scalar
-  -> Typecheck
+  -> Typecheck ()
 unify actual expected
   = when (actual /= expected) . typeError $ unwords
   [ "expected"
@@ -135,11 +133,11 @@ unify actual expected
   , show actual
   ]
 
-unknownTypeError :: Typecheck
+unknownTypeError :: Typecheck a
 unknownTypeError = internalError
   "unknown type appeared during typechecking"
 
-withLocation :: Location -> TypecheckM a -> TypecheckM a
+withLocation :: Location -> Typecheck a -> Typecheck a
 withLocation location action = do
   modify $ \ env@Env{..} -> env
     { envLocations = location : envLocations }

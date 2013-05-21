@@ -4,7 +4,10 @@ module Kitten.Resolved
   , Value(..)
   ) where
 
+import Data.Set (Set)
 import System.IO
+
+import qualified Data.Set as Set
 
 import Kitten.Anno (Anno)
 import Kitten.Builtin (Builtin)
@@ -44,7 +47,7 @@ data Value
   | Bool Bool
   | Char Char
   | Closure Anno [ClosedName] [Resolved]
-  | Escape Name
+  | Escape (Set Name)
   | Float Double
   | Function Anno [Resolved]
   | Handle Handle
@@ -52,7 +55,7 @@ data Value
   | Pair Value Value
   | Unit
   | Vector (Maybe Anno) [Value]
-  | Word Name
+  | Word (Set Name)
   deriving (Eq)
 
 instance Show Value where
@@ -78,7 +81,7 @@ instance Show Value where
       , "}"
       ]
 
-    Escape (Name name) -> '`' : show name
+    Escape possible -> '`' : showPossible possible
 
     Float value -> show value
 
@@ -105,10 +108,16 @@ instance Show Value where
       , "]"
       ]
 
-    Word (Name name) -> '@' : show name
+    Word possible -> '@' : showPossible possible
 
     where
+    showVector :: (Show a) => [a] -> String
     showVector = showWords . reverse
+
+    showPossible :: (Ord a, Show a) => Set a -> String
+    showPossible possible = case Set.toList possible of
+      [name] -> '@' : show name
+      names -> "@{" ++ showWords names ++ "}"
 
 data ClosedName
   = ClosedName Name

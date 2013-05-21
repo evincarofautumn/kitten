@@ -3,6 +3,8 @@ module Test.Scope where
 import Control.Monad
 import Test.Hspec
 
+import qualified Data.Set as Set
+
 import Test.Util
 
 import Kitten.Anno (Anno(..))
@@ -91,4 +93,4 @@ scoped :: [Resolved] -> Resolved
 scoped terms = Scoped terms TestLocation
 
 word :: Int -> Resolved
-word index = Push (Word (Name index)) TestLocation
+word index = Push (Word $ Set.fromList [Name index]) TestLocation

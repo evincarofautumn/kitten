@@ -1,5 +1,5 @@
-def prompt (text -> text):
+def prompt ([Char] -> [Char]):
   print getLine
 
 "What is your name? " prompt -> name
-"Hello, " name +* "!" +* say
+"Hello, " name + "!" + ([Char] ->){say} __apply

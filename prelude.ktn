@@ -1,6 +1,6 @@
 // Builtin
 
-def +. (Float Float -> Float): __add_float
+def + (Float Float -> Float): __add_float
 def + (Int Int -> Int): __add_int
 def && (Bool Bool -> Bool): __and_bool
 def & (Int Int -> Int): __and_int
@@ -9,7 +9,7 @@ def & (Int Int -> Int): __and_int
 // def apply (A (A -> B) -> B): __apply
 
 def bottom ([a] -> a): __bottom
-def +* ([a] [a] -> [a]): __cat_vector
+def + ([a] [a] -> [a]): __cat_vector
 
 // FIXME Cannot express row types.
 // def compose ((A -> B) (B -> C) -> (A -> C)): __compose
@@ -18,44 +18,44 @@ def --. (Float -> Float): __dec_float
 def -- (Int -> Int): __dec_int
 def drop (a ->): __drop
 def dup (a -> a a): __dup
-def /. (Float Float -> Float): __div_float
+def / (Float Float -> Float): __div_float
 def / (Int Int -> Int): __div_int
 def down ([a] -> [a]): __down
-def =^ (Char Char -> Bool): __eq_char
-def =. (Float Float -> Bool): __eq_float
+def = (Char Char -> Bool): __eq_char
+def = (Float Float -> Bool): __eq_float
 def = (Int Int -> Bool): __eq_int
-def =* ([a] [a] -> Bool): __eq_vector
+def = ([a] [a] -> Bool): __eq_vector
 def empty ([a] -> Bool): __empty
 def function (a -> (-> a)): __function
-def >=^ (Char Char -> Bool): __ge_char
-def >=. (Float Float -> Bool): __ge_float
+def >= (Char Char -> Bool): __ge_char
+def >= (Float Float -> Bool): __ge_float
 def >= (Int Int -> Bool): __ge_int
-def >=* ([a] [a] -> Bool): __ge_vector
+def >= ([a] [a] -> Bool): __ge_vector
 def get ([a] Int -> a): __get
-def >^ (Char Char -> Bool): __gt_char
-def >. (Float Float -> Bool): __gt_float
+def > (Char Char -> Bool): __gt_char
+def > (Float Float -> Bool): __gt_float
 def > (Int Int -> Bool): __gt_int
-def >* ([a] [a] -> Bool): __gt_vector
-def ++. (Float -> Float): __inc_float
+def > ([a] [a] -> Bool): __gt_vector
+def ++ (Float -> Float): __inc_float
 def ++ (Int -> Int): __inc_int
-def <=^ (Char Char -> Bool): __le_char
-def <=. (Float Float -> Bool): __le_float
+def <= (Char Char -> Bool): __le_char
+def <= (Float Float -> Bool): __le_float
 def <= (Int Int -> Bool): __le_int
-def <=* ([a] [a] -> Bool): __le_vector
+def <= ([a] [a] -> Bool): __le_vector
 def length ([a] -> Int): __length
-def <^ (Char Char -> Bool): __lt_char
-def <. (Float Float -> Bool): __lt_float
+def < (Char Char -> Bool): __lt_char
+def < (Float Float -> Bool): __lt_float
 def < (Int Int -> Bool): __lt_int
-def <* ([a] [a] -> Bool): __lt_vector
-def %. (Float Float -> Float): __mod_float
+def < ([a] [a] -> Bool): __lt_vector
+def % (Float Float -> Float): __mod_float
 def % (Int Int -> Int): __mod_int
-def *. (Float Float -> Float): __mul_float
+def * (Float Float -> Float): __mul_float
 def * (Int Int -> Int): __mul_int
-def !=^ (Char Char -> Bool): __ne_char
-def !=. (Float Float -> Bool): __ne_float
+def != (Char Char -> Bool): __ne_char
+def != (Float Float -> Bool): __ne_float
 def != (Int Int -> Bool): __ne_int
-def !=* ([a] [a] -> Bool): __ne_vector
-def negF (Float -> Float): __neg_float
+def != ([a] [a] -> Bool): __ne_vector
+def neg (Float -> Float): __neg_float
 def neg (Int -> Int): __neg_int
 def ! (Bool -> Bool): __not_bool
 def ~ (Int -> Int): __not_int
@@ -63,9 +63,7 @@ def || (Bool Bool -> Bool): __or_bool
 def | (Int Int -> Int): __or_int
 def print ([Char] ->): stdout __print
 def set ([a] a Int -> [a]): __set
-def showI (Int -> [Char]): __show_int
-def showF (Float -> [Char]): __show_float
-def -. (Float Float -> Float): __sub_float
+def - (Float Float -> Float): __sub_float
 def - (Int Int -> Int): __sub_int
 def swap (a b -> b a): __swap
 def top ([a] -> a): __top
@@ -79,13 +77,14 @@ def ^ (Int Int -> Int): __xor_int
 def id (a -> a) {}
 
 // Pushes a value to the top of a vector.
-def push ([a] a -> [a]): vector +*
+def push ([a] a -> [a]):
+  vector +
 
 // Prepends a value to the bottom of a vector.
 def prepend (a [a] -> [a]):
   -> xs
   -> x
-  x vector xs +*
+  x vector xs +
 
 def first ((a,) -> a):
   __first
@@ -101,34 +100,49 @@ def fourth ((a, b, c, d) -> d):
 
 // Read
 
-def readB ([Char] -> [Bool]):
+def readBool ([Char] -> [Bool]):
   -> x
-  if x "true" =* :
+  if x "true" = :
     [true]
-  else if x "false" =* :
+  else if x "false" = :
     [false]
   else:
     (Bool)[]
 
 // Show
 
-def showB (Bool -> [Char]): if: "true" else: "false"
-def showBV ([Bool] -> [Char]): `showB showV
-def showIV ([Int] -> [Char]): `showI showV
-def showFV ([Float] -> [Char]): `showF showV
-def showTV ([[Char]] -> [Char]): `id showV
+def show (Bool -> [Char]):
+  if: "true" else: "false"
 
-def showV ([a] (a -> [Char]) -> [Char]):
+def show (Int -> [Char]):
+  __show_int
+
+def show (Float -> [Char]):
+  __show_float
+
+def show ([Bool] -> [Char]):
+  (Bool -> [Char]){show} showVector
+
+def show ([Int] -> [Char]):
+  (Int -> [Char]){show} showVector
+
+def show ([Float] -> [Char]):
+  (Float -> [Char]){show} showVector
+
+def show ([[Char]] -> [Char]):
+  `id showVector
+
+def showVector ([a] (a -> [Char]) -> [Char]):
   -> show
   -> xs
   "[ "
   xs "" (a [Char] -> [Char]){
     -> acc
     -> value
-    value show __apply " " +*
-    acc +*
-  } foldUp +*
-  "]" +*
+    value show __apply " " +
+    acc +
+  } foldUp +
+  "]" +
 
 // Impure
 
@@ -148,55 +162,73 @@ def each ([a] (a ->) ->):
   (a -> a){ dup f __apply } map drop
 
 def newline (->): "\n" print
-def printB (Bool ->): showB print
-def printBV ([Bool] ->): showBV print
-def printF (Float ->): showF print
-def printFV ([Float] ->): showFV print
-def printI (Int ->): showI print
-def printIV ([Int] ->): showIV print
-def printTV ([[Char]] ->): showTV print
+
+def print (Bool ->): show print
+def print ([Bool] ->): show print
+def print (Float ->): show print
+def print ([Float] ->): show print
+def print (Int ->): show print
+def print ([Int] ->): show print
+def print ([[Char]] ->): show print
 
 def say ([Char] ->): print newline
-def sayB (Bool ->): printB newline
-def sayBV ([Bool] ->): printBV newline
-def sayF (Float ->): printF newline
-def sayFV ([Float] ->): printFV newline
-def sayI (Int ->): printI newline
-def sayIV ([Int] ->): printIV newline
-def sayTV ([[Char]] ->): printTV newline
+def say (Bool ->): print newline
+def say ([Bool] ->): print newline
+def say (Float ->): print newline
+def say ([Float] ->): print newline
+def say (Int ->): print newline
+def say ([Int] ->): print newline
+def say ([[Char]] ->): print newline
+
 def space (->): " " print
 
 // Math and Logic
 
-def and ([Bool] -> Bool): true `&& foldUp
-def even (Int -> Bool): 2 % 0 =
-def evenF (Float -> Bool): 2.0 %. 0.0 =.
+def and ([Bool] -> Bool):
+  true `&& foldUp
 
-// Gives the maximum of two values.
+def even (Int -> Bool):
+  2 % 0 =
+
+def even (Float -> Bool):
+  2.0 % 0.0 =
+
 def max2 (Int Int -> Int):
   -> a
   -> b
   if a b > : a else: b
 
-// Gives the maximum of three values.
-def max3 (Int Int Int -> Int): max2 max2
+def max3 (Int Int Int -> Int):
+  max2 max2
 
-// Gives the minimum of two values.
 def min2 (Int Int -> Int):
   -> a
   -> b
   if a b < : a else: b
 
-// Gives the minimum of three values.
-def min3 (Int Int Int -> Int): min2 min2
+def min3 (Int Int Int -> Int):
+  min2 min2
 
-def odd (Int -> Bool): even !
-def oddF (Float -> Bool): evenF !
-def or ([Bool] -> Bool): false `|| foldUp
-def product ([Int] -> Int): 1 `* foldUp
-def productF ([Float] -> Float): 1.0 `*. foldUp
-def sum ([Int] -> Int): 0 `+ foldUp
-def sumF ([Float] -> Float): 0.0 `+. foldUp
+def odd (Int -> Bool):
+  even !
+
+def odd (Float -> Bool):
+  even !
+
+def or ([Bool] -> Bool):
+  false `|| foldUp
+
+def product ([Int] -> Int):
+  1 (Int Int -> Int){*} foldUp
+
+def product ([Float] -> Float):
+  1.0 (Float Float -> Float){*} foldUp
+
+def sum ([Int] -> Int):
+  0 (Int Int -> Int){+} foldUp
+
+def sum ([Float] -> Float):
+  0.0 (Float Float -> Float){+} foldUp
 
 // Iterates a function on a value until a predicate holds.
 def until (a (a -> a) (a -> Bool) -> a):
@@ -244,7 +276,7 @@ def filter ([a] (a -> Bool) -> [a]):
   else if vec bottom predicate __apply:
     vec bottom vector
     vec up predicate filter
-    +*
+    +
   else:
     vec up predicate filter
 
@@ -308,7 +340,7 @@ def replicate (a Int -> [a]):
   else:
     value vector
     value count-- replicate
-    +*
+    +
 
 // Sets a value in a 2D vector.
 def set2 ([[a]] a Int Int -> [[a]]):

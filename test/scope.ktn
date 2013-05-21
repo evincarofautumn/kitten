@@ -9,7 +9,7 @@
     b1 y1 +
   } __apply
 } __apply
-sayI
+say
 
 1000 -> x2
 100 -> y2
@@ -22,4 +22,4 @@ sayI
     b2 x2 +
   } __apply
 } __apply
-sayI
+say

@@ -3,7 +3,7 @@
 module Kitten.Resolve.Monad
   ( Env(..)
   , Resolution
-  , defIndex
+  , defIndices
   , localIndex
   , withLocal
   ) where
@@ -25,10 +25,10 @@ data Env = Env
   , envScope :: [String]
   }
 
-defIndex :: String -> Env -> Maybe Int
-defIndex expected Env{..} = findExpected envPrelude
-  <|> ((+ length envPrelude) <$> findExpected envDefs)
-  where findExpected = findIndex $ (== expected) . defName
+defIndices :: String -> Env -> [Int]
+defIndices expected Env{..} = findExpected envPrelude
+  ++ ((length envPrelude +) <$> findExpected envDefs)
+  where findExpected = findIndices $ (== expected) . defName
 
 localIndex :: String -> Env -> Maybe Int
 localIndex name = elemIndex name . envScope

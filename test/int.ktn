@@ -6,31 +6,31 @@ def binary (-> Int Int):
 
 def ii ((Int -> Int) ->):
   -> f
-  unary f __apply sayI
+  unary f __apply say
 
 def iib ((Int Int -> Bool) ->):
   -> f
-  binary f __apply sayB
+  binary f __apply say
 
 def iii ((Int Int -> Int) ->):
   -> f
-  binary f __apply sayI
+  binary f __apply say
 
-`+ iii
-`& iii
-`-- ii
-`/ iii
-`= iib
-`>= iib
-`> iib
-`++ ii
-`<= iib
-`< iib
-`% iii
-`* iii
-`!= iib
-`neg ii
-`~ ii
-`| iii
-`- iii
-`^ iii
+(Int Int -> Int){+} iii
+(Int Int -> Int){&} iii
+(Int -> Int){--} ii
+(Int Int -> Int){/} iii
+(Int Int -> Bool){=} iib
+(Int Int -> Bool){>=} iib
+(Int Int -> Bool){>} iib
+(Int -> Int){++} ii
+(Int Int -> Bool){<=} iib
+(Int Int -> Bool){<} iib
+(Int Int -> Int){%} iii
+(Int Int -> Int){*} iii
+(Int Int -> Bool){!=} iib
+(Int -> Int){neg} ii
+(Int -> Int){~} ii
+(Int Int -> Int){|} iii
+(Int Int -> Int){-} iii
+(Int Int -> Int){^} iii
