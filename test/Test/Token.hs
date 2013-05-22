@@ -85,7 +85,7 @@ spec = do
 
   describe "tokenize builtin" $ do
     testTokens "__vector" [Builtin Builtin.Vector]
-    testTokens "__cat_vector" [Builtin Builtin.CatVector]
+    testTokens "__add_vector" [Builtin Builtin.AddVector]
     testTokens "__function" [Builtin Builtin.Function]
     testTokens "__compose" [Builtin Builtin.Compose]
     testTokens "__apply" [Builtin Builtin.Apply]

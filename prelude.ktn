@@ -2,6 +2,7 @@
 
 def + (Float Float -> Float): __add_float
 def + (Int Int -> Int): __add_int
+def + ([a] [a] -> [a]): __add_vector
 def && (Bool Bool -> Bool): __and_bool
 def & (Int Int -> Int): __and_int
 
@@ -9,7 +10,6 @@ def & (Int Int -> Int): __and_int
 // def apply (A (A -> B) -> B): __apply
 
 def bottom ([a] -> a): __bottom
-def + ([a] [a] -> [a]): __cat_vector
 
 // FIXME Cannot express row types.
 // def compose ((A -> B) (B -> C) -> (A -> C)): __compose

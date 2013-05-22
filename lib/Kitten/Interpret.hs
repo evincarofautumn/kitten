@@ -96,6 +96,11 @@ interpretBuiltin builtin = case builtin of
   Builtin.AddFloat -> floatsToFloat (+)
   Builtin.AddInt -> intsToInt (+)
 
+  Builtin.AddVector -> do
+    Vector _ b <- popData
+    Vector _ a <- popData
+    pushData $ Vector Nothing (b ++ a)
+
   Builtin.AndBool -> boolsToBool (&&)
 
   Builtin.AndInt -> intsToInt (.&.)
@@ -105,11 +110,6 @@ interpretBuiltin builtin = case builtin of
   Builtin.Bottom -> do
     Vector _ a <- popData
     pushData $ last a
-
-  Builtin.CatVector -> do
-    Vector _ b <- popData
-    Vector _ a <- popData
-    pushData $ Vector Nothing (b ++ a)
 
   Builtin.Close -> do
     Handle a <- popData

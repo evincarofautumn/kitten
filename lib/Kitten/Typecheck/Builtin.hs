@@ -18,6 +18,13 @@ typecheckBuiltin builtin = builtin <$ case builtin of
   Builtin.AddFloat -> binary FloatType
   Builtin.AddInt -> binary IntType
 
+  Builtin.AddVector -> do
+    VectorType b <- popDataExpecting $ VectorType AnyType
+    VectorType a <- popDataExpecting $ VectorType AnyType
+    if a == b
+      then pushData $ VectorType a
+      else mismatchedElements a b
+
   Builtin.AndBool -> relational BoolType
 
   Builtin.AndInt -> binary IntType
@@ -31,13 +38,6 @@ typecheckBuiltin builtin = builtin <$ case builtin of
   Builtin.Bottom -> do
     VectorType a <- popDataExpecting $ VectorType AnyType
     pushData a
-
-  Builtin.CatVector -> do
-    VectorType b <- popDataExpecting $ VectorType AnyType
-    VectorType a <- popDataExpecting $ VectorType AnyType
-    if a == b
-      then pushData $ VectorType a
-      else mismatchedElements a b
 
   Builtin.Close -> popDataExpecting_ HandleType
 

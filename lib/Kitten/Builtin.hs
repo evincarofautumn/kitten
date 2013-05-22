@@ -17,11 +17,11 @@ import Kitten.Util.Tuple
 data Builtin
   = AddFloat
   | AddInt
+  | AddVector
   | AndBool
   | AndInt
   | Apply
   | Bottom
-  | CatVector
   | Close
   | Compose
   | DecFloat
@@ -115,11 +115,11 @@ fromStringTable :: [(String, Builtin)]
 fromStringTable =
   [ (,) "__add_float"  AddFloat
   , (,) "__add_int"    AddInt
+  , (,) "__add_vector" AddVector
   , (,) "__and_bool"   AndBool
   , (,) "__and_int"    AndInt
   , (,) "__apply"      Apply
   , (,) "__bottom"     Bottom
-  , (,) "__cat_vector" CatVector
   , (,) "__close"      Close
   , (,) "__compose"    Compose
   , (,) "__dec_float"  DecFloat
