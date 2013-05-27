@@ -66,9 +66,11 @@ library
     Kitten.Util.Function,
     Kitten.Util.List,
     Kitten.Util.Maybe,
+    Kitten.Util.Monad,
     Kitten.Util.Parsec,
     Kitten.Util.Show,
-    Kitten.Util.Tuple
+    Kitten.Util.Tuple,
+    Kitten.Yarn
 
 executable kitten
 

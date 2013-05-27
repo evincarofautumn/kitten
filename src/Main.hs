@@ -13,11 +13,17 @@ import System.IO
 import Kitten.Compile (compile)
 import Kitten.Fragment
 import Kitten.Interpret
+import Kitten.Yarn (yarn)
 
 import qualified Kitten.Compile as Compile
 
+data CompileMode
+  = CompileMode
+  | InterpretMode
+
 data Arguments = Arguments
-  { dumpResolved :: Bool
+  { compileMode :: CompileMode
+  , dumpResolved :: Bool
   , dumpScoped :: Bool
   , enableImplicitPrelude :: Bool
   , entryPoints :: [FilePath]
@@ -31,58 +37,66 @@ main = do
 
   arguments <- parseArguments
 
-  preludes <- filterM doesFileExist
-    $ map (</> "prelude.ktn") (libraryDirectories arguments)
+  let
+    preludes = map (</> "prelude.ktn")
+      (libraryDirectories arguments)
+  existingPreludes <- filterM doesFileExist preludes
 
-  prelude <- case preludes of
-
-    [] -> do
-      when (enableImplicitPrelude arguments) $ do
-        hPutStrLn stderr "Missing prelude."
+  prelude <- if enableImplicitPrelude arguments
+    then case existingPreludes of
+      [] -> do
+        hPutStrLn stderr . unlines
+          $ "No prelude found. Searched:"
+          : preludes
         exitFailure
-      return []
 
-    [filename] -> do
+      [filename] -> do
 
-      source <- readFile filename
-      mPrelude <- compile Compile.Config
-        { Compile.stack = []
-        , Compile.prelude = []
-        , Compile.name = filename
-        , Compile.source = source
-        , Compile.dumpResolved = dumpResolved arguments
-        , Compile.dumpScoped = dumpScoped arguments
-        }
+        source <- readFile filename
+        mPrelude <- compile Compile.Config
+          { Compile.dumpResolved = dumpResolved arguments
+          , Compile.dumpScoped = dumpScoped arguments
+          , Compile.name = filename
+          , Compile.prelude = []
+          , Compile.source = source
+          , Compile.stack = []
+          }
 
-      Fragment{..} <- case mPrelude of
-        Left compileError -> do
-          hPrint stderr $ show compileError
+        Fragment{..} <- case mPrelude of
+          Left compileError -> do
+            hPrint stderr $ show compileError
+            exitFailure
+          Right prelude -> return prelude
+
+        unless (null fragmentTerms) $ do
+          hPutStrLn stderr "Prelude includes executable code."
           exitFailure
-        Right prelude -> return prelude
 
-      unless (null fragmentTerms) $ do
-        hPutStrLn stderr "Prelude includes executable code."
+        return fragmentDefs
+
+      _ -> do
+        hPutStrLn stderr . unlines
+          $ "Too many prelude candidates:"
+          : existingPreludes
         exitFailure
 
-      return fragmentDefs
-
-    _ -> do
-      hPutStrLn stderr "Too many preludes."
-      exitFailure
+    else return []
 
   forM_ (entryPoints arguments) $ \ filename -> do
     program <- readFile filename
     result <- compile Compile.Config
-      { Compile.stack = []
-      , Compile.prelude = prelude
-      , Compile.name = filename
-      , Compile.source = program
-      , Compile.dumpResolved = dumpResolved arguments
+      { Compile.dumpResolved = dumpResolved arguments
       , Compile.dumpScoped = dumpScoped arguments
+      , Compile.name = filename
+      , Compile.prelude = prelude
+      , Compile.source = program
+      , Compile.stack = []
       }
     case result of
-      Left compileError -> print compileError
-      Right resolved -> interpret [] prelude resolved
+      Left compileError -> hPrint stderr compileError
+      Right result -> case compileMode arguments of
+        CompileMode -> mapM_ print $ yarn result
+        InterpretMode -> interpret [] prelude result
 
 parseArguments :: IO Arguments
 parseArguments = do
@@ -105,7 +119,8 @@ argumentsMode = mode "kitten" defaultArguments
 
   defaultArguments :: Arguments
   defaultArguments = Arguments
-    { dumpResolved = False
+    { compileMode = InterpretMode
+    , dumpResolved = False
     , dumpScoped = False
     , enableImplicitPrelude = True
     , entryPoints = []
@@ -141,7 +156,12 @@ argumentsMode = mode "kitten" defaultArguments
 
   options :: [Flag Arguments]
   options =
-    [ flagBool' ["dump-resolved"]
+    [ flagBool' ["c", "compile"]
+      "Compile Yarn assembly."
+      $ \ flag acc@Arguments{..} -> acc
+      { compileMode = if flag then CompileMode else InterpretMode }
+
+    , flagBool' ["dump-resolved"]
       "Output result of name resolution."
       $ \ flag acc@Arguments{..} -> acc
       { dumpResolved = flag }

@@ -21,12 +21,12 @@ import Kitten.Tokenize
 import Kitten.Typecheck
 
 data Config = Config
-  { stack :: [Resolved.Value]
-  , prelude :: [Def Resolved]
-  , name :: String
-  , source :: String
-  , dumpResolved :: Bool
+  { dumpResolved :: Bool
   , dumpScoped :: Bool
+  , name :: String
+  , prelude :: [Def Resolved]
+  , source :: String
+  , stack :: [Resolved.Value]
   }
 
 compile
@@ -44,4 +44,5 @@ compile Config{..} = runEitherT $ do
 
   let scoped = scope typechecked
   when dumpScoped . lift $ hPrint stderr scoped
+
   return scoped
