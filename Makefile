@@ -1,3 +1,5 @@
+.NOTPARALLEL :
+
 HLINT := hlint
 CABAL ?= cabal
 
