@@ -93,7 +93,7 @@ instance Show Value where
 
     Int int -> unwords ["int", show int]
     Vector values -> unwords
-      $ "vector" : show (length values) : map show values
+      $ "vector" : show (length values) : map show (reverse values)
     Word label -> unwords ["word", show label]
     Pair a b -> unwords ["pair", show a, show b]
     Unit -> "unit 0"
