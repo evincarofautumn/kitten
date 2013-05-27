@@ -63,6 +63,7 @@ library
     Kitten.Typecheck.Term,
     Kitten.Util.Applicative,
     Kitten.Util.Either,
+    Kitten.Util.FailWriter,
     Kitten.Util.Function,
     Kitten.Util.List,
     Kitten.Util.Maybe,

@@ -11,6 +11,7 @@ import System.FilePath
 import System.IO
 
 import Kitten.Compile (compile)
+import Kitten.Error (CompileError)
 import Kitten.Fragment
 import Kitten.Interpret
 import Kitten.Yarn (yarn)
@@ -63,8 +64,8 @@ main = do
           }
 
         Fragment{..} <- case mPrelude of
-          Left compileError -> do
-            hPrint stderr $ show compileError
+          Left compileErrors -> do
+            printCompileErrors compileErrors
             exitFailure
           Right prelude -> return prelude
 
@@ -93,10 +94,14 @@ main = do
       , Compile.stack = []
       }
     case result of
-      Left compileError -> hPrint stderr compileError
+      Left compileErrors -> printCompileErrors compileErrors
       Right result -> case compileMode arguments of
         CompileMode -> mapM_ print $ yarn result
         InterpretMode -> interpret [] prelude result
+
+printCompileErrors :: [CompileError] -> IO ()
+printCompileErrors errors
+  = hPutStr stderr $ unlines (map show errors)
 
 parseArguments :: IO Arguments
 parseArguments = do

@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE TupleSections #-}
 
 module Kitten.Typecheck.Term
   ( typecheckTerm
@@ -8,9 +9,8 @@ module Kitten.Typecheck.Term
 
 import Control.Applicative
 import Control.Monad
-import Control.Monad.Trans.State
-import Data.Either
 import Data.List
+import Data.Maybe (catMaybes)
 import Data.Set (Set)
 
 import qualified Data.Set as Set
@@ -44,9 +44,9 @@ typecheckTerm resolved = case resolved of
     condition' <- typecheckTerms condition
     popDataExpecting_ BoolType
 
-    (true', afterTrue) <- hypothetically
+    (true', afterTrue) <- hypothetically'
       $ typecheckTerms true
-    (false', afterFalse) <- hypothetically
+    (false', afterFalse) <- hypothetically'
       $ typecheckTerms false
 
     when (envData afterTrue /= envData afterFalse) $ let
@@ -61,7 +61,7 @@ typecheckTerm resolved = case resolved of
        , showWords afterFalseSuffix
        ]
 
-    put afterTrue
+    putEnv afterTrue
 
     return $ If condition' true' false' loc
 
@@ -78,7 +78,7 @@ typecheckTerm resolved = case resolved of
     Scoped <$> typecheckTerms terms <*> pure loc
 
 typecheckTerms :: [Resolved] -> Typecheck [Resolved]
-typecheckTerms = mapM typecheckTerm
+typecheckTerms = guardMapM typecheckTerm
 
 typecheckTermShallow :: Resolved -> Typecheck Resolved
 typecheckTermShallow resolved = case resolved of
@@ -187,24 +187,20 @@ overload
   -> Typecheck Value
 overload wrap action names = do
 
-  defTable <- gets envDefs
+  defTable <- getsEnv envDefs
   let
     indexedDefs = for indices $ \ index
       -> (index, defTable !! index)
 
-  env <- get
-  let
-    results = for indexedDefs $ \ (index, def)
-      -> flip runStateT env $ do
-        void . action $ defTerm def
-        return index
+  results <- forM indexedDefs $ \ (index, def) -> do
+    (mIndex, env) <- hypothetically $ do
+      void . action $ defTerm def
+      return index
+    return $ either (const Nothing) (Just . (, env)) mIndex
 
-  let (_failures, successes) = partitionEithers results
-
-  case successes of
-
+  case catMaybes results of
     [(index, result)] -> do
-      put result
+      putEnv result
       return . wrap . Set.singleton $ Name index
 
     _ -> do
@@ -213,7 +209,7 @@ overload wrap action names = do
         return (defLocation def, type_)
 
       loc <- here
-      stack <- gets envData
+      stack <- getsEnv envData
       typeError . intercalate "\n"
         $ "unable to resolve overload; candidates are:"
         : map showLocatedType locatedTypes
@@ -236,7 +232,7 @@ typecheckWithAnno
   -> [Resolved]
   -> Typecheck [Resolved]
 typecheckWithAnno anno terms = do
-  (terms', _) <- hypothetically $ case type_ of
+  (terms', _) <- hypothetically' $ case type_ of
     AnyType -> unknownTypeError
     AnyType :> AnyType -> unknownTypeError
     AnyType :> Composition{} -> unknownTypeError
