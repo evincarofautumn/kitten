@@ -37,10 +37,12 @@ function run_test {
     expect_err="/dev/null"
   fi
 
-  run_kitten "$test_file" \
-    < "$test_in" \
-    > "$actual_out" \
-    2> "$actual_err"
+  pushd "$here" > /dev/null
+    run_kitten "$test_file" \
+      < "$test_in" \
+      > "$actual_out" \
+      2> "$actual_err"
+  popd > /dev/null
 
   if [ ! -e "$expect_out" ]; then
     echo "Test '$test_name' BROKEN." >&2
@@ -80,7 +82,7 @@ fi
 
 if [ $# -gt 0 ]; then
   for test in "$@"; do
-    run_test "$here/$test.ktn"
+    run_test "$test.ktn"
   done
 else
   find . -maxdepth 1 -name '*.ktn' | while read test_file; do

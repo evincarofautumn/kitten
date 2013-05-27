@@ -15,6 +15,7 @@ import Kitten.Location
 import Kitten.Parse
 import Kitten.Term
 import Kitten.Tokenize
+import Kitten.Util.Either
 
 import qualified Kitten.Anno as Anno
 
@@ -230,8 +231,8 @@ testTermFailure source = it ("should fail: " ++ show source)
 
 parsed :: String -> Either CompileError (Fragment Term)
 parsed
-  = liftParseError . tokenize "test"
-  >=> liftParseError . parse "test"
+  = mapLeft parseError . tokenize "test"
+  >=> mapLeft parseError . parse "test"
 
 def :: String -> Term -> Def Term
 def name term = Def name term TestLocation
