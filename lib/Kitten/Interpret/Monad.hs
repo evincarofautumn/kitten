@@ -65,8 +65,7 @@ popLocal = do
   localStack <- gets envLocals
   case localStack of
     [] -> fail "local stack underflow"
-    (_ : down) -> do
-      modify $ \ env -> env { envLocals = down }
+    (_ : down) -> modify $ \ env -> env { envLocals = down }
 
 pushData :: Value -> Interpret
 pushData value = modify $ \ env@Env{..}

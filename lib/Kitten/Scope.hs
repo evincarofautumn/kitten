@@ -1,4 +1,3 @@
-{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Kitten.Scope
@@ -109,30 +108,29 @@ addName name = do
       return . Name $ length names
 
 captureTerm :: Resolved -> Capture Resolved
-captureTerm resolved = do
-  case resolved of
-    Block terms -> Block <$> mapM captureTerm terms
-    Builtin{} -> return resolved
-    Closed{} -> return resolved
-    If condition true false loc -> If
-      <$> mapM captureTerm condition
-      <*> mapM captureTerm true
-      <*> mapM captureTerm false
+captureTerm resolved = case resolved of
+  Block terms -> Block <$> mapM captureTerm terms
+  Builtin{} -> return resolved
+  Closed{} -> return resolved
+  If condition true false loc -> If
+    <$> mapM captureTerm condition
+    <*> mapM captureTerm true
+    <*> mapM captureTerm false
+    <*> pure loc
+  Local name loc -> do
+    closed <- closeLocal name
+    return $ case closed of
+      Nothing -> resolved
+      Just closedName -> Closed closedName loc
+  Push value loc -> Push <$> captureValue value <*> pure loc
+  Scoped terms loc -> let
+    inside env@Env{..} = env
+      { envStack = mapHead succ envStack
+      , envDepth = succ envDepth
+      }
+    in Scoped
+      <$> local inside (mapM captureTerm terms)
       <*> pure loc
-    Local name loc -> do
-      closed <- closeLocal name
-      return $ case closed of
-        Nothing -> resolved
-        Just closedName -> Closed closedName loc
-    Push value loc -> Push <$> captureValue value <*> pure loc
-    Scoped terms loc -> let
-      inside env@Env{..} = env
-        { envStack = mapHead succ envStack
-        , envDepth = succ envDepth
-        }
-      in Scoped
-        <$> local inside (mapM captureTerm terms)
-        <*> pure loc
 
 closeLocal :: Name -> Capture (Maybe Name)
 closeLocal (Name index) = do
@@ -145,34 +143,33 @@ closeLocal (Name index) = do
     _ -> return Nothing
 
 captureValue :: Value -> Capture Value
-captureValue value = do
-  case value of
-    Activation{} -> return value
-    Bool{} -> return value
-    Char{} -> return value
-    Closure anno names terms
-      -> Closure anno <$> mapM close names <*> pure terms
-      where
-      close :: ClosedName -> Capture ClosedName
-      close original@(ClosedName name) = do
-        closed <- closeLocal name
-        return $ case closed of
-          Nothing -> original
-          Just closedLocal -> ReclosedName closedLocal
-      close original@(ReclosedName _) = return original
+captureValue value = case value of
+  Activation{} -> return value
+  Bool{} -> return value
+  Char{} -> return value
+  Closure anno names terms
+    -> Closure anno <$> mapM close names <*> pure terms
+    where
+    close :: ClosedName -> Capture ClosedName
+    close original@(ClosedName name) = do
+      closed <- closeLocal name
+      return $ case closed of
+        Nothing -> original
+        Just closedLocal -> ReclosedName closedLocal
+    close original@(ReclosedName _) = return original
 
-    Escape{} -> return value
-    Float{} -> return value
-    Function anno terms -> let
-      inside env@Env{..} = env { envStack = 0 : envStack }
-      in Function anno
-         <$> local inside (mapM captureTerm terms)
-    Handle{} -> return value
-    Int{} -> return value
-    Pair a b -> Pair
-      <$> captureValue a
-      <*> captureValue b
-    Unit{} -> return value
-    Vector anno values -> Vector anno
-      <$> mapM captureValue values
-    Word{} -> return value
+  Escape{} -> return value
+  Float{} -> return value
+  Function anno terms -> let
+    inside env@Env{..} = env { envStack = 0 : envStack }
+    in Function anno
+       <$> local inside (mapM captureTerm terms)
+  Handle{} -> return value
+  Int{} -> return value
+  Pair a b -> Pair
+    <$> captureValue a
+    <*> captureValue b
+  Unit{} -> return value
+  Vector anno values -> Vector anno
+    <$> mapM captureValue values
+  Word{} -> return value

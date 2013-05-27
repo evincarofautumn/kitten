@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 module Kitten.Term
   ( Term(..)
   , Value(..)

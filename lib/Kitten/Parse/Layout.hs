@@ -47,7 +47,7 @@ insertBraces = (concat <$> many unit) <* eof
     ]
 
   isBracket :: Token -> Bool
-  isBracket token = any (== token)
+  isBracket token = token `elem`
     [ Token.BlockBegin
     , Token.BlockEnd
     , Token.GroupBegin

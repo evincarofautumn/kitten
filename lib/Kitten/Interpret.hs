@@ -56,14 +56,7 @@ interpretTerm resolved = case resolved of
 
 interpretValue :: Value -> Interpret
 interpretValue value = case value of
-
-  Word names -> do
-    index <- overloadIndex names
-    Def _ term loc <- gets ((!! index) . envDefs)
-    withLocation loc $ do
-      interpretTerm term
-      interpretBuiltin Builtin.Apply
-
+  Word names -> interpretOverload names
   Closure _ names terms -> do
     values <- mapM getClosedName names
     pushData $ Activation values terms
@@ -71,25 +64,22 @@ interpretValue value = case value of
     getClosedName :: ClosedName -> InterpretM Value
     getClosedName (ClosedName name) = getLocal name
     getClosedName (ReclosedName name) = getClosed name
-
   _ -> pushData value
 
 interpretFunction :: Value -> Interpret
 interpretFunction function = case function of
   Activation values terms
     -> withClosure values $ mapM_ interpretTerm terms
+  Escape names -> interpretOverload names
+  _ -> fail $ "attempt to apply non-function " ++ show function
 
-  Escape names -> do
-    index <- overloadIndex names
-    Def _ term loc <- gets ((!! index) . envDefs)
-    withLocation loc $ do
-      interpretTerm term
-      interpretBuiltin Builtin.Apply
-
-  _ -> fail $ concat
-    [ "attempt to apply non-function "
-    , show function
-    ]
+interpretOverload :: Set Name -> Interpret
+interpretOverload names = do
+  index <- overloadIndex names
+  Def _ term loc <- gets ((!! index) . envDefs)
+  withLocation loc $ do
+    interpretTerm term
+    interpretBuiltin Builtin.Apply
 
 interpretBuiltin :: Builtin -> Interpret
 interpretBuiltin builtin = case builtin of

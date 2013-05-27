@@ -72,4 +72,4 @@ data Located = Located
   }
 
 instance Show Located where
-  show (Located locatedToken _) = show locatedToken
+  show Located{..} = show locatedToken

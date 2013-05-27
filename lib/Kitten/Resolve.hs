@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
 
 module Kitten.Resolve
   ( resolve
@@ -28,15 +27,15 @@ resolve
   :: [Def Resolved]
   -> Fragment Term
   -> Either CompileError (Fragment Resolved)
-resolve prelude (Fragment defs terms) = do
+resolve prelude (Fragment defs terms)
   -- TODO Don't fail so eagerly.
-  flip evalStateT emptyEnv $ Fragment
+  = flip evalStateT emptyEnv $ Fragment
     <$> resolveDefs defs
     <*> mapM resolveTerm terms
   where emptyEnv = Env prelude defs []
 
 resolveDefs :: [Def Term] -> Resolution [Def Resolved]
-resolveDefs defs = mapM resolveDef defs
+resolveDefs = mapM resolveDef
   where
   resolveDef (Def name body loc)
     = Def name <$> resolveTerm body <*> pure loc

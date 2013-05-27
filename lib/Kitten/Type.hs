@@ -1,6 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE RecordWildCards #-}
 
 module Kitten.Type
   ( Row
@@ -79,7 +78,7 @@ fromAnnoType annoType = case annoType of
   Anno.Float -> FloatType
   Anno.Handle -> HandleType
   Anno.Int -> IntType
-  Anno.Tuple types -> foldr PairType AnyType (map fromAnnoType types)
+  Anno.Tuple types -> foldr (PairType . fromAnnoType) AnyType types
   Anno.Unit -> UnitType
   Anno.Vector type_ -> VectorType $ fromAnnoType type_
 
