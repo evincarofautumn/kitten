@@ -5,6 +5,7 @@ module Kitten.Typecheck
   ( typecheck
   ) where
 
+import Control.Monad
 import Control.Monad.Trans.State
 
 import Kitten.Def
@@ -12,6 +13,7 @@ import Kitten.Error
 import Kitten.Fragment
 import Kitten.Resolved
 import Kitten.Typecheck.Term
+import Kitten.Typecheck.Manifest
 import Kitten.Typecheck.Monad
 
 typecheck
@@ -33,5 +35,7 @@ typecheck prelude stack fragment@Fragment{..}
 
 typecheckDef :: Def Resolved -> Typecheck (Def Resolved)
 typecheckDef def@Def{..} = withLocation defLocation $ do
+  -- Ensure definition term has a type signature.
+  void $ manifestTermType defTerm
   term <- typecheckTerm defTerm
   return def { defTerm = term }

@@ -11,7 +11,7 @@ import Kitten.Typecheck.Monad
 manifestTermType :: Resolved -> Typecheck (Type Scalar)
 manifestTermType resolved = case resolved of
   Push value _ -> manifestValueType value
-  _ -> internalError "TODO manifest term type of non-function"
+  _ -> typeError "missing type signature"
 
 manifestValueType :: Value -> Typecheck (Type Scalar)
 manifestValueType value = case value of
@@ -22,5 +22,4 @@ manifestValueType value = case value of
   Closure anno _ _ -> return $ fromAnno anno
   Int _ -> return IntType
   Vector (Just anno) _ -> return . VectorType $ fromAnno anno
-  _ -> internalError
-   $ "manifest value type of non-literal: " ++ show value
+  _ -> typeError "missing type signature"
