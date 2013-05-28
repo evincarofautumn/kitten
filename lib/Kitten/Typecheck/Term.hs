@@ -10,12 +10,14 @@ import Control.Applicative
 import Control.Monad
 import Control.Monad.Trans.State
 import Data.Either
+import Data.List
 import Data.Set (Set)
 
 import qualified Data.Set as Set
 
 import Kitten.Anno (Anno)
 import Kitten.Def
+import Kitten.Location
 import Kitten.Name
 import Kitten.Resolved
 import Kitten.Type
@@ -197,15 +199,37 @@ overload wrap action names = do
         void . action $ defTerm def
         return index
 
-  case partitionEithers results of
-    (_, [(index, result)]) -> do
+  let (_failures, successes) = partitionEithers results
+
+  case successes of
+
+    [(index, result)] -> do
       put result
       return . wrap . Set.singleton $ Name index
 
-    (_, []) -> typeError "unable to resolve overload"
-    (_, _) -> typeError "ambiguous overload"
+    _ -> do
+      locatedTypes <- forM indexedDefs $ \ (_, def) -> do
+        type_ <- manifestTermType $ defTerm def
+        return (defLocation def, type_)
 
-  where indices = map nameIndex $ Set.toList names
+      loc <- here
+      stack <- gets envData
+      typeError . intercalate "\n"
+        $ "unable to resolve overload; candidates are:"
+        : map showLocatedType locatedTypes
+        ++ (list . concat)
+        [ show loc
+        , ": stack contained: "
+        , showWords (take 5 $ reverse stack)
+        ]
+
+      where
+      showLocatedType :: (Location, Type Scalar) -> String
+      showLocatedType (loc, type_) = concat [show loc, ": ", show type_]
+
+  where
+  indices :: [Int]
+  indices = map nameIndex $ Set.toList names
 
 typecheckWithAnno
   :: Anno

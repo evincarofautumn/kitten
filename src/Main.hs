@@ -37,10 +37,9 @@ main = do
 
   arguments <- parseArguments
 
-  currentDirectory <- getCurrentDirectory
   let
     preludes = map (</> "prelude.ktn")
-      $ currentDirectory : libraryDirectories arguments
+      $ "." : libraryDirectories arguments
   existingPreludes <- filterM doesFileExist preludes
 
   prelude <- if enableImplicitPrelude arguments

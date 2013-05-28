@@ -1,7 +1,8 @@
 #!/bin/bash
 
+KITTEN_DIR="$(pwd)"
 cd "$(dirname "$0")"
-here="$(pwd)"
+HERE="$(pwd)"
 
 if [ "$#" -lt 1 ]; then
   echo "Usage: run.sh /path/to/kitten TEST" >&2
@@ -11,23 +12,21 @@ fi
 KITTEN="$1"
 shift
 
-KITTEN_DIR="$(dirname "$KITTEN")"
-
 function run_kitten {
-  "$KITTEN" -L "$KITTEN_DIR" $*
+  "$KITTEN" $*
 }
 
 function run_test {
 
   set +e +E
 
-  test_file="$1"
+  test_file="test/$1"
   test_name="$(basename "$test_file" ".ktn")"
-  test_in="$here/$test_name.in"
-  actual_out="$here/$test_name.out.actual"
-  expect_out="$here/$test_name.out.expect"
-  actual_err="$here/$test_name.err.actual"
-  expect_err="$here/$test_name.err.expect"
+  test_in="$HERE/$test_name.in"
+  actual_out="$HERE/$test_name.out.actual"
+  expect_out="$HERE/$test_name.out.expect"
+  actual_err="$HERE/$test_name.err.actual"
+  expect_err="$HERE/$test_name.err.expect"
 
   if [ ! -e "$test_in" ]; then
     test_in="/dev/null"
@@ -37,7 +36,7 @@ function run_test {
     expect_err="/dev/null"
   fi
 
-  pushd "$here" > /dev/null
+  pushd "$KITTEN_DIR" > /dev/null
     run_kitten "$test_file" \
       < "$test_in" \
       > "$actual_out" \

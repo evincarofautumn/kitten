@@ -5,6 +5,7 @@ module Kitten.Typecheck.Monad
   , Typecheck
   , emptyEnv
   , getLocal
+  , here
   , hypothetically
   , internalError
   , popData
