@@ -1,0 +1,6 @@
+many-type-errors.ktn:1:9:(-1): type error: expected Int but got Float
+many-type-errors.ktn:2:5:(-1): type error: expected Float but got Int
+many-type-errors.ktn:3:5:(-1): type error: expected [*] but got Int
+many-type-errors.ktn:5:1:(-1): type error: element type Bool does not match first element type Int
+many-type-errors.ktn:7:34:(-1): type error: expected Int but got Float
+many-type-errors.ktn:8:28:(-1): type error: expected Float but got Int

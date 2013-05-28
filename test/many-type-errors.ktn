@@ -1,0 +1,8 @@
+1.0 2.0 __add_int
+1 2 __add_float
+1 2 __add_vector
+
+[1, true]
+
+def plus (Float Float -> Float): __add_int
+def plus (Int Int -> Int): __add_float

@@ -1,18 +1,19 @@
 module Kitten.Error
   ( CompileError(..)
-  , liftParseError
+  , parseError
   ) where
 
+import Data.Ord (comparing)
 import Text.Parsec.Error
 
 import Kitten.Location
-import Kitten.Util.Either
 
 data CompileError
   = CompileError Location String
   | DuplicateError Location [Location] String
   | InternalError String
   | TypeError Location String
+  deriving (Eq)
 
 instance Show CompileError where
   show compileError = case compileError of
@@ -39,14 +40,24 @@ instance Show CompileError where
       , message
       ]
 
-liftParseError :: Either ParseError a -> Either CompileError a
-liftParseError = mapLeft $ \ parseError -> let
+instance Ord CompileError where
+  compare = comparing errorLocation
+
+errorLocation :: CompileError -> Maybe Location
+errorLocation compileError = case compileError of
+  CompileError location _ -> Just location
+  DuplicateError location _ _ -> Just location
+  InternalError _ -> Nothing
+  TypeError location _ -> Just location
+
+parseError :: ParseError -> CompileError
+parseError err = let
     location = Location
-      { locationStart = errorPos parseError
+      { locationStart = errorPos err
       , locationIndent = 0  -- FIXME
       }
     message = showErrorMessages
       "or" "unknown" "expecting" "unexpected" "end of input"
-      $ errorMessages parseError
+      $ errorMessages err
   in
     CompileError location message

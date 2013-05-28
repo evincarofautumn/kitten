@@ -5,8 +5,6 @@ module Kitten.Typecheck
   ( typecheck
   ) where
 
-import Control.Monad.Trans.State
-
 import Kitten.Def
 import Kitten.Error
 import Kitten.Fragment
@@ -18,14 +16,15 @@ typecheck
   :: [Def Resolved]
   -> [Value]
   -> Fragment Resolved
-  -> Either CompileError (Fragment Resolved)
+  -> Either [CompileError] (Fragment Resolved)
 typecheck prelude stack fragment@Fragment{..}
-  = flip evalStateT emptyEnv
+  = evalTypecheck emptyEnv
   { envDefs = prelude ++ fragmentDefs
   } $ do
     mapM_ typecheckValue stack
-    defs <- mapM typecheckDef fragmentDefs
-    terms <- typecheckTerms fragmentTerms
+    (defs, terms) <- guardLiftM2 (,)
+      (guardMapM typecheckDef fragmentDefs)
+      (typecheckTerms fragmentTerms)
     return fragment
       { fragmentDefs = defs
       , fragmentTerms = terms
