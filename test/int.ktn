@@ -1,0 +1,36 @@
+def unary (-> Int):
+  1
+
+def binary (-> Int Int):
+  1 2
+
+def ii ((Int -> Int) ->):
+  -> f
+  unary f __apply say
+
+def iib ((Int Int -> Bool) ->):
+  -> f
+  binary f __apply say
+
+def iii ((Int Int -> Int) ->):
+  -> f
+  binary f __apply say
+
+(Int Int -> Int){+} iii
+(Int Int -> Int){&} iii
+(Int -> Int){--} ii
+(Int Int -> Int){/} iii
+(Int Int -> Bool){=} iib
+(Int Int -> Bool){>=} iib
+(Int Int -> Bool){>} iib
+(Int -> Int){++} ii
+(Int Int -> Bool){<=} iib
+(Int Int -> Bool){<} iib
+(Int Int -> Int){%} iii
+(Int Int -> Int){*} iii
+(Int Int -> Bool){!=} iib
+(Int -> Int){neg} ii
+(Int -> Int){~} ii
+(Int Int -> Int){|} iii
+(Int Int -> Int){-} iii
+(Int Int -> Int){^} iii

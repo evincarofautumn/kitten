@@ -1,6 +1,4 @@
-build
-.*
-*.o
-*.hi
-*.a
-*~
+/build
+/.*
+/*~
+/test/*.actual

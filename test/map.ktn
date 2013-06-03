@@ -1,0 +1,11 @@
+(int)[]
+(Int -> Int){++} map
+([Int] ->){say} __apply
+
+[1, 2, 3]
+(Int -> Int){++} map
+([Int] ->){say} __apply
+
+["a", "b", "c"]
+([Char] -> [Char]){ "s" + } map
+([[Char]] ->){say} __apply

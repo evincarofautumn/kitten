@@ -1,0 +1,34 @@
+99 bottlesOfBeer
+
+def bottlesOfBeer (Int ->):
+  -> x
+  x verse
+  if x 1 > : x-- bottlesOfBeer
+  else {}
+
+def verse (Int ->):
+  -> x
+  x wall newline
+  x beer newline
+  take newline
+  x-- wall newline
+  newline
+
+def beer (Int ->):
+  bottles " of beer" print
+
+def wall (Int ->):
+  beer " on the wall" print
+
+def take (->):
+  "take one down, pass it around" print
+
+def bottles (Int ->):
+  -> x
+  if x 0 = :
+    "no more bottles"
+  else if x 1 = :
+    "one bottle"
+  else:
+    x show " bottles" +
+  print

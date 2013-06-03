@@ -1,0 +1,56 @@
+def levenshtein ([Char] [Char] -> Int):
+  -> second
+  -> first
+  first length -> rows
+  second length -> columns
+
+  // A matrix such that the value at row i, column j is the
+  // Levenshtein distance between the first i characters of
+  // the first string and the first j characters of the
+  // second string.
+  0 columns++ replicate rows++ replicate
+
+  // Distance from any first string to empty second string.
+  ([[Int]] Int -> [[Int]]) {
+    -> row
+    row row 0 set2
+  } 0 rows mapRange
+
+  // Distance from any second string to empty first string.
+  ([[Int]] Int -> [[Int]]) {
+    -> column
+    column 0 column set2
+  } 0 columns mapRange
+
+  ([[Int]] Int -> [[Int]]) {
+    -> row
+
+    ([[Int]] Int -> [[Int]]) {
+      -> column
+      -> distances
+
+      // FIXME: Type variables are not checked, so the
+      // builtin '__get' is required to disambiguate
+      // overloads.
+      first row-- __get -> firstChar
+      second column-- __get -> secondChar
+
+      distances
+      if firstChar secondChar = :
+        distances row-- column-- get2
+        row column set2
+      else:
+        distances row-- column   get2  // deletion
+        distances row   column-- get2  // insertion
+        distances row-- column-- get2  // substitution
+        min3 ++
+        row column set2
+
+    } 1 columns mapRange
+
+  } 1 rows mapRange
+
+  rows columns get2
+ 
+"kitten" "sitting" levenshtein say
+"rosettacode" "raisethysword" levenshtein say

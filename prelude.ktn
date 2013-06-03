@@ -1,0 +1,366 @@
+// Builtin
+
+def + (Float Float -> Float): __add_float
+def + (Int Int -> Int): __add_int
+def + ([a] [a] -> [a]): __add_vector
+def && (Bool Bool -> Bool): __and_bool
+def & (Int Int -> Int): __and_int
+
+// FIXME Cannot express row types.
+// def apply (A (A -> B) -> B): __apply
+
+def bottom ([a] -> a): __bottom
+
+// FIXME Cannot express row types.
+// def compose ((A -> B) (B -> C) -> (A -> C)): __compose
+
+def --. (Float -> Float): __dec_float
+def -- (Int -> Int): __dec_int
+def drop (a ->): __drop
+def dup (a -> a a): __dup
+def / (Float Float -> Float): __div_float
+def / (Int Int -> Int): __div_int
+def down ([a] -> [a]): __down
+def = (Char Char -> Bool): __eq_char
+def = (Float Float -> Bool): __eq_float
+def = (Int Int -> Bool): __eq_int
+def = ([a] [a] -> Bool): __eq_vector
+def empty ([a] -> Bool): __empty
+def function (a -> (-> a)): __function
+def >= (Char Char -> Bool): __ge_char
+def >= (Float Float -> Bool): __ge_float
+def >= (Int Int -> Bool): __ge_int
+def >= ([a] [a] -> Bool): __ge_vector
+def get ([a] Int -> a): __get
+def > (Char Char -> Bool): __gt_char
+def > (Float Float -> Bool): __gt_float
+def > (Int Int -> Bool): __gt_int
+def > ([a] [a] -> Bool): __gt_vector
+def ++ (Float -> Float): __inc_float
+def ++ (Int -> Int): __inc_int
+def <= (Char Char -> Bool): __le_char
+def <= (Float Float -> Bool): __le_float
+def <= (Int Int -> Bool): __le_int
+def <= ([a] [a] -> Bool): __le_vector
+def length ([a] -> Int): __length
+def < (Char Char -> Bool): __lt_char
+def < (Float Float -> Bool): __lt_float
+def < (Int Int -> Bool): __lt_int
+def < ([a] [a] -> Bool): __lt_vector
+def % (Float Float -> Float): __mod_float
+def % (Int Int -> Int): __mod_int
+def * (Float Float -> Float): __mul_float
+def * (Int Int -> Int): __mul_int
+def != (Char Char -> Bool): __ne_char
+def != (Float Float -> Bool): __ne_float
+def != (Int Int -> Bool): __ne_int
+def != ([a] [a] -> Bool): __ne_vector
+def neg (Float -> Float): __neg_float
+def neg (Int -> Int): __neg_int
+def ! (Bool -> Bool): __not_bool
+def ~ (Int -> Int): __not_int
+def || (Bool Bool -> Bool): __or_bool
+def | (Int Int -> Int): __or_int
+def print ([Char] ->): stdout __print
+def set ([a] a Int -> [a]): __set
+def - (Float Float -> Float): __sub_float
+def - (Int Int -> Int): __sub_int
+def swap (a b -> b a): __swap
+def top ([a] -> a): __top
+def up ([a] -> [a]): __up
+def vector (a -> [a]): __vector
+def ^^ (Bool Bool -> Bool): __xor_bool
+def ^ (Int Int -> Int): __xor_int
+
+// Core
+
+def id (a -> a) {}
+
+// Pushes a value to the top of a vector.
+def push ([a] a -> [a]):
+  vector +
+
+// Prepends a value to the bottom of a vector.
+def prepend (a [a] -> [a]):
+  -> xs
+  -> x
+  x vector xs +
+
+def first ((a,) -> a):
+  __first
+
+def second ((a, b) -> b):
+  __rest __first
+
+def third ((a, b, c) -> c):
+  __rest __rest __first
+
+def fourth ((a, b, c, d) -> d):
+  __rest __rest __rest __first
+
+// Read
+
+def readBool ([Char] -> [Bool]):
+  -> x
+  if x "true" = :
+    [true]
+  else if x "false" = :
+    [false]
+  else:
+    (Bool)[]
+
+// Show
+
+def show (Bool -> [Char]):
+  if: "true" else: "false"
+
+def show (Int -> [Char]):
+  __show_int
+
+def show (Float -> [Char]):
+  __show_float
+
+def show ([Bool] -> [Char]):
+  (Bool -> [Char]){show} showVector
+
+def show ([Int] -> [Char]):
+  (Int -> [Char]){show} showVector
+
+def show ([Float] -> [Char]):
+  (Float -> [Char]){show} showVector
+
+def show ([[Char]] -> [Char]):
+  `id showVector
+
+def showVector ([a] (a -> [Char]) -> [Char]):
+  -> show
+  -> xs
+  "[ "
+  xs "" (a [Char] -> [Char]){
+    -> acc
+    -> value
+    value show __apply " " +
+    acc +
+  } foldUp +
+  "]" +
+
+// Impure
+
+def handleClose (Handle ->): __close
+def handleGetLine (Handle -> [Char]): __get_line
+def handlePrint ([Char] Handle ->): __print
+def getLine (-> [Char]): stdin __get_line
+def openInput ([Char] -> Handle): __open_in
+def openOutput ([Char] -> Handle): __open_out
+def stderr (Handle): __stderr
+def stdin (Handle): __stdin
+def stdout (Handle): __stdout
+
+// Maps an impure function over each element of a vector.
+def each ([a] (a ->) ->):
+  -> f
+  (a -> a){ dup f __apply } map drop
+
+def newline (->): "\n" print
+
+def print (Bool ->): show print
+def print ([Bool] ->): show print
+def print (Float ->): show print
+def print ([Float] ->): show print
+def print (Int ->): show print
+def print ([Int] ->): show print
+def print ([[Char]] ->): show print
+
+def say ([Char] ->): print newline
+def say (Bool ->): print newline
+def say ([Bool] ->): print newline
+def say (Float ->): print newline
+def say ([Float] ->): print newline
+def say (Int ->): print newline
+def say ([Int] ->): print newline
+def say ([[Char]] ->): print newline
+
+def space (->): " " print
+
+// Math and Logic
+
+def and ([Bool] -> Bool):
+  true `&& foldUp
+
+def even (Int -> Bool):
+  2 % 0 =
+
+def even (Float -> Bool):
+  2.0 % 0.0 =
+
+def max2 (Int Int -> Int):
+  -> a
+  -> b
+  if a b > : a else: b
+
+def max3 (Int Int Int -> Int):
+  max2 max2
+
+def min2 (Int Int -> Int):
+  -> a
+  -> b
+  if a b < : a else: b
+
+def min3 (Int Int Int -> Int):
+  min2 min2
+
+def odd (Int -> Bool):
+  even !
+
+def odd (Float -> Bool):
+  even !
+
+def or ([Bool] -> Bool):
+  false `|| foldUp
+
+def product ([Int] -> Int):
+  1 (Int Int -> Int){*} foldUp
+
+def product ([Float] -> Float):
+  1.0 (Float Float -> Float){*} foldUp
+
+def sum ([Int] -> Int):
+  0 (Int Int -> Int){+} foldUp
+
+def sum ([Float] -> Float):
+  0.0 (Float Float -> Float){+} foldUp
+
+// Iterates a function on a value until a predicate holds.
+def until (a (a -> a) (a -> Bool) -> a):
+  -> p  // Predicate
+  -> f  // Function
+  -> x  // Initial value
+  if x p __apply:
+    x
+  else:
+    x f __apply
+    f p until
+
+// Vector
+
+// Folds elements of a vector bottom-up.
+def foldUp ([a] b (a b -> b) -> b):
+  -> f   // Function
+  -> z   // Starting value
+  -> xs  // Vector
+  if xs empty:
+    z
+  else:
+    xs bottom
+    xs up z f foldUp
+    f __apply
+
+// Folds elements of a vector top-down.
+def foldDown ([a] b (b a -> b) -> b):
+  -> f   // Function
+  -> z   // Starting value
+  -> xs  // Vector
+  if xs empty:
+    z
+  else:
+    xs down z f foldDown
+    xs top
+    f __apply
+
+// Filters a vector by a predicate.
+def filter ([a] (a -> Bool) -> [a]):
+  -> predicate
+  -> vec
+  if vec empty:
+    vec
+  else if vec bottom predicate __apply:
+    vec bottom vector
+    vec up predicate filter
+    +
+  else:
+    vec up predicate filter
+
+// Gets a value from a 2D vector.
+def get2 ([[a]] Int Int -> a):
+  -> j
+  -> i
+  i get j get
+
+// Keeps the topmost n elements of a vector, tossing the rest.
+def keep ([a] Int -> [a]):
+  -> n   // Number of elements
+  -> xs  // Vector
+  if n 0 <=  xs empty  || :
+    (a)[]
+  else:
+    xs down n-- keep
+    xs top push
+
+// Maps a function downward over the elements of a vector.
+def map ([a] (a -> b) -> [b]):
+  0 mapFrom
+
+// Maps a function over part of a vector.
+def mapFrom ([a] (a -> b) Int -> [b]):
+  -> offset
+  -> function
+  -> vec
+  if vec empty  offset vec length >=  || :
+    vec
+  else:
+    vec function offset modify
+    function offset++ mapFrom
+
+// Maps a function over a value for each integer in a range.
+def mapRange (a (a Int -> a) Int Int -> a):
+  -> end
+  -> start
+  -> function
+  -> value
+  if start end <= :
+    value start function __apply
+    function start++ end mapRange
+  else:
+    value
+
+// Maps a function over an element of a vector.
+def modify ([a] (a -> a) Int -> [a]):
+  -> offset
+  -> function
+  -> vec
+  vec offset get function __apply -> value
+  vec value offset set
+
+// Produces a vector with some number of copies of a value.
+def replicate (a Int -> [a]):
+  -> count
+  -> value
+  if count 0 <= :
+    (a)[]
+  else:
+    value vector
+    value count-- replicate
+    +
+
+// Sets a value in a 2D vector.
+def set2 ([[a]] a Int Int -> [[a]]):
+  -> j
+  -> i
+  -> x
+  ([a] -> [a]){ x j set } i modify
+
+// Splits a vector at the given index.
+def split_at ([a] Int -> [a] [a]):
+  -> n   // Number of elements
+  -> xs  // Vector
+  xs n toss
+  xs n keep
+
+// Tosses the first n elements of a vector, keeping the rest.
+def toss ([a] Int -> [a]):
+  -> n   // Number of elements
+  -> xs  // Vector
+  if n 0 <=  xs empty  || :
+    xs
+  else:
+    xs down n-- toss

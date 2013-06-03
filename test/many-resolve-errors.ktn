@@ -1,0 +1,14 @@
+some_undefined_name
+
+def fun1 (->): some_undefined_name
+def fun2 (->): some_other_undefined_name
+
+{ ->x y y z }
+{ ->y z z x }
+{ ->z x x y }
+
+[vec1, vec2, 10, vec3]
+
+if bad: hi hello
+else if bad: hi hello
+else: bad hi

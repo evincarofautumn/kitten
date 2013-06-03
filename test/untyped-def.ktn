@@ -1,0 +1,2 @@
+def untyped:
+  __swap 2 3

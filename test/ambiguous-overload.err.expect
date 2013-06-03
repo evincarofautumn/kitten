@@ -1,0 +1,5 @@
+test/ambiguous-overload.ktn:1:7: type error: unable to resolve overload; candidates are:
+./prelude.ktn:1:1: (Float Float -> Float)
+./prelude.ktn:4:1: (Int Int -> Int)
+./prelude.ktn:5:1: ([*] [*] -> [*])
+test/ambiguous-overload.ktn:1:7: stack contained: Int Float

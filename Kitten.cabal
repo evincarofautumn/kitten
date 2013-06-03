@@ -3,34 +3,110 @@ version: 0.1
 cabal-version: >= 1.8
 build-type: Simple
 license: MIT
-license-file: LICENSE
+license-file: LICENSE.md
 copyright: 2012 (C) 2012 Jon Purdy
 author: Jon Purdy
-maintainer: evincarofautumn@gmail.com
+maintainer: Jon Purdy <evincarofautumn@gmail.com>
 stability: alpha
-homepage: https://github.com/evincarofautumn/kitten
+homepage: http://kittenlang.org/
 bug-reports: https://github.com/evincarofautumn/kitten/issues
-synopsis: A high-performance concatenative programming language.
+synopsis: A minimalistic concatenative programming language.
 
-executable kitten
+library
 
   build-depends:
-    base >= 2,
-    file-location == 0.4.*,
-    mtl == 2.0.* || == 2.1.*,
-    parsec >= 3.1.2 && < 3.2,
-    template-haskell,
-    text == 0.11.*
-
-  extensions: TemplateHaskell
+    base == 4.*,
+    containers == 0.5.*,
+    either == 3.4.*,
+    parsec == 3.1.*,
+    transformers == 0.3.*
 
   ghc-options:
     -Wall
+    -Werror
 
   hs-source-dirs:
-    compiler
+    lib
 
-  include-dirs:
-    library
+  exposed-modules:
+    Kitten.Anno,
+    Kitten.Builtin,
+    Kitten.Compile,
+    Kitten.Def,
+    Kitten.Error,
+    Kitten.Fragment,
+    Kitten.Interpret,
+    Kitten.Interpret.Monad,
+    Kitten.Kind,
+    Kitten.Location,
+    Kitten.Name,
+    Kitten.Parse,
+    Kitten.Parse.Element,
+    Kitten.Parse.Layout,
+    Kitten.Parse.Monad,
+    Kitten.Parse.Primitive,
+    Kitten.Parse.Type,
+    Kitten.Parsec,
+    Kitten.Resolve,
+    Kitten.Resolve.Monad,
+    Kitten.Resolved,
+    Kitten.Scope,
+    Kitten.Term,
+    Kitten.Token,
+    Kitten.Tokenize,
+    Kitten.Type,
+    Kitten.Typecheck,
+    Kitten.Typecheck.Anno,
+    Kitten.Typecheck.Builtin,
+    Kitten.Typecheck.Manifest,
+    Kitten.Typecheck.Monad,
+    Kitten.Typecheck.Term,
+    Kitten.Util.Applicative,
+    Kitten.Util.Either,
+    Kitten.Util.FailWriter,
+    Kitten.Util.Function,
+    Kitten.Util.List,
+    Kitten.Util.Maybe,
+    Kitten.Util.Monad,
+    Kitten.Util.Parsec,
+    Kitten.Util.Show,
+    Kitten.Util.Tuple,
+    Kitten.Yarn
 
-  main-is: Main.hs
+executable kitten
+
+  hs-source-dirs:
+    src
+
+  main-is:
+    Main.hs
+
+  build-depends:
+    Kitten,
+    base,
+    cmdargs == 0.10.*,
+    directory == 1.2.*,
+    filepath == 1.3.*
+
+test-suite test
+
+  type:
+    exitcode-stdio-1.0
+
+  hs-source-dirs:
+    test
+
+  main-is:
+    Test.hs
+
+  build-depends:
+    Kitten,
+    base,
+    containers,
+    hspec == 1.4.*,
+    HUnit,
+    QuickCheck == 2.6.*,
+    transformers
+
+  ghc-options:
+    -Wall
