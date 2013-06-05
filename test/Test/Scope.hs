@@ -3,94 +3,82 @@ module Test.Scope where
 import Control.Monad
 import Test.Hspec
 
-import qualified Data.Set as Set
-
 import Test.Util
 
-import Kitten.Anno (Anno(..))
-import Kitten.Def
+import Kitten.ClosedName
 import Kitten.Fragment
 import Kitten.Location
 import Kitten.Name
-import Kitten.Resolved
 import Kitten.Scope
+import Kitten.Typed
 
-import qualified Kitten.Anno as Anno
 import qualified Kitten.Builtin as Builtin
 
 spec :: Spec
 spec = do
   describe "no change" $ do
     testScope
-      (fragment [] [function [scoped [local 0]]])
-      (fragment [] [closure [] [scoped [local 0]]])
+      (Fragment [] [function [scoped [push $ local 0]]])
+      (Fragment [] [closure [] [scoped [push $ local 0]]])
 
   describe "non-nested closure" $ do
     testScope
-      (fragment [] [scoped [function [local 0]]])
-      (fragment [] [scoped [closure [closedName 0] [closed 0]]])
+      (Fragment [] [scoped [function [push $ local 0]]])
+      (Fragment [] [scoped [closure [closedName 0] [push $ closed 0]]])
 
   describe "nested closure" $ do
     testScope
-      (fragment [] [scoped [function [scoped [function [local 1, local 0, biAdd]]]]])
-      (fragment []
+      (Fragment [] [scoped [function [scoped [function [push $ local 1, push $ local 0, biAdd]]]]])
+      (Fragment []
         [scoped
           [ closure [closedName 0]
             [ scoped
               [ closure [reclosedName 0, closedName 0]
-                [ closed 0
-                , closed 1
+                [ push $ closed 0
+                , push $ closed 1
                 , biAdd]]]]])
 
-testScope :: Fragment Resolved -> Fragment Resolved -> Spec
+testScope
+  :: Fragment Value Typed -> Fragment Value Typed -> Spec
 testScope source expected = let
     actual = scope source
   in
     it (show source) . unless (actual == expected)
       $ expectedButGot (show expected) (show actual)
 
-biAdd :: Resolved
+biAdd :: Typed
 biAdd = Builtin Builtin.AddInt TestLocation
 
-biFunction :: Resolved
+biFunction :: Typed
 biFunction = Builtin Builtin.Function TestLocation
 
-biCompose :: Resolved
-biCompose = Builtin Builtin.Compose TestLocation
-
-closed :: Int -> Resolved
-closed index = Closed (Name index) TestLocation
+closed :: Int -> Value
+closed index = Closed (Name index)
 
 closedName :: Int -> ClosedName
 closedName = ClosedName . Name
 
-closure :: [ClosedName] -> [Resolved] -> Resolved
-closure names terms = Push
-  (Closure emptyAnno names terms)
-  TestLocation
+closure :: [ClosedName] -> [Typed] -> Typed
+closure names terms = push
+  $ Closure Nothing names (compose terms)
 
-emptyAnno :: Anno
-emptyAnno = Anno Anno.Any TestLocation
+compose :: [Typed] -> Typed
+compose = Compose
 
-fragment
-  :: [Def Resolved]
-  -> [Resolved]
-  -> Fragment Resolved
-fragment defs terms
-  = Fragment defs terms
+function :: [Typed] -> Typed
+function terms = push $ Function Nothing (compose terms)
 
-function :: [Resolved] -> Resolved
-function terms
-  = Push (Function emptyAnno terms) TestLocation
+local :: Int -> Value
+local index = Local (Name index)
 
-local :: Int -> Resolved
-local index = Local (Name index) TestLocation
+push :: Value -> Typed
+push value = Push value TestLocation
 
 reclosedName :: Int -> ClosedName
 reclosedName = ReclosedName . Name
 
-scoped :: [Resolved] -> Resolved
-scoped terms = Scoped terms TestLocation
+scoped :: [Typed] -> Typed
+scoped terms = Scoped (compose terms) TestLocation
 
-word :: Int -> Resolved
-word index = Push (Word $ Set.fromList [Name index]) TestLocation
+word :: Int -> Typed
+word index = Call (Name index) TestLocation

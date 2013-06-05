@@ -1,3 +1,0 @@
-"test/file-input.txt" openInput -> handle
-handle handleGetLine say
-handle handleClose

@@ -31,13 +31,18 @@ library
   exposed-modules:
     Kitten.Anno,
     Kitten.Builtin,
+    Kitten.ClosedName,
     Kitten.Compile,
     Kitten.Def,
     Kitten.Error,
     Kitten.Fragment,
+    Kitten.Infer,
+    Kitten.Infer.Monad,
+    Kitten.Infer.Scheme,
+    Kitten.Infer.Type,
+    Kitten.Infer.Unify,
     Kitten.Interpret,
     Kitten.Interpret.Monad,
-    Kitten.Kind,
     Kitten.Location,
     Kitten.Name,
     Kitten.Parse,
@@ -55,12 +60,7 @@ library
     Kitten.Token,
     Kitten.Tokenize,
     Kitten.Type,
-    Kitten.Typecheck,
-    Kitten.Typecheck.Anno,
-    Kitten.Typecheck.Builtin,
-    Kitten.Typecheck.Manifest,
-    Kitten.Typecheck.Monad,
-    Kitten.Typecheck.Term,
+    Kitten.Typed,
     Kitten.Util.Applicative,
     Kitten.Util.Either,
     Kitten.Util.FailWriter,
@@ -80,6 +80,9 @@ executable kitten
 
   main-is:
     Main.hs
+
+  ghc-options:
+    -Wall
 
   build-depends:
     Kitten,

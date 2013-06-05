@@ -23,10 +23,10 @@ import Data.List
 
 import Kitten.Def
 import Kitten.Error
-import Kitten.Resolved
-import Kitten.Term (Term)
 import Kitten.Util.FailWriter (FailWriterT, runFailWriterT)
 
+import qualified Kitten.Term as Term
+import qualified Kitten.Typed as Typed
 import qualified Kitten.Util.FailWriter as FailWriter
 
 newtype Resolution a = Resolution
@@ -34,8 +34,8 @@ newtype Resolution a = Resolution
   deriving (Functor, Applicative, Monad)
 
 data Env = Env
-  { envPrelude :: [Def Resolved]
-  , envDefs :: [Def Term]
+  { envPrelude :: [Def Typed.Value]
+  , envDefs :: [Def Term.Value]
   , envScope :: [String]
   }
 

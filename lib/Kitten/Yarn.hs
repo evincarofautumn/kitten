@@ -1,5 +1,4 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Kitten.Yarn
   ( Instruction(..)
@@ -14,16 +13,15 @@ import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
 import System.IO
 
-import qualified Data.Set as Set
-
 import Kitten.Builtin (Builtin)
+import Kitten.ClosedName
 import Kitten.Def
 import Kitten.Fragment
 import Kitten.Name
-import Kitten.Resolved (ClosedName(..), Resolved)
+import Kitten.Typed (Typed)
 import Kitten.Util.Monad
 
-import qualified Kitten.Resolved as Resolved
+import qualified Kitten.Typed as Typed
 
 type Label = Int
 type Offset = Int
@@ -105,7 +103,7 @@ data Env = Env
 type Yarn a = ReaderT Int (State Env) a
 
 yarn
-  :: Fragment Resolved
+  :: Fragment Typed.Value Typed
   -> [Instruction]
 yarn Fragment{..}
   = collectClosures . withClosureOffset $ (++)
@@ -138,57 +136,51 @@ yarn Fragment{..}
     = Label index : instructions ++ [Return]
 
 yarnDef
-  :: Def Resolved
+  :: Def Typed.Value
   -> Int
   -> Yarn [Instruction]
 yarnDef Def{..} index = do
   instructions <- case defTerm of
-    Resolved.Push (Resolved.Closure _ [] terms) _ -> concatMapM yarnTerm terms
+    Typed.Closure _ [] term -> yarnTerm term
     _ -> error
       $ "Kitten.Yarn.yarnDef: TODO yarn non-function definition: "
       ++ show defTerm
   return $ Label index : instructions ++ [Return]
 
-yarnTerm
-  :: Resolved
-  -> Yarn [Instruction]
+yarnTerm :: Typed -> Yarn [Instruction]
 yarnTerm term = case term of
-  Resolved.Block terms -> concatMapM yarnTerm terms
-  Resolved.Builtin builtin _ -> return [Builtin builtin]
-  Resolved.Closed (Name index) _ -> return [Closure index]
+  Typed.Call (Name index) _ -> return [Call index]
+  Typed.Compose terms -> concatMapM yarnTerm terms
+  Typed.Builtin builtin _ -> return [Builtin builtin]
 
-  Resolved.If condition true false _ -> do
-    condition' <- concatMapM yarnTerm condition
-    true' <- concatMapM yarnTerm true
-    false' <- concatMapM yarnTerm false
+  Typed.If true false _ -> do
+    true' <- yarnTerm true
+    false' <- yarnTerm false
     return $ concat
-      [ condition'
-      , [JumpIfFalse $ length true']
+      [ [JumpIfFalse $ length true']
       , true'
       , false'
       ]
 
-  Resolved.Local (Name index) _ -> return [Local index]
-  Resolved.Push value _ -> yarnValueInstruction value
-  Resolved.Scoped terms _ -> do
-    instructions <- concatMapM yarnTerm terms
+  Typed.Push value _ -> yarnValueInstruction value
+  Typed.Scoped terms _ -> do
+    instructions <- yarnTerm terms
     return $ Enter : instructions ++ [Leave]
 
 yarnValueInstruction
-  :: Resolved.Value
+  :: Typed.Value
   -> Yarn [Instruction]
 yarnValueInstruction resolved = case resolved of
-  Resolved.Closure _ names terms -> do
-    instructions <- concatMapM yarnTerm terms
+  Typed.Activation{} -> error
+    "Kitten.Yarn.yarnValueInstruction: unexpected activation"
+  Typed.Closed (Name index) {- _ -} -> return [Closure index]
+  Typed.Closure _ names terms -> do
+    instructions <- yarnTerm terms
     index <- yarnClosure instructions
     return [Act index names]
-  Resolved.Word (Set.toList -> [Name index]) -> return [Call index]
-  Resolved.Activation{} -> error
-    "Kitten.Yarn.yarnValueInstruction: unexpected activation"
-  Resolved.Function{} -> error
+  Typed.Function{} -> error
     "Kitten.Yarn.yarnValueInstruction: unresolved closure"
-  Resolved.Word{} -> error
-    "Kitten.Yarn.yarnValueInstruction: call to unresolved word"
+  Typed.Local (Name index) {- _ -} -> return [Local index]
   _ -> return [Push $ yarnValue resolved]
 
 yarnClosure :: [Instruction] -> Yarn Label
@@ -199,17 +191,15 @@ yarnClosure terms = do
     { envClosures = envClosures ++ [terms] }
   return $ label + closureOffset
 
-yarnValue :: Resolved.Value -> Value
+yarnValue :: Typed.Value -> Value
 yarnValue resolved = case resolved of
-  Resolved.Bool value -> Bool value
-  Resolved.Char value -> Char value
-  Resolved.Escape (Set.toList -> [Name index]) -> Word index
-  Resolved.Escape{} -> error
-    "Kitten.Yarn.yarnValueInstruction: reference to unresolved word"
-  Resolved.Float value -> Float value
-  Resolved.Handle value -> Handle value
-  Resolved.Int value -> Int value
-  Resolved.Pair a b -> Pair (yarnValue a) (yarnValue b)
-  Resolved.Unit -> Unit
-  Resolved.Vector _ values -> Vector (map yarnValue values)
+  Typed.Bool value -> Bool value
+  Typed.Char value -> Char value
+  Typed.Escape (Name index) -> Word index
+  Typed.Float value -> Float value
+  Typed.Handle value -> Handle value
+  Typed.Int value -> Int value
+  Typed.Pair a b -> Pair (yarnValue a) (yarnValue b)
+  Typed.Unit -> Unit
+  Typed.Vector _ values -> Vector (map yarnValue values)
   _ -> error "Kitten.Yarn.yarnValue: instruction where value expected"

@@ -7,9 +7,9 @@
   (Int -> Int){
     -> b1
     b1 y1 +
-  } __apply
-} __apply
-say
+  } apply11
+} apply11
+sayi
 
 1000 -> x2
 100 -> y2
@@ -20,6 +20,6 @@ say
   (Int -> Int){
     -> b2
     b2 x2 +
-  } __apply
-} __apply
-say
+  } apply11
+} apply11
+sayi

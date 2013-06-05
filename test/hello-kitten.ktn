@@ -2,4 +2,4 @@ def prompt ([Char] -> [Char]):
   print getLine
 
 "What is your name? " prompt -> name
-"Hello, " name + "!" + ([Char] ->){say} __apply
+"Hello, " name +* "!" +* say

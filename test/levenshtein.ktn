@@ -36,7 +36,7 @@ def levenshtein ([Char] [Char] -> Int):
       second column-- __get -> secondChar
 
       distances
-      if firstChar secondChar = :
+      if firstChar secondChar =^ :
         distances row-- column-- get2
         row column set2
       else:
@@ -52,5 +52,5 @@ def levenshtein ([Char] [Char] -> Int):
 
   rows columns get2
  
-"kitten" "sitting" levenshtein say
-"rosettacode" "raisethysword" levenshtein say
+"kitten" "sitting" levenshtein sayi
+"rosettacode" "raisethysword" levenshtein sayi

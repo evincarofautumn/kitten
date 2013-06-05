@@ -10,7 +10,6 @@ import Kitten.Anno (Anno(Anno), Type((:>)))
 import Kitten.Def
 import Kitten.Error
 import Kitten.Fragment
-import Kitten.Kind
 import Kitten.Location
 import Kitten.Parse
 import Kitten.Term
@@ -26,7 +25,7 @@ spec = do
 
   describe "terms" $ do
     testTerm "1 2 3"
-      (Fragment [] [int 1, int 2, int 3])
+      (Fragment [] [pushi 1, pushi 2, pushi 3])
     testTerm "dup swap drop vector cat function compose apply"
       $ Fragment []
         [ word "dup"
@@ -44,36 +43,35 @@ spec = do
     testTerm
       "(->){}"
       $ Fragment []
-        [ push $ function
-          (Anno.Composition [] :> Anno.Composition [])
-          []
+        [ push $ function ([] :> []) []
         ]
 
     testTerm
-      "(int){3}"
+      "(Int){3}"
       $ Fragment []
         [ push $ function
-          (Anno.Composition [] :> Anno.Composition [Anno.Int])
-          [int 3]
+          ([] :> [Anno.Int])
+          [pushi 3]
         ]
 
     testTerm
-      "(int -> int){ 1 + }"
+      "(Int -> Int){ 1 + }"
       $ Fragment []
         [ push $ function
-          (Anno.Composition [Anno.Int] :> Anno.Composition [Anno.Int])
-          [int 1, word "+"]
+          ([Anno.Int] :> [Anno.Int])
+          [pushi 1, word "+"]
         ]
 
+    {-
     testTerm
       "([a] (a -> b) -> [b]){ map }"
       $ Fragment []
         [ push $ function
-          (Anno.Composition
-            [Anno.Vector Anno.Any, Anno.Any :> Anno.Any]
-            :> Anno.Composition [Anno.Vector Anno.Any])
+          ([Anno.Vector Anno.Any, [Anno.Any] :> [Anno.Any]]
+            :> [Anno.Vector Anno.Any])
           [word "map"]
         ]
+    -}
 
   describe "lambda" $ do
 
@@ -177,7 +175,7 @@ spec = do
       ": :\n\
       \  3\n"
       $ Fragment []
-      [Block [Block [int 3]]]
+      [Block [Block [pushi 3]]]
 
   describe "definition" $ do
 
@@ -187,34 +185,34 @@ spec = do
       []
 
     testTerm
-      "def inc (int -> int){\n\
+      "def inc (Int -> Int){\n\
       \  1 +\n\
       \}\n"
       $ Fragment
-        [ def "inc" . push $ function
-          (Anno.Composition [Anno.Int] :> Anno.Composition [Anno.Int])
-          [int 1, word "+"]
+        [ def "inc" $ function
+          ([Anno.Int] :> [Anno.Int])
+          [pushi 1, word "+"]
         ]
         []
 
     testTerm
-      "def inc (int -> int):\n\
+      "def inc (Int -> Int):\n\
       \  1 +\n\
       \\n\
-      \def dec (int -> int):\n\
+      \def dec (Int -> Int):\n\
       \  1 -\n\
       \\n"
       $ Fragment
-        [ def "inc" . push $ function
-          (Anno.Composition [Anno.Int] :> Anno.Composition [Anno.Int])
-          [int 1, word "+"]
-        , def "dec" . push $ function
-          (Anno.Composition [Anno.Int] :> Anno.Composition [Anno.Int])
-          [int 1, word "-"]
+        [ def "inc" $ function
+          ([Anno.Int] :> [Anno.Int])
+          [pushi 1, word "+"]
+        , def "dec" $ function
+          ([Anno.Int] :> [Anno.Int])
+          [pushi 1, word "-"]
         ]
         []
 
-testTerm :: String -> Fragment Term -> Spec
+testTerm :: String -> Fragment Value Term -> Spec
 testTerm source expected = it (show source)
   $ case parsed source of
     Left message -> assertFailure $ show message
@@ -229,20 +227,23 @@ testTermFailure source = it ("should fail: " ++ show source)
     Left _ -> return ()
     Right actual -> assertFailure $ show actual
 
-parsed :: String -> Either CompileError (Fragment Term)
+parsed :: String -> Either CompileError (Fragment Value Term)
 parsed
   = mapLeft parseError . tokenize "test"
   >=> mapLeft parseError . parse "test"
 
-def :: String -> Term -> Def Term
-def name term = Def name term TestLocation
+def :: String -> Value -> Def Value
+def name value = Def name value TestLocation
 
-function :: Anno.Type Scalar -> [Term] -> Value
+function :: Anno.Type -> [Term] -> Value
 function anno terms
-  = Function (Anno anno TestLocation) terms TestLocation
+  = Function (Just $ Anno anno TestLocation) terms TestLocation
 
-int :: Int -> Term
-int value = push $ Int value TestLocation
+int :: Int -> Value
+int value = Int value TestLocation
+
+pushi :: Int -> Term
+pushi value = push $ int value
 
 lambda :: String -> [Term] -> Term
 lambda name terms = Lambda name terms TestLocation
@@ -251,4 +252,4 @@ push :: Value -> Term
 push value = Push value TestLocation
 
 word :: String -> Term
-word value = push $ Word value TestLocation
+word value = Call value TestLocation

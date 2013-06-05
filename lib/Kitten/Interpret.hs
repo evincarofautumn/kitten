@@ -1,5 +1,4 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Kitten.Interpret
   ( interpret
@@ -10,24 +9,22 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.Bits
 import Data.Fixed
-import Data.Set (Set)
 import System.IO
 
-import qualified Data.Set as Set
-
 import Kitten.Builtin (Builtin)
+import Kitten.ClosedName
 import Kitten.Def
 import Kitten.Fragment
 import Kitten.Interpret.Monad
 import Kitten.Name
-import Kitten.Resolved
+import Kitten.Typed
 
 import qualified Kitten.Builtin as Builtin
 
 interpret
   :: [Value]
-  -> [Def Resolved]
-  -> Fragment Resolved
+  -> [Def Value]
+  -> Fragment Value Typed
   -> IO ()
 interpret stack prelude Fragment{..} = void $ evalStateT
   (mapM interpretTerm fragmentTerms) Env
@@ -38,48 +35,46 @@ interpret stack prelude Fragment{..} = void $ evalStateT
   , envLocations = []
   }              
 
-interpretTerm :: Resolved -> Interpret
+interpretTerm :: Typed -> Interpret
 interpretTerm resolved = case resolved of
-  Block terms -> mapM_ interpretTerm terms
+  Call name _ -> interpretOverload name
+  Compose terms -> mapM_ interpretTerm terms
   Builtin builtin _ -> interpretBuiltin builtin
-  Closed name _ -> pushData =<< getClosed name
-  If condition true false loc -> withLocation loc $ do
-    mapM_ interpretTerm condition
+  If true false loc -> withLocation loc $ do
     Bool test <- popData
-    mapM_ interpretTerm $ if test then true else false
-  Local name _ -> pushData =<< getLocal name
+    interpretTerm $ if test then true else false
   Push value loc -> withLocation loc $ interpretValue value
-  Scoped terms loc -> withLocation loc $ do
+  Scoped term loc -> withLocation loc $ do
     pushLocal =<< popData
-    mapM_ interpretTerm terms
+    interpretTerm term
     popLocal
 
 interpretValue :: Value -> Interpret
 interpretValue value = case value of
-  Word names -> interpretOverload names
-  Closure _ names terms -> do
+  Closed name {- _ -} -> pushData =<< getClosed name
+  Closure _ names term -> do
     values <- mapM getClosedName names
-    pushData $ Activation values terms
+    pushData $ Activation values term
     where
     getClosedName :: ClosedName -> InterpretM Value
     getClosedName (ClosedName name) = getLocal name
     getClosedName (ReclosedName name) = getClosed name
+  Local name {- _ -} -> pushData =<< getLocal name
   _ -> pushData value
 
 interpretFunction :: Value -> Interpret
 interpretFunction function = case function of
-  Activation values terms
-    -> withClosure values $ mapM_ interpretTerm terms
+  Activation values term
+    -> withClosure values $ interpretTerm term
   Escape names -> interpretOverload names
   _ -> fail $ "attempt to apply non-function " ++ show function
 
-interpretOverload :: Set Name -> Interpret
-interpretOverload names = do
-  index <- overloadIndex names
+interpretOverload :: Name -> Interpret
+interpretOverload (Name index) = do
   Def _ term loc <- gets ((!! index) . envDefs)
   withLocation loc $ do
-    interpretTerm term
-    interpretBuiltin Builtin.Apply
+    interpretValue term
+    interpretFunction =<< popData
 
 interpretBuiltin :: Builtin -> Interpret
 interpretBuiltin builtin = case builtin of
@@ -95,7 +90,9 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.AndInt -> intsToInt (.&.)
 
-  Builtin.Apply -> interpretFunction =<< popData
+  Builtin.Apply10 -> interpretFunction =<< popData
+  Builtin.Apply11 -> interpretFunction =<< popData
+  Builtin.Apply21 -> interpretFunction =<< popData
 
   Builtin.Bottom -> do
     Vector _ a <- popData
@@ -104,17 +101,6 @@ interpretBuiltin builtin = case builtin of
   Builtin.Close -> do
     Handle a <- popData
     lift $ hClose a
-
-  Builtin.Compose -> do
-    b <- popData
-    a <- popData
-    loc <- here
-    pushData $ Activation []
-      [ Push a loc
-      , Builtin Builtin.Apply loc
-      , Push b loc
-      , Builtin Builtin.Apply loc
-      ]
 
   Builtin.DecFloat -> floatToFloat pred
   Builtin.DecInt -> intToInt pred
@@ -233,9 +219,9 @@ interpretBuiltin builtin = case builtin of
     Int c <- popData
     b <- popData
     Vector _ a <- popData
-    pushData . Vector Nothing
-      $ let (before, after) = splitAt c a
-      in before ++ b : drop 1 after
+    pushData $ Vector Nothing
+      (let (before, after) = splitAt c a
+      in before ++ b : drop 1 after)
 
   Builtin.ShowFloat -> do
     Float value <- popData
@@ -350,14 +336,3 @@ stringFromChars = map fromChar . reverse
 
 charsFromString :: String -> [Value]
 charsFromString = map Char . reverse
-
-overloadIndex :: Set Name -> InterpretM Int
-overloadIndex (Set.toList -> names) = case names of
-  [Name index] -> return index
-  _ -> do
-    loc <- here
-    fail $ concat
-      [ show loc
-      , ": unresolved overloads: "
-      , show names
-      ]

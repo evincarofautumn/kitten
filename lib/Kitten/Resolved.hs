@@ -1,16 +1,13 @@
 module Kitten.Resolved
-  ( ClosedName(..)
-  , Resolved(..)
+  ( Resolved(..)
   , Value(..)
   ) where
 
-import Data.Set (Set)
 import System.IO
-
-import qualified Data.Set as Set
 
 import Kitten.Anno (Anno)
 import Kitten.Builtin (Builtin)
+import Kitten.ClosedName
 import Kitten.Location
 import Kitten.Name
 import Kitten.Util.Show
@@ -18,9 +15,8 @@ import Kitten.Util.Show
 data Resolved
   = Block [Resolved]
   | Builtin Builtin Location
-  | Closed Name Location
+  | Call Name Location
   | If [Resolved] [Resolved] [Resolved] Location
-  | Local Name Location
   | Push Value Location
   | Scoped [Resolved] Location
   deriving (Eq)
@@ -29,33 +25,35 @@ instance Show Resolved where
   show resolved = case resolved of
     Block terms -> showWords terms
     Builtin builtin _ -> show builtin
-    Closed (Name index) _ -> "closed" ++ show index
+    Call (Name name) _ -> '@' : show name
     If condition true false _ -> unwords
       [ "if"
       , showWords condition
-      , "then"
+      , "{"
       , showWords true
-      , "else"
+      , "} else {"
       , showWords false
+      , "}"
       ]
-    Local (Name index) _ -> "local" ++ show index
     Push value _ -> show value
-    Scoped terms _ -> unwords $ "\\" : map show terms
+    Scoped terms _ -> unwords
+      $ "enter" : map show terms ++ ["leave"]
 
 data Value
   = Activation [Value] [Resolved]
   | Bool Bool
   | Char Char
-  | Closure Anno [ClosedName] [Resolved]
-  | Escape (Set Name)
+  | Closed Name
+  | Closure (Maybe Anno) [ClosedName] [Resolved]
+  | Escape Name
   | Float Double
-  | Function Anno [Resolved]
+  | Function (Maybe Anno) [Resolved]
   | Handle Handle
   | Int Int
+  | Local Name
   | Pair Value Value
   | Unit
   | Vector (Maybe Anno) [Value]
-  | Word (Set Name)
   deriving (Eq)
 
 instance Show Value where
@@ -73,6 +71,8 @@ instance Show Value where
 
     Char value -> show value
 
+    Closed (Name index) -> "closed" ++ show index
+
     Closure _ names terms -> concat
       [ "$("
       , showWords names
@@ -81,14 +81,12 @@ instance Show Value where
       , "}"
       ]
 
-    Escape possible -> '`' : showPossible possible
+    Escape name -> '`' : show name
 
     Float value -> show value
 
-    Function anno terms -> concat
-      [ "("
-      , show anno
-      , "){"
+    Function _ terms -> concat
+      [ "(){"
       , showWords terms
       , "}"
       ]
@@ -97,29 +95,18 @@ instance Show Value where
 
     Int value -> show value
 
+    Local (Name index) -> "local" ++ show index
+
     Pair a b -> concat ["(", show a, ", ", show b, ")"]
 
     Unit -> "()"
 
-    Vector anno values -> concat
-      [ maybe "" (("(" ++) . (++ ")") . show) anno
-      , "["
+    Vector _ values -> concat
+      [ "["
       , showVector values
       , "]"
       ]
 
-    Word possible -> '@' : showPossible possible
-
     where
     showVector :: (Show a) => [a] -> String
     showVector = showWords . reverse
-
-    showPossible :: (Ord a, Show a) => Set a -> String
-    showPossible possible = case Set.toList possible of
-      [name] -> '@' : show name
-      names -> "@{" ++ showWords names ++ "}"
-
-data ClosedName
-  = ClosedName Name
-  | ReclosedName Name
-  deriving (Eq, Show)

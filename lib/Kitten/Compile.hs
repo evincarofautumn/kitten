@@ -15,21 +15,22 @@ import Text.Parsec.Error
 import Kitten.Def
 import Kitten.Error
 import Kitten.Fragment
+import Kitten.Infer
 import Kitten.Parse
 import Kitten.Resolve
-import Kitten.Resolved as Resolved
 import Kitten.Scope
 import Kitten.Tokenize
-import Kitten.Typecheck
+import Kitten.Typed (Typed)
 import Kitten.Util.Either
+
+import qualified Kitten.Typed as Typed
 
 data Config = Config
   { dumpResolved :: Bool
   , dumpScoped :: Bool
   , name :: String
-  , prelude :: [Def Resolved]
+  , prelude :: [Def Typed.Value]
   , source :: String
-  , stack :: [Resolved.Value]
   }
 
 liftParseError :: Either ParseError a -> Either [CompileError] a
@@ -37,7 +38,7 @@ liftParseError = mapLeft ((:[]) . parseError)
 
 compile
   :: Config
-  -> IO (Either [CompileError] (Fragment Resolved))
+  -> IO (Either [CompileError] (Fragment Typed.Value Typed))
 compile Config{..} = liftM (mapLeft sort) . runEitherT $ do
 
   resolved <- hoistEither $ do
@@ -46,9 +47,9 @@ compile Config{..} = liftM (mapLeft sort) . runEitherT $ do
     resolve prelude parsed
 
   when dumpResolved . lift $ hPrint stderr resolved
-  typechecked <- hoistEither $ typecheck prelude stack resolved
+  inferred <- hoistEither $ typeFragment prelude resolved
 
-  let scoped = scope typechecked
+  let scoped = scope inferred
   when dumpScoped . lift $ hPrint stderr scoped
 
   return scoped

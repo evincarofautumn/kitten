@@ -8,11 +8,12 @@ import Kitten.Builtin (Builtin)
 import Kitten.Location
 
 data Term
-  = Push Value Location
+  = Block [Term]
   | Builtin Builtin Location
-  | Lambda String [Term] Location
-  | Block [Term]
+  | Call String Location
   | If [Term] [Term] [Term] Location
+  | Lambda String [Term] Location
+  | Push Value Location
   deriving (Eq, Show)
 
 data Value
@@ -20,10 +21,9 @@ data Value
   | Char Char Location
   | Escape String Location
   | Float Double Location
-  | Function Anno [Term] Location
+  | Function (Maybe Anno) [Term] Location
   | Int Int Location
   | Pair Value Value Location
   | Unit Location
   | Vector (Maybe Anno) [Value] Location
-  | Word String Location
   deriving (Eq, Show)

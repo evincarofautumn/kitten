@@ -15,12 +15,15 @@ module Kitten.Interpret.Monad
   , withLocation
   ) where
 
+import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
+import System.Exit
+import System.IO
 
 import Kitten.Def
 import Kitten.Location
 import Kitten.Name
-import Kitten.Resolved
+import Kitten.Typed
 
 type Interpret = InterpretM ()
 
@@ -29,7 +32,7 @@ type InterpretM a = StateT Env IO a
 data Env = Env
   { envData :: [Value]
   , envLocals :: [Value]
-  , envDefs :: [Def Resolved]
+  , envDefs :: [Def Value]
   , envClosure :: [Value]
   , envLocations :: [Location]
   }
@@ -55,7 +58,11 @@ popData :: InterpretM Value
 popData = do
   dataStack <- gets envData
   case dataStack of
-    [] -> fail "stack underflow"
+    [] -> do
+      loc <- here
+      lift $ do
+        hPutStrLn stderr $ show loc ++ ": stack underflow"
+        exitFailure
     (top : down) -> do
       modify $ \ env -> env { envData = down }
       return top
@@ -64,7 +71,11 @@ popLocal :: Interpret
 popLocal = do
   localStack <- gets envLocals
   case localStack of
-    [] -> fail "local stack underflow"
+    [] -> do
+      loc <- here
+      lift $ do
+        hPutStrLn stderr $ show loc ++ ": local stack underflow"
+        exitFailure
     (_ : down) -> modify $ \ env -> env { envLocals = down }
 
 pushData :: Value -> Interpret
@@ -78,9 +89,9 @@ pushLocal value = modify $ \ env@Env{..}
 withClosure :: [Value] -> InterpretM a -> InterpretM a
 withClosure values action = do
   closure <- gets envClosure
-  modify $ \ env@Env{..} -> env { envClosure = values }
+  modify $ \ env -> env { envClosure = values }
   result <- action
-  modify $ \ env@Env{..} -> env { envClosure = closure }
+  modify $ \ env -> env { envClosure = closure }
   return result
 
 withLocation :: Location -> InterpretM a -> InterpretM a

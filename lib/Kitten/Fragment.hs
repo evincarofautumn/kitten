@@ -4,7 +4,7 @@ module Kitten.Fragment
 
 import Kitten.Def
 
-data Fragment a = Fragment
+data Fragment a b = Fragment
   { fragmentDefs :: [Def a]
-  , fragmentTerms :: [a]
+  , fragmentTerms :: [b]
   } deriving (Eq, Show)

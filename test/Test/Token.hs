@@ -87,8 +87,7 @@ spec = do
     testTokens "__vector" [Builtin Builtin.Vector]
     testTokens "__add_vector" [Builtin Builtin.AddVector]
     testTokens "__function" [Builtin Builtin.Function]
-    testTokens "__compose" [Builtin Builtin.Compose]
-    testTokens "__apply" [Builtin Builtin.Apply]
+    testTokens "__apply11" [Builtin Builtin.Apply11]
 
   describe "tokenize word" $ do
     testTokens "not_a_keyword" [LittleWord "not_a_keyword"]

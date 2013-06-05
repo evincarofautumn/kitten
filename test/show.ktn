@@ -1,9 +1,9 @@
-false say
-true say
-[false, true, false, true] say
-0 say
-1 say
-[0, 1, 2, 3] say
-0.0 say
-1.0 say
-[0.0, 1.1, 2.2, 3.3] say
+false sayb
+true sayb
+[false, true, false, true] saybv
+0 sayi
+1 sayi
+[0, 1, 2, 3] sayiv
+0.0 sayf
+1.0 sayf
+[0.0, 1.1, 2.2, 3.3] sayfv

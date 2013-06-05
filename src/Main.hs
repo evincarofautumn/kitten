@@ -5,7 +5,6 @@ module Main where
 import Control.Monad
 import System.Console.CmdArgs.Explicit
 import System.Directory
-import System.Environment
 import System.Exit
 import System.FilePath
 import System.IO
@@ -60,7 +59,6 @@ main = do
           , Compile.name = filename
           , Compile.prelude = []
           , Compile.source = source
-          , Compile.stack = []
           }
 
         Fragment{..} <- case mPrelude of
@@ -85,15 +83,14 @@ main = do
 
   forM_ (entryPoints arguments) $ \ filename -> do
     program <- readFile filename
-    result <- compile Compile.Config
+    mResult <- compile Compile.Config
       { Compile.dumpResolved = dumpResolved arguments
       , Compile.dumpScoped = dumpScoped arguments
       , Compile.name = filename
       , Compile.prelude = prelude
       , Compile.source = program
-      , Compile.stack = []
       }
-    case result of
+    case mResult of
       Left compileErrors -> printCompileErrors compileErrors
       Right result -> case compileMode arguments of
         CompileMode -> mapM_ print $ yarn result

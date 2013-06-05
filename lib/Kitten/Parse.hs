@@ -27,12 +27,12 @@ import qualified Kitten.Token as Token
 parse
   :: String
   -> [Located]
-  -> Either ParseError (Fragment Term)
+  -> Either ParseError (Fragment Value Term)
 parse name
   = Parsec.parse insertBraces name
   >=> Parsec.parse fragment name
 
-fragment :: Parser (Fragment Term)
+fragment :: Parser (Fragment Value Term)
 fragment = do
   elements <- many element <* eof
   let (defs, terms) = partitionElements elements
@@ -44,9 +44,9 @@ element = choice
   , TermElement <$> term
   ]
 
-def :: Parser (Def Term)
+def :: Parser (Def Value)
 def = (<?> "definition") . locate
-  $ match Token.Def *> (Def <$> littleWord <*> term)
+  $ match Token.Def *> (Def <$> littleWord <*> value)
 
 term :: Parser Term
 term = nonblock <|> Block <$> block
@@ -55,6 +55,7 @@ term = nonblock <|> Block <$> block
   nonblock :: Parser Term
   nonblock = locate $ choice
     [ Push <$> value
+    , Call <$> littleWord
     , mapOne toBuiltin
     , lambda
     , if_
@@ -77,7 +78,6 @@ term = nonblock <|> Block <$> block
 value :: Parser Value
 value = locate $ choice
   [ mapOne toLiteral <?> "literal"
-  , Word <$> littleWord <?> "word"
   , try annotated
   , pair <$> tuple
   , escape
@@ -99,7 +99,7 @@ value = locate $ choice
   annotated = do
     anno <- grouped signature
     (Vector (Just anno) <$> vector)
-      <|> (Function anno <$> block)
+      <|> (Function (Just anno) <$> block)
 
   escape :: Parser (Location -> Value)
   escape = Escape <$> (match Token.Escape *> littleWord)

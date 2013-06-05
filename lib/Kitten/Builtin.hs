@@ -20,10 +20,11 @@ data Builtin
   | AddVector
   | AndBool
   | AndInt
-  | Apply
+  | Apply10
+  | Apply11
+  | Apply21
   | Bottom
   | Close
-  | Compose
   | DecFloat
   | DecInt
   | DivFloat
@@ -118,10 +119,11 @@ fromStringTable =
   , (,) "__add_vector" AddVector
   , (,) "__and_bool"   AndBool
   , (,) "__and_int"    AndInt
-  , (,) "__apply"      Apply
+  , (,) "__apply10"    Apply10
+  , (,) "__apply11"    Apply11
+  , (,) "__apply21"    Apply21
   , (,) "__bottom"     Bottom
   , (,) "__close"      Close
-  , (,) "__compose"    Compose
   , (,) "__dec_float"  DecFloat
   , (,) "__dec_int"    DecInt
   , (,) "__div_float"  DivFloat

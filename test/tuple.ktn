@@ -1,9 +1,0 @@
-(0, 0.0, false, "") -> quad
-quad first (Int ->){say} __apply
-quad second (Float ->){say} __apply
-quad third (Bool ->){say} __apply
-quad fourth ([Char] ->){say} __apply
-
-(0, 1) -> pair
-pair first (Int ->){say} __apply
-pair second (Int ->){say} __apply
