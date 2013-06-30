@@ -51,7 +51,7 @@ instance Show Token where
     Comma -> ","
     Def -> "def"
     Else -> "else"
-    Escape -> "`"
+    Escape -> "\\"
     GroupBegin -> "("
     GroupEnd -> ")"
     Float value -> show value

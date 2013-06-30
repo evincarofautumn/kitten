@@ -39,7 +39,7 @@ spec = do
   describe "single-character token" $ do
     testTokens "{" [BlockBegin]
     testTokens "}" [BlockEnd]
-    testTokens "`" [Escape]
+    testTokens "\\" [Escape]
     testTokens "(" [GroupBegin]
     testTokens ")" [GroupEnd]
     testTokens ":" [Layout]

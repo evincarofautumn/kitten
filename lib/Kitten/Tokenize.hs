@@ -46,7 +46,7 @@ token = (<?> "token") . located $ choice
   , BlockEnd <$ char '}'
   , Char <$> (char '\'' *> character '\'' <* char '\'')
   , Comma <$ char ','
-  , Escape <$ char '`'
+  , Escape <$ char '\\'
   , GroupBegin <$ char '('
   , GroupEnd <$ char ')'
   , Layout <$ char ':'

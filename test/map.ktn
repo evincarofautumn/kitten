@@ -1,5 +1,5 @@
-(int)[] `++ map sayiv
-[1, 2, 3] `++ map sayiv
+(int)[] \++ map sayiv
+[1, 2, 3] \++ map sayiv
 
 ["a", "b", "c"]
 ([Char] -> [Char]){ "s" +* } map

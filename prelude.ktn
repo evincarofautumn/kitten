@@ -240,16 +240,16 @@ def showf (Float -> [Char]):
   __show_float
 
 def showbv ([Bool] -> [Char]):
-  `showb showv
+  \showb showv
 
 def showiv ([Int] -> [Char]):
-  `showi showv
+  \showi showv
 
 def showfv ([Float] -> [Char]):
-  `showf showv
+  \showf showv
 
 def showcvv ([[Char]] -> [Char]):
-  `id showv
+  \id showv
 
 def showv ([a] (a -> [Char]) -> [Char]):
   -> show
@@ -355,7 +355,7 @@ def space (->):
 // Math and Logic
 
 def and ([Bool] -> Bool):
-  true `&& foldUp
+  true \&& foldUp
 
 def eveni (Int -> Bool):
   2 __mod_int 0 __eq_int
@@ -386,19 +386,19 @@ def oddf (Float -> Bool):
   evenf !
 
 def or ([Bool] -> Bool):
-  false `|| foldUp
+  false \|| foldUp
 
 def producti ([Int] -> Int):
-  1 `* foldUp
+  1 \* foldUp
 
 def productf ([Float] -> Float):
-  1.0 `*. foldUp
+  1.0 \*. foldUp
 
 def sumi ([Int] -> Int):
-  0 `+ foldUp
+  0 \+ foldUp
 
 def sumf ([Float] -> Float):
-  0.0 `+. foldUp
+  0.0 \+. foldUp
 
 // Iterates a function on a value until a predicate holds.
 def until (a (a -> a) (a -> Bool) -> a):
