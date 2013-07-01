@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 module Kitten.Interpret
   ( interpret
   ) where
@@ -18,19 +16,20 @@ import Kitten.Fragment
 import Kitten.Interpret.Monad
 import Kitten.Name
 import Kitten.Typed
+import Kitten.Util.Void
 
 import qualified Kitten.Builtin as Builtin
 
 interpret
   :: [Value]
-  -> [Def Value]
+  -> Fragment Value Void
   -> Fragment Value Typed
   -> IO ()
-interpret stack prelude Fragment{..} = void $ evalStateT
-  (mapM interpretTerm fragmentTerms) Env
+interpret stack prelude fragment = void $ evalStateT
+  (mapM interpretTerm (fragmentTerms fragment)) Env
   { envData = stack
   , envLocals = []
-  , envDefs = prelude ++ fragmentDefs
+  , envDefs = fragmentDefs prelude ++ fragmentDefs fragment
   , envClosure = []
   , envLocations = []
   }              
@@ -51,15 +50,15 @@ interpretTerm resolved = case resolved of
 
 interpretValue :: Value -> Interpret
 interpretValue value = case value of
-  Closed name {- _ -} -> pushData =<< getClosed name
-  Closure _ names term -> do
+  Closed name -> pushData =<< getClosed name
+  Closure names term -> do
     values <- mapM getClosedName names
     pushData $ Activation values term
     where
     getClosedName :: ClosedName -> InterpretM Value
     getClosedName (ClosedName name) = getLocal name
     getClosedName (ReclosedName name) = getClosed name
-  Local name {- _ -} -> pushData =<< getLocal name
+  Local name -> pushData =<< getLocal name
   _ -> pushData value
 
 interpretFunction :: Value -> Interpret
@@ -82,9 +81,9 @@ interpretBuiltin builtin = case builtin of
   Builtin.AddInt -> intsToInt (+)
 
   Builtin.AddVector -> do
-    Vector _ b <- popData
-    Vector _ a <- popData
-    pushData $ Vector Nothing (b ++ a)
+    Vector b <- popData
+    Vector a <- popData
+    pushData $ Vector (b ++ a)
 
   Builtin.AndBool -> boolsToBool (&&)
 
@@ -95,7 +94,7 @@ interpretBuiltin builtin = case builtin of
   Builtin.Apply21 -> interpretFunction =<< popData
 
   Builtin.Bottom -> do
-    Vector _ a <- popData
+    Vector a <- popData
     pushData $ last a
 
   Builtin.Close -> do
@@ -109,8 +108,8 @@ interpretBuiltin builtin = case builtin of
   Builtin.DivInt -> intsToInt div
 
   Builtin.Down -> do
-    Vector _ a <- popData
-    pushData $ Vector Nothing (tail a)
+    Vector a <- popData
+    pushData $ Vector (tail a)
 
   Builtin.Drop -> void popData
 
@@ -125,7 +124,7 @@ interpretBuiltin builtin = case builtin of
   Builtin.EqVector -> vectorsToBool (==)
 
   Builtin.Empty -> do
-    Vector _ a <- popData
+    Vector a <- popData
     pushData . Bool $ null a
 
   Builtin.First -> do
@@ -142,13 +141,13 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.Get -> do
     Int b <- popData
-    Vector _ a <- popData
+    Vector a <- popData
     pushData $ a !! b
 
   Builtin.GetLine -> do
     Handle a <- popData
     line <- lift $ hGetLine a
-    pushData $ Vector Nothing (charsFromString line)
+    pushData $ Vector (charsFromString line)
 
   Builtin.GtChar -> charsToBool (>)
   Builtin.GtFloat -> floatsToBool (>)
@@ -164,7 +163,7 @@ interpretBuiltin builtin = case builtin of
   Builtin.LeVector -> vectorsToBool (<=)
 
   Builtin.Length -> do
-    Vector _ a <- popData
+    Vector a <- popData
     pushData . Int $ length a
 
   Builtin.LtChar -> charsToBool (<)
@@ -195,20 +194,20 @@ interpretBuiltin builtin = case builtin of
   Builtin.OrInt -> intsToInt (.|.)
 
   Builtin.OpenIn -> do
-    Vector _ a <- popData
+    Vector a <- popData
     let fileName = stringFromChars a
     handle <- lift $ openFile fileName ReadMode
     pushData $ Handle handle
 
   Builtin.OpenOut -> do
-    Vector _ a <- popData
+    Vector a <- popData
     let fileName = stringFromChars a
     handle <- lift $ openFile fileName WriteMode
     pushData $ Handle handle
 
   Builtin.Print -> do
     Handle b <- popData
-    Vector _ a <- popData
+    Vector a <- popData
     lift $ hPutStr b (stringFromChars a) >> hFlush b
 
   Builtin.Rest -> do
@@ -218,18 +217,18 @@ interpretBuiltin builtin = case builtin of
   Builtin.Set -> do
     Int c <- popData
     b <- popData
-    Vector _ a <- popData
-    pushData $ Vector Nothing
-      (let (before, after) = splitAt c a
-      in before ++ b : drop 1 after)
+    Vector a <- popData
+    pushData . Vector
+      $ let (before, after) = splitAt c a
+      in before ++ b : drop 1 after
 
   Builtin.ShowFloat -> do
     Float value <- popData
-    pushData $ Vector Nothing (charsFromString $ show value)
+    pushData $ Vector (charsFromString $ show value)
 
   Builtin.ShowInt -> do
     Int value <- popData
-    pushData $ Vector Nothing (charsFromString $ show value)
+    pushData $ Vector (charsFromString $ show value)
 
   Builtin.Stderr -> pushData $ Handle stderr
   Builtin.Stdin -> pushData $ Handle stdin
@@ -245,16 +244,16 @@ interpretBuiltin builtin = case builtin of
     pushData a
 
   Builtin.Top -> do
-    Vector _ a <- popData
+    Vector a <- popData
     pushData $ head a
 
   Builtin.Up -> do
-    Vector _ a <- popData
-    pushData $ Vector Nothing (init a)
+    Vector a <- popData
+    pushData $ Vector (init a)
 
   Builtin.Vector -> do
     a <- popData
-    pushData $ Vector Nothing [a]
+    pushData $ Vector [a]
 
   Builtin.XorBool -> boolsToBool (/=)
 
@@ -321,8 +320,8 @@ interpretBuiltin builtin = case builtin of
 
   vectorsToBool :: (String -> String -> Bool) -> Interpret
   vectorsToBool f = do
-    Vector _ b <- popData
-    Vector _ a <- popData
+    Vector b <- popData
+    Vector a <- popData
     pushData . Bool $ f (stringFromChars a) (stringFromChars b)
 
 stringFromChars :: [Value] -> String

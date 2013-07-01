@@ -14,19 +14,21 @@ import Kitten.Name
 import Kitten.Resolve.Monad
 import Kitten.Resolved
 import Kitten.Term (Term)
+import Kitten.Util.Void
 
 import qualified Kitten.Typed as Typed
 import qualified Kitten.Term as Term
 
 resolve
-  :: [Def Typed.Value]
+  :: Fragment Typed.Value Void
   -> Fragment Term.Value Term
   -> Either [CompileError] (Fragment Value Resolved)
-resolve prelude (Fragment defs terms)
-  = evalResolution emptyEnv $ guardLiftM2 Fragment
+resolve prelude (Fragment decls defs terms)
+  = evalResolution emptyEnv
+  $ guardLiftM2 (Fragment decls)
     (resolveDefs defs)
     (guardMapM resolveTerm terms)
-  where emptyEnv = Env prelude defs []
+  where emptyEnv = Env (fragmentDefs prelude) defs []
 
 resolveDefs :: [Def Term.Value] -> Resolution [Def Value]
 resolveDefs = guardMapM resolveDef
@@ -52,20 +54,19 @@ resolveTerm unresolved = case unresolved of
 
 resolveValue :: Term.Value -> Resolution Value
 resolveValue unresolved = case unresolved of
-  Term.Escape name loc -> resolveEscape name loc
-  Term.Float value _ -> return $ Float value
-  Term.Function anno term _ -> Function anno
-    <$> guardMapM resolveTerm term
-  Term.Int value _ -> return $ Int value
   Term.Bool value _ -> return $ Bool value
   Term.Char value _ -> return $ Char value
+  Term.Escape name loc -> resolveEscape name loc
+  Term.Float value _ -> return $ Float value
+  Term.Function term _ -> Function
+    <$> guardMapM resolveTerm term
+  Term.Int value _ -> return $ Int value
   Term.Pair a b _ -> do
     a' <- resolveValue a
     b' <- resolveValue b
     return $ Pair a' b'
   Term.Unit _ -> return Unit
-  Term.Vector anno values _ -> Vector anno
-    <$> resolveVector values
+  Term.Vector values _ -> Vector <$> resolveVector values
   where
   resolveVector = guardMapM resolveValue
 

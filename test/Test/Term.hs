@@ -6,7 +6,6 @@ import Test.Hspec
 
 import Test.Util
 
-import Kitten.Anno (Anno(Anno), Type((:>)))
 import Kitten.Def
 import Kitten.Error
 import Kitten.Fragment
@@ -16,18 +15,16 @@ import Kitten.Term
 import Kitten.Tokenize
 import Kitten.Util.Either
 
-import qualified Kitten.Anno as Anno
-
 spec :: Spec
 spec = do
   describe "empty program"
-    $ testTerm "" (Fragment [] [])
+    $ testTerm "" (Fragment [] [] [])
 
   describe "terms" $ do
     testTerm "1 2 3"
-      (Fragment [] [pushi 1, pushi 2, pushi 3])
+      (Fragment [] [] [pushi 1, pushi 2, pushi 3])
     testTerm "dup swap drop vector cat function compose apply"
-      $ Fragment []
+      $ Fragment [] []
         [ word "dup"
         , word "swap"
         , word "drop"
@@ -41,43 +38,28 @@ spec = do
   describe "function" $ do
 
     testTerm
-      "(->){}"
-      $ Fragment []
-        [ push $ function ([] :> []) []
+      "{}"
+      $ Fragment [] []
+        [ push $ function []
         ]
 
     testTerm
-      "(Int){3}"
-      $ Fragment []
-        [ push $ function
-          ([] :> [Anno.Int])
-          [pushi 3]
+      "{3}"
+      $ Fragment [] []
+        [ push $ function [pushi 3]
         ]
 
     testTerm
-      "(Int -> Int){ 1 + }"
-      $ Fragment []
-        [ push $ function
-          ([Anno.Int] :> [Anno.Int])
-          [pushi 1, word "+"]
+      "{ 1 + }"
+      $ Fragment [] []
+        [ push $ function [pushi 1, word "+"]
         ]
-
-    {-
-    testTerm
-      "([a] (a -> b) -> [b]){ map }"
-      $ Fragment []
-        [ push $ function
-          ([Anno.Vector Anno.Any, [Anno.Any] :> [Anno.Any]]
-            :> [Anno.Vector Anno.Any])
-          [word "map"]
-        ]
-    -}
 
   describe "lambda" $ do
 
     testTerm
       "->x x x *"
-      $ Fragment []
+      $ Fragment [] []
         [ lambda "x"
           [ word "x"
           , word "x"
@@ -87,7 +69,7 @@ spec = do
 
     testTerm
       "->x ->y x y *"
-      $ Fragment []
+      $ Fragment [] []
         [ lambda "x"
           [ lambda "y"
             [ word "x"
@@ -99,8 +81,8 @@ spec = do
 
     testTerm
       "{ ->x ->y x y * }"
-      $ Fragment []
-        [ Block
+      $ Fragment [] []
+        [ push $ function
           [ lambda "x"
             [ lambda "y"
               [ word "x"
@@ -113,8 +95,8 @@ spec = do
 
     testTerm
       ": ->x ->y x y *"
-      $ Fragment []
-        [ Block
+      $ Fragment [] []
+        [ push $ function
           [ lambda "x"
             [ lambda "y"
               [ word "x"
@@ -131,8 +113,8 @@ spec = do
       ": sameLine\n\
       \  nextLine\n\
       \  anotherLine\n"
-      $ Fragment []
-        [ Block
+      $ Fragment [] []
+        [ push $ function
           [ word "sameLine"
           , word "nextLine"
           , word "anotherLine"
@@ -143,9 +125,9 @@ spec = do
       "{ : sameLine\n\
       \    nextLine\n\
       \    anotherLine }\n"
-      $ Fragment []
-        [ Block
-          [ Block
+      $ Fragment [] []
+        [ push $ function
+          [ push $ function
             [ word "sameLine"
             , word "nextLine"
             , word "anotherLine"
@@ -154,12 +136,23 @@ spec = do
         ]
 
     testTerm "{ one : two three }"
-      $ Fragment []
-      [Block [word "one", Block [word "two", word "three"]]]
+      $ Fragment [] []
+      [ push $ function
+        [ word "one"
+        , push $ function
+          [ word "two"
+          , word "three"
+          ]
+        ]
+      ]
 
     testTerm ": {one} {two}"
-      $ Fragment []
-      [Block [Block [word "one"], Block [word "two"]]]
+      $ Fragment [] []
+      [ push $ function
+        [ push $ function [word "one"]
+        , push $ function [word "two"]
+        ]
+      ]
 
     testTermFailure ":"
 
@@ -174,41 +167,34 @@ spec = do
     testTerm
       ": :\n\
       \  3\n"
-      $ Fragment []
-      [Block [Block [pushi 3]]]
+      $ Fragment [] []
+      [push $ function [push $ function [pushi 3]]]
 
   describe "definition" $ do
 
     testTerm
       "def pi 3"
-      $ Fragment [def "pi" (int 3)]
-      []
+      $ Fragment [] [def "pi" $ int 3] []
 
     testTerm
-      "def inc (Int -> Int){\n\
+      "def inc {\n\
       \  1 +\n\
       \}\n"
-      $ Fragment
-        [ def "inc" $ function
-          ([Anno.Int] :> [Anno.Int])
-          [pushi 1, word "+"]
+      $ Fragment []
+        [ def "inc" $ function [pushi 1, word "+"]
         ]
         []
 
     testTerm
-      "def inc (Int -> Int):\n\
+      "def inc:\n\
       \  1 +\n\
       \\n\
-      \def dec (Int -> Int):\n\
+      \def dec:\n\
       \  1 -\n\
       \\n"
-      $ Fragment
-        [ def "inc" $ function
-          ([Anno.Int] :> [Anno.Int])
-          [pushi 1, word "+"]
-        , def "dec" $ function
-          ([Anno.Int] :> [Anno.Int])
-          [pushi 1, word "-"]
+      $ Fragment []
+        [ def "inc" $ function [pushi 1, word "+"]
+        , def "dec" $ function [pushi 1, word "-"]
         ]
         []
 
@@ -235,9 +221,8 @@ parsed
 def :: String -> Value -> Def Value
 def name value = Def name value TestLocation
 
-function :: Anno.Type -> [Term] -> Value
-function anno terms
-  = Function (Just $ Anno anno TestLocation) terms TestLocation
+function :: [Term] -> Value
+function terms = Function terms TestLocation
 
 int :: Int -> Value
 int value = Int value TestLocation

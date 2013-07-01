@@ -5,7 +5,6 @@ module Kitten.Resolved
 
 import System.IO
 
-import Kitten.Anno (Anno)
 import Kitten.Builtin (Builtin)
 import Kitten.ClosedName
 import Kitten.Location
@@ -44,16 +43,16 @@ data Value
   | Bool Bool
   | Char Char
   | Closed Name
-  | Closure (Maybe Anno) [ClosedName] [Resolved]
+  | Closure [ClosedName] [Resolved]
   | Escape Name
   | Float Double
-  | Function (Maybe Anno) [Resolved]
+  | Function [Resolved]
   | Handle Handle
   | Int Int
   | Local Name
   | Pair Value Value
   | Unit
-  | Vector (Maybe Anno) [Value]
+  | Vector [Value]
   deriving (Eq)
 
 instance Show Value where
@@ -73,7 +72,7 @@ instance Show Value where
 
     Closed (Name index) -> "closed" ++ show index
 
-    Closure _ names terms -> concat
+    Closure names terms -> concat
       [ "$("
       , showWords names
       , "){"
@@ -85,7 +84,7 @@ instance Show Value where
 
     Float value -> show value
 
-    Function _ terms -> concat
+    Function terms -> concat
       [ "(){"
       , showWords terms
       , "}"
@@ -101,7 +100,7 @@ instance Show Value where
 
     Unit -> "()"
 
-    Vector _ values -> concat
+    Vector values -> concat
       [ "["
       , showVector values
       , "]"

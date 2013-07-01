@@ -3,7 +3,6 @@ module Kitten.Term
   , Value(..)
   ) where
 
-import Kitten.Anno (Anno)
 import Kitten.Builtin (Builtin)
 import Kitten.Location
 
@@ -21,9 +20,9 @@ data Value
   | Char Char Location
   | Escape String Location
   | Float Double Location
-  | Function (Maybe Anno) [Term] Location
+  | Function [Term] Location
   | Int Int Location
   | Pair Value Value Location
   | Unit Location
-  | Vector (Maybe Anno) [Value] Location
+  | Vector [Value] Location
   deriving (Eq, Show)

@@ -18,18 +18,18 @@ spec :: Spec
 spec = do
   describe "no change" $ do
     testScope
-      (Fragment [] [function [scoped [push $ local 0]]])
-      (Fragment [] [closure [] [scoped [push $ local 0]]])
+      (Fragment [] [] [function [scoped [push $ local 0]]])
+      (Fragment [] [] [closure [] [scoped [push $ local 0]]])
 
   describe "non-nested closure" $ do
     testScope
-      (Fragment [] [scoped [function [push $ local 0]]])
-      (Fragment [] [scoped [closure [closedName 0] [push $ closed 0]]])
+      (Fragment [] [] [scoped [function [push $ local 0]]])
+      (Fragment [] [] [scoped [closure [closedName 0] [push $ closed 0]]])
 
   describe "nested closure" $ do
     testScope
-      (Fragment [] [scoped [function [scoped [function [push $ local 1, push $ local 0, biAdd]]]]])
-      (Fragment []
+      (Fragment [] [] [scoped [function [scoped [function [push $ local 1, push $ local 0, biAdd]]]]])
+      (Fragment [] []
         [scoped
           [ closure [closedName 0]
             [ scoped
@@ -59,14 +59,13 @@ closedName :: Int -> ClosedName
 closedName = ClosedName . Name
 
 closure :: [ClosedName] -> [Typed] -> Typed
-closure names terms = push
-  $ Closure Nothing names (compose terms)
+closure names terms = push $ Closure names (compose terms)
 
 compose :: [Typed] -> Typed
 compose = Compose
 
 function :: [Typed] -> Typed
-function terms = push $ Function Nothing (compose terms)
+function terms = push $ Function (compose terms)
 
 local :: Int -> Value
 local index = Local (Name index)

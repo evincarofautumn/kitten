@@ -1,4 +1,5 @@
-def prompt ([Char] -> [Char]):
+decl prompt ([Char] -> [Char])
+def prompt:
   print getLine
 
 "What is your name? " prompt -> name

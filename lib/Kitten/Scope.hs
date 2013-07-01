@@ -57,12 +57,12 @@ scopeValue stack value = case value of
   Escape{} -> value
   Float{} -> value
 
-  Function anno funTerms -> Closure anno
-    (map ClosedName capturedNames) capturedTerms
+  Function funTerms
+    -> Closure (map ClosedName capturedNames) capturedTerms
     where
 
-    -- capturedTerms :: [Typed]
-    -- capturedNames :: [Name]
+    capturedTerms :: Typed
+    capturedNames :: [Name]
     (capturedTerms, capturedNames)
       = runCapture stack'
       $ captureTerm scopedTerms
@@ -78,8 +78,7 @@ scopeValue stack value = case value of
   Local{} -> value
   Pair a b -> Pair (scopeValue stack a) (scopeValue stack b)
   Unit -> Unit
-  Vector anno values
-    -> Vector anno (map (scopeValue stack) values)
+  Vector values -> Vector (map (scopeValue stack) values)
 
 data Env = Env
   { envStack :: [Int]
@@ -143,7 +142,7 @@ captureValue value = case value of
   Bool{} -> return value
   Char{} -> return value
   Closed{} -> return value
-  Closure anno names term -> Closure anno
+  Closure names term -> Closure
     <$> mapM close names
     <*> pure term
     where
@@ -157,9 +156,9 @@ captureValue value = case value of
 
   Escape{} -> return value
   Float{} -> return value
-  Function anno terms -> let
+  Function terms -> let
     inside env@Env{..} = env { envStack = 0 : envStack }
-    in Function anno <$> local inside (captureTerm terms)
+    in Function <$> local inside (captureTerm terms)
   Handle{} -> return value
   Int{} -> return value
 
@@ -171,4 +170,4 @@ captureValue value = case value of
 
   Pair a b -> Pair <$> captureValue a <*> captureValue b
   Unit{} -> return value
-  Vector anno values -> Vector anno <$> mapM captureValue values
+  Vector values -> Vector <$> mapM captureValue values

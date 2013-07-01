@@ -180,22 +180,10 @@ subDef env def@Def{..} = def
 
 subFragment
   :: Fragment Value Typed -> Env -> Fragment Value Typed
-subFragment Fragment{..} env = Fragment
+subFragment fragment@Fragment{..} env = fragment
   { fragmentDefs = map (subDef env) fragmentDefs
   , fragmentTerms = map (subTerm env) fragmentTerms
   }
-
-{-
-subScheme :: Env -> Scheme -> Scheme
-subScheme env (Forall rows scalars type_)
-  = Forall rows scalars (subScalar env' type_)
-  where
-  env' :: Env
-  env' = env
-    { envRows = foldr Map.delete (envRows env) (Set.toList rows)
-    , envScalars = foldr Map.delete (envScalars env) (Set.toList scalars)
-    }
--}
 
 subTerm :: Env -> Typed -> Typed
 subTerm env typed = case typed of
@@ -237,15 +225,14 @@ subValue env value = case value of
   Bool{} -> value
   Char{} -> value
   Closed name -> Closed name
-  Closure anno names term
-    -> Closure anno names (subTerm env term)
+  Closure names term -> Closure names (subTerm env term)
   Escape names -> Escape names
   Float{} -> value
-  Function anno term -> Function anno (subTerm env term)
+  Function term -> Function (subTerm env term)
   Handle{} -> value
   Int{} -> value
   Local name -> Local name
   Pair first second
     -> Pair (subValue env first) (subValue env second)
   Unit{} -> value
-  Vector anno values -> Vector anno (map (subValue env) values)
+  Vector values -> Vector (map (subValue env) values)

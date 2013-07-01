@@ -19,6 +19,7 @@ data Token
   | Char Char
   | CharType
   | Comma
+  | Decl
   | Def
   | Else
   | Escape
@@ -49,6 +50,7 @@ instance Show Token where
     Char char -> show char
     CharType -> "Char"
     Comma -> ","
+    Decl -> "decl"
     Def -> "def"
     Else -> "else"
     Escape -> "\\"

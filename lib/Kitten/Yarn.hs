@@ -141,7 +141,7 @@ yarnDef
   -> Yarn [Instruction]
 yarnDef Def{..} index = do
   instructions <- case defTerm of
-    Typed.Closure _ [] term -> yarnTerm term
+    Typed.Closure [] term -> yarnTerm term
     _ -> error
       $ "Kitten.Yarn.yarnDef: TODO yarn non-function definition: "
       ++ show defTerm
@@ -174,7 +174,7 @@ yarnValueInstruction resolved = case resolved of
   Typed.Activation{} -> error
     "Kitten.Yarn.yarnValueInstruction: unexpected activation"
   Typed.Closed (Name index) {- _ -} -> return [Closure index]
-  Typed.Closure _ names terms -> do
+  Typed.Closure names terms -> do
     instructions <- yarnTerm terms
     index <- yarnClosure instructions
     return [Act index names]
@@ -201,5 +201,5 @@ yarnValue resolved = case resolved of
   Typed.Int value -> Int value
   Typed.Pair a b -> Pair (yarnValue a) (yarnValue b)
   Typed.Unit -> Unit
-  Typed.Vector _ values -> Vector (map yarnValue values)
+  Typed.Vector values -> Vector (map yarnValue values)
   _ -> error "Kitten.Yarn.yarnValue: instruction where value expected"

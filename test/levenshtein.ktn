@@ -1,4 +1,5 @@
-def levenshtein ([Char] [Char] -> Int):
+decl levenshtein ([Char] [Char] -> Int)
+def levenshtein:
   -> second
   -> first
   first length -> rows
@@ -11,21 +12,21 @@ def levenshtein ([Char] [Char] -> Int):
   0 columns++ replicate rows++ replicate
 
   // Distance from any first string to empty second string.
-  ([[Int]] Int -> [[Int]]) {
+  {
     -> row
     row row 0 set2
   } 0 rows mapRange
 
   // Distance from any second string to empty first string.
-  ([[Int]] Int -> [[Int]]) {
+  {
     -> column
     column 0 column set2
   } 0 columns mapRange
 
-  ([[Int]] Int -> [[Int]]) {
+  {
     -> row
 
-    ([[Int]] Int -> [[Int]]) {
+    {
       -> column
       -> distances
 

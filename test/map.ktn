@@ -1,6 +1,3 @@
-(int)[] \++ map sayiv
+[] \++ map sayiv
 [1, 2, 3] \++ map sayiv
-
-["a", "b", "c"]
-([Char] -> [Char]){ "s" +* } map
-saycvv
+["a", "b", "c"] { "s" +* } map saycvv

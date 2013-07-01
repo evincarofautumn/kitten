@@ -1,9 +1,9 @@
 test/many-resolve-errors.ktn:1:1: compile error: undefined word: some_undefined_name
-test/many-resolve-errors.ktn:3:16: compile error: undefined word: some_undefined_name
-test/many-resolve-errors.ktn:4:16: compile error: undefined word: some_other_undefined_name
-test/many-resolve-errors.ktn:6:7: compile error: undefined word: y
-test/many-resolve-errors.ktn:6:9: compile error: undefined word: y
-test/many-resolve-errors.ktn:6:11: compile error: undefined word: z
-test/many-resolve-errors.ktn:7:7: compile error: undefined word: z
-test/many-resolve-errors.ktn:7:9: compile error: undefined word: z
-test/many-resolve-errors.ktn:10:4: compile error: undefined word: bad
+test/many-resolve-errors.ktn:4:11: compile error: undefined word: some_undefined_name
+test/many-resolve-errors.ktn:7:11: compile error: undefined word: some_other_undefined_name
+test/many-resolve-errors.ktn:9:7: compile error: undefined word: y
+test/many-resolve-errors.ktn:9:9: compile error: undefined word: y
+test/many-resolve-errors.ktn:9:11: compile error: undefined word: z
+test/many-resolve-errors.ktn:10:7: compile error: undefined word: z
+test/many-resolve-errors.ktn:10:9: compile error: undefined word: z
+test/many-resolve-errors.ktn:13:4: compile error: undefined word: bad

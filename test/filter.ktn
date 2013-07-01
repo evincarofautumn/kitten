@@ -1,6 +1,6 @@
-(Int)[1, 2, 3, 4, 5] -> v
+[1, 2, 3, 4, 5] -> v
 
 v \eveni filter sayiv
 v \oddi filter sayiv
-v (Int -> Bool){ 2 > } filter sayiv
-v (Int -> Bool){ 2 <= } filter sayiv
+v { 2 > } filter sayiv
+v { 2 <= } filter sayiv

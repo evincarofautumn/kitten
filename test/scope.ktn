@@ -1,10 +1,10 @@
 1000 -> x1
 100 -> y1
 10
-(Int -> Int){
+{
   -> a1
   a1 x1 +
-  (Int -> Int){
+  {
     -> b1
     b1 y1 +
   } apply11
@@ -14,10 +14,10 @@ sayi
 1000 -> x2
 100 -> y2
 10
-(Int -> Int){
+{
   -> a2
   a2 y2 +
-  (Int -> Int){
+  {
     -> b2
     b2 x2 +
   } apply11

@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 module Kitten.Infer
   ( infer
   , typeFragment
@@ -7,6 +5,7 @@ module Kitten.Infer
 
 import Control.Applicative
 import Control.Monad
+import Data.List
 import Data.Monoid
 import Data.Map ((!))
 
@@ -25,12 +24,13 @@ import Kitten.Resolved (Resolved)
 import Kitten.Type
 import Kitten.Typed
 import Kitten.Util.FailWriter
+import Kitten.Util.Void
 
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.Resolved as Resolved
 
 typeFragment
-  :: [Def Value]
+  :: Fragment Value Void
   -> Fragment Resolved.Value Resolved
   -> Either [CompileError] (Fragment Value Typed)
 typeFragment prelude fragment
@@ -39,17 +39,18 @@ typeFragment prelude fragment
     inferFragment prelude typedFragment
 
 inferFragment
-  :: [Def Value]
+  :: Fragment Value Void
   -> Fragment Value Typed
   -> Inferred (Fragment Value Typed)
-inferFragment prelude fragment@Fragment{..} = do
+inferFragment prelude fragment = do
 
   forM_ (zip [0..] allDefs) $ \ (index, def)
     -> case manifestType (defTerm def) of
-      Just scheme -> modifyEnv $ \ env -> env
-        { envDefs = Map.insert (Name index) scheme (envDefs env) }
-      Nothing -> Inferred . throwMany . (:[]) . TypeError (defLocation def)
-        $ "missing type annotation for def '" ++ defName def ++ "'"
+      Just scheme -> saveDef index scheme
+      Nothing -> case find ((defName def ==) . defName) allDecls of
+        Just decl -> saveDef index =<< fromAnno (defTerm decl)
+        Nothing -> Inferred . throwMany . (:[]) . TypeError (defLocation def)
+          $ "missing type declaration for '" ++ defName def ++ "'"
 
   forM_ (zip [(0 :: Int)..] allDefs) $ \ (index, def) -> do
     scheme <- generalize (inferValue (defTerm def))
@@ -57,11 +58,18 @@ inferFragment prelude fragment@Fragment{..} = do
       <$> (instantiateM =<< getsEnv ((! Name index) . envDefs))
       <*> instantiateM scheme
 
-  void $ infer (Compose fragmentTerms)
+  void $ infer (Compose (fragmentTerms fragment))
   getsEnv (subFragment fragment)
 
   where
-  allDefs = prelude ++ fragmentDefs
+
+  allDecls = fragmentDecls prelude ++ fragmentDecls fragment
+  allDefs = fragmentDefs prelude ++ fragmentDefs fragment
+
+  saveDef :: Int -> Scheme -> Inferred ()
+  saveDef index scheme = modifyEnv $ \ env -> env
+    { envDefs = Map.insert (Name index) scheme (envDefs env) }
+
 
 -- | Infers the type of a term.
 infer :: Typed -> Inferred Type
@@ -304,10 +312,10 @@ manifestType value = case value of
   Bool{} -> Just $ mono BoolType
   Char{} -> Just $ mono CharType
   Closed{} -> Nothing
-  Closure anno _ _ -> anno
+  Closure{} -> Nothing
   Escape{} -> Nothing
   Float{} -> Just $ mono FloatType
-  Function anno _ -> anno
+  Function{} -> Nothing
   Handle{} -> Just $ mono HandleType
   Int{} -> Just $ mono IntType
   Local{} -> Nothing
@@ -316,7 +324,7 @@ manifestType value = case value of
     Forall names2 type2 <- manifestType b
     return $ Forall (names1 <> names2) (type1 :* type2)
   Unit -> Just $ mono UnitType
-  Vector anno _ -> anno
+  Vector{} -> Nothing
 
 inferValue :: Value -> Inferred Type
 inferValue value = case value of
@@ -327,18 +335,17 @@ inferValue value = case value of
 
   Char{} -> return CharType
 
-  Closed (Name index) {- type_ -} -> {- unifyM type_
-    =<< -} getsEnv ((!! index) . envClosure)
+  Closed (Name index) -> getsEnv ((!! index) . envClosure)
 
-  Closure anno names term -> do
+  Closure names term -> do
     closed <- mapM getClosedName names
-    checkAnno anno =<< withClosure closed (infer term)
+    withClosure closed (infer term)
 
   Escape name -> instantiateM =<< getsEnv ((! name) . envDefs)
 
   Float{} -> return FloatType
 
-  Function anno term -> checkAnno anno =<< infer term
+  Function term -> infer term
 
   Handle{} -> return HandleType
   Int{} -> return IntType
@@ -352,14 +359,16 @@ inferValue value = case value of
 
   Unit -> return UnitType
 
-  Vector _ values -> do
+  Vector values -> do
     valueTypes <- mapM inferValue values
     valueType <- unifyEach valueTypes
     return $ VectorType valueType
 
+{-
 checkAnno :: Maybe Scheme -> Type -> Inferred Type
 checkAnno (Just scheme) type_ = unifyM type_ =<< instantiateM scheme
 checkAnno Nothing type_ = return type_
+-}
 
 unifyEach :: [Type] -> Inferred Type
 unifyEach (x : y : zs) = unifyM x y >> unifyEach (y : zs)

@@ -12,7 +12,6 @@ import Data.List (sort)
 import System.IO
 import Text.Parsec.Error
 
-import Kitten.Def
 import Kitten.Error
 import Kitten.Fragment
 import Kitten.Infer
@@ -22,6 +21,7 @@ import Kitten.Scope
 import Kitten.Tokenize
 import Kitten.Typed (Typed)
 import Kitten.Util.Either
+import Kitten.Util.Void
 
 import qualified Kitten.Typed as Typed
 
@@ -29,7 +29,7 @@ data Config = Config
   { dumpResolved :: Bool
   , dumpScoped :: Bool
   , name :: String
-  , prelude :: [Def Typed.Value]
+  , prelude :: Fragment Typed.Value Void
   , source :: String
   }
 

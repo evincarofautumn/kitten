@@ -57,7 +57,7 @@ main = do
           { Compile.dumpResolved = dumpResolved arguments
           , Compile.dumpScoped = dumpScoped arguments
           , Compile.name = filename
-          , Compile.prelude = []
+          , Compile.prelude = Fragment [] [] []
           , Compile.source = source
           }
 
@@ -71,7 +71,7 @@ main = do
           hPutStrLn stderr "Prelude includes executable code."
           exitFailure
 
-        return fragmentDefs
+        return $ Fragment fragmentDecls fragmentDefs []
 
       _ -> do
         hPutStrLn stderr . unlines
@@ -79,7 +79,7 @@ main = do
           : existingPreludes
         exitFailure
 
-    else return []
+    else return $ Fragment [] [] []
 
   forM_ (entryPoints arguments) $ \ filename -> do
     program <- readFile filename

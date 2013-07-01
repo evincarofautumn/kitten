@@ -9,7 +9,6 @@ import Kitten.Builtin (Builtin)
 import Kitten.ClosedName
 import Kitten.Location
 import Kitten.Name
-import Kitten.Type
 import Kitten.Util.Show
 
 data Typed
@@ -35,14 +34,14 @@ data Value
   | Bool Bool
   | Char Char
   | Closed Name
-  | Closure (Maybe Scheme) [ClosedName] Typed
+  | Closure [ClosedName] Typed
   | Escape Name
   | Float Double
-  | Function (Maybe Scheme) Typed
+  | Function Typed
   | Handle Handle
   | Int Int
   | Local Name
   | Pair Value Value
   | Unit
-  | Vector (Maybe Scheme) [Value]
+  | Vector [Value]
   deriving (Eq, Show)

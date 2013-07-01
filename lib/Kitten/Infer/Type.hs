@@ -4,13 +4,13 @@ module Kitten.Infer.Type
   ( toTypedDef
   , toTypedFragment
   , toTypedTerm
+  , fromAnno
   ) where
 
 import Control.Applicative
 import Control.Monad.Trans.State
 import Data.Foldable (foldrM)
 import Data.List
-import Data.Traversable (traverse)
 
 import qualified Data.Set as Set
 
@@ -65,7 +65,7 @@ toTypedTerm resolved = case resolved of
     <*> pure loc
 
 toTypedValue :: Resolved.Value -> Inferred Value
-toTypedValue value = case value of
+toTypedValue resolved = case resolved of
   Resolved.Activation closure terms -> Activation
     <$> mapM toTypedValue closure
     <*> compose terms
@@ -73,23 +73,19 @@ toTypedValue value = case value of
   Resolved.Char char -> pure $ Char char
   Resolved.Closed name
     -> pure $ Closed name
-  Resolved.Closure anno names terms -> Closure
-    <$> traverse fromAnno anno
-    <*> pure names
-    <*> compose terms
+  Resolved.Closure names terms
+    -> Closure names <$> compose terms
   Resolved.Escape names -> pure $ Escape names
   Resolved.Float float -> pure $ Float float
-  Resolved.Function anno terms
-    -> Function <$> traverse fromAnno anno <*> compose terms
+  Resolved.Function terms -> Function <$> compose terms
   Resolved.Handle handle -> pure $ Handle handle
   Resolved.Int int -> pure $ Int int
   Resolved.Local name -> pure $ Local name
   Resolved.Pair a b
     -> Pair <$> toTypedValue a <*> toTypedValue b
   Resolved.Unit -> pure Unit
-  Resolved.Vector anno values -> Vector
-    <$> traverse fromAnno anno
-    <*> mapM toTypedValue values
+  Resolved.Vector values -> Vector
+    <$> mapM toTypedValue values
 
 compose :: [Resolved] -> Inferred Typed
 compose terms = Compose <$> mapM toTypedTerm terms
