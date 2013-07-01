@@ -73,7 +73,10 @@ interpretOverload (Name index) = do
   Def _ term loc <- gets ((!! index) . envDefs)
   withLocation loc $ do
     interpretValue term
-    interpretFunction =<< popData
+    apply
+
+apply :: Interpret
+apply = interpretFunction =<< popData
 
 interpretBuiltin :: Builtin -> Interpret
 interpretBuiltin builtin = case builtin of
@@ -89,9 +92,10 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.AndInt -> intsToInt (.&.)
 
-  Builtin.Apply10 -> interpretFunction =<< popData
-  Builtin.Apply11 -> interpretFunction =<< popData
-  Builtin.Apply21 -> interpretFunction =<< popData
+  Builtin.Apply01 -> apply
+  Builtin.Apply10 -> apply
+  Builtin.Apply11 -> apply
+  Builtin.Apply21 -> apply
 
   Builtin.Bottom -> do
     Vector a <- popData

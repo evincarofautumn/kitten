@@ -20,6 +20,10 @@ decl & (Int Int -> Int)
 def &:
   __and_int
 
+decl apply01 ((-> a) -> a)
+def apply01:
+  __apply01
+
 decl apply10 (a (a ->) ->)
 def apply10:
   __apply10

@@ -20,6 +20,7 @@ data Builtin
   | AddVector
   | AndBool
   | AndInt
+  | Apply01
   | Apply10
   | Apply11
   | Apply21
@@ -119,6 +120,7 @@ fromStringTable =
   , (,) "__add_vector" AddVector
   , (,) "__and_bool"   AndBool
   , (,) "__and_int"    AndInt
+  , (,) "__apply01"    Apply01
   , (,) "__apply10"    Apply10
   , (,) "__apply11"    Apply11
   , (,) "__apply21"    Apply21

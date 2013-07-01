@@ -89,6 +89,10 @@ infer typedTerm = case typedTerm of
 
     Builtin.AndInt -> binary IntType
 
+    Builtin.Apply01
+      -> (\ a -> [[] :> [a]] :> [a])
+      <$> freshVarM
+
     Builtin.Apply10
       -> (\ a -> [a, [a] :> []] :> [])
       <$> freshVarM
