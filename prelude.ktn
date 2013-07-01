@@ -1,23 +1,23 @@
 // Builtin
 
 decl +. (Float Float -> Float)
-def +.:
+def +. :
   __add_float
 
 decl + (Int Int -> Int)
-def +:
+def + :
   __add_int
 
 decl +* ([a] [a] -> [a])
-def +*:
+def +* :
   __add_vector
 
 decl && (Bool Bool -> Bool)
-def &&:
+def && :
   __and_bool
 
 decl & (Int Int -> Int)
-def &:
+def & :
   __and_int
 
 decl apply01 ((-> a) -> a)
@@ -47,11 +47,11 @@ def compose:
   { f apply11 g apply11 }
 
 decl --. (Float -> Float)
-def --.:
+def --. :
   __dec_float
 
 decl -- (Int -> Int)
-def --:
+def -- :
   __dec_int
 
 decl drop (a ->)
@@ -63,11 +63,11 @@ def dup:
   __dup
 
 decl /. (Float Float -> Float)
-def /.:
+def /. :
   __div_float
 
 decl / (Int Int -> Int)
-def /:
+def / :
   __div_int
 
 decl down ([a] -> [a])
@@ -75,19 +75,19 @@ def down:
   __down
 
 decl =^ (Char Char -> Bool)
-def =^:
+def =^ :
   __eq_char
 
 decl =. (Float Float -> Bool)
-def =.:
+def =. :
   __eq_float
 
 decl = (Int Int -> Bool)
-def =:
+def = :
   __eq_int
 
 decl =* ([a] [a] -> Bool)
-def =*:
+def =* :
   __eq_vector
 
 decl empty ([a] -> Bool)
@@ -99,19 +99,19 @@ def function:
   __function
 
 decl >=^ (Char Char -> Bool)
-def >=^:
+def >=^ :
   __ge_char
 
 decl >=. (Float Float -> Bool)
-def >=.:
+def >=. :
   __ge_float
 
 decl >= (Int Int -> Bool)
-def >=:
+def >= :
   __ge_int
 
 decl >=* ([a] [a] -> Bool)
-def >=*:
+def >=* :
   __ge_vector
 
 decl get ([a] Int -> a)
@@ -119,43 +119,43 @@ def get:
   __get
 
 decl >^ (Char Char -> Bool)
-def >^:
+def >^ :
   __gt_char
 
 decl >. (Float Float -> Bool)
-def >.:
+def >. :
   __gt_float
 
 decl > (Int Int -> Bool)
-def >:
+def > :
   __gt_int
 
 decl >* ([a] [a] -> Bool)
-def >*:
+def >* :
   __gt_vector
 
 decl ++. (Float -> Float)
-def ++.:
+def ++. :
   __inc_float
 
 decl ++ (Int -> Int)
-def ++:
+def ++ :
   __inc_int
 
 decl <=^ (Char Char -> Bool)
-def <=^:
+def <=^ :
   __le_char
 
 decl <=. (Float Float -> Bool)
-def <=.:
+def <=. :
   __le_float
 
 decl <= (Int Int -> Bool)
-def <=:
+def <= :
   __le_int
 
 decl <=* ([a] [a] -> Bool)
-def <=*:
+def <=* :
   __le_vector
 
 decl length ([a] -> Int)
@@ -163,51 +163,51 @@ def length:
   __length
 
 decl <^ (Char Char -> Bool)
-def <^:
+def <^ :
   __lt_char
 
 decl <. (Float Float -> Bool)
-def <.:
+def <. :
   __lt_float
 
 decl < (Int Int -> Bool)
-def <:
+def < :
   __lt_int
 
 decl <* ([a] [a] -> Bool)
-def <*:
+def <* :
   __lt_vector
 
 decl %. (Float Float -> Float)
-def %.:
+def %. :
   __mod_float
 
 decl % (Int Int -> Int)
-def %:
+def % :
   __mod_int
 
 decl *. (Float Float -> Float)
-def *.:
+def *. :
   __mul_float
 
 decl * (Int Int -> Int)
-def *:
+def * :
   __mul_int
 
 decl !=^ (Char Char -> Bool)
-def !=^:
+def !=^ :
   __ne_char
 
 decl !=. (Float Float -> Bool)
-def !=.:
+def !=. :
   __ne_float
 
 decl != (Int Int -> Bool)
-def !=:
+def != :
   __ne_int
 
 decl !=* ([a] [a] -> Bool)
-def !=*:
+def !=* :
   __ne_vector
 
 decl negf (Float -> Float)
@@ -219,19 +219,19 @@ def negi:
   __neg_int
 
 decl ! (Bool -> Bool)
-def !:
+def ! :
   __not_bool
 
 decl ~ (Int -> Int)
-def ~:
+def ~ :
   __not_int
 
 decl || (Bool Bool -> Bool)
-def ||:
+def || :
   __or_bool
 
 decl | (Int Int -> Int)
-def |:
+def | :
   __or_int
 
 decl set ([a] a Int -> [a])
@@ -239,11 +239,11 @@ def set:
   __set
 
 decl -. (Float Float -> Float)
-def -.:
+def -. :
   __sub_float
 
 decl - (Int Int -> Int)
-def -:
+def - :
   __sub_int
 
 decl swap (a b -> b a)
@@ -263,11 +263,11 @@ def vector:
   __vector
 
 decl ^^ (Bool Bool -> Bool)
-def ^^:
+def ^^ :
   __xor_bool
 
 decl ^ (Int Int -> Int)
-def ^:
+def ^ :
   __xor_int
 
 // Core
@@ -276,6 +276,9 @@ decl id (a -> a)
 def id:
   -> x
   x
+
+decl pass (->)
+def pass {}
 
 // Pushes a value to the top of a vector.
 decl push ([a] a -> [a])
@@ -305,8 +308,8 @@ def prepend:
 
 decl showb (Bool -> [Char])
 def showb:
-  if { "true" }
-  else { "false" }
+  if then: "true"
+  else: "false"
 
 decl showi (Int -> [Char])
 def showi:
@@ -484,7 +487,7 @@ decl max2 (Int Int -> Int)
 def max2:
   -> a
   -> b
-  if a b > : a else: b
+  if a b > then: a else: b
 
 decl max3 (Int Int Int -> Int)
 def max3:
@@ -494,7 +497,7 @@ decl min2 (Int Int -> Int)
 def min2:
   -> a
   -> b
-  if a b < : a else: b
+  if a b < then: a else: b
 
 decl min3 (Int Int Int -> Int)
 def min3:
@@ -534,7 +537,7 @@ def until:
   -> p
   -> f
   -> x
-  if x p apply11:
+  if x p apply11 then:
     x
   else:
     x f apply11
@@ -548,7 +551,7 @@ def foldUp:
   -> k
   -> z
   -> xs
-  if xs empty:
+  if xs empty then:
     z
   else:
     xs bottom
@@ -561,7 +564,7 @@ def foldDown:
   -> k
   -> z
   -> xs
-  if xs empty:
+  if xs empty then:
     z
   else:
     xs down z k foldDown
@@ -573,9 +576,9 @@ decl filter ([a] (a -> Bool) -> [a])
 def filter:
   -> f
   -> v
-  if v empty:
+  if v empty then:
     v
-  else if v bottom f apply11:
+  else if v bottom f apply11 then:
     v bottom vector
     v up f filter
     +*
@@ -594,7 +597,7 @@ decl keep ([a] Int -> [a])
 def keep:
   -> n
   -> xs
-  if n 0 <=  xs empty  || :
+  if n 0 <=  xs empty  || then:
     []
   else:
     xs down n-- keep
@@ -611,7 +614,7 @@ def mapFrom:
   -> offset
   -> function
   -> vec
-  if vec empty  offset vec length >=  || :
+  if vec empty  offset vec length >=  || then:
     vec
   else:
     vec function offset modify
@@ -624,7 +627,7 @@ def mapRange:
   -> start
   -> function
   -> value
-  if start end <= :
+  if start end <= then:
     value start function apply21
     function start++ end mapRange
   else:
@@ -644,7 +647,7 @@ decl replicate (a Int -> [a])
 def replicate:
   -> count
   -> value
-  if count 0 <= :
+  if count 0 <= then:
     []
   else:
     value vector
@@ -672,7 +675,30 @@ decl toss ([a] Int -> [a])
 def toss:
   -> n
   -> xs
-  if n 0 <=  xs empty  || :
+  if n 0 <=  xs empty  || then:
     xs
   else:
     xs down n-- toss
+
+// Concatenates a vector of vectors.
+decl concat ([[a]] -> [a])
+def concat:
+  [] \+* foldDown
+
+decl any ([a] (a -> Bool) -> Bool)
+def any:
+  map or
+
+decl all ([a] (a -> Bool) -> Bool)
+def all:
+  map and
+
+decl elemi ([Int] Int -> Bool)
+def elemi:
+  -> x
+  { x = } any
+
+decl elemc ([Char] Char -> Bool)
+def elemc:
+  -> x
+  { x =^ } any

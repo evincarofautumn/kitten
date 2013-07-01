@@ -34,6 +34,7 @@ data Token
   | Layout
   | LittleWord String
   | Text String
+  | Then
   | VectorBegin
   | VectorEnd
   deriving (Eq)
@@ -65,6 +66,7 @@ instance Show Token where
     Layout -> ":"
     LittleWord word -> word
     Text value -> show value
+    Then -> "then"
     VectorBegin -> "["
     VectorEnd -> "]"
 

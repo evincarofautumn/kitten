@@ -27,10 +27,12 @@ insertBraces = (concat <$> many unit) <* eof
   ifElse :: Parser [Located]
   ifElse = do
     if_ <- locatedMatch Token.If
-    preElse <- concat <$> many unit
+    condition <- concat <$> many unit
+    then_ <- locatedMatch Token.Then
+    true <- concat <$> many unit
     else_ <- locatedMatch Token.Else
-    postElse <- unit
-    return $ if_ : preElse ++ else_ : postElse
+    false <- unit
+    return $ if_ : condition ++ then_ : true ++ else_ : false
 
   unit :: Parser [Located]
   unit = unitWhere $ const True
@@ -55,6 +57,7 @@ insertBraces = (concat <$> many unit) <* eof
     , Token.Layout
     , Token.VectorBegin
     , Token.VectorEnd
+    , Token.Then
     , Token.Else
     ]
 

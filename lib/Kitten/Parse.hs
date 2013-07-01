@@ -52,20 +52,17 @@ decl = (<?> "type declaration") . locate
 def :: Parser (Def Value)
 def = (<?> "definition") . locate
   $ match Token.Def
-  *> (Def <$> littleWord <*> (function <|> value))
+  *> (Def <$> littleWord <*> value)
 
 term :: Parser Term
-term = nonblock <|> locate (Push <$> function)
+term = locate $ choice
+  [ Push <$> value
+  , Call <$> littleWord
+  , mapOne toBuiltin <?> "builtin"
+  , lambda
+  , if_
+  ]
   where
-
-  nonblock :: Parser Term
-  nonblock = locate $ choice
-    [ Push <$> value
-    , Call <$> littleWord
-    , mapOne toBuiltin <?> "builtin"
-    , lambda
-    , if_
-    ]
 
   lambda :: Parser (Location -> Term)
   lambda = (<?> "lambda") $ match Token.Arrow
@@ -73,23 +70,22 @@ term = nonblock <|> locate (Push <$> function)
 
   if_ :: Parser (Location -> Term)
   if_ = If
-    <$> (match Token.If *> many nonblock)
-    <*> block
-    <*> (match Token.Else *> (block <|> list <$> locate if_))
+    <$> (match Token.If *> many term)
+    <*> (match Token.Then *> branch)
+    <*> (match Token.Else *> branch)
     <?> "if"
+    where branch = block <|> list <$> locate if_
 
   toBuiltin :: Token -> Maybe (Location -> Term)
   toBuiltin (Token.Builtin name) = Just $ Builtin name
   toBuiltin _ = Nothing
-
-function :: Parser Value
-function = locate $ Function <$> block
 
 value :: Parser Value
 value = locate $ choice
   [ mapOne toLiteral <?> "literal"
   , escape
   , Vector <$> vector
+  , Function <$> block <?> "function"
   ]
   where
 
