@@ -1,12 +1,15 @@
-99 bottlesOfBeer
+99 bottles_of_beer
 
-def bottlesOfBeer (Int ->):
+decl bottles_of_beer (Int ->)
+def bottles_of_beer:
   -> x
   x verse
-  if x 1 > : x-- bottlesOfBeer
+  if x 1 > then:
+    x-- bottles_of_beer
   else {}
 
-def verse (Int ->):
+decl verse (Int ->)
+def verse:
   -> x
   x wall newline
   x beer newline
@@ -14,21 +17,25 @@ def verse (Int ->):
   x-- wall newline
   newline
 
-def beer (Int ->):
+decl beer (Int ->)
+def beer:
   bottles " of beer" print
 
-def wall (Int ->):
+decl wall (Int ->)
+def wall:
   beer " on the wall" print
 
-def take (->):
+decl take (->)
+def take:
   "take one down, pass it around" print
 
-def bottles (Int ->):
+decl bottles (Int ->)
+def bottles:
   -> x
-  if x 0 = :
+  if x 0 = then:
     "no more bottles"
-  else if x 1 = :
+  else if x 1 = then:
     "one bottle"
   else:
-    x show " bottles" +
+    x showi " bottles" +*
   print

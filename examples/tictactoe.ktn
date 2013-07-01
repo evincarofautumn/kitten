@@ -1,0 +1,260 @@
+/*
+ * tictactoe.ktn
+ *
+ * Contributed by @strager <https://github.com/strager/>
+ *
+ * Modified by Jon Purdy <https://github.com/evincarofautumn/>
+ *
+ */
+
+decl ; ([a] a -> [a])
+def ; : push
+
+decl show_board_cell (Char -> Char)
+def show_board_cell { id }
+
+decl cell_number_to_index (Int -> Int)
+def cell_number_to_index:
+  8 swap -
+
+decl show_board_cell_at ([Char] Int -> Char)
+def show_board_cell_at:
+  cell_number_to_index get
+  show_board_cell
+
+decl show_board_row ([Char] Int -> [Char])
+def show_board_row:
+  -> row_index
+  -> b
+  row_index 3 * -> i
+  []
+  ' ';  b 0 i + show_board_cell_at;
+  '|';  b 1 i + show_board_cell_at;
+  '|';  b 2 i + show_board_cell_at;
+
+decl show_board ([Char] -> [Char])
+def show_board:
+  -> b
+  []
+  "   A B C\n";
+  "1 ";  b 0 show_board_row;  "\n";
+  "  --+-+--\n";
+  "2 ";  b 1 show_board_row;  "\n";
+  "  --+-+--\n";
+  "3 ";  b 2 show_board_row;  "\n";
+  concat
+
+decl print_board ([Char] ->)
+def print_board:
+  show_board print
+
+decl new_board (-> [Char])
+def new_board:
+  [ ' ', ' ', ' '
+  , ' ', ' ', ' '
+  , ' ', ' ', ' '
+  ]
+
+decl read_x (Char -> Int)
+def read_x:
+  -> c
+  if "aA" c elemc then: 0
+  else if "bB" c elemc then: 1
+  else if "cC" c elemc then: 2
+  else: -1
+
+decl read_y (Char -> Int)
+def read_y:
+  -> c
+  if "1!" c elemc then: 0
+  else if "2@" c elemc then: 1
+  else if "3#" c elemc then: 2
+  else: -1
+
+decl read_xy_ (Char Char -> Int Int Bool)
+def read_xy_:
+  read_y -> y
+  read_x -> x
+  if x 0 >=  y 0 >=  && then:
+    x y true
+  else:
+    0 0 false
+
+decl read_xy (Char Char -> Int Int Bool)
+def read_xy:
+  -> y
+  -> x
+  x y read_xy_
+  -> success
+  -> yi
+  -> xi
+  if success then:
+    xi yi true
+  else:
+    y x read_xy_
+
+decl read_move_line ([Char] -> Int Int Bool)
+def read_move_line:
+  -> chars
+  if chars length 2 = then:
+    chars 1 get
+    chars 0 get
+    read_xy
+  else:
+    0 0 false
+
+decl xy_to_cell_number (Int Int -> Int)
+def xy_to_cell_number:
+  -> x
+  -> y
+  y 3 *
+  x +
+
+decl edit_board ([Char] Int Char -> [Char])
+def edit_board:
+  -> c
+  -> i
+  c
+  i cell_number_to_index
+  set
+
+decl ask_turn ([Char] Char -> [Char])
+def ask_turn:
+  -> player
+  -> board
+
+  board print_board
+
+  "It is " player push "'s turn. Choose your move: " +*
+  print
+
+  getLine -> input
+  input read_move_line
+  -> parsed -> x -> y
+
+  if parsed then:
+    board
+    x y xy_to_cell_number
+    player edit_board
+  else if input "q" =* then:
+    0 exit board
+  else:
+    "I didn't understand that. Type e.g. \"a3\" to "
+    "move in the bottom-left cell. Type \"q\" to exit.\n" +*
+    print
+    board player ask_turn
+
+decl next_player (Char -> Char)
+def next_player:
+  if 'x' =^ then: 'o'
+  else: 'x'
+
+decl gets ([a] [Int] -> [a])
+def gets:
+  -> indices
+  -> xs
+  indices { xs swap get } map
+
+decl check_sets (-> [[Int]])
+def check_sets:
+  []
+  // Rows
+  [0, 1, 2];  [3, 4, 5];  [6, 7, 8];
+  // Columns
+  [0, 3, 6];  [1, 4, 7];  [2, 5, 8];
+  // Diagonals
+  [0, 4, 8];  [2, 4, 6];
+
+// ' ', 'x', or 'o'
+decl get_check_set_winner ([Char] [Int] -> Char)
+def get_check_set_winner:
+  gets -> players
+  if players { 'x' =^ } all then:
+    'x'
+  else if players { 'o' =^ } all then:
+    'o'
+  else:
+    ' '
+
+// ' ', 'x', 'o', or '*'
+decl get_winner ([Char] -> Char)
+def get_winner:
+  -> board
+
+  board { ' ' =^ } filter empty
+  -> filled
+
+  if filled then:
+    '*'
+  else:
+    check_sets
+    { board swap get_check_set_winner } map
+    { ' ' !=^ } filter
+    -> winners
+
+    if winners empty then:
+      ' '
+    else if winners { 'x' =^ } all then:
+      'x'
+    else if winners { 'o' =^ } all then:
+      'o'
+    else:
+      '*'
+
+decl game_loop ([Char] Char -> [Char] Char)
+def game_loop:
+  -> player
+  -> board
+
+  board get_winner -> winner
+  if "xo*" winner elemc then:
+    board winner
+  else:
+    board player ask_turn
+    player next_player game_loop
+
+decl game (->)
+def game:
+  new_board 'x' game_loop
+  -> winner
+  -> final_board
+
+  newline
+
+  if winner '*' =^ then:
+    "It's a tie!\n" print
+  else:
+    winner " wins!\n" prepend print
+
+  final_board print_board
+
+decl loop ((-> Bool) ->)
+def loop:
+  -> f
+  if f apply01 then:
+    f loop
+  else:
+    pass
+
+decl prompt_play_another (-> Bool)
+def prompt_play_another:
+  "Play another game? [yN] " print
+  getLine -> input
+
+  if input { "yY" swap elemc } any then:
+    newline
+    true
+  else if input { "nN" swap elemc } any then:
+    newline
+    false
+  else if input empty then:
+    newline
+    false
+  else:
+    prompt_play_another
+
+decl main (->)
+def main:
+  { game prompt_play_another } loop
+
+main
