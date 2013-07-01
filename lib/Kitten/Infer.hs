@@ -143,6 +143,8 @@ infer typedTerm = case typedTerm of
     Builtin.EqFloat -> relational FloatType
     Builtin.EqInt -> relational IntType
 
+    Builtin.Exit -> return $ [IntType] :> []
+
     Builtin.First
       -> (\ a b -> [a :* b] :> [a])
       <$> freshVarM <*> freshVarM

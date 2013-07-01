@@ -38,6 +38,7 @@ data Builtin
   | EqFloat
   | EqInt
   | EqVector
+  | Exit
   | First
   | Function
   | GeChar
@@ -137,6 +138,7 @@ fromStringTable =
   , (,) "__eq_float"   EqFloat
   , (,) "__eq_int"     EqInt
   , (,) "__eq_vector"  EqVector
+  , (,) "__exit"       Exit
   , (,) "__empty"      Empty
   , (,) "__first"      First
   , (,) "__function"   Function

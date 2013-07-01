@@ -347,6 +347,10 @@ def showv:
 
 // Impure
 
+decl exit (Int ->)
+def exit:
+  __exit
+
 decl handleClose (Handle ->)
 def handleClose:
   __close

@@ -7,6 +7,7 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.Bits
 import Data.Fixed
+import System.Exit
 import System.IO
 
 import Kitten.Builtin (Builtin)
@@ -130,6 +131,12 @@ interpretBuiltin builtin = case builtin of
   Builtin.Empty -> do
     Vector a <- popData
     pushData . Bool $ null a
+
+  Builtin.Exit -> do
+    Int a <- popData
+    lift $ case a of
+      0 -> exitSuccess
+      _ -> exitWith (ExitFailure a)
 
   Builtin.First -> do
     Pair a _ <- popData
