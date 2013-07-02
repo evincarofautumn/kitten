@@ -138,7 +138,6 @@ infer typedTerm = case typedTerm of
       -> (\ a -> [VectorType a] :> [BoolType])
       <$> freshVarM
 
-    Builtin.EqVector -> freshVarM >>= \ a -> relational (VectorType a)
     Builtin.EqChar -> relational CharType
     Builtin.EqFloat -> relational FloatType
     Builtin.EqInt -> relational IntType
@@ -153,7 +152,6 @@ infer typedTerm = case typedTerm of
       -> (\ a -> [a] :> [[] :> [a]])
       <$> freshVarM
 
-    Builtin.GeVector -> freshVarM >>= \ a -> relational (VectorType a)
     Builtin.GeChar -> relational CharType
     Builtin.GeFloat -> relational FloatType
     Builtin.GeInt -> relational IntType
@@ -165,7 +163,6 @@ infer typedTerm = case typedTerm of
     Builtin.GetLine
       -> return $ [HandleType] :> [VectorType CharType]
 
-    Builtin.GtVector -> freshVarM >>= \ a -> relational (VectorType a)
     Builtin.GtChar -> relational CharType
     Builtin.GtFloat -> relational FloatType
     Builtin.GtInt -> relational IntType
@@ -173,7 +170,6 @@ infer typedTerm = case typedTerm of
     Builtin.IncFloat -> unary FloatType
     Builtin.IncInt -> unary IntType
 
-    Builtin.LeVector -> freshVarM >>= \ a -> relational (VectorType a)
     Builtin.LeChar -> relational CharType
     Builtin.LeFloat -> relational FloatType
     Builtin.LeInt -> relational IntType
@@ -182,7 +178,6 @@ infer typedTerm = case typedTerm of
       -> (\ a -> [VectorType a] :> [IntType])
       <$> freshVarM
 
-    Builtin.LtVector -> freshVarM >>= \ a -> relational (VectorType a)
     Builtin.LtChar -> relational CharType
     Builtin.LtFloat -> relational FloatType
     Builtin.LtInt -> relational IntType
@@ -193,7 +188,6 @@ infer typedTerm = case typedTerm of
     Builtin.MulFloat -> binary FloatType
     Builtin.MulInt -> binary IntType
 
-    Builtin.NeVector -> freshVarM >>= \ a -> relational (VectorType a)
     Builtin.NeChar -> relational CharType
     Builtin.NeFloat -> relational FloatType
     Builtin.NeInt -> relational IntType

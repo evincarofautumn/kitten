@@ -126,7 +126,6 @@ interpretBuiltin builtin = case builtin of
   Builtin.EqChar -> charsToBool (==)
   Builtin.EqFloat -> floatsToBool (==)
   Builtin.EqInt -> intsToBool (==)
-  Builtin.EqVector -> vectorsToBool (==)
 
   Builtin.Empty -> do
     Vector a <- popData
@@ -148,7 +147,6 @@ interpretBuiltin builtin = case builtin of
   Builtin.GeChar -> charsToBool (>=)
   Builtin.GeFloat -> floatsToBool (>=)
   Builtin.GeInt -> intsToBool (>=)
-  Builtin.GeVector -> vectorsToBool (>=)
 
   Builtin.Get -> do
     Int b <- popData
@@ -163,7 +161,6 @@ interpretBuiltin builtin = case builtin of
   Builtin.GtChar -> charsToBool (>)
   Builtin.GtFloat -> floatsToBool (>)
   Builtin.GtInt -> intsToBool (>)
-  Builtin.GtVector -> vectorsToBool (>)
 
   Builtin.IncFloat -> floatToFloat succ
   Builtin.IncInt -> intToInt succ
@@ -171,7 +168,6 @@ interpretBuiltin builtin = case builtin of
   Builtin.LeChar -> charsToBool (<=)
   Builtin.LeFloat -> floatsToBool (<=)
   Builtin.LeInt -> intsToBool (<=)
-  Builtin.LeVector -> vectorsToBool (<=)
 
   Builtin.Length -> do
     Vector a <- popData
@@ -180,7 +176,6 @@ interpretBuiltin builtin = case builtin of
   Builtin.LtChar -> charsToBool (<)
   Builtin.LtFloat -> floatsToBool (<)
   Builtin.LtInt -> intsToBool (<)
-  Builtin.LtVector -> vectorsToBool (<)
 
   Builtin.ModFloat -> floatsToFloat mod'
   Builtin.ModInt -> intsToInt mod
@@ -191,7 +186,6 @@ interpretBuiltin builtin = case builtin of
   Builtin.NeChar -> charsToBool (/=)
   Builtin.NeFloat -> floatsToBool (/=)
   Builtin.NeInt -> intsToBool (/=)
-  Builtin.NeVector -> vectorsToBool (/=)
 
   Builtin.NegFloat -> floatToFloat negate
   Builtin.NegInt -> intToInt negate
@@ -328,12 +322,6 @@ interpretBuiltin builtin = case builtin of
     Int b <- popData
     Int a <- popData
     pushData $ Int (f a b)
-
-  vectorsToBool :: (String -> String -> Bool) -> Interpret
-  vectorsToBool f = do
-    Vector b <- popData
-    Vector a <- popData
-    pushData . Bool $ f (stringFromChars a) (stringFromChars b)
 
 stringFromChars :: [Value] -> String
 stringFromChars = map fromChar . reverse

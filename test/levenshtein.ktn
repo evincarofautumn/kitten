@@ -37,7 +37,7 @@ def levenshtein:
       second column-- __get -> secondChar
 
       distances
-      if firstChar secondChar =^ then:
+      if firstChar secondChar eqc then:
         distances row-- column-- get2
         row column set2
       else:

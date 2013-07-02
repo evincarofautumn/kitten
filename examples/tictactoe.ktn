@@ -125,7 +125,7 @@ def ask_turn:
 
   board print_board
 
-  "It is " player push "'s turn. Choose your move: " +*
+  "It is " player push "'s turn. Choose your move: " cat
   print
 
   getLine -> input
@@ -136,17 +136,17 @@ def ask_turn:
     board
     x y xy_to_cell_number
     player edit_board
-  else if input "q" =* then:
+  else if input "q" eqcv then:
     0 exit board
   else:
     "I didn't understand that. Type e.g. \"a3\" to "
-    "move in the bottom-left cell. Type \"q\" to exit.\n" +*
+    "move in the bottom-left cell. Type \"q\" to exit.\n" cat
     print
     board player ask_turn
 
 decl next_player (Char -> Char)
 def next_player:
-  if 'x' =^ then: 'o'
+  if 'x' eqc then: 'o'
   else: 'x'
 
 decl gets ([a] [Int] -> [a])
@@ -169,9 +169,9 @@ def check_sets:
 decl get_check_set_winner ([Char] [Int] -> Char)
 def get_check_set_winner:
   gets -> players
-  if players { 'x' =^ } all then:
+  if players { 'x' eqc } all then:
     'x'
-  else if players { 'o' =^ } all then:
+  else if players { 'o' eqc } all then:
     'o'
   else:
     ' '
@@ -181,7 +181,7 @@ decl get_winner ([Char] -> Char)
 def get_winner:
   -> board
 
-  board { ' ' =^ } filter empty
+  board { ' ' eqc } filter empty
   -> filled
 
   if filled then:
@@ -189,14 +189,14 @@ def get_winner:
   else:
     check_sets
     { board swap get_check_set_winner } map
-    { ' ' !=^ } filter
+    { ' ' nec } filter
     -> winners
 
     if winners empty then:
       ' '
-    else if winners { 'x' =^ } all then:
+    else if winners { 'x' eqc } all then:
       'x'
-    else if winners { 'o' =^ } all then:
+    else if winners { 'o' eqc } all then:
       'o'
     else:
       '*'
@@ -221,7 +221,7 @@ def game:
 
   newline
 
-  if winner '*' =^ then:
+  if winner '*' eqc then:
     "It's a tie!\n" print
   else:
     winner " wins!\n" prepend print
