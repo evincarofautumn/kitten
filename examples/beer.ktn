@@ -37,5 +37,5 @@ def bottles:
   else if x 1 = then:
     "one bottle"
   else:
-    x showi " bottles" +*
+    x showi " bottles" cat
   print
