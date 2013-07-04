@@ -6,7 +6,7 @@ module Kitten.Infer.Scheme
   , generalize
   , instantiate
   , instantiateM
-  -- , makeInstantiation
+  , normalize
   , occurs
   , subDef
   , subFragment
@@ -18,8 +18,7 @@ module Kitten.Infer.Scheme
 
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict
-import Data.Monoid
-import Data.Set (Set)  -- (\\)
+import Data.List
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -30,14 +29,13 @@ import Kitten.Infer.Monad
 import Kitten.Name
 import Kitten.Type
 import Kitten.Typed
-import Kitten.Util.Monoid
 
 instantiateM :: Scheme -> Inferred Type
 instantiateM = Inferred . lift . state . instantiate
 
 instantiate :: Scheme -> Env -> (Type, Env)
-instantiate (Forall names type_) env = let
-  (renamedEnv, env') = foldr rename (emptyEnv, env) (Set.toList names)
+instantiate (Forall names type_) env
+  = let (renamedEnv, env') = foldr rename (emptyEnv, env) (Set.toList names)
   in (sub renamedEnv type_, env')
   where
   rename :: Name -> (Env, Env) -> (Env, Env)
@@ -53,75 +51,37 @@ generalize action = do
   let
     substituted = sub after type_
     dependent = dependentBetween before after
-    names = Set.filter dependent $ free substituted
-  {- . regeneralize after -}
-  return $ Forall names substituted
+    names = filter dependent $ free substituted
+  return $ Forall (Set.fromList names) substituted
 
-{-
-regeneralize :: Env -> Scheme -> Scheme
-regeneralize env (Forall rows scalars wholeType) = let
-  (type_, vars) = runWriter $ regeneralize' True wholeType
-  in Forall (foldr Set.delete rows vars) scalars type_
-
+free :: Type -> [Name]
+free = nub . free'
   where
-  regeneralize' :: Bool -> Type a -> Writer [Name] (Type a)
-  regeneralize' topLevel type_ = case type_ of
-    (a :> b)
-      | not topLevel
-      , TypeVar c <- bottommost a
-      , TypeVar d <- bottommost b
-      , c == d
-      , occurrencesScalar c wholeType env == 2
-      -> do
-        tell [c]
-        trace ("Regeneralized var " ++ show c) (return ())
-        return . Polytype $ row c type_
-    (a :> b) -> (:>) <$> regeneralize' False a <*> regeneralize' False b
-    (a :. b) -> (:.) <$> regeneralize' False a <*> regeneralize' False b
-    _ -> return type_
+  free' :: Type -> [Name]
+  free' type_ = case type_ of
+    a :* b -> free a ++ free b
+    a :> b -> concatMap free' a ++ concatMap free' b
+    BoolType -> []
+    CharType -> []
+    FloatType -> []
+    GeneratedType -> []
+    HandleType -> []
+    IntType -> []
+    TestType -> []
+    TypeVar name -> [name]
+    UnitType -> []
+    VectorType a -> free' a
 
-bottommost :: Type Row -> Type Row
-bottommost type_ = case type_ of
-  (a :. _) -> bottommost a
-  _ -> type_
--}
-
-free :: Type -> Set Name
-free type_ = case type_ of
-  a :* b -> free a <> free b
-  a :> b -> mconcatMap free a <> mconcatMap free b
-  BoolType -> mempty
-  CharType -> mempty
-  FloatType -> mempty
-  GeneratedType -> mempty
-  HandleType -> mempty
-  IntType -> mempty
-  TestType -> mempty
-  TypeVar name -> Set.singleton name
-  UnitType -> mempty
-  VectorType a -> free a
-
-{-
-freeScheme :: Scheme -> (Set Name, Set Name)
-freeScheme (Forall rows scalars type_)
-  = let (rows', scalars') = free type_
-  in (rows' \\ rows, scalars' \\ scalars)
--}
-
-{-
-makeInstantiation :: Name -> Inferred (Type Scalar)
-makeInstantiation name = do
-  here <- getsEnv envLocation
-  type_ <- freshFunctionM
-  modifyEnv $ \ env -> env
-    { envInstantiations = Instantiation
-      { instantiationLocation = here
-      , instantiationName = name
-      , instantiationType = type_
-      } : envInstantiations env
-    }
-  return type_
--}
+normalize :: Type -> Type
+normalize type_ = let
+  names = free type_
+  env = emptyEnv
+    { envTypes = Map.fromList
+      $ zip names (map var [0..]) }
+  in sub env type_
+  where
+  var :: Int -> Type
+  var = TypeVar . Name
 
 occurs :: Name -> Env -> Type -> Bool
 occurs = (((> 0) .) .) . occurrences
@@ -142,13 +102,6 @@ occurrences name env type_ = case type_ of
     Right type' -> occurrences name env type'
   UnitType -> 0
   VectorType a -> occurrences name env a
-
-{-
-occursScheme :: Name -> Scheme -> Env -> Bool
-occursScheme name (Forall rows scalars type_) env
-  = not (name `Set.member` rows || name `Set.member` scalars)
-  && occurs name type_ env
--}
 
 -- | Tests whether a variable is dependent between two type
 -- environment states.

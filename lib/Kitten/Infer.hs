@@ -50,13 +50,21 @@ inferFragment prelude fragment = do
       Nothing -> case find ((defName def ==) . defName) allDecls of
         Just decl -> saveDef index =<< fromAnno (defTerm decl)
         Nothing -> Inferred . throwMany . (:[]) . TypeError (defLocation def)
-          $ "missing type declaration for '" ++ defName def ++ "'"
+          $ "missing type declaration for " ++ defName def
 
   forM_ (zip [(0 :: Int)..] allDefs) $ \ (index, def) -> do
     scheme <- generalize (inferValue (defTerm def))
-    unifyM
-      <$> (instantiateM =<< getsEnv ((! Name index) . envDefs))
-      <*> instantiateM scheme
+    declared <- fmap normalize . instantiateM =<< getsEnv ((! Name index) . envDefs)
+    inferred <- normalize <$> instantiateM scheme
+    when (declared /= inferred)
+      . Inferred . throwMany . (:[]) . TypeError (defLocation def) $ unwords
+        [ "declared type"
+        , show declared
+        , "does not match inferred type"
+        , show inferred
+        , "of"
+        , defName def
+        ]
 
   void $ infer (Compose (fragmentTerms fragment))
   getsEnv (subFragment fragment)
