@@ -372,12 +372,6 @@ inferValue value = case value of
     valueType <- unifyEach valueTypes
     return $ VectorType valueType
 
-{-
-checkAnno :: Maybe Scheme -> Type -> Inferred Type
-checkAnno (Just scheme) type_ = unifyM type_ =<< instantiateM scheme
-checkAnno Nothing type_ = return type_
--}
-
 unifyEach :: [Type] -> Inferred Type
 unifyEach (x : y : zs) = unifyM x y >> unifyEach (y : zs)
 unifyEach [x] = return x

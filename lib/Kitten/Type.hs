@@ -12,49 +12,24 @@ import qualified Data.Set as Set
 import Kitten.Name
 import Kitten.Util.Show
 
--- | τ
 data Type
-
-  -- | (τ × τ) :: τ
   = Type :* Type
-
-  -- | τ* → τ* :: τ
   | [Type] :> [Type]
-
-  -- | Bool :: τ
   | BoolType
-
-  -- | Char :: τ
   | CharType
-
-  -- | Float :: τ
   | FloatType
-
   | GeneratedType
-
-  -- | Handle :: τ
   | HandleType
-
-  -- | Int :: τ
   | IntType
-
   | TestType
-
-  -- | a
   | TypeVar Name
-
-  -- | () :: τ
   | UnitType
-
-  -- | [τ] :: τ
   | VectorType Type
 
 infixr 5 :*
 infix 4 :>
 
--- | σ
 data Scheme
-  -- | ∀(a, b, …). τ
   = Forall (Set Name) (Type)
   deriving (Eq)
 
