@@ -612,10 +612,17 @@ def keep:
 // Maps a function downward over the elements of a vector.
 decl map ([a] (a -> b) -> [b])
 def map:
-  0 mapFrom
+  -> f
+  -> xs
+  if xs empty then:
+    []
+  else:
+    xs down f map
+    xs top f apply11 vector
+    cat
 
 // Maps a function over part of a vector.
-decl mapFrom ([a] (a -> b) Int -> [b])
+decl mapFrom ([a] (a -> a) Int -> [a])
 def mapFrom:
   -> offset
   -> function

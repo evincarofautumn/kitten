@@ -1,3 +1,4 @@
 [] \++ map sayiv
 [1, 2, 3] \++ map sayiv
 ["a", "b", "c"] { "s" cat } map saycvv
+["one", "two", "three"] \length map sayiv
