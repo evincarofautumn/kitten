@@ -156,10 +156,6 @@ infer typedTerm = case typedTerm of
       -> (\ a b -> [a :* b] :> [a])
       <$> freshVarM <*> freshVarM
 
-    Builtin.Function
-      -> (\ a -> [a] :> [[] :> [a]])
-      <$> freshVarM
-
     Builtin.GeChar -> relational CharType
     Builtin.GeFloat -> relational FloatType
     Builtin.GeInt -> relational IntType

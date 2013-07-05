@@ -49,9 +49,6 @@ testScope source expected = let
 biAdd :: Typed
 biAdd = Builtin Builtin.AddInt TestLocation
 
-biFunction :: Typed
-biFunction = Builtin Builtin.Function TestLocation
-
 closed :: Int -> Value
 closed index = Closed (Name index)
 

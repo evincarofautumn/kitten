@@ -39,7 +39,6 @@ data Builtin
   | EqInt
   | Exit
   | First
-  | Function
   | GeChar
   | GeFloat
   | GeInt
@@ -134,7 +133,6 @@ fromStringTable =
   , (,) "__exit"       Exit
   , (,) "__empty"      Empty
   , (,) "__first"      First
-  , (,) "__function"   Function
   , (,) "__ge_char"    GeChar
   , (,) "__ge_float"   GeFloat
   , (,) "__ge_int"     GeInt

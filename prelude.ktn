@@ -383,6 +383,12 @@ def compose:
   -> f
   { f apply11 g apply11 }
 
+// Wraps a value in a function.
+decl const (a -> (b -> a))
+def const:
+  -> x
+  { drop x }
+
 // Removes the top element of a vector.
 decl down ([a] -> [a])
 def down:
@@ -457,11 +463,6 @@ def eveni:
 decl exit (Int ->)
 def exit:
   __exit
-
-// Wraps a value in a function.
-decl function (a -> (-> a))
-def function:
-  __function
 
 // Character greater than or equal.
 decl gec (Char Char -> Bool)

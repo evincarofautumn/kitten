@@ -145,9 +145,6 @@ interpretBuiltin builtin = case builtin of
     Pair a _ <- popData
     pushData a
 
-  Builtin.Function -> fail
-    "TODO interpretBuiltin Builtin.Function"
-
   Builtin.GeChar -> charsToBool (>=)
   Builtin.GeFloat -> floatsToBool (>=)
   Builtin.GeInt -> intsToBool (>=)
