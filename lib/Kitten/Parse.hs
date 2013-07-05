@@ -106,7 +106,8 @@ value = locate $ choice
   vector = (reverse <$> between
     (match Token.VectorBegin)
     (match Token.VectorEnd)
-    (value `sepEndBy` match Token.Comma))
+    ((value <|> locate (Local <$> littleWord))
+      `sepEndBy` match Token.Comma))
     <?> "vector"
 
 block :: Parser [Term]

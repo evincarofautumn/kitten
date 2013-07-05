@@ -22,6 +22,7 @@ data Value
   | Float Double Location
   | Function [Term] Location
   | Int Int Location
+  | Local String Location
   | Pair Value Value Location
   | Unit Location
   | Vector [Value] Location

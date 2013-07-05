@@ -55,12 +55,16 @@ interpretValue value = case value of
   Closure names term -> do
     values <- mapM getClosedName names
     pushData $ Activation values term
-    where
-    getClosedName :: ClosedName -> InterpretM Value
-    getClosedName (ClosedName name) = getLocal name
-    getClosedName (ReclosedName name) = getClosed name
   Local name -> pushData =<< getLocal name
+  Vector values -> do
+    mapM_ interpretValue values
+    interpretedValues <- replicateM (length values) popData
+    pushData $ Vector (reverse interpretedValues)
   _ -> pushData value
+
+getClosedName :: ClosedName -> InterpretM Value
+getClosedName (ClosedName name) = getLocal name
+getClosedName (ReclosedName name) = getClosed name
 
 interpretFunction :: Value -> Interpret
 interpretFunction function = case function of
