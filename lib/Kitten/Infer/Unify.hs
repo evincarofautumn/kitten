@@ -65,8 +65,6 @@ unifyVar var1 type_ env = case type_ of
       , show $ sub env (TypeVar var1)
       , "="
       , show $ sub env type_
-      , "\n"
-      , show env
       ]
   _ -> return $ declare var1 type_ env
 
