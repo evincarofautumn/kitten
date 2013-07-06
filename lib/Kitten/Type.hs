@@ -13,7 +13,7 @@ import Kitten.Name
 import Kitten.Util.Show
 
 data Type
-  = Type :* Type
+  = Type :& Type
   | [Type] :> [Type]
   | BoolType
   | CharType
@@ -26,7 +26,7 @@ data Type
   | UnitType
   | VectorType Type
 
-infixr 5 :*
+infixr 5 :&
 infix 4 :>
 
 data Scheme
@@ -38,7 +38,7 @@ instance Eq Type where
   _ == TestType = True
   GeneratedType == GeneratedType = True
 
-  (a :* b) == (c :* d) = (a, b) == (c, d)
+  (a :& b) == (c :& d) = (a, b) == (c, d)
   (a :> b) == (c :> d) = (a, b) == (c, d)
   BoolType == BoolType = True
   CharType == CharType = True
@@ -52,7 +52,8 @@ instance Eq Type where
 
 instance Show Type where
   showsPrec _ type_ = case type_ of
-    t1 :* t2 -> shows t1 . showString ", " . shows t2
+    t1 :& t2 -> showParen True
+      $ shows t1 . showString " & " . shows t2
     r1 :> r2
       -> showParen True
       $ showString (showWords r1)

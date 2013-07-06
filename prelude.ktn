@@ -21,6 +21,10 @@ def filter:
   else:
     v up f filter
 
+decl first ((a & b) -> a)
+def first:
+  __first
+
 // Folds elements of a vector bottom-up.
 decl foldUp ([a] b (a b -> b) -> b)
 def foldUp:
@@ -42,6 +46,10 @@ def foldDown:
     xs down z k foldDown
     xs top
     k apply21
+
+decl fourth ((a & b & c & d & e) -> d)
+def fourth:
+  rest rest rest first
 
 // Gets a value from a 2D vector.
 decl get2 ([[a]] Int Int -> a)
@@ -114,6 +122,11 @@ def each:
   { dup f apply10 } map
   drop
 
+decl pair (a b -> (a, b))
+def pair:
+  -> { a b }
+  (a, b)
+
 // Prepends a value to the bottom of a vector.
 decl prepend (a [a] -> [a])
 def prepend:
@@ -131,10 +144,18 @@ def replicate:
     value count-- replicate
     cat
 
+decl rest ((a & b) -> b)
+def rest:
+  __rest
+
 // Pushes a value to the top of a vector.
 decl push ([a] a -> [a])
 def push:
   vector cat
+
+decl second ((a & b & c) -> b)
+def second:
+  rest first
 
 // Sets a value in a 2D vector.
 decl set2 ([[a]] a Int Int -> [[a]])
@@ -148,6 +169,10 @@ def split_at:
   -> { xs n }
   xs n toss
   xs n keep
+
+decl third ((a & b & c & d) -> c)
+def third:
+  rest rest first
 
 // Tosses the first n elements of a vector, keeping the rest.
 decl toss ([a] Int -> [a])
@@ -411,6 +436,10 @@ def eqcv:
 decl eqiv ([Int] [Int] -> Bool)
 def eqiv:
   \= eqv
+
+decl equ (() () -> Bool)
+def equ:
+  drop drop true
 
 // Vector equality according to a predicate.
 decl eqv ([a] [a] (a a -> Bool) -> Bool)
@@ -753,17 +782,17 @@ def space:
   " " print
 
 // The standard error handle.
-decl stderr (Handle)
+decl stderr (-> Handle)
 def stderr:
   __stderr
 
 // The standard input handle.
-decl stdin (Handle)
+decl stdin (-> Handle)
 def stdin:
   __stdin
 
 // The standard output handle.
-decl stdout (Handle)
+decl stdout (-> Handle)
 def stdout:
   __stdout
 

@@ -9,7 +9,6 @@ module Kitten.Infer.Type
 
 import Control.Applicative
 import Control.Monad.Trans.State
-import Data.Foldable (foldrM)
 import Data.List
 
 import qualified Data.Set as Set
@@ -124,10 +123,7 @@ fromAnnoType startIndex annoType
 
     Anno.Int -> return IntType
 
-    Anno.Tuple types
-      -> foldrM pair UnitType types
-      where
-      pair x y = (:* y) <$> fromAnnoType' x
+    Anno.Pair a b -> (:&) <$> fromAnnoType' a <*> fromAnnoType' b
 
     Anno.Unit -> return UnitType
 

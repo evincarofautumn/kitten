@@ -60,6 +60,12 @@ interpretValue value = case value of
     mapM_ interpretValue values
     interpretedValues <- replicateM (length values) popData
     pushData $ Vector (reverse interpretedValues)
+  Pair a b -> do
+    interpretValue a
+    a' <- popData
+    interpretValue b
+    b' <- popData
+    pushData $ Pair a' b'
   _ -> pushData value
 
 getClosedName :: ClosedName -> InterpretM Value

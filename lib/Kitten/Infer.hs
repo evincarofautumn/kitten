@@ -155,7 +155,7 @@ infer typedTerm = case typedTerm of
     Builtin.Exit -> return $ [IntType] :> []
 
     Builtin.First
-      -> (\ a b -> [a :* b] :> [a])
+      -> (\ a b -> [a :& b] :> [a])
       <$> freshVarM <*> freshVarM
 
     Builtin.GeChar -> relational CharType
@@ -214,7 +214,7 @@ infer typedTerm = case typedTerm of
     Builtin.OrInt -> binary IntType
 
     Builtin.Rest
-      -> (\ a b -> [a :* b] :> [b])
+      -> (\ a b -> [a :& b] :> [b])
       <$> freshVarM <*> freshVarM
 
     Builtin.Set
@@ -328,7 +328,7 @@ manifestType value = case value of
   Pair a b -> do
     Forall names1 type1 <- manifestType a
     Forall names2 type2 <- manifestType b
-    return $ Forall (names1 <> names2) (type1 :* type2)
+    return $ Forall (names1 <> names2) (type1 :& type2)
   Unit -> Just $ mono UnitType
   Vector{} -> Nothing
 
@@ -358,10 +358,7 @@ inferValue value = case value of
 
   Local (Name index) -> getsEnv ((!! index) . envLocals)
 
-  Pair value1 value2 -> do
-    a <- inferValue value1
-    b <- inferValue value2
-    return (a :* b)
+  Pair a b -> (:&) <$> inferValue a <*> inferValue b
 
   Unit -> return UnitType
 

@@ -30,6 +30,8 @@ unify' type1 type2 env = case (type1, type2) of
 
   (VectorType a, VectorType b) -> unify a b env
 
+  (a :& b, c :& d) -> unify b d env >>= unify a c
+
   (a :> b, c :> d) -> unifyRow b d env >>= unifyRow a c
 
   (TypeVar var, type_) -> unifyVar var type_ env

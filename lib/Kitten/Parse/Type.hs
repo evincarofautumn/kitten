@@ -16,29 +16,31 @@ signature :: Parser Anno
 signature = locate $ Anno <$> functionType
   where
 
+  type_ :: Parser Type
+  type_ = try functionType <|> baseType
+
   functionType :: Parser Type
-  functionType = do
-    left <- many baseType
-    mRight <- case left of
-      [] -> Just <$> (match Token.Arrow *> many baseType)
-      _ -> optionMaybe $ match Token.Arrow *> many baseType
-    return $ case mRight of
-      Just right -> left :> right
-      Nothing -> [] :> left
+  functionType = (:>)
+    <$> many baseType
+    <*> (match Token.Arrow *> many baseType)
 
   baseType :: Parser Type
-  baseType = (<?> "base type") $ choice
-    [ Anno.Bool <$ match Token.BoolType
-    , Anno.Char <$ match Token.CharType
-    , Anno.Float <$ match Token.FloatType
-    , Anno.Handle <$ match Token.HandleType
-    , Anno.Int <$ match Token.IntType
-    , Anno.Var <$> littleWord
-    , vector
-    , try $ grouped functionType
-    , try tuple
-    , unit
-    ]
+  baseType = (<?> "base type") $ do
+    prefix <- choice
+      [ Anno.Bool <$ match Token.BoolType
+      , Anno.Char <$ match Token.CharType
+      , Anno.Float <$ match Token.FloatType
+      , Anno.Handle <$ match Token.HandleType
+      , Anno.Int <$ match Token.IntType
+      , Anno.Var <$> littleWord
+      , vector
+      , try unit
+      , try $ grouped type_
+      , tuple
+      ]
+
+    Anno.Pair prefix <$> (match (Token.LittleWord "&") *> baseType)
+      <|> pure prefix
 
   vector :: Parser Type
   vector = Anno.Vector <$> between
@@ -47,8 +49,9 @@ signature = locate $ Anno <$> functionType
     baseType
 
   tuple :: Parser Type
-  tuple = Anno.Tuple <$> grouped
-    (baseType `sepEndBy` match Token.Comma)
+  tuple = do
+    types <- grouped (baseType `sepEndBy1` match Token.Comma)
+    return $ foldr Anno.Pair Anno.Unit types
 
   unit :: Parser Type
   unit = Anno.Unit

@@ -22,7 +22,7 @@ data Type
   | Float
   | Handle
   | Int
-  | Tuple [Type]
+  | Pair Type Type
   | Unit
   | Var String
   | Vector Type
@@ -43,7 +43,7 @@ instance Show Type where
     Float -> "Float"
     Handle -> "Handle"
     Int -> "Int"
-    Tuple as -> concat ["[", showWords as, "]"]
+    Pair a b -> concat ["(", show a, " & ", show b, ")"]
     Unit -> "()"
     Var a -> a
     Vector a -> concat ["[", show a, "]"]

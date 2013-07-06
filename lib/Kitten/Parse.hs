@@ -94,6 +94,8 @@ value = locate $ choice
   , escape
   , Vector <$> vector
   , Function <$> block <?> "function"
+  , try unit
+  , pair <$> tuple
   ]
   where
 
@@ -114,9 +116,22 @@ value = locate $ choice
   vector = (reverse <$> between
     (match Token.VectorBegin)
     (match Token.VectorEnd)
-    ((value <|> locate (Local <$> littleWord))
-      `sepEndBy` match Token.Comma))
+    (item `sepEndBy` match Token.Comma))
     <?> "vector"
+
+  tuple :: Parser [Value]
+  tuple = grouped (item `sepEndBy1` match Token.Comma)
+    <?> "tuple"
+
+  item :: Parser Value
+  item = value <|> locate (Local <$> littleWord)
+
+  pair :: [Value] -> Location -> Value
+  pair values loc
+    = foldr (\ x y -> Pair x y loc) (Unit loc) values
+
+  unit :: Parser (Location -> Value)
+  unit = Unit <$ (match Token.GroupBegin >> match Token.GroupEnd)
 
 block :: Parser [Term]
 block = blocked (many term) <?> "block"

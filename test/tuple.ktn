@@ -1,0 +1,16 @@
+(0, 0.0, false, "zero") -> quad
+
+quad first sayi
+quad second sayf
+quad third sayb
+quad fourth say
+
+(0, 1) -> pair
+pair first sayi
+pair second sayi
+
+(quad, pair) -> compound
+
+compound first fourth say
+
+(1,) rest () equ sayb
