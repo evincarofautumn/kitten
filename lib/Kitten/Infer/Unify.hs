@@ -1,5 +1,6 @@
 module Kitten.Infer.Unify
-  ( unifyM
+  ( unify
+  , unifyM
   , unifyM_
   , unifyRow
   , unifyRowM

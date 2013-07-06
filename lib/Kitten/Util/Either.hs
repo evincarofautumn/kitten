@@ -1,7 +1,17 @@
 module Kitten.Util.Either
-  ( mapLeft
+  ( isLeft
+  , isRight
+  , mapLeft
   , mapRight
   ) where
+
+isLeft :: Either a b -> Bool
+isLeft Left{} = True
+isLeft _ = False
+
+isRight :: Either a b -> Bool
+isRight Right{} = True
+isRight _ = False
 
 mapLeft :: (a -> b) -> Either a x -> Either b x
 mapLeft f = either (Left . f) Right

@@ -23,6 +23,7 @@ import Kitten.Name
 import Kitten.Resolved (Resolved)
 import Kitten.Type
 import Kitten.Typed
+import Kitten.Util.Either
 import Kitten.Util.FailWriter
 import Kitten.Util.Void
 
@@ -56,15 +57,16 @@ inferFragment prelude fragment = do
     scheme <- generalize (inferValue (defTerm def))
     declared <- fmap normalize . instantiateM =<< getsEnv ((! Name index) . envDefs)
     inferred <- normalize <$> instantiateM scheme
-    when (declared /= inferred)
-      . Inferred . throwMany . (:[]) . TypeError (defLocation def) $ unwords
-        [ "declared type"
-        , show declared
-        , "does not match inferred type"
-        , show inferred
-        , "of"
-        , defName def
-        ]
+    when (isLeft $ unify inferred declared emptyEnv)
+      $ Inferred . throwMany . (:[])
+      . TypeError (defLocation def) $ unwords
+      [ "declared type"
+      , show declared
+      , "does not match inferred type"
+      , show inferred
+      , "of"
+      , defName def
+      ]
 
   void $ infer (Compose (fragmentTerms fragment))
   getsEnv (subFragment fragment)
