@@ -11,8 +11,7 @@ def concat:
 // Filters a vector by a predicate.
 decl filter ([a] (a -> Bool) -> [a])
 def filter:
-  -> f
-  -> v
+  -> { v f }
   if v empty then:
     v
   else if v bottom f apply11 then:
@@ -25,9 +24,7 @@ def filter:
 // Folds elements of a vector bottom-up.
 decl foldUp ([a] b (a b -> b) -> b)
 def foldUp:
-  -> k
-  -> z
-  -> xs
+  -> { xs z k }
   if xs empty then:
     z
   else:
@@ -38,9 +35,7 @@ def foldUp:
 // Folds elements of a vector top-down.
 decl foldDown ([a] b (b a -> b) -> b)
 def foldDown:
-  -> k
-  -> z
-  -> xs
+  -> { xs z k }
   if xs empty then:
     z
   else:
@@ -51,16 +46,13 @@ def foldDown:
 // Gets a value from a 2D vector.
 decl get2 ([[a]] Int Int -> a)
 def get2:
-  -> j
-  -> i
+  -> { i j }
   i get j get
 
 // Iterates a function on a value until a predicate holds.
 decl until (a (a -> a) (a -> Bool) -> a)
 def until:
-  -> p
-  -> f
-  -> x
+  -> { x f p }
   if x p apply11 then:
     x
   else:
@@ -70,8 +62,7 @@ def until:
 // Keeps the topmost n elements of a vector, tossing the rest.
 decl keep ([a] Int -> [a])
 def keep:
-  -> n
-  -> xs
+  -> { xs n }
   if n 0 <=  xs empty  || then:
     []
   else:
@@ -81,8 +72,7 @@ def keep:
 // Maps a function downward over the elements of a vector.
 decl map ([a] (a -> b) -> [b])
 def map:
-  -> f
-  -> xs
+  -> { xs f }
   if xs empty then:
     []
   else:
@@ -93,10 +83,7 @@ def map:
 // Maps a function over a value for each integer in a range.
 decl mapRange (a (a Int -> a) Int Int -> a)
 def mapRange:
-  -> end
-  -> start
-  -> function
-  -> value
+  -> { value function start end }
   if start end <= then:
     value start function apply21
     function start++ end mapRange
@@ -106,18 +93,14 @@ def mapRange:
 // Maps a function over an element of a vector.
 decl modify ([a] (a -> a) Int -> [a])
 def modify:
-  -> offset
-  -> function
-  -> vec
+  -> { vec function offset }
   vec offset get function apply11 -> value
   vec value offset set
 
 // Maps a function over part of a vector.
 decl mapFrom ([a] (a -> a) Int -> [a])
 def mapFrom:
-  -> offset
-  -> function
-  -> vec
+  -> { vec function offset }
   if vec empty  offset vec length >=  || then:
     vec
   else:
@@ -134,15 +117,13 @@ def each:
 // Prepends a value to the bottom of a vector.
 decl prepend (a [a] -> [a])
 def prepend:
-  -> xs
-  -> x
+  -> { x xs }
   x vector xs cat
 
 // Produces a vector with some number of copies of a value.
 decl replicate (a Int -> [a])
 def replicate:
-  -> count
-  -> value
+  -> { value count }
   if count 0 <= then:
     []
   else:
@@ -158,24 +139,20 @@ def push:
 // Sets a value in a 2D vector.
 decl set2 ([[a]] a Int Int -> [[a]])
 def set2:
-  -> j
-  -> i
-  -> x
+  -> { x i j }
   { x j set } i modify
 
 // Splits a vector into two parts at the given index.
 decl split_at ([a] Int -> [a] [a])
 def split_at:
-  -> n
-  -> xs
+  -> { xs n }
   xs n toss
   xs n keep
 
 // Tosses the first n elements of a vector, keeping the rest.
 decl toss ([a] Int -> [a])
 def toss:
-  -> n
-  -> xs
+  -> { xs n }
   if n 0 <=  xs empty  || then:
     xs
   else:
@@ -379,8 +356,7 @@ def cat :
 // Composes two unary functions with one result.
 decl compose ((a -> b) (b -> c) -> (a -> c))
 def compose:
-  -> g
-  -> f
+  -> { f g }
   { f apply11 g apply11 }
 
 // Wraps a value in a function.
@@ -439,9 +415,7 @@ def eqiv:
 // Vector equality according to a predicate.
 decl eqv ([a] [a] (a a -> Bool) -> Bool)
 def eqv:
-  -> eq
-  -> xs
-  -> ys
+  -> { xs ys eq }
   if xs empty ys empty && then:
     true
   else if xs top ys top eq apply21 then:
@@ -519,8 +493,7 @@ def join:
 // Intersperses a value between the values of a vector.
 decl intersperse ([a] a -> [a])
 def intersperse:
-  -> sep
-  -> xs
+  -> { xs sep }
   if xs empty then:
     []
   else:
@@ -556,8 +529,7 @@ def mapConcat:
 // The maximum of two integers.
 decl max2 (Int Int -> Int)
 def max2:
-  -> a
-  -> b
+  -> { a b }
   if a b > then: a else: b
 
 // The maximum of three integers.
@@ -568,8 +540,7 @@ def max3:
 // The minimum of two integers.
 decl min2 (Int Int -> Int)
 def min2:
-  -> a
-  -> b
+  -> { a b }
   if a b < then: a else: b
 
 // The minimum of three integers.
@@ -631,8 +602,7 @@ def pass {}
 
 decl prependToAll ([a] a -> [a])
 def prependToAll:
-  -> sep
-  -> xs
+  -> { xs sep }
   if xs empty then:
     []
   else:

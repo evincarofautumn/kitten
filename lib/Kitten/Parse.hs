@@ -65,8 +65,16 @@ term = locate $ choice
   where
 
   lambda :: Parser (Location -> Term)
-  lambda = (<?> "lambda") $ match Token.Arrow
-    *> (Lambda <$> littleWord <*> many term)
+  lambda = (<?> "lambda") $ match Token.Arrow *> choice
+    [ Lambda <$> littleWord <*> many term
+    , do
+      names <- blocked (many littleWord)
+      terms <- many term
+      return $ \ loc -> foldr
+        (\ lambdaName lambdaTerms -> Lambda lambdaName [lambdaTerms] loc)
+        (Block terms)
+        (reverse names)
+    ]
 
   if_ :: Parser (Location -> Term)
   if_ = If
