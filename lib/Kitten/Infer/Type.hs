@@ -81,7 +81,6 @@ toTypedValue resolved = case resolved of
     -> pure $ Closed name
   Resolved.Closure names terms
     -> Closure names <$> compose terms
-  Resolved.Escape names -> pure $ Escape names
   Resolved.Float float -> pure $ Float float
   Resolved.Function terms -> Function <$> compose terms
   Resolved.Handle handle -> pure $ Handle handle

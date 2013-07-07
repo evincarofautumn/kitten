@@ -20,7 +20,6 @@ data Term
 data Value
   = Bool Bool Location
   | Char Char Location
-  | Escape String Location
   | Float Double Location
   | Function [Term] Location
   | Int Int Location

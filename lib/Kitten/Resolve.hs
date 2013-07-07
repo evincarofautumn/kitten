@@ -63,7 +63,6 @@ resolveValue :: Term.Value -> Resolution Value
 resolveValue unresolved = case unresolved of
   Term.Bool value _ -> return $ Bool value
   Term.Char value _ -> return $ Char value
-  Term.Escape name loc -> resolveEscape name loc
   Term.Float value _ -> return $ Float value
   Term.Function term _ -> Function
     <$> guardMapM resolveTerm term
@@ -94,17 +93,3 @@ resolveName name loc = do
         _ -> compileError . CompileError loc $ unwords
           ["ambiguous word:", name]
       return $ Call (Name index) loc
-
-resolveEscape
-  :: String
-  -> Location
-  -> Resolution Value
-resolveEscape name loc = do
-  indices <- getsEnv $ defIndices name
-  index <- case indices of
-    [index] -> return index
-    [] -> compileError . CompileError loc $ unwords
-      ["undefined word:", name]
-    _ -> compileError . CompileError loc $ unwords
-      ["ambiguous word:", name]
-  return $ Escape (Name index)

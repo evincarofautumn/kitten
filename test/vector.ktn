@@ -20,7 +20,7 @@ def a: pass
 decl b (->)
 def b: pass
 
-[\a, \b] length sayi
+[{a}, {b}] length sayi
 
 decl f (Int Int -> Int)
 def f: +

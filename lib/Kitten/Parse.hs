@@ -108,7 +108,6 @@ term = locate $ choice
 value :: Parser Value
 value = locate $ choice
   [ mapOne toLiteral <?> "literal"
-  , escape
   , Function <$> block <?> "function"
   , try unit
   ]
@@ -122,10 +121,6 @@ value = locate $ choice
   toLiteral (Token.Text x) = Just $ \ loc
     -> Vector (map (`Char` loc) x) loc
   toLiteral _ = Nothing
-
-  escape :: Parser (Location -> Value)
-  escape = Escape <$> (match Token.Escape *> littleWord)
-    <?> "escape"
 
   unit :: Parser (Location -> Value)
   unit = Unit <$ (match Token.GroupBegin >> match Token.GroupEnd)

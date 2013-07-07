@@ -11,7 +11,7 @@ def append:
 // The Cartesian product of two vectors.
 decl cartesian ([a] [b] -> [(a, b)])
 def cartesian:
-  \double cartesianWith
+  {double} cartesianWith
 
 // The Cartesian product of two vectors with a
 // generalized tupling function.
@@ -25,7 +25,7 @@ def cartesianWith:
 // Concatenates a vector of vectors.
 decl concat ([[a]] -> [a])
 def concat:
-  [] \cat fold
+  [] {cat} fold
 
 decl double (a b -> (a, b))
 def double:
@@ -369,7 +369,7 @@ def ^^ :
 // Whether all elements of a vector are true.
 decl and ([Bool] -> Bool)
 def and:
-  true \&& fold
+  true {&&} fold
 
 // Whether any element of a vector satisfies a predicate.
 decl any ([a] (a -> Bool) -> Bool)
@@ -449,12 +449,12 @@ def eqc :
 // String equality.
 decl eqcv ([Char] [Char] -> Bool)
 def eqcv:
-  \eqc eqv
+  {eqc} eqv
 
 // Integer vector equality.
 decl eqiv ([Int] [Int] -> Bool)
 def eqiv:
-  \= eqv
+  {=} eqv
 
 decl equ (() () -> Bool)
 def equ:
@@ -652,7 +652,7 @@ def openOutput:
 // Whether any element of a vector is true.
 decl or ([Bool] -> Bool)
 def or:
-  false \|| fold
+  false {||} fold
 
 decl pair (a b -> (a & b))
 def pair:
@@ -721,12 +721,12 @@ def printiv:
 // The product of a vector of floating-point numbers.
 decl productf ([Float] -> Float)
 def productf:
-  1.0 \*. fold
+  1.0 {*.} fold
 
 // The product of a vector of integers.
 decl producti ([Int] -> Int)
 def producti:
-  1 \* fold
+  1 {*} fold
 
 // Prints a string followed by a newline.
 decl say ([Char] ->)
@@ -782,12 +782,12 @@ def showb:
 // Shows a Boolean vector as a string.
 decl showbv ([Bool] -> [Char])
 def showbv:
-  \showb showv
+  {showb} showv
 
 // Shows a string vector as a string.
 decl showcvv ([[Char]] -> [Char])
 def showcvv:
-  \id showv
+  {id} showv
 
 // Shows a floating-point number as a string.
 decl showf (Float -> [Char])
@@ -797,7 +797,7 @@ def showf:
 // Shows a floating-point vector as a string.
 decl showfv ([Float] -> [Char])
 def showfv:
-  \showf showv
+  {showf} showv
 
 // Shows an integer as a string.
 decl showi (Int -> [Char])
@@ -807,7 +807,7 @@ def showi:
 // Shows an integer vector as a string.
 decl showiv ([Int] -> [Char])
 def showiv:
-  \showi showv
+  {showi} showv
 
 // Shows a vector as a string.
 decl showv ([a] (a -> [Char]) -> [Char])
@@ -838,12 +838,12 @@ def stdout:
 // The sum of a vector of floating-point numbers.
 decl sumf ([Float] -> Float)
 def sumf:
-  0.0 \+. fold
+  0.0 {+.} fold
 
 // The sum of a vector of integers.
 decl sumi ([Int] -> Int)
 def sumi:
-  0 \+ fold
+  0 {+} fold
 
 // Swaps two values. Useful for changing argument order when
 // partially applying a function.
@@ -885,7 +885,7 @@ def ~ :
 // Zip two lists together as pairs
 decl zip ([a] [b] -> [(a, b)])
 def zip:
-  \double zipWith
+  {double} zipWith
 
 // Zip two lists together with a function
 decl zipWith ([a] [b] (a b -> c) -> [c])

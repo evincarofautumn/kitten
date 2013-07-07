@@ -1,5 +1,5 @@
-[] \++ map sayiv
-[1, 2, 3] \++ map sayiv
+[] {++} map sayiv
+[1, 2, 3] {++} map sayiv
 ["a", "b", "c"] { "s" cat } map saycvv
-["one", "two", "three"] \length map sayiv
+["one", "two", "three"] {length} map sayiv
 [1, 2, 3, 4, 5] 0 const map sayiv
