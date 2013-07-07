@@ -129,10 +129,6 @@ interpretBuiltin builtin = case builtin of
   Builtin.EqFloat -> floatsToBool (==)
   Builtin.EqInt -> intsToBool (==)
 
-  Builtin.Empty -> do
-    Vector a <- popData
-    pushData . Bool $ null a
-
   Builtin.Exit -> do
     Int a <- popData
     lift $ case a of

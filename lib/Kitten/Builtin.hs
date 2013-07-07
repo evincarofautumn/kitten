@@ -29,7 +29,6 @@ data Builtin
   | DecInt
   | DivFloat
   | DivInt
-  | Empty
   | EqChar
   | EqFloat
   | EqInt
@@ -125,7 +124,6 @@ fromStringTable =
   , (,) "__eq_float"   EqFloat
   , (,) "__eq_int"     EqInt
   , (,) "__exit"       Exit
-  , (,) "__empty"      Empty
   , (,) "__first"      First
   , (,) "__ge_char"    GeChar
   , (,) "__ge_float"   GeFloat

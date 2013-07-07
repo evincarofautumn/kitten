@@ -129,10 +129,6 @@ infer typedTerm = case typedTerm of
 
     Builtin.DivInt -> binary IntType
 
-    Builtin.Empty
-      -> (\ a -> [VectorType a] :> [BoolType])
-      <$> freshVarM
-
     Builtin.EqChar -> relational CharType
     Builtin.EqFloat -> relational FloatType
     Builtin.EqInt -> relational IntType

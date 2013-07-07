@@ -425,7 +425,7 @@ def elemi:
 // Whether a vector is empty.
 decl empty ([a] -> Bool)
 def empty:
-  __empty
+  length 0 =
 
 // Character equality.
 decl eqc (Char Char -> Bool)
