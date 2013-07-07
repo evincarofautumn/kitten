@@ -8,7 +8,7 @@
  */
 
 decl ; ([a] a -> [a])
-def ; : push
+def ; : append
 
 decl show_board_cell (Char -> Char)
 def show_board_cell { id }
@@ -125,7 +125,7 @@ def ask_turn:
 
   board print_board
 
-  "It is " player push "'s turn. Choose your move: " cat
+  "It is " player append "'s turn. Choose your move: " cat
   print
 
   getLine -> input
@@ -224,7 +224,7 @@ def game:
   if winner '*' eqc then:
     "It's a tie!\n" print
   else:
-    winner " wins!\n" prepend print
+    " wins!\n" winner prepend print
 
   final_board print_board
 
