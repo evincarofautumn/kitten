@@ -8,6 +8,11 @@ decl concat ([[a]] -> [a])
 def concat:
   [] \cat foldDown
 
+decl double (a b -> (a, b))
+def double:
+  -> { a b }
+  (a, b)
+
 // Filters a vector by a predicate.
 decl filter ([a] (a -> Bool) -> [a])
 def filter:
@@ -122,10 +127,9 @@ def each:
   { dup f apply10 } map
   drop
 
-decl pair (a b -> (a, b))
+decl pair (a b -> (a & b))
 def pair:
-  -> { a b }
-  (a, b)
+  __pair
 
 // Prepends a value to the bottom of a vector.
 decl prepend (a [a] -> [a])

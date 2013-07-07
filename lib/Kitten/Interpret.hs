@@ -217,6 +217,11 @@ interpretBuiltin builtin = case builtin of
     handle <- lift $ openFile fileName WriteMode
     pushData $ Handle handle
 
+  Builtin.Pair -> do
+    b <- popData
+    a <- popData
+    pushData $ Pair a b
+
   Builtin.Print -> do
     Handle b <- popData
     Vector a <- popData

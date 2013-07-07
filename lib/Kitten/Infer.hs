@@ -235,6 +235,10 @@ infer typedTerm = case typedTerm of
     Builtin.SubFloat -> binary FloatType
     Builtin.SubInt -> binary IntType
 
+    Builtin.Pair
+      -> (\ a b -> [a, b] :> [a :& b])
+      <$> freshVarM <*> freshVarM
+
     Builtin.Print
       -> return $ [VectorType CharType, HandleType] :> []
 

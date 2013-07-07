@@ -1,16 +1,19 @@
-(0, 0.0, false, "zero") -> quad
+(0, 0.0, false, "zero") -> q
 
-quad first sayi
-quad second sayf
-quad third sayb
-quad fourth say
+q first sayi
+q second sayf
+q third sayb
+q fourth say
 
-(0, 1) -> pair
-pair first sayi
-pair second sayi
+(0, 1) -> p
+p first sayi
+p second sayi
 
-(quad, pair) -> compound
+(q, p) -> compound
 
 compound first fourth say
 
 (1,) rest () equ sayb
+
+1 2 pair first 1 = sayb
+1 2 pair rest 2 = sayb

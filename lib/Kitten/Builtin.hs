@@ -71,6 +71,7 @@ data Builtin
   | OpenOut
   | OrBool
   | OrInt
+  | Pair
   | Print
   | Rest
   | Set
@@ -165,6 +166,7 @@ fromStringTable =
   , (,) "__open_out"   OpenOut
   , (,) "__or_bool"    OrBool
   , (,) "__or_int"     OrInt
+  , (,) "__pair"       Pair
   , (,) "__print"      Print
   , (,) "__rest"       Rest
   , (,) "__set"        Set
