@@ -329,7 +329,6 @@ manifestType value = case value of
   Char{} -> Just $ mono CharType
   Closed{} -> Nothing
   Closure{} -> Nothing
-  Escape{} -> Nothing
   Float{} -> Just $ mono FloatType
   Function{} -> Nothing
   Handle{} -> Just $ mono HandleType
@@ -356,8 +355,6 @@ inferValue value = case value of
   Closure names term -> do
     closed <- mapM getClosedName names
     withClosure closed (infer term)
-
-  Escape name -> instantiateM =<< getsEnv ((! name) . envDefs)
 
   Float{} -> return FloatType
 

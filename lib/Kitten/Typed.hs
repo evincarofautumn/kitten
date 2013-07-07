@@ -27,7 +27,6 @@ data Value
   | Char Char
   | Closed Name
   | Closure [ClosedName] Typed
-  | Escape Name
   | Float Double
   | Function Typed
   | Handle Handle

@@ -63,7 +63,6 @@ scopeValue stack value = case value of
   Char{} -> value
   Closed{} -> value
   Closure{} -> value
-  Escape{} -> value
   Float{} -> value
 
   Function funTerms
@@ -172,7 +171,6 @@ captureValue value = case value of
         Just closedLocal -> ReclosedName closedLocal
     close original@(ReclosedName _) = return original
 
-  Escape{} -> return value
   Float{} -> return value
   Function terms -> let
     inside env@Env{..} = env { envStack = 0 : envStack }

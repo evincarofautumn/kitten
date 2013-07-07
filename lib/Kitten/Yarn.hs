@@ -205,7 +205,6 @@ yarnValue :: Typed.Value -> Value
 yarnValue resolved = case resolved of
   Typed.Bool value -> Bool value
   Typed.Char value -> Char value
-  Typed.Escape (Name index) -> Word index
   Typed.Float value -> Float value
   Typed.Handle value -> Handle value
   Typed.Int value -> Int value

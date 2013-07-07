@@ -186,7 +186,6 @@ subValue env value = case value of
   Char{} -> value
   Closed name -> Closed name
   Closure names term -> Closure names (subTerm env term)
-  Escape names -> Escape names
   Float{} -> value
   Function term -> Function (subTerm env term)
   Handle{} -> value

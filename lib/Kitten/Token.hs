@@ -21,7 +21,6 @@ data Token
   | Comma
   | Def
   | Else
-  | Escape
   | GroupBegin
   | GroupEnd
   | Float Double
@@ -52,7 +51,6 @@ instance Show Token where
     Comma -> ","
     Def -> "def"
     Else -> "else"
-    Escape -> "\\"
     GroupBegin -> "("
     GroupEnd -> ")"
     Float value -> show value

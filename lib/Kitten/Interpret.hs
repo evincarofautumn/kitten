@@ -85,7 +85,6 @@ interpretFunction :: Value -> Interpret
 interpretFunction function = case function of
   Activation values term
     -> withClosure values $ interpretTerm term
-  Escape names -> interpretOverload names
   _ -> fail "attempt to apply non-function"
 
 interpretOverload :: Name -> Interpret
