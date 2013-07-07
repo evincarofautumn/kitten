@@ -178,8 +178,8 @@ def set2:
   { x j set } i modify
 
 // Splits a vector into two parts at the given index.
-decl split_at ([a] Int -> [a] [a])
-def split_at:
+decl splitAt ([a] Int -> [a] [a])
+def splitAt:
   -> { xs n }
   xs n toss
   xs n keep
