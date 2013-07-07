@@ -8,6 +8,20 @@ decl append ([a] a -> [a])
 def append:
   vector cat
 
+// The Cartesian product of two vectors.
+decl cartesian ([a] [b] -> [(a, b)])
+def cartesian:
+  \double cartesianWith
+
+// The Cartesian product of two vectors with a
+// generalized tupling function.
+decl cartesianWith ([a] [b] (a b -> c) -> [c])
+def cartesianWith:
+  -> { xs ys fn }
+  xs { ys length replicate } mapConcat -> xs2
+  ys xs length replicate concat -> ys2
+  xs2 ys2 fn zipWith
+
 // Concatenates a vector of vectors.
 decl concat ([[a]] -> [a])
 def concat:
