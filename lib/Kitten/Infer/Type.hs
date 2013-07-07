@@ -56,11 +56,18 @@ toTypedTerm resolved = case resolved of
       <*> compose false
       <*> pure loc
     return $ Compose (condition' ++ [typed])
+  Resolved.PairTerm as bs loc -> PairTerm
+    <$> compose as
+    <*> compose bs
+    <*> pure loc
   Resolved.Push value loc -> Push
     <$> toTypedValue value
     <*> pure loc
   Resolved.Scoped terms loc -> Scoped
     <$> compose terms
+    <*> pure loc
+  Resolved.VectorTerm terms loc -> VectorTerm
+    <$> mapM compose terms
     <*> pure loc
 
 toTypedValue :: Resolved.Value -> Inferred Value

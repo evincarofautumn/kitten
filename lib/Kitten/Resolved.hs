@@ -9,34 +9,17 @@ import Kitten.Builtin (Builtin)
 import Kitten.ClosedName
 import Kitten.Location
 import Kitten.Name
-import Kitten.Util.Show
 
 data Resolved
   = Block [Resolved]
   | Builtin Builtin Location
   | Call Name Location
   | If [Resolved] [Resolved] [Resolved] Location
+  | PairTerm [Resolved] [Resolved] Location
   | Push Value Location
   | Scoped [Resolved] Location
-  deriving (Eq)
-
-instance Show Resolved where
-  show resolved = case resolved of
-    Block terms -> showWords terms
-    Builtin builtin _ -> show builtin
-    Call (Name name) _ -> '@' : show name
-    If condition true false _ -> unwords
-      [ "if"
-      , showWords condition
-      , "{"
-      , showWords true
-      , "} else {"
-      , showWords false
-      , "}"
-      ]
-    Push value _ -> show value
-    Scoped terms _ -> unwords
-      $ "enter" : map show terms ++ ["leave"]
+  | VectorTerm [[Resolved]] Location
+  deriving (Eq, Show)
 
 data Value
   = Activation [Value] [Resolved]
@@ -53,55 +36,4 @@ data Value
   | Pair Value Value
   | Unit
   | Vector [Value]
-  deriving (Eq)
-
-instance Show Value where
-  show v = case v of
-
-    Activation values terms -> concat
-      [ "$("
-      , showWords values
-      , "){"
-      , showWords terms
-      , "}"
-      ]
-
-    Bool value -> if value then "true" else "false"
-
-    Char value -> show value
-
-    Closed (Name index) -> "closed" ++ show index
-
-    Closure names terms -> concat
-      [ "$("
-      , showWords names
-      , "){"
-      , showWords terms
-      , "}"
-      ]
-
-    Escape name -> '`' : show name
-
-    Float value -> show value
-
-    Function terms -> concat
-      [ "(){"
-      , showWords terms
-      , "}"
-      ]
-
-    Handle{} -> "<handle>"
-
-    Int value -> show value
-
-    Local (Name index) -> "local" ++ show index
-
-    Pair a b -> concat ["(", show a, ", ", show b, ")"]
-
-    Unit -> "()"
-
-    Vector values -> concat
-      [ "["
-      , showWords values
-      , "]"
-      ]
+  deriving (Eq, Show)

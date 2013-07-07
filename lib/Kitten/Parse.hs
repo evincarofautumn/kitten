@@ -58,11 +58,21 @@ term :: Parser Term
 term = locate $ choice
   [ Push <$> value
   , Call <$> littleWord
+  , VectorTerm <$> vector
+  , pair <$> tuple
   , mapOne toBuiltin <?> "builtin"
   , lambda
   , if_
   ]
   where
+
+  if_ :: Parser (Location -> Term)
+  if_ = If
+    <$> (match Token.If *> many term)
+    <*> (match Token.Then *> branch)
+    <*> (match Token.Else *> branch)
+    <?> "if"
+    where branch = block <|> list <$> locate if_
 
   lambda :: Parser (Location -> Term)
   lambda = (<?> "lambda") $ match Token.Arrow *> choice
@@ -76,26 +86,31 @@ term = locate $ choice
         (reverse names)
     ]
 
-  if_ :: Parser (Location -> Term)
-  if_ = If
-    <$> (match Token.If *> many term)
-    <*> (match Token.Then *> branch)
-    <*> (match Token.Else *> branch)
-    <?> "if"
-    where branch = block <|> list <$> locate if_
+  -- pair :: [Value] -> Location -> Value
+  pair values loc
+    = foldr (\ x y -> PairTerm x [y] loc) (Push (Unit loc) loc) values
 
   toBuiltin :: Token -> Maybe (Location -> Term)
   toBuiltin (Token.Builtin name) = Just $ Builtin name
   toBuiltin _ = Nothing
 
+  tuple :: Parser [[Term]]
+  tuple = grouped (many1 term `sepEndBy1` match Token.Comma)
+    <?> "tuple"
+
+  vector :: Parser [[Term]]
+  vector = between
+    (match Token.VectorBegin)
+    (match Token.VectorEnd)
+    (many1 term `sepEndBy` match Token.Comma)
+    <?> "vector"
+
 value :: Parser Value
 value = locate $ choice
   [ mapOne toLiteral <?> "literal"
   , escape
-  , Vector <$> vector
   , Function <$> block <?> "function"
   , try unit
-  , pair <$> tuple
   ]
   where
 
@@ -111,24 +126,6 @@ value = locate $ choice
   escape :: Parser (Location -> Value)
   escape = Escape <$> (match Token.Escape *> littleWord)
     <?> "escape"
-
-  vector :: Parser [Value]
-  vector = between
-    (match Token.VectorBegin)
-    (match Token.VectorEnd)
-    (item `sepEndBy` match Token.Comma)
-    <?> "vector"
-
-  tuple :: Parser [Value]
-  tuple = grouped (item `sepEndBy1` match Token.Comma)
-    <?> "tuple"
-
-  item :: Parser Value
-  item = value <|> locate (Local <$> littleWord)
-
-  pair :: [Value] -> Location -> Value
-  pair values loc
-    = foldr (\ x y -> Pair x y loc) (Unit loc) values
 
   unit :: Parser (Location -> Value)
   unit = Unit <$ (match Token.GroupBegin >> match Token.GroupEnd)

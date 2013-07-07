@@ -41,10 +41,19 @@ scopeTerm stack typed = case typed of
     (scopeTerm stack false)
     loc
 
+  PairTerm as bs loc -> PairTerm
+    (scopeTerm stack as)
+    (scopeTerm stack bs)
+    loc
+
   Push value loc -> Push (scopeValue stack value) loc
 
   Scoped term loc -> Scoped
     (scopeTerm (mapHead succ stack) term)
+    loc
+
+  VectorTerm items loc -> VectorTerm
+    (map (scopeTerm stack) items)
     loc
 
 scopeValue :: [Int] -> Value -> Value
@@ -115,6 +124,11 @@ captureTerm typed = case typed of
     <*> captureTerm false
     <*> pure loc
 
+  PairTerm a b loc -> PairTerm
+    <$> captureTerm a
+    <*> captureTerm b
+    <*> pure loc
+
   Push value loc -> Push <$> captureValue value <*> pure loc
 
   Scoped terms loc -> let
@@ -125,6 +139,10 @@ captureTerm typed = case typed of
     in Scoped
       <$> local inside (captureTerm terms)
       <*> pure loc
+
+  VectorTerm items loc -> VectorTerm
+    <$> mapM captureTerm items
+    <*> pure loc
 
 closeLocal :: Name -> Capture (Maybe Name)
 closeLocal (Name index) = do

@@ -17,3 +17,7 @@ compound first fourth say
 
 1 2 pair first 1 = sayb
 1 2 pair rest 2 = sayb
+
+(1 2 *, "three" "four" cat) -> p
+p first sayi
+p second say

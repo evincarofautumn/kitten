@@ -38,16 +38,33 @@ interpret stack prelude fragment = void $ evalStateT
 interpretTerm :: Typed -> Interpret
 interpretTerm resolved = case resolved of
   Call name _ -> interpretOverload name
+
   Compose terms -> mapM_ interpretTerm terms
+
   Builtin builtin _ -> interpretBuiltin builtin
+
   If true false loc -> withLocation loc $ do
     Bool test <- popData
     interpretTerm $ if test then true else false
+
+  PairTerm a b loc -> withLocation loc $ do
+    interpretTerm a
+    a' <- popData
+    interpretTerm b
+    b' <- popData
+    pushData $ Pair a' b'
+
   Push value loc -> withLocation loc $ interpretValue value
+
   Scoped term loc -> withLocation loc $ do
     pushLocal =<< popData
     interpretTerm term
     popLocal
+
+  VectorTerm terms loc -> withLocation loc $ do
+    mapM_ interpretTerm terms
+    values <- replicateM (length terms) popData
+    pushData $ Vector (reverse values)
 
 interpretValue :: Value -> Interpret
 interpretValue value = case value of
@@ -56,16 +73,6 @@ interpretValue value = case value of
     values <- mapM getClosedName names
     pushData $ Activation values term
   Local name -> pushData =<< getLocal name
-  Vector values -> do
-    mapM_ interpretValue values
-    interpretedValues <- replicateM (length values) popData
-    pushData $ Vector (reverse interpretedValues)
-  Pair a b -> do
-    interpretValue a
-    a' <- popData
-    interpretValue b
-    b' <- popData
-    pushData $ Pair a' b'
   _ -> pushData value
 
 getClosedName :: ClosedName -> InterpretM Value
@@ -77,7 +84,7 @@ interpretFunction function = case function of
   Activation values term
     -> withClosure values $ interpretTerm term
   Escape names -> interpretOverload names
-  _ -> fail $ "attempt to apply non-function " ++ show function
+  _ -> fail "attempt to apply non-function"
 
 interpretOverload :: Name -> Interpret
 interpretOverload (Name index) = do
@@ -291,14 +298,8 @@ interpretBuiltin builtin = case builtin of
 
   charsToBool :: (Char -> Char -> Bool) -> Interpret
   charsToBool f = do
-    mb <- popData
-    b <- case mb of
-      Char b -> return b
-      _ -> error $ "expected Char but got " ++ show mb
-    ma <- popData
-    a <- case ma of
-      Char a -> return a
-      _ -> error $ "expected Char but got " ++ show ma
+    Char b <- popData
+    Char a <- popData
     pushData $ Bool (f a b)
 
   floatToFloat :: (Double -> Double) -> Interpret
@@ -340,9 +341,7 @@ stringFromChars = map fromChar
   where
   fromChar :: Value -> Char
   fromChar (Char c) = c
-  fromChar value = error
-    $ "Kitten.Interpret.stringFromChars: "
-    ++ show value
+  fromChar _ = error "Kitten.Interpret.stringFromChars: non-character"
 
 charsFromString :: String -> [Value]
 charsFromString = map Char

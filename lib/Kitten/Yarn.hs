@@ -21,6 +21,7 @@ import Kitten.Name
 import Kitten.Typed (Typed)
 import Kitten.Util.Monad
 
+import qualified Kitten.Builtin as Builtin
 import qualified Kitten.Typed as Typed
 
 type Label = Int
@@ -38,6 +39,7 @@ data Instruction
   | Leave
   | Label Label
   | Local Index
+  | MakeVector Int
   | Push Value
   | Return
 
@@ -62,6 +64,7 @@ instance Show Instruction where
     Leave -> "leave"
     Label label -> unwords ["label", show label]
     Local index -> unwords ["local", show index]
+    MakeVector size -> unwords ["vector", show size]
     Push value -> unwords ["push", show value]
     Return -> "ret"
 
@@ -142,9 +145,7 @@ yarnDef
 yarnDef Def{..} index = do
   instructions <- case defTerm of
     Typed.Closure [] term -> yarnTerm term
-    _ -> error
-      $ "Kitten.Yarn.yarnDef: TODO yarn non-function definition: "
-      ++ show defTerm
+    _ -> error "Kitten.Yarn.yarnDef: TODO yarn non-function definition"
   return $ Label index : instructions ++ [Return]
 
 yarnTerm :: Typed -> Yarn [Instruction]
@@ -162,10 +163,19 @@ yarnTerm term = case term of
       , false'
       ]
 
+  Typed.PairTerm a b _ -> do
+    a' <- yarnTerm a
+    b' <- yarnTerm b
+    return $ a' ++ b' ++ [Builtin Builtin.Pair]
+
   Typed.Push value _ -> yarnValueInstruction value
   Typed.Scoped terms _ -> do
     instructions <- yarnTerm terms
     return $ Enter : instructions ++ [Leave]
+
+  Typed.VectorTerm values _ -> do
+    values' <- concatMapM yarnTerm values
+    return $ values' ++ [MakeVector (length values)]
 
 yarnValueInstruction
   :: Typed.Value

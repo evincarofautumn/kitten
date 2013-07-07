@@ -51,6 +51,13 @@ resolveTerm unresolved = case unresolved of
     <*> guardMapM resolveTerm true
     <*> guardMapM resolveTerm false
     <*> pure loc
+  Term.PairTerm as bs loc -> PairTerm
+    <$> guardMapM resolveTerm as
+    <*> guardMapM resolveTerm bs
+    <*> pure loc
+  Term.VectorTerm items loc -> VectorTerm
+    <$> guardMapM (guardMapM resolveTerm) items
+    <*> pure loc
 
 resolveValue :: Term.Value -> Resolution Value
 resolveValue unresolved = case unresolved of
@@ -61,7 +68,6 @@ resolveValue unresolved = case unresolved of
   Term.Function term _ -> Function
     <$> guardMapM resolveTerm term
   Term.Int value _ -> return $ Int value
-  Term.Local name loc -> resolveLocal name loc
   Term.Pair a b _ -> do
     a' <- resolveValue a
     b' <- resolveValue b
@@ -70,17 +76,6 @@ resolveValue unresolved = case unresolved of
   Term.Vector values _ -> Vector <$> resolveVector values
   where
   resolveVector = guardMapM resolveValue
-
-resolveLocal
-  :: String
-  -> Location
-  -> Resolution Value
-resolveLocal name loc = do
-  mLocalIndex <- getsEnv $ localIndex name
-  case mLocalIndex of
-    Just index -> return $ Local (Name index)
-    Nothing -> compileError . CompileError loc $ unwords
-      ["undefined local", name, "(use \\ to escape a definition)"]
 
 resolveName
   :: String

@@ -9,25 +9,17 @@ import Kitten.Builtin (Builtin)
 import Kitten.ClosedName
 import Kitten.Location
 import Kitten.Name
-import Kitten.Util.Show
 
 data Typed
   = Call Name Location
   | Compose [Typed]
   | Builtin Builtin Location
   | If Typed Typed Location
+  | PairTerm Typed Typed Location
   | Push Value Location
   | Scoped Typed Location
-  deriving (Eq)
-
-instance Show Typed where
-  show typed = case typed of
-    Call name _ -> show name
-    Compose terms -> showWords terms
-    Builtin builtin _ -> show builtin
-    If true false _ -> "if { " ++ show true ++ " } else { " ++ show false ++ " }"
-    Push value _ -> "(" ++ show value ++ ")"
-    Scoped term _ -> "enter " ++ show term ++ " leave"
+  | VectorTerm [Typed] Location
+  deriving (Eq, Show)
 
 data Value
   = Activation [Value] Typed

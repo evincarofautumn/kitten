@@ -146,10 +146,17 @@ subTerm env typed = case typed of
     -> Builtin builtin loc
   If true false loc
     -> If true false loc
+  PairTerm a b loc -> PairTerm
+    (subTerm env a)
+    (subTerm env b)
+    loc
   Push value loc
     -> Push (subValue env value) loc
   Scoped term loc
     -> Scoped (subTerm env term) loc
+  VectorTerm items loc -> VectorTerm
+    (map (subTerm env) items)
+    loc
 
 sub :: Env -> Type -> Type
 sub env type_ = case type_ of

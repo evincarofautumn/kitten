@@ -21,3 +21,8 @@ decl b (->)
 def b: pass
 
 [\a, \b] length sayi
+
+decl f (Int Int -> Int)
+def f: +
+
+[1 2 +, 3 4 *, 5 6 f] sayiv

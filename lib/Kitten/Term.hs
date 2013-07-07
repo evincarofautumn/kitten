@@ -12,7 +12,9 @@ data Term
   | Call String Location
   | If [Term] [Term] [Term] Location
   | Lambda String [Term] Location
+  | PairTerm [Term] [Term] Location
   | Push Value Location
+  | VectorTerm [[Term]] Location
   deriving (Eq, Show)
 
 data Value
@@ -22,7 +24,6 @@ data Value
   | Float Double Location
   | Function [Term] Location
   | Int Int Location
-  | Local String Location
   | Pair Value Value Location
   | Unit Location
   | Vector [Value] Location

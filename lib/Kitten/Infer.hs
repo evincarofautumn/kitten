@@ -279,6 +279,13 @@ infer typedTerm = case typedTerm of
     unifyRowM b d
     return (a ++ [BoolType] :> b)
 
+  PairTerm a b loc -> withLocation loc $ do
+    a' <- infer a
+    a'' <- fromConstant a'
+    b' <- infer b
+    b'' <- fromConstant b'
+    return $ [] :> [a'' :& b'']
+
   Push value loc -> withLocation loc $ do
     a <- inferValue value
     return $ [] :> [a]
@@ -287,6 +294,22 @@ infer typedTerm = case typedTerm of
     a <- freshVarM
     (b :> c) <- local a $ infer term
     return $ b ++ [a] :> c
+
+  VectorTerm values loc -> withLocation loc $ do
+    values' <- mapM infer values
+    values'' <- unifyEach values'
+    values''' <- fromConstant values''
+    return $ [] :> [VectorType values''']
+
+fromConstant :: Type -> Inferred Type
+fromConstant ([] :> [a]) = return a
+fromConstant ([] :> xs) = do
+  here <- getsEnv envLocation
+  Inferred . throwMany . (:[]) . TypeError here $ unwords
+    [ "expected one value but got"
+    , show (length xs)
+    ]
+fromConstant a = return a
 
 binary :: Type -> Inferred Type
 binary a = return $ [a, a] :> [a]
