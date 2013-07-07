@@ -1,5 +1,6 @@
 module Kitten.Infer.Unify
-  ( unify
+  ( (<:)
+  , unify
   , unifyM
   , unifyM_
   , unifyRow
@@ -43,6 +44,18 @@ unify' type1 type2 env = case (type1, type2) of
     , "="
     , show type2
     ]
+
+-- | Whether one type is a subtype of another.
+(<:) :: Type -> Type -> Bool
+type1 <: type2 = case (type1, type2) of
+  _ | type1 == type2 -> True
+  (VectorType a, VectorType b) -> a <: b
+  (a :& b, c :& d) -> b <: d && a <: c
+  (a :> b, c :> d)
+    -> let xs <:... ys = all (uncurry (<:)) (zip xs ys)
+    in b <:... d && a <:... c
+  (TypeVar{}, _) -> True
+  _ -> False
 
 -- | Unifies two types, returning the second type.
 unifyM :: Type -> Type -> Inferred Type
