@@ -3,10 +3,15 @@ decl all ([a] (a -> Bool) -> Bool)
 def all:
   map and
 
+// Appends a value to the end of a vector.
+decl append ([a] a -> [a])
+def append:
+  vector cat
+
 // Concatenates a vector of vectors.
 decl concat ([[a]] -> [a])
 def concat:
-  [] \cat foldDown
+  [] \cat fold
 
 decl double (a b -> (a, b))
 def double:
@@ -19,38 +24,37 @@ def filter:
   -> { v f }
   if v empty then:
     v
-  else if v bottom f apply11 then:
-    v bottom vector
-    v up f filter
-    cat
+  else if v head f apply11 then:
+    v tail f filter
+    v head prepend
   else:
-    v up f filter
+    v tail f filter
 
 decl first ((a & b) -> a)
 def first:
   __first
 
-// Folds elements of a vector bottom-up.
-decl foldUp ([a] b (a b -> b) -> b)
-def foldUp:
+// Folds elements of a vector right-associatively.
+decl foldr ([a] b (a b -> b) -> b)
+def foldr:
   -> { xs z k }
   if xs empty then:
     z
   else:
-    xs bottom
-    xs up z k foldUp
+    xs head
+    xs tail z k foldr
     k apply21
 
-// Folds elements of a vector top-down.
-decl foldDown ([a] b (b a -> b) -> b)
-def foldDown:
+// Folds elements of a vector left-associatively.
+decl fold ([b] a (a b -> a) -> a)
+def fold:
   -> { xs z k }
   if xs empty then:
     z
   else:
-    xs down z k foldDown
-    xs top
-    k apply21
+    xs tail
+    z xs head k apply21
+    k fold
 
 decl fourth ((a & b & c & d & e) -> d)
 def fourth:
@@ -62,6 +66,11 @@ def get2:
   -> { i j }
   i get j get
 
+// Gets the first element of a vector.
+decl head ([a] -> a)
+def head:
+  __head
+
 // Iterates a function on a value until a predicate holds.
 decl until (a (a -> a) (a -> Bool) -> a)
 def until:
@@ -72,26 +81,26 @@ def until:
     x f apply11
     f p until
 
-// Keeps the topmost n elements of a vector, tossing the rest.
+// Keeps the first n elements of a vector, tossing the rest.
 decl keep ([a] Int -> [a])
 def keep:
   -> { xs n }
   if n 0 <=  xs empty  || then:
     []
   else:
-    xs down n-- keep
-    xs top push
+    xs tail n-- keep
+    xs head prepend
 
-// Maps a function downward over the elements of a vector.
+// Lifts a function on values to a function on vectors.
 decl map ([a] (a -> b) -> [b])
 def map:
   -> { xs f }
   if xs empty then:
     []
   else:
-    xs down f map
-    xs top f apply11 vector
-    cat
+    xs tail f map
+    xs head f apply11
+    prepend
 
 // Maps a function over a value for each integer in a range.
 decl mapRange (a (a Int -> a) Int Int -> a)
@@ -127,16 +136,6 @@ def each:
   { dup f apply10 } map
   drop
 
-decl pair (a b -> (a & b))
-def pair:
-  __pair
-
-// Prepends a value to the bottom of a vector.
-decl prepend (a [a] -> [a])
-def prepend:
-  -> { x xs }
-  x vector xs cat
-
 // Produces a vector with some number of copies of a value.
 decl replicate (a Int -> [a])
 def replicate:
@@ -144,18 +143,12 @@ def replicate:
   if count 0 <= then:
     []
   else:
-    value vector
     value count-- replicate
-    cat
+    value prepend
 
 decl rest ((a & b) -> b)
 def rest:
   __rest
-
-// Pushes a value to the top of a vector.
-decl push ([a] a -> [a])
-def push:
-  vector cat
 
 decl second ((a & b & c) -> b)
 def second:
@@ -185,7 +178,7 @@ def toss:
   if n 0 <=  xs empty  || then:
     xs
   else:
-    xs down n-- toss
+    xs tail n-- toss
 
 // Logical NOT.
 decl ! (Bool -> Bool)
@@ -345,7 +338,7 @@ def ^^ :
 // Whether all elements of a vector are true.
 decl and ([Bool] -> Bool)
 def and:
-  true \&& foldUp
+  true \&& fold
 
 // Whether any element of a vector satisfies a predicate.
 decl any ([a] (a -> Bool) -> Bool)
@@ -372,11 +365,6 @@ decl apply21 (a b (a b -> c) -> c)
 def apply21:
   __apply21
 
-// Gets the bottom element of a vector.
-decl bottom ([a] -> a)
-def bottom:
-  __bottom
-
 // Concatenates two vectors.
 decl cat ([a] [a] -> [a])
 def cat :
@@ -393,11 +381,6 @@ decl const (a -> (b -> a))
 def const:
   -> x
   { drop x }
-
-// Removes the top element of a vector.
-decl down ([a] -> [a])
-def down:
-  __down
 
 // Drops a value.
 decl drop (a ->)
@@ -451,8 +434,8 @@ def eqv:
   -> { xs ys eq }
   if xs empty ys empty && then:
     true
-  else if xs top ys top eq apply21 then:
-    xs down ys down eq eqv
+  else if xs head ys head eq apply21 then:
+    xs tail ys tail eq eqv
   else:
     false
 
@@ -518,6 +501,11 @@ def id:
   -> x
   x
 
+// Removes the last element of a vector.
+decl init ([a] -> [a])
+def init:
+  __init
+
 // Joins a vector with a separator.
 decl join ([[a]] [a] -> [a])
 def join:
@@ -530,8 +518,13 @@ def intersperse:
   if xs empty then:
     []
   else:
-    xs down sep prependToAll
-    xs top push
+    xs tail sep prependToAll
+    xs head prepend
+
+// Gets the last element of a vector.
+decl last ([a] -> a)
+def last:
+  __last
 
 // Character less than or equal.
 decl lec (Char Char -> Bool)
@@ -627,11 +620,21 @@ def openOutput:
 // Whether any element of a vector is true.
 decl or ([Bool] -> Bool)
 def or:
-  false \|| foldUp
+  false \|| fold
+
+decl pair (a b -> (a & b))
+def pair:
+  __pair
 
 // No-op.
 decl pass (->)
 def pass {}
+
+// Prepends a value to the head of a vector.
+decl prepend ([a] a -> [a])
+def prepend:
+  -> { xs x }
+  x vector xs cat
 
 decl prependToAll ([a] a -> [a])
 def prependToAll:
@@ -639,9 +642,9 @@ def prependToAll:
   if xs empty then:
     []
   else:
-    xs down sep prependToAll
-    xs top push
-    sep push
+    xs tail sep prependToAll
+    xs head prepend
+    sep prepend
 
 // Prints a string to standard output.
 decl print ([Char] ->)
@@ -686,12 +689,12 @@ def printiv:
 // The product of a vector of floating-point numbers.
 decl productf ([Float] -> Float)
 def productf:
-  1.0 \*. foldUp
+  1.0 \*. fold
 
 // The product of a vector of integers.
 decl producti ([Int] -> Int)
 def producti:
-  1 \* foldUp
+  1 \* fold
 
 // Prints a string followed by a newline.
 decl say ([Char] ->)
@@ -777,8 +780,8 @@ def showiv:
 // Shows a vector as a string.
 decl showv ([a] (a -> [Char]) -> [Char])
 def showv:
-  map ", " join
-  "[" swap cat "]" cat
+  -> { v f }
+  "[" v f map ", " join "]" cat cat
 
 // Prints a space to standard output.
 decl space (->)
@@ -803,12 +806,12 @@ def stdout:
 // The sum of a vector of floating-point numbers.
 decl sumf ([Float] -> Float)
 def sumf:
-  0.0 \+. foldUp
+  0.0 \+. fold
 
 // The sum of a vector of integers.
 decl sumi ([Int] -> Int)
 def sumi:
-  0 \+ foldUp
+  0 \+ fold
 
 // Swaps two values. Useful for changing argument order when
 // partially applying a function.
@@ -816,15 +819,10 @@ decl swap (a b -> b a)
 def swap:
   __swap
 
-// Gets the top element of a vector.
-decl top ([a] -> a)
-def top:
-  __top
-
-// Removes the bottom element of a vector.
-decl up ([a] -> [a])
-def up:
-  __up
+// Removes the first element of a vector.
+decl tail ([a] -> [a])
+def tail:
+  __tail
 
 // Wraps a value in a vector.
 decl vector (a -> [a])

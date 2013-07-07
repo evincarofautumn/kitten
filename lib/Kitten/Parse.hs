@@ -105,7 +105,7 @@ value = locate $ choice
   toLiteral (Token.Float x) = Just $ Float x
   toLiteral (Token.Int x) = Just $ Int x
   toLiteral (Token.Text x) = Just $ \ loc
-    -> Vector (map (`Char` loc) $ reverse x) loc
+    -> Vector (map (`Char` loc) x) loc
   toLiteral _ = Nothing
 
   escape :: Parser (Location -> Value)
@@ -113,10 +113,10 @@ value = locate $ choice
     <?> "escape"
 
   vector :: Parser [Value]
-  vector = (reverse <$> between
+  vector = between
     (match Token.VectorBegin)
     (match Token.VectorEnd)
-    (item `sepEndBy` match Token.Comma))
+    (item `sepEndBy` match Token.Comma)
     <?> "vector"
 
   tuple :: Parser [Value]

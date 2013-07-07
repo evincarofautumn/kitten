@@ -1,8 +1,8 @@
 [1, 2] -> vec
-vec bottom sayi
-vec up sayiv
-vec top sayi
-vec down sayiv
+vec head sayi
+vec tail sayiv
+vec last sayi
+vec init sayiv
 
 1 vector sayiv
 

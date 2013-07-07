@@ -97,7 +97,7 @@ interpretBuiltin builtin = case builtin of
   Builtin.AddVector -> do
     Vector b <- popData
     Vector a <- popData
-    pushData $ Vector (b ++ a)
+    pushData $ Vector (a ++ b)
 
   Builtin.AndBool -> boolsToBool (&&)
 
@@ -108,10 +108,6 @@ interpretBuiltin builtin = case builtin of
   Builtin.Apply11 -> apply
   Builtin.Apply21 -> apply
 
-  Builtin.Bottom -> do
-    Vector a <- popData
-    pushData $ last a
-
   Builtin.Close -> do
     Handle a <- popData
     lift $ hClose a
@@ -121,10 +117,6 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.DivFloat -> floatsToFloat (/)
   Builtin.DivInt -> intsToInt div
-
-  Builtin.Down -> do
-    Vector a <- popData
-    pushData $ Vector (tail a)
 
   Builtin.Drop -> void popData
 
@@ -169,8 +161,20 @@ interpretBuiltin builtin = case builtin of
   Builtin.GtFloat -> floatsToBool (>)
   Builtin.GtInt -> intsToBool (>)
 
+  Builtin.Head -> do
+    Vector a <- popData
+    pushData $ head a
+
   Builtin.IncFloat -> floatToFloat succ
   Builtin.IncInt -> intToInt succ
+
+  Builtin.Init -> do
+    Vector a <- popData
+    pushData $ Vector (init a)
+
+  Builtin.Last -> do
+    Vector a <- popData
+    pushData $ last a
 
   Builtin.LeChar -> charsToBool (<=)
   Builtin.LeFloat -> floatsToBool (<=)
@@ -260,13 +264,9 @@ interpretBuiltin builtin = case builtin of
     pushData b
     pushData a
 
-  Builtin.Top -> do
+  Builtin.Tail -> do
     Vector a <- popData
-    pushData $ head a
-
-  Builtin.Up -> do
-    Vector a <- popData
-    pushData $ Vector (init a)
+    pushData $ Vector (tail a)
 
   Builtin.Vector -> do
     a <- popData
@@ -336,7 +336,7 @@ interpretBuiltin builtin = case builtin of
     pushData $ Int (f a b)
 
 stringFromChars :: [Value] -> String
-stringFromChars = map fromChar . reverse
+stringFromChars = map fromChar
   where
   fromChar :: Value -> Char
   fromChar (Char c) = c
@@ -345,4 +345,4 @@ stringFromChars = map fromChar . reverse
     ++ show value
 
 charsFromString :: String -> [Value]
-charsFromString = map Char . reverse
+charsFromString = map Char

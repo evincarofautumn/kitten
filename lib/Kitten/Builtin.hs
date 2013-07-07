@@ -24,13 +24,11 @@ data Builtin
   | Apply10
   | Apply11
   | Apply21
-  | Bottom
   | Close
   | DecFloat
   | DecInt
   | DivFloat
   | DivInt
-  | Down
   | Drop
   | Dup
   | Empty
@@ -47,8 +45,11 @@ data Builtin
   | GtChar
   | GtFloat
   | GtInt
+  | Head
   | IncFloat
   | IncInt
+  | Init
+  | Last
   | LeChar
   | LeFloat
   | LeInt
@@ -83,8 +84,7 @@ data Builtin
   | Stdin
   | Stdout
   | Swap
-  | Top
-  | Up
+  | Tail
   | Vector
   | XorBool
   | XorInt
@@ -119,13 +119,11 @@ fromStringTable =
   , (,) "__apply10"    Apply10
   , (,) "__apply11"    Apply11
   , (,) "__apply21"    Apply21
-  , (,) "__bottom"     Bottom
   , (,) "__close"      Close
   , (,) "__dec_float"  DecFloat
   , (,) "__dec_int"    DecInt
   , (,) "__div_float"  DivFloat
   , (,) "__div_int"    DivInt
-  , (,) "__down"       Down
   , (,) "__drop"       Drop
   , (,) "__dup"        Dup
   , (,) "__eq_char"    EqChar
@@ -142,8 +140,11 @@ fromStringTable =
   , (,) "__gt_char"    GtChar
   , (,) "__gt_float"   GtFloat
   , (,) "__gt_int"     GtInt
+  , (,) "__head"       Head
   , (,) "__inc_float"  IncFloat
   , (,) "__inc_int"    IncInt
+  , (,) "__init"       Init
+  , (,) "__last"       Last
   , (,) "__le_char"    LeChar
   , (,) "__le_float"   LeFloat
   , (,) "__le_int"     LeInt
@@ -178,8 +179,7 @@ fromStringTable =
   , (,) "__stdin"      Stdin
   , (,) "__stdout"     Stdout
   , (,) "__swap"       Swap
-  , (,) "__top"        Top
-  , (,) "__up"         Up
+  , (,) "__tail"       Tail
   , (,) "__vector"     Vector
   , (,) "__xor_bool"   XorBool
   , (,) "__xor_int"    XorInt

@@ -102,10 +102,6 @@ instance Show Value where
 
     Vector values -> concat
       [ "["
-      , showVector values
+      , showWords values
       , "]"
       ]
-
-    where
-    showVector :: (Show a) => [a] -> String
-    showVector = showWords . reverse
