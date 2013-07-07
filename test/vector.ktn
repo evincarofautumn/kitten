@@ -14,15 +14,12 @@ vec init sayiv
 3 -> z
 [x, y, z] sayiv
 
-decl a (->)
-def a: pass
+def a (->): pass
 
-decl b (->)
-def b: pass
+def b (->): pass
 
 [{a}, {b}] length sayi
 
-decl f (Int Int -> Int)
-def f: +
+def f (Int Int -> Int): +
 
 [1 2 +, 3 4 *, 5 6 f] sayiv

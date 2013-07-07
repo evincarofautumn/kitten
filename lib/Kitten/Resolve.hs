@@ -23,9 +23,9 @@ resolve
   :: Fragment Typed.Value Void
   -> Fragment Term.Value Term
   -> Either [CompileError] (Fragment Value Resolved)
-resolve prelude (Fragment decls defs terms)
+resolve prelude (Fragment defs terms)
   = evalResolution emptyEnv
-  $ guardLiftM2 (Fragment decls)
+  $ guardLiftM2 Fragment
     (resolveDefs defs)
     (guardMapM resolveTerm terms)
   where emptyEnv = Env (fragmentDefs prelude) defs []
@@ -34,8 +34,9 @@ resolveDefs :: [Def Term.Value] -> Resolution [Def Value]
 resolveDefs = guardMapM resolveDef
   where
   resolveDef :: Def Term.Value -> Resolution (Def Value)
-  resolveDef (Def name body loc)
-    = Def name <$> resolveValue body <*> pure loc
+  resolveDef def = do
+    defTerm' <- resolveValue (defTerm def)
+    return def { defTerm = defTerm' }
 
 resolveTerm :: Term -> Resolution Resolved
 resolveTerm unresolved = case unresolved of

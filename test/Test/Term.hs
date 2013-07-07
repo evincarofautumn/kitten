@@ -18,13 +18,13 @@ import Kitten.Util.Either
 spec :: Spec
 spec = do
   describe "empty program"
-    $ testTerm "" (Fragment [] [] [])
+    $ testTerm "" (Fragment [] [])
 
   describe "terms" $ do
     testTerm "1 2 3"
-      (Fragment [] [] [pushi 1, pushi 2, pushi 3])
+      (Fragment [] [pushi 1, pushi 2, pushi 3])
     testTerm "dup swap drop vector cat function compose apply"
-      $ Fragment [] []
+      $ Fragment []
         [ word "dup"
         , word "swap"
         , word "drop"
@@ -39,19 +39,19 @@ spec = do
 
     testTerm
       "{}"
-      $ Fragment [] []
+      $ Fragment []
         [ push $ function []
         ]
 
     testTerm
       "{3}"
-      $ Fragment [] []
+      $ Fragment []
         [ push $ function [pushi 3]
         ]
 
     testTerm
       "{ 1 + }"
-      $ Fragment [] []
+      $ Fragment []
         [ push $ function [pushi 1, word "+"]
         ]
 
@@ -59,7 +59,7 @@ spec = do
 
     testTerm
       "->x x x *"
-      $ Fragment [] []
+      $ Fragment []
         [ lambda "x"
           [ word "x"
           , word "x"
@@ -69,7 +69,7 @@ spec = do
 
     testTerm
       "->x ->y x y *"
-      $ Fragment [] []
+      $ Fragment []
         [ lambda "x"
           [ lambda "y"
             [ word "x"
@@ -81,7 +81,7 @@ spec = do
 
     testTerm
       "{ ->x ->y x y * }"
-      $ Fragment [] []
+      $ Fragment []
         [ push $ function
           [ lambda "x"
             [ lambda "y"
@@ -95,7 +95,7 @@ spec = do
 
     testTerm
       ": ->x ->y x y *"
-      $ Fragment [] []
+      $ Fragment []
         [ push $ function
           [ lambda "x"
             [ lambda "y"
@@ -113,7 +113,7 @@ spec = do
       ": sameLine\n\
       \  nextLine\n\
       \  anotherLine\n"
-      $ Fragment [] []
+      $ Fragment []
         [ push $ function
           [ word "sameLine"
           , word "nextLine"
@@ -125,7 +125,7 @@ spec = do
       "{ : sameLine\n\
       \    nextLine\n\
       \    anotherLine }\n"
-      $ Fragment [] []
+      $ Fragment []
         [ push $ function
           [ push $ function
             [ word "sameLine"
@@ -136,7 +136,7 @@ spec = do
         ]
 
     testTerm "{ one : two three }"
-      $ Fragment [] []
+      $ Fragment []
       [ push $ function
         [ word "one"
         , push $ function
@@ -147,7 +147,7 @@ spec = do
       ]
 
     testTerm ": {one} {two}"
-      $ Fragment [] []
+      $ Fragment []
       [ push $ function
         [ push $ function [word "one"]
         , push $ function [word "two"]
@@ -167,20 +167,20 @@ spec = do
     testTerm
       ": :\n\
       \  3\n"
-      $ Fragment [] []
+      $ Fragment []
       [push $ function [push $ function [pushi 3]]]
 
   describe "definition" $ do
 
     testTerm
       "def pi 3"
-      $ Fragment [] [def "pi" $ int 3] []
+      $ Fragment [def "pi" $ int 3] []
 
     testTerm
       "def inc {\n\
       \  1 +\n\
       \}\n"
-      $ Fragment []
+      $ Fragment
         [ def "inc" $ function [pushi 1, word "+"]
         ]
         []
@@ -192,7 +192,7 @@ spec = do
       \def dec:\n\
       \  1 -\n\
       \\n"
-      $ Fragment []
+      $ Fragment
         [ def "inc" $ function [pushi 1, word "+"]
         , def "dec" $ function [pushi 1, word "-"]
         ]
@@ -219,7 +219,12 @@ parsed
   >=> mapLeft parseError . parse "test"
 
 def :: String -> Value -> Def Value
-def name value = Def name value TestLocation
+def name value = Def
+  { defName = name
+  , defAnno = Nothing
+  , defTerm = value
+  , defLocation = TestLocation
+  }
 
 function :: [Term] -> Value
 function terms = Function terms TestLocation

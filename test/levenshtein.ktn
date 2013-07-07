@@ -1,5 +1,4 @@
-decl levenshtein ([Char] [Char] -> Int)
-def levenshtein:
+def levenshtein ([Char] [Char] -> Int):
   -> second
   -> first
   first length -> rows

@@ -7,7 +7,6 @@ import Control.Monad
 
 import qualified Text.Parsec as Parsec
 
-import Kitten.Anno (Anno)
 import Kitten.Def
 import Kitten.Fragment
 import Kitten.Location
@@ -34,25 +33,27 @@ parse name
 fragment :: Parser (Fragment Value Term)
 fragment = do
   elements <- many element <* eof
-  let (decls, defs, terms) = partitionElements elements
-  return $ Fragment decls defs terms
+  let (defs, terms) = partitionElements elements
+  return $ Fragment defs terms
 
 element :: Parser Element
 element = choice
-  [ DeclElement <$> decl
-  , DefElement <$> def
+  [ DefElement <$> def
   , TermElement <$> term
   ]
 
-decl :: Parser (Def Anno)
-decl = (<?> "type declaration") . locate
-  $ match Token.Decl
-  *> (Def <$> littleWord <*> grouped signature)
-
 def :: Parser (Def Value)
-def = (<?> "definition") . locate
-  $ match Token.Def
-  *> (Def <$> littleWord <*> value)
+def = (<?> "definition") . locate $ do
+  void (match Token.Def)
+  name <- littleWord
+  anno <- optionMaybe (grouped signature)
+  body <- value
+  return $ \ loc -> Def
+    { defName = name
+    , defTerm = body
+    , defAnno = anno
+    , defLocation = loc
+    }
 
 term :: Parser Term
 term = locate $ choice

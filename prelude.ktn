@@ -1,40 +1,34 @@
 // Whether all elements of a vector satisfy a predicate.
-decl all ([a] (a -> Bool) -> Bool)
-def all:
+def all ([a] (a -> Bool) -> Bool):
   map and
 
 // Appends a value to the end of a vector.
-decl append ([a] a -> [a])
-def append:
+def append ([a] a -> [a]):
   vector cat
 
 // The Cartesian product of two vectors.
-decl cartesian ([a] [b] -> [(a, b)])
-def cartesian:
+def cartesian ([a] [b] -> [(a, b)]):
   {double} cartesianWith
 
 // The Cartesian product of two vectors with a
 // generalized tupling function.
-decl cartesianWith ([a] [b] (a b -> c) -> [c])
-def cartesianWith:
+def cartesianWith ([a] [b] (a b -> c) -> [c]):
   -> { xs ys fn }
   xs { ys length replicate } mapConcat -> xs2
   ys xs length replicate concat -> ys2
   xs2 ys2 fn zipWith
 
 // Concatenates a vector of vectors.
-decl concat ([[a]] -> [a])
-def concat:
+def concat ([[a]] -> [a]):
   [] {cat} fold
 
-decl double (a b -> (a, b))
-def double:
+// Constructs a 2-tuple.
+def double (a b -> (a, b)):
   -> { a b }
   (a, b)
 
 // Filters a vector by a predicate.
-decl filter ([a] (a -> Bool) -> [a])
-def filter:
+def filter ([a] (a -> Bool) -> [a]):
   -> { v f }
   if v empty then:
     v
@@ -44,21 +38,19 @@ def filter:
   else:
     v tail f filter
 
-decl first ((a & b) -> a)
-def first:
+// Gets the first element of a tuple or pair.
+def first ((a & b) -> a):
   __first
 
 // Flips the elements of a double.
-decl flip ((a, b) -> (b, a))
-def flip:
+def flip ((a, b) -> (b, a)):
   -> d
   d first -> a
   d second -> b
   (b, a)
 
 // Folds elements of a vector right-associatively.
-decl foldr ([a] b (a b -> b) -> b)
-def foldr:
+def foldr ([a] b (a b -> b) -> b):
   -> { xs z k }
   if xs empty then:
     z
@@ -68,8 +60,7 @@ def foldr:
     k apply21
 
 // Folds elements of a vector left-associatively.
-decl fold ([b] a (a b -> a) -> a)
-def fold:
+def fold ([b] a (a b -> a) -> a):
   -> { xs z k }
   if xs empty then:
     z
@@ -78,24 +69,21 @@ def fold:
     z xs head k apply21
     k fold
 
-decl fourth ((a & b & c & d & e) -> d)
-def fourth:
+// Gets the fourth element of a tuple.
+def fourth ((a & b & c & d & e) -> d):
   rest rest rest first
 
 // Gets a value from a 2D vector.
-decl get2 ([[a]] Int Int -> a)
-def get2:
+def get2 ([[a]] Int Int -> a):
   -> { i j }
   i get j get
 
 // Gets the first element of a vector.
-decl head ([a] -> a)
-def head:
+def head ([a] -> a):
   __head
 
 // Iterates a function on a value until a predicate holds.
-decl until (a (a -> a) (a -> Bool) -> a)
-def until:
+def until (a (a -> a) (a -> Bool) -> a):
   -> { x f p }
   if x p apply11 then:
     x
@@ -104,8 +92,7 @@ def until:
     f p until
 
 // Keeps the first n elements of a vector, tossing the rest.
-decl keep ([a] Int -> [a])
-def keep:
+def keep ([a] Int -> [a]):
   -> { xs n }
   if n 0 <=  xs empty  || then:
     []
@@ -114,8 +101,7 @@ def keep:
     xs head prepend
 
 // Lifts a function on values to a function on vectors.
-decl map ([a] (a -> b) -> [b])
-def map:
+def map ([a] (a -> b) -> [b]):
   -> { xs f }
   if xs empty then:
     []
@@ -125,8 +111,7 @@ def map:
     prepend
 
 // Maps a function over a value for each integer in a range.
-decl mapRange (a (a Int -> a) Int Int -> a)
-def mapRange:
+def mapRange (a (a Int -> a) Int Int -> a):
   -> { value function start end }
   if start end <= then:
     value start function apply21
@@ -135,15 +120,13 @@ def mapRange:
     value
 
 // Maps a function over an element of a vector.
-decl modify ([a] (a -> a) Int -> [a])
-def modify:
+def modify ([a] (a -> a) Int -> [a]):
   -> { vec function offset }
   vec offset get function apply11 -> value
   vec value offset set
 
 // Maps a function over part of a vector.
-decl mapFrom ([a] (a -> a) Int -> [a])
-def mapFrom:
+def mapFrom ([a] (a -> a) Int -> [a]):
   -> { vec function offset }
   if vec empty  offset vec length >=  || then:
     vec
@@ -152,15 +135,13 @@ def mapFrom:
     function offset++ mapFrom
 
 // Maps an impure function over each element of a vector.
-decl each ([a] (a ->) ->)
-def each:
+def each ([a] (a ->) ->):
   -> f
   { dup f apply10 } map
   drop
 
 // Produces a vector with some number of copies of a value.
-decl replicate (a Int -> [a])
-def replicate:
+def replicate (a Int -> [a]):
   -> { value count }
   if count 0 <= then:
     []
@@ -168,12 +149,12 @@ def replicate:
     value count-- replicate
     value prepend
 
-decl rest ((a & b) -> b)
-def rest:
+// Gets the second element of a pair or the tail of a tuple.
+def rest ((a & b) -> b):
   __rest
 
-decl reverse ([a] -> [a])
-def reverse:
+// Reverses a vector.
+def reverse ([a] -> [a]):
   -> xs
   if xs empty then:
     []
@@ -181,30 +162,27 @@ def reverse:
     xs init reverse
     xs last prepend
 
-decl second ((a & b & c) -> b)
-def second:
+// Gets the second element of a tuple.
+def second ((a & b & c) -> b):
   rest first
 
 // Sets a value in a 2D vector.
-decl set2 ([[a]] a Int Int -> [[a]])
-def set2:
+def set2 ([[a]] a Int Int -> [[a]]):
   -> { x i j }
   { x j set } i modify
 
 // Splits a vector into two parts at the given index.
-decl splitAt ([a] Int -> [a] [a])
-def splitAt:
+def splitAt ([a] Int -> [a] [a]):
   -> { xs n }
   xs n toss
   xs n keep
 
-decl third ((a & b & c & d) -> c)
-def third:
+// Gets the third element of a tuple.
+def third ((a & b & c & d) -> c):
   rest rest first
 
 // Tosses the first n elements of a vector, keeping the rest.
-decl toss ([a] Int -> [a])
-def toss:
+def toss ([a] Int -> [a]):
   -> { xs n }
   if n 0 <=  xs empty  || then:
     xs
@@ -212,257 +190,205 @@ def toss:
     xs tail n-- toss
 
 // Logical NOT.
-decl ! (Bool -> Bool)
-def ! :
+def ! (Bool -> Bool):
   __not_bool
 
 // Integer inequality.
-decl != (Int Int -> Bool)
-def != :
+def != (Int Int -> Bool):
   __ne_int
 
 // Floating-point inequality.
-decl !=. (Float Float -> Bool)
-def !=. :
+def !=. (Float Float -> Bool):
   __ne_float
 
 // Integer modulus.
-decl % (Int Int -> Int)
-def % :
+def % (Int Int -> Int):
   __mod_int
 
 // Floating-point modulus.
-decl %. (Float Float -> Float)
-def %. :
+def %. (Float Float -> Float):
   __mod_float
 
 // Bitwise AND.
-decl & (Int Int -> Int)
-def & :
+def & (Int Int -> Int):
   __and_int
 
 // Logical AND.
-decl && (Bool Bool -> Bool)
-def && :
+def && (Bool Bool -> Bool):
   __and_bool
 
 // Integer multiplication.
-decl * (Int Int -> Int)
-def * :
+def * (Int Int -> Int):
   __mul_int
 
 // Floating-point multiplication.
-decl *. (Float Float -> Float)
-def *. :
+def *. (Float Float -> Float):
   __mul_float
 
 // Integer addition.
-decl + (Int Int -> Int)
-def + :
+def + (Int Int -> Int):
   __add_int
 
 // Integer increment.
-decl ++ (Int -> Int)
-def ++ :
+def ++ (Int -> Int):
   __inc_int
 
 // Floating-point increment.
-decl ++. (Float -> Float)
-def ++. :
+def ++. (Float -> Float):
   __inc_float
 
 // Floating-point addition.
-decl +. (Float Float -> Float)
-def +. :
+def +. (Float Float -> Float):
   __add_float
 
 // Integer subtraction.
-decl - (Int Int -> Int)
-def - :
+def - (Int Int -> Int):
   __sub_int
 
 // Integer decrement.
-decl -- (Int -> Int)
-def -- :
+def -- (Int -> Int):
   __dec_int
 
 // Floating-point decrement.
-decl --. (Float -> Float)
-def --. :
+def --. (Float -> Float):
   __dec_float
 
 // Floating-point subtraction.
-decl -. (Float Float -> Float)
-def -. :
+def -. (Float Float -> Float):
   __sub_float
 
 // Integer division.
-decl / (Int Int -> Int)
-def / :
+def / (Int Int -> Int):
   __div_int
 
 // Floating-point division.
-decl /. (Float Float -> Float)
-def /. :
+def /. (Float Float -> Float):
   __div_float
 
 // Integer less than.
-decl < (Int Int -> Bool)
-def < :
+def < (Int Int -> Bool):
   __lt_int
 
 // Floating-point less than.
-decl <. (Float Float -> Bool)
-def <. :
+def <. (Float Float -> Bool):
   __lt_float
 
 // Integer less than or equal.
-decl <= (Int Int -> Bool)
-def <= :
+def <= (Int Int -> Bool):
   __le_int
 
 // Floating-point less than or equal.
-decl <=. (Float Float -> Bool)
-def <=. :
+def <=. (Float Float -> Bool):
   __le_float
 
 // Integer equality.
-decl = (Int Int -> Bool)
-def = :
+def = (Int Int -> Bool):
   __eq_int
 
 // Floating-point equality.
-decl =. (Float Float -> Bool)
-def =. :
+def =. (Float Float -> Bool):
   __eq_float
 
 // Integer greater than.
-decl > (Int Int -> Bool)
-def > :
+def > (Int Int -> Bool):
   __gt_int
 
 // Floating-point greater than.
-decl >. (Float Float -> Bool)
-def >. :
+def >. (Float Float -> Bool):
   __gt_float
 
 // Integer greater than or equal.
-decl >= (Int Int -> Bool)
-def >= :
+def >= (Int Int -> Bool):
   __ge_int
 
 // Floating-point greater than or equal.
-decl >=. (Float Float -> Bool)
-def >=. :
+def >=. (Float Float -> Bool):
   __ge_float
 
 // Bitwise XOR.
-decl ^ (Int Int -> Int)
-def ^ :
+def ^ (Int Int -> Int):
   __xor_int
 
 // Boolean XOR.
-decl ^^ (Bool Bool -> Bool)
-def ^^ :
+def ^^ (Bool Bool -> Bool):
   __xor_bool
 
 // Whether all elements of a vector are true.
-decl and ([Bool] -> Bool)
-def and:
+def and ([Bool] -> Bool):
   true {&&} fold
 
 // Whether any element of a vector satisfies a predicate.
-decl any ([a] (a -> Bool) -> Bool)
-def any:
+def any ([a] (a -> Bool) -> Bool):
   map or
 
 // Applies a nullary function with one result.
-decl apply01 ((-> a) -> a)
-def apply01:
+def apply01 ((-> a) -> a):
   __apply01
 
 // Applies a unary function with no results.
-decl apply10 (a (a ->) ->)
-def apply10:
+def apply10 (a (a ->) ->):
   __apply10
 
 // Applies a unary function with one result.
-decl apply11 (a (a -> b) -> b)
-def apply11:
+def apply11 (a (a -> b) -> b):
   __apply11
 
-// Applies a binary function with one result.
-decl apply21 (a b (a b -> c) -> c)
-def apply21:
+def apply21 (a b (a b -> c) -> c):
   __apply21
 
 // Concatenates two vectors.
-decl cat ([a] [a] -> [a])
-def cat :
+def cat ([a] [a] -> [a]):
   __add_vector
 
 // Composes two unary functions with one result.
-decl compose ((a -> b) (b -> c) -> (a -> c))
-def compose:
+def compose ((a -> b) (b -> c) -> (a -> c)):
   -> { f g }
   { f apply11 g apply11 }
 
 // Wraps a value in a function.
-decl const (a -> (b -> a))
-def const:
+def const (a -> (b -> a)):
   -> x
   { drop x }
 
 // Drops a value.
-decl drop (a ->)
-def drop:
+def drop (a ->):
   -> x
 
 // Duplicates a value.
-decl dup (a -> a a)
-def dup:
+def dup (a -> a a):
   -> x
   x x
 
 // Whether a character is present in a string.
-decl elemc ([Char] Char -> Bool)
-def elemc:
+def elemc ([Char] Char -> Bool):
   -> x
   { x eqc } any
 
 // Whether an integer is present in an integer vector.
-decl elemi ([Int] Int -> Bool)
-def elemi:
+def elemi ([Int] Int -> Bool):
   -> x
   { x = } any
 
 // Whether a vector is empty.
-decl empty ([a] -> Bool)
-def empty:
+def empty ([a] -> Bool):
   length 0 =
 
 // Character equality.
-decl eqc (Char Char -> Bool)
-def eqc :
+def eqc (Char Char -> Bool):
   __eq_char
 
 // String equality.
-decl eqcv ([Char] [Char] -> Bool)
-def eqcv:
+def eqcv ([Char] [Char] -> Bool):
   {eqc} eqv
 
 // Integer vector equality.
-decl eqiv ([Int] [Int] -> Bool)
-def eqiv:
+def eqiv ([Int] [Int] -> Bool):
   {=} eqv
 
-decl equ (() () -> Bool)
-def equ:
+def equ (() () -> Bool):
   drop drop true
 
-// Vector equality according to a predicate.
-decl eqv ([a] [a] (a a -> Bool) -> Bool)
-def eqv:
+def eqv ([a] [a] (a a -> Bool) -> Bool):
   -> { xs ys eq }
   if xs empty ys empty && then:
     true
@@ -472,80 +398,59 @@ def eqv:
     false
 
 // Whether a floating-point number is even.
-decl evenf (Float -> Bool)
-def evenf:
+def evenf (Float -> Bool):
   2.0 %. 0.0 =.
 
 // Whether an integer is even.
-decl eveni (Int -> Bool)
-def eveni:
+def eveni (Int -> Bool):
   2 % 0 =
 
-// Exits the program with a given status code.
-decl exit (Int ->)
-def exit:
+def exit (Int ->):
   __exit
 
 // Character greater than or equal.
-decl gec (Char Char -> Bool)
-def gec :
+def gec (Char Char -> Bool):
   __ge_char
 
 // Gets an element of a vector.
-decl get ([a] Int -> a)
-def get:
+def get ([a] Int -> a):
   __get
 
 // Reads a line from standard input.
-decl getLine (-> [Char])
-def getLine:
+def getLine (-> [Char]):
   stdin __get_line
 
-// Vector greater than or equal.
-decl gev ([a] [a] (a a -> Bool) -> Bool)
-
 // Character greater than.
-decl gtc (Char Char -> Bool)
-def gtc :
+def gtc (Char Char -> Bool):
   __gt_char
 
-// Vector greater than.
-decl gtv ([a] [a] (a a -> Bool) -> Bool)
-
 // Closes a handle.
-decl handleClose (Handle ->)
-def handleClose:
+def handleClose (Handle ->):
   __close
 
 // Reads a line from a handle.
-decl handleGetLine (Handle -> [Char])
-def handleGetLine:
+def handleGetLine (Handle -> [Char]):
   __get_line
 
 // Writes a string to a handle.
-decl handlePrint ([Char] Handle ->)
-def handlePrint:
+def handlePrint ([Char] Handle ->):
   __print
 
-// The identity function.
-decl id (a -> a)
-def id:
+// Identity function.
+def id (a -> a):
   -> x
   x
 
 // Removes the last element of a vector.
-decl init ([a] -> [a])
-def init:
+def init ([a] -> [a]):
   __init
 
 // Joins a vector with a separator.
-decl join ([[a]] [a] -> [a])
-def join:
+def join ([[a]] [a] -> [a]):
   intersperse concat
 
 // Intersperses a value between the values of a vector.
-decl intersperse ([a] a -> [a])
-def intersperse:
+def intersperse ([a] a -> [a]):
   -> { xs sep }
   if xs empty then:
     []
@@ -554,122 +459,93 @@ def intersperse:
     xs head prepend
 
 // Gets the last element of a vector.
-decl last ([a] -> a)
-def last:
+def last ([a] -> a):
   __last
 
 // Character less than or equal.
-decl lec (Char Char -> Bool)
-def lec :
+def lec (Char Char -> Bool):
   __le_char
 
 // Gets the length of a vector.
-decl length ([a] -> Int)
-def length:
+def length ([a] -> Int):
   __length
 
-// Vector less than or equal.
-decl lev ([a] [a] (a a -> Bool) -> Bool)
-
 // Character less than.
-decl ltc (Char Char -> Bool)
-def ltc :
+def ltc (Char Char -> Bool):
   __lt_char
 
-// Vector less than.
-decl ltv ([a] [a] (a a -> Bool) -> Bool)
-
 // Maps a function over a vector and concatenates the results.
-decl mapConcat ([a] (a -> [b]) -> [b])
-def mapConcat:
+def mapConcat ([a] (a -> [b]) -> [b]):
   map concat
 
 // The maximum of two integers.
-decl max2 (Int Int -> Int)
-def max2:
+def max2 (Int Int -> Int):
   -> { a b }
   if a b > then: a else: b
 
 // The maximum of three integers.
-decl max3 (Int Int Int -> Int)
-def max3:
+def max3 (Int Int Int -> Int):
   max2 max2
 
 // The minimum of two integers.
-decl min2 (Int Int -> Int)
-def min2:
+def min2 (Int Int -> Int):
   -> { a b }
   if a b < then: a else: b
 
 // The minimum of three integers.
-decl min3 (Int Int Int -> Int)
-def min3:
+def min3 (Int Int Int -> Int):
   min2 min2
 
 // Character inequality.
-decl nec (Char Char -> Bool)
-def nec :
+def nec (Char Char -> Bool):
   __ne_char
 
 // Floating-point negation.
-decl negf (Float -> Float)
-def negf:
+def negf (Float -> Float):
   __neg_float
 
 // Integer negation.
-decl negi (Int -> Int)
-def negi:
+def negi (Int -> Int):
   __neg_int
 
-// Vector inequality.
-decl nev ([a] [a] (a a -> Bool) -> Bool)
-
-// Prints a newline to standard output.
-decl newline (->)
-def newline:
+// Writes a newline to standard output.
+def newline (->):
   "\n" print
 
 // Whether a floating-point number is odd.
-decl oddf (Float -> Bool)
-def oddf:
+def oddf (Float -> Bool):
   evenf !
 
 // Whether an integer is odd.
-decl oddi (Int -> Bool)
-def oddi:
+def oddi (Int -> Bool):
   eveni !
 
 // Opens a file for input.
-decl openInput ([Char] -> Handle)
-def openInput:
+def openInput ([Char] -> Handle):
   __open_in
 
 // Opens a file for output.
-decl openOutput ([Char] -> Handle)
-def openOutput:
+def openOutput ([Char] -> Handle):
   __open_out
 
 // Whether any element of a vector is true.
-decl or ([Bool] -> Bool)
-def or:
+def or ([Bool] -> Bool):
   false {||} fold
 
-decl pair (a b -> (a & b))
-def pair:
+// Constructs a pair.
+def pair (a b -> (a & b)):
   __pair
 
 // No-op.
-decl pass (->)
-def pass {}
+def pass (->)
+  {}
 
 // Prepends a value to the head of a vector.
-decl prepend ([a] a -> [a])
-def prepend:
+def prepend ([a] a -> [a]):
   -> { xs x }
   x vector xs cat
 
-decl prependToAll ([a] a -> [a])
-def prependToAll:
+def prependToAll ([a] a -> [a]):
   -> { xs sep }
   if xs empty then:
     []
@@ -678,218 +554,176 @@ def prependToAll:
     xs head prepend
     sep prepend
 
-// Prints a string to standard output.
-decl print ([Char] ->)
-def print:
+// Writes a string to standard output.
+def print ([Char] ->):
   stdout __print
 
 // Prints a Boolean.
-decl printb (Bool ->)
-def printb:
+def printb (Bool ->):
   showb print
 
 // Prints a Boolean vector.
-decl printbv ([Bool] ->)
-def printbv:
+def printbv ([Bool] ->):
   showbv print
 
 // Prints a string vector.
-decl printcvv ([[Char]] ->)
-def printcvv:
+def printcvv ([[Char]] ->):
   showcvv print
 
 // Prints a floating-point number.
-decl printf (Float ->)
-def printf:
+def printf (Float ->):
   showf print
 
 // Prints a floating-point vector.
-decl printfv ([Float] ->)
-def printfv:
+def printfv ([Float] ->):
   showfv print
 
 // Prints an integer.
-decl printi (Int ->)
-def printi:
+def printi (Int ->):
   showi print
 
 // Prints an integer vector.
-decl printiv ([Int] ->)
-def printiv:
+def printiv ([Int] ->):
   showiv print
 
 // The product of a vector of floating-point numbers.
-decl productf ([Float] -> Float)
-def productf:
+def productf ([Float] -> Float):
   1.0 {*.} fold
 
 // The product of a vector of integers.
-decl producti ([Int] -> Int)
-def producti:
+def producti ([Int] -> Int):
   1 {*} fold
 
 // Prints a string followed by a newline.
-decl say ([Char] ->)
-def say:
+def say ([Char] ->):
   print newline
 
 // Says a Boolean.
-decl sayb (Bool ->)
-def sayb:
+def sayb (Bool ->):
   printb newline
 
 // Says a Boolean vector.
-decl saybv ([Bool] ->)
-def saybv:
+def saybv ([Bool] ->):
   printbv newline
 
 // Says a string vector.
-decl saycvv ([[Char]] ->)
-def saycvv:
+def saycvv ([[Char]] ->):
   printcvv newline
 
 // Says a floating-point number.
-decl sayf (Float ->)
-def sayf:
+def sayf (Float ->):
   printf newline
 
 // Says a floating-point vector.
-decl sayfv ([Float] ->)
-def sayfv:
+def sayfv ([Float] ->):
   printfv newline
 
 // Says an integer.
-decl sayi (Int ->)
-def sayi:
+def sayi (Int ->):
   printi newline
 
 // Says an integer vector.
-decl sayiv ([Int] ->)
-def sayiv:
+def sayiv ([Int] ->):
   printiv newline
 
 // Sets the value at an index in a vector.
-decl set ([a] a Int -> [a])
-def set:
+def set ([a] a Int -> [a]):
   __set
 
 // Shows a Boolean as a string.
-decl showb (Bool -> [Char])
-def showb:
+def showb (Bool -> [Char]):
   if then: "true"
   else: "false"
 
 // Shows a Boolean vector as a string.
-decl showbv ([Bool] -> [Char])
-def showbv:
+def showbv ([Bool] -> [Char]):
   {showb} showv
 
 // Shows a string vector as a string.
-decl showcvv ([[Char]] -> [Char])
-def showcvv:
+def showcvv ([[Char]] -> [Char]):
   {id} showv
 
 // Shows a floating-point number as a string.
-decl showf (Float -> [Char])
-def showf:
+def showf (Float -> [Char]):
   __show_float
 
 // Shows a floating-point vector as a string.
-decl showfv ([Float] -> [Char])
-def showfv:
+def showfv ([Float] -> [Char]):
   {showf} showv
 
 // Shows an integer as a string.
-decl showi (Int -> [Char])
-def showi:
+def showi (Int -> [Char]):
   __show_int
 
 // Shows an integer vector as a string.
-decl showiv ([Int] -> [Char])
-def showiv:
+def showiv ([Int] -> [Char]):
   {showi} showv
 
 // Shows a vector as a string.
-decl showv ([a] (a -> [Char]) -> [Char])
-def showv:
+def showv ([a] (a -> [Char]) -> [Char]):
   -> { v f }
   "[" v f map ", " join "]" cat cat
 
 // Prints a space to standard output.
-decl space (->)
-def space:
+def space (->):
   " " print
 
 // The standard error handle.
-decl stderr (-> Handle)
-def stderr:
+def stderr (-> Handle):
   __stderr
 
 // The standard input handle.
-decl stdin (-> Handle)
-def stdin:
+def stdin (-> Handle):
   __stdin
 
 // The standard output handle.
-decl stdout (-> Handle)
-def stdout:
+def stdout (-> Handle):
   __stdout
 
 // The sum of a vector of floating-point numbers.
-decl sumf ([Float] -> Float)
-def sumf:
+def sumf ([Float] -> Float):
   0.0 {+.} fold
 
 // The sum of a vector of integers.
-decl sumi ([Int] -> Int)
-def sumi:
+def sumi ([Int] -> Int):
   0 {+} fold
 
 // Swaps two values. Useful for changing argument order when
 // partially applying a function.
-decl swap (a b -> b a)
-def swap:
+def swap (a b -> b a):
   -> { a b }
   b a
 
 // Removes the first element of a vector.
-decl tail ([a] -> [a])
-def tail:
+def tail ([a] -> [a]):
   __tail
 
-// Join a list of lines into a string.
-decl unlines ([[Char]] -> [Char])
-def unlines:
+// Joins a vector of lines into a string.
+def unlines ([[Char]] -> [Char]):
   "\n" join
 
 // Wraps a value in a vector.
-decl vector (a -> [a])
-def vector:
+def vector (a -> [a]):
   __vector
 
 // Bitwise OR.
-decl | (Int Int -> Int)
-def | :
+def | (Int Int -> Int):
   __or_int
 
 // Logical OR.
-decl || (Bool Bool -> Bool)
-def || :
+def || (Bool Bool -> Bool):
   __or_bool
 
 // Bitwise NOT.
-decl ~ (Int -> Int)
-def ~ :
+def ~ (Int -> Int):
   __not_int
 
-// Zip two lists together as pairs
-decl zip ([a] [b] -> [(a, b)])
-def zip:
+// Zips two lists together as pairs.
+def zip ([a] [b] -> [(a, b)]):
   {double} zipWith
 
-// Zip two lists together with a function
-decl zipWith ([a] [b] (a b -> c) -> [c])
-def zipWith:
+// Zips two lists together with a function.
+def zipWith ([a] [b] (a b -> c) -> [c]):
   -> { as bs f }
   if as empty  bs empty  || then:
     []

@@ -1,5 +1,4 @@
-decl showPoint ((Int, Int) -> [Char])
-def showPoint:
+def showPoint ((Int, Int) -> [Char]):
   -> p
   "("
   p first showi cat

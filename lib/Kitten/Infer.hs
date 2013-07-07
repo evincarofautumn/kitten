@@ -5,7 +5,6 @@ module Kitten.Infer
 
 import Control.Applicative
 import Control.Monad
-import Data.List
 import Data.Monoid
 import Data.Map ((!))
 
@@ -47,8 +46,8 @@ inferFragment prelude fragment = do
   forM_ (zip [0..] allDefs) $ \ (index, def)
     -> case manifestType (defTerm def) of
       Just scheme -> saveDef index scheme
-      Nothing -> case find ((defName def ==) . defName) allDecls of
-        Just decl -> saveDef index =<< fromAnno (defTerm decl)
+      Nothing -> case defAnno def of
+        Just anno -> saveDef index =<< fromAnno anno
         Nothing -> Inferred . throwMany . (:[]) . TypeError (defLocation def)
           $ "missing type declaration for " ++ defName def
 
@@ -74,7 +73,6 @@ inferFragment prelude fragment = do
 
   where
 
-  allDecls = fragmentDecls prelude ++ fragmentDecls fragment
   allDefs = fragmentDefs prelude ++ fragmentDefs fragment
 
   saveDef :: Int -> Scheme -> Inferred ()

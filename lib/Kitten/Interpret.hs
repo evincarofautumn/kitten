@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Kitten.Interpret
   ( interpret
   ) where
@@ -88,9 +90,9 @@ interpretFunction function = case function of
 
 interpretOverload :: Name -> Interpret
 interpretOverload (Name index) = do
-  Def _ term loc <- gets ((!! index) . envDefs)
-  withLocation loc $ do
-    interpretValue term
+  Def{..} <- gets ((!! index) . envDefs)
+  withLocation defLocation $ do
+    interpretValue defTerm
     apply
 
 apply :: Interpret

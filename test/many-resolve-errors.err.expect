@@ -1,6 +1,6 @@
 test/many-resolve-errors.ktn:1:1: compile error: undefined word: some_undefined_name
-test/many-resolve-errors.ktn:4:11: compile error: undefined word: some_undefined_name
-test/many-resolve-errors.ktn:7:11: compile error: undefined word: some_other_undefined_name
+test/many-resolve-errors.ktn:4:3: compile error: undefined word: some_undefined_name
+test/many-resolve-errors.ktn:7:3: compile error: undefined word: some_other_undefined_name
 test/many-resolve-errors.ktn:9:7: compile error: undefined word: y
 test/many-resolve-errors.ktn:9:9: compile error: undefined word: y
 test/many-resolve-errors.ktn:9:11: compile error: undefined word: z

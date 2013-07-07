@@ -1,23 +1,18 @@
-decl unary (-> Int)
-def unary:
+def unary (-> Int):
   1
 
-decl binary (-> Int Int)
-def binary:
+def binary (-> Int Int):
   1 2
 
-decl ii ((Int -> Int) ->)
-def ii:
+def ii ((Int -> Int) ->):
   -> f
   unary f apply11 sayi
 
-decl iib ((Int Int -> Bool) ->)
-def iib:
+def iib ((Int Int -> Bool) ->):
   -> f
   binary f apply21 sayb
 
-decl iii ((Int Int -> Int) ->)
-def iii:
+def iii ((Int Int -> Int) ->):
   -> f
   binary f apply21 sayi
 
