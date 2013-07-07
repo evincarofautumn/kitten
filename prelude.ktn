@@ -465,7 +465,7 @@ def evenf:
 // Whether an integer is even.
 decl eveni (Int -> Bool)
 def eveni:
-  2 __mod_int 0 __eq_int
+  2 % 0 =
 
 // Exits the program with a given status code.
 decl exit (Int ->)
