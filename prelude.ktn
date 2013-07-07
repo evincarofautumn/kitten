@@ -402,12 +402,13 @@ def const:
 // Drops a value.
 decl drop (a ->)
 def drop:
-  __drop
+  -> x
 
 // Duplicates a value.
 decl dup (a -> a a)
 def dup:
-  __dup
+  -> x
+  x x
 
 // Whether a character is present in a string.
 decl elemc ([Char] Char -> Bool)
@@ -834,7 +835,8 @@ def sumi:
 // partially applying a function.
 decl swap (a b -> b a)
 def swap:
-  __swap
+  -> { a b }
+  b a
 
 // Removes the first element of a vector.
 decl tail ([a] -> [a])

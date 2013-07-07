@@ -129,14 +129,6 @@ infer typedTerm = case typedTerm of
 
     Builtin.DivInt -> binary IntType
 
-    Builtin.Drop
-      -> (\ a -> [a] :> [])
-      <$> freshVarM
-
-    Builtin.Dup
-      -> (\ a -> [a] :> [a, a])
-      <$> freshVarM
-
     Builtin.Empty
       -> (\ a -> [VectorType a] :> [BoolType])
       <$> freshVarM
@@ -245,10 +237,6 @@ infer typedTerm = case typedTerm of
 
     Builtin.Print
       -> return $ [VectorType CharType, HandleType] :> []
-
-    Builtin.Swap
-      -> (\ a b -> [a, b] :> [b, a])
-      <$> freshVarM <*> freshVarM
 
     Builtin.Tail
       -> (\ a -> [VectorType a] :> [VectorType a])

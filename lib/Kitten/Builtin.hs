@@ -29,8 +29,6 @@ data Builtin
   | DecInt
   | DivFloat
   | DivInt
-  | Drop
-  | Dup
   | Empty
   | EqChar
   | EqFloat
@@ -83,7 +81,6 @@ data Builtin
   | Stderr
   | Stdin
   | Stdout
-  | Swap
   | Tail
   | Vector
   | XorBool
@@ -124,8 +121,6 @@ fromStringTable =
   , (,) "__dec_int"    DecInt
   , (,) "__div_float"  DivFloat
   , (,) "__div_int"    DivInt
-  , (,) "__drop"       Drop
-  , (,) "__dup"        Dup
   , (,) "__eq_char"    EqChar
   , (,) "__eq_float"   EqFloat
   , (,) "__eq_int"     EqInt
@@ -178,7 +173,6 @@ fromStringTable =
   , (,) "__stderr"     Stderr
   , (,) "__stdin"      Stdin
   , (,) "__stdout"     Stdout
-  , (,) "__swap"       Swap
   , (,) "__tail"       Tail
   , (,) "__vector"     Vector
   , (,) "__xor_bool"   XorBool

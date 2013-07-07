@@ -125,13 +125,6 @@ interpretBuiltin builtin = case builtin of
   Builtin.DivFloat -> floatsToFloat (/)
   Builtin.DivInt -> intsToInt div
 
-  Builtin.Drop -> void popData
-
-  Builtin.Dup -> do
-    a <- popData
-    pushData a
-    pushData a
-
   Builtin.EqChar -> charsToBool (==)
   Builtin.EqFloat -> floatsToBool (==)
   Builtin.EqInt -> intsToBool (==)
@@ -264,12 +257,6 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.SubFloat -> floatsToFloat (-)
   Builtin.SubInt -> intsToInt (-)
-
-  Builtin.Swap -> do
-    b <- popData
-    a <- popData
-    pushData b
-    pushData a
 
   Builtin.Tail -> do
     Vector a <- popData
