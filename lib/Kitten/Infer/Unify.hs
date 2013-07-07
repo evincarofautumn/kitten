@@ -54,6 +54,7 @@ type1 <: type2 = case (type1, type2) of
   (a :> b, c :> d)
     -> let xs <:... ys = all (uncurry (<:)) (zip xs ys)
     in b <:... d && a <:... c
+  (TypeVar{}, TypeVar{}) -> False
   (TypeVar{}, _) -> True
   _ -> False
 
