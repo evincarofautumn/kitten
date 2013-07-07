@@ -34,6 +34,14 @@ decl first ((a & b) -> a)
 def first:
   __first
 
+// Flips the elements of a double.
+decl flip ((a, b) -> (b, a))
+def flip:
+  -> d
+  d first -> a
+  d second -> b
+  (b, a)
+
 // Folds elements of a vector right-associatively.
 decl foldr ([a] b (a b -> b) -> b)
 def foldr:
@@ -149,6 +157,15 @@ def replicate:
 decl rest ((a & b) -> b)
 def rest:
   __rest
+
+decl reverse ([a] -> [a])
+def reverse:
+  -> xs
+  if xs empty then:
+    []
+  else:
+    xs init reverse
+    xs last prepend
 
 decl second ((a & b & c) -> b)
 def second:
@@ -824,6 +841,11 @@ decl tail ([a] -> [a])
 def tail:
   __tail
 
+// Join a list of lines into a string.
+decl unlines ([[Char]] -> [Char])
+def unlines:
+  "\n" join
+
 // Wraps a value in a vector.
 decl vector (a -> [a])
 def vector:
@@ -843,3 +865,18 @@ def || :
 decl ~ (Int -> Int)
 def ~ :
   __not_int
+
+// Zip two lists together as pairs
+decl zip ([a] [b] -> [(a, b)])
+def zip:
+  \double zipWith
+
+// Zip two lists together with a function
+decl zipWith ([a] [b] (a b -> c) -> [c])
+def zipWith:
+  -> { as bs f }
+  if as empty  bs empty  || then:
+    []
+  else:
+    as tail bs tail f zipWith
+    as head bs head f apply21 prepend
