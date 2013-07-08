@@ -119,10 +119,6 @@ infer typedTerm = case typedTerm of
 
     Builtin.Close -> return $ [HandleType] :> []
 
-    Builtin.DecFloat -> unary FloatType
-
-    Builtin.DecInt -> unary IntType
-
     Builtin.DivFloat -> binary FloatType
 
     Builtin.DivInt -> binary IntType
@@ -152,19 +148,8 @@ infer typedTerm = case typedTerm of
     Builtin.GtFloat -> relational FloatType
     Builtin.GtInt -> relational IntType
 
-    Builtin.Head
-      -> (\ a -> [VectorType a] :> [a])
-      <$> freshVarM
-
-    Builtin.IncFloat -> unary FloatType
-    Builtin.IncInt -> unary IntType
-
     Builtin.Init
       -> (\ a -> [VectorType a] :> [VectorType a])
-      <$> freshVarM
-
-    Builtin.Last
-      -> (\ a -> [VectorType a] :> [a])
       <$> freshVarM
 
     Builtin.LeChar -> relational CharType

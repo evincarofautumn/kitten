@@ -25,8 +25,6 @@ data Builtin
   | Apply11
   | Apply21
   | Close
-  | DecFloat
-  | DecInt
   | DivFloat
   | DivInt
   | EqChar
@@ -42,11 +40,7 @@ data Builtin
   | GtChar
   | GtFloat
   | GtInt
-  | Head
-  | IncFloat
-  | IncInt
   | Init
-  | Last
   | LeChar
   | LeFloat
   | LeInt
@@ -116,8 +110,6 @@ fromStringTable =
   , (,) "__apply11"    Apply11
   , (,) "__apply21"    Apply21
   , (,) "__close"      Close
-  , (,) "__dec_float"  DecFloat
-  , (,) "__dec_int"    DecInt
   , (,) "__div_float"  DivFloat
   , (,) "__div_int"    DivInt
   , (,) "__eq_char"    EqChar
@@ -133,11 +125,7 @@ fromStringTable =
   , (,) "__gt_char"    GtChar
   , (,) "__gt_float"   GtFloat
   , (,) "__gt_int"     GtInt
-  , (,) "__head"       Head
-  , (,) "__inc_float"  IncFloat
-  , (,) "__inc_int"    IncInt
   , (,) "__init"       Init
-  , (,) "__last"       Last
   , (,) "__le_char"    LeChar
   , (,) "__le_float"   LeFloat
   , (,) "__le_int"     LeInt

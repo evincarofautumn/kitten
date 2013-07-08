@@ -120,9 +120,6 @@ interpretBuiltin builtin = case builtin of
     Handle a <- popData
     lift $ hClose a
 
-  Builtin.DecFloat -> floatToFloat pred
-  Builtin.DecInt -> intToInt pred
-
   Builtin.DivFloat -> floatsToFloat (/)
   Builtin.DivInt -> intsToInt div
 
@@ -158,20 +155,9 @@ interpretBuiltin builtin = case builtin of
   Builtin.GtFloat -> floatsToBool (>)
   Builtin.GtInt -> intsToBool (>)
 
-  Builtin.Head -> do
-    Vector a <- popData
-    pushData $ head a
-
-  Builtin.IncFloat -> floatToFloat succ
-  Builtin.IncInt -> intToInt succ
-
   Builtin.Init -> do
     Vector a <- popData
     pushData $ Vector (init a)
-
-  Builtin.Last -> do
-    Vector a <- popData
-    pushData $ last a
 
   Builtin.LeChar -> charsToBool (<=)
   Builtin.LeFloat -> floatsToBool (<=)
