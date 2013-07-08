@@ -452,6 +452,10 @@ def id (a -> a):
   -> x
   x
 
+// An impure no-op, for casting a function to a procedure.
+def impure (=>):
+  __impure
+
 // Removes the last element of a vector.
 def init ([a] -> [a]):
   __init

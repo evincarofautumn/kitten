@@ -158,6 +158,8 @@ interpretBuiltin builtin = case builtin of
   Builtin.GtFloat -> floatsToBool (>)
   Builtin.GtInt -> intsToBool (>)
 
+  Builtin.Impure -> return ()
+
   Builtin.Init -> do
     Vector a <- popData
     pushData $ Vector (init a)

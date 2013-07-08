@@ -39,6 +39,7 @@ data Builtin
   | GetLine
   | GtFloat
   | GtInt
+  | Impure
   | Init
   | LeFloat
   | LeInt
@@ -121,6 +122,7 @@ fromStringTable =
   , (,) "__get_line"        GetLine
   , (,) "__gt_float"        GtFloat
   , (,) "__gt_int"          GtInt
+  , (,) "__impure"          Impure
   , (,) "__init"            Init
   , (,) "__le_float"        LeFloat
   , (,) "__le_int"          LeInt

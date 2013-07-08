@@ -152,6 +152,8 @@ infer typedTerm = case typedTerm of
     Builtin.GtFloat -> relational FloatType
     Builtin.GtInt -> relational IntType
 
+    Builtin.Impure -> return $ [] ==> []
+
     Builtin.Init
       -> (\ a -> [VectorType a] --> [VectorType a])
       <$> freshVarM
