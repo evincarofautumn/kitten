@@ -116,6 +116,10 @@ interpretBuiltin builtin = case builtin of
   Builtin.Apply11 -> apply
   Builtin.Apply21 -> apply
 
+  Builtin.CharToInt -> do
+    Char a <- popData
+    pushData $ Int (fromEnum a)
+
   Builtin.Close -> do
     Handle a <- popData
     lift $ hClose a
@@ -123,7 +127,6 @@ interpretBuiltin builtin = case builtin of
   Builtin.DivFloat -> floatsToFloat (/)
   Builtin.DivInt -> intsToInt div
 
-  Builtin.EqChar -> charsToBool (==)
   Builtin.EqFloat -> floatsToBool (==)
   Builtin.EqInt -> intsToBool (==)
 
@@ -137,7 +140,6 @@ interpretBuiltin builtin = case builtin of
     Pair a _ <- popData
     pushData a
 
-  Builtin.GeChar -> charsToBool (>=)
   Builtin.GeFloat -> floatsToBool (>=)
   Builtin.GeInt -> intsToBool (>=)
 
@@ -151,7 +153,6 @@ interpretBuiltin builtin = case builtin of
     line <- lift $ hGetLine a
     pushData $ Vector (charsFromString line)
 
-  Builtin.GtChar -> charsToBool (>)
   Builtin.GtFloat -> floatsToBool (>)
   Builtin.GtInt -> intsToBool (>)
 
@@ -159,7 +160,6 @@ interpretBuiltin builtin = case builtin of
     Vector a <- popData
     pushData $ Vector (init a)
 
-  Builtin.LeChar -> charsToBool (<=)
   Builtin.LeFloat -> floatsToBool (<=)
   Builtin.LeInt -> intsToBool (<=)
 
@@ -167,7 +167,6 @@ interpretBuiltin builtin = case builtin of
     Vector a <- popData
     pushData . Int $ length a
 
-  Builtin.LtChar -> charsToBool (<)
   Builtin.LtFloat -> floatsToBool (<)
   Builtin.LtInt -> intsToBool (<)
 
@@ -177,7 +176,6 @@ interpretBuiltin builtin = case builtin of
   Builtin.MulFloat -> floatsToFloat (*)
   Builtin.MulInt -> intsToInt (*)
 
-  Builtin.NeChar -> charsToBool (/=)
   Builtin.NeFloat -> floatsToBool (/=)
   Builtin.NeInt -> intsToBool (/=)
 
@@ -264,12 +262,6 @@ interpretBuiltin builtin = case builtin of
   boolsToBool f = do
     Bool b <- popData
     Bool a <- popData
-    pushData $ Bool (f a b)
-
-  charsToBool :: (Char -> Char -> Bool) -> Interpret
-  charsToBool f = do
-    Char b <- popData
-    Char a <- popData
     pushData $ Bool (f a b)
 
   floatToFloat :: (Double -> Double) -> Interpret

@@ -18,6 +18,10 @@ def cartesianWith ([a] [b] (a b -> c) -> [c]):
   ys xs length replicate concat -> ys2
   xs2 ys2 fn zipWith
 
+// Converts a character to an integer code point.
+def charToInt (Char -> Int):
+  __char_to_int
+
 // Concatenates a vector of vectors.
 def concat ([[a]] -> [a]):
   [] {cat} fold
@@ -375,7 +379,7 @@ def empty ([a] -> Bool):
 
 // Character equality.
 def eqc (Char Char -> Bool):
-  __eq_char
+  {charToInt} on =
 
 // String equality.
 def eqcv ([Char] [Char] -> Bool):
@@ -410,7 +414,7 @@ def exit (Int ->):
 
 // Character greater than or equal.
 def gec (Char Char -> Bool):
-  __ge_char
+  {charToInt} on >=
 
 // Gets an element of a vector.
 def get ([a] Int -> a):
@@ -422,7 +426,7 @@ def getLine (-> [Char]):
 
 // Character greater than.
 def gtc (Char Char -> Bool):
-  __gt_char
+  {charToInt} on >
 
 // Closes a handle.
 def handleClose (Handle ->):
@@ -464,7 +468,7 @@ def last ([a] -> a):
 
 // Character less than or equal.
 def lec (Char Char -> Bool):
-  __le_char
+  {charToInt} on <=
 
 // Gets the length of a vector.
 def length ([a] -> Int):
@@ -472,7 +476,7 @@ def length ([a] -> Int):
 
 // Character less than.
 def ltc (Char Char -> Bool):
-  __lt_char
+  {charToInt} on <
 
 // Maps a function over a vector and concatenates the results.
 def mapConcat ([a] (a -> [b]) -> [b]):
@@ -498,7 +502,7 @@ def min3 (Int Int Int -> Int):
 
 // Character inequality.
 def nec (Char Char -> Bool):
-  __ne_char
+  {charToInt} on !=
 
 // Floating-point negation.
 def negf (Float -> Float):
@@ -519,6 +523,11 @@ def oddf (Float -> Bool):
 // Whether an integer is odd.
 def oddi (Int -> Bool):
   eveni !
+
+// Apply a unary function to two values.
+def on (a a (a -> b) -> b b):
+  -> { x y f }
+  x f apply11 y f apply11
 
 // Opens a file for input.
 def openInput ([Char] -> Handle):
