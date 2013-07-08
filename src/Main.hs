@@ -3,6 +3,7 @@
 module Main where
 
 import Control.Monad
+import Data.List
 import System.Console.CmdArgs.Explicit
 import System.Directory
 import System.Exit
@@ -36,10 +37,14 @@ main :: IO ()
 main = do
 
   arguments <- parseArguments
+  currentDirectory <- getCurrentDirectory
+  preludes <- liftM nub
+    . mapM (canonicalizePath . (</> "prelude.ktn"))
+    $ "."
+    : "./lib"
+    : libraryDirectories arguments
+    ++ [currentDirectory, currentDirectory </> "lib"]
 
-  let
-    preludes = map (</> "prelude.ktn")
-      $ "." : libraryDirectories arguments
   existingPreludes <- filterM doesFileExist preludes
 
   prelude <- if enableImplicitPrelude arguments
