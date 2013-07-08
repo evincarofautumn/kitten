@@ -76,9 +76,7 @@ instance Show Type where
     FunctionType r1 r2 purity
       -> showParen True
       $ showString (showWords r1)
-      . showString (case purity of
-        Pure -> " -> "
-        Impure -> " => ")
+      . shows purity
       . showString (showWords r2)
     BoolType -> showString "Bool"
     CharType -> showString "Char"

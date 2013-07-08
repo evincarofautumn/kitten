@@ -34,9 +34,7 @@ instance Show Type where
     Function a b purity -> concat
       [ "("
       , showWords a
-      , case purity of
-        Pure -> " -> "
-        Impure -> " => "
+      , show purity
       , showWords b
       , ")"
       ]
