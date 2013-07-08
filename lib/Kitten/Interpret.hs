@@ -245,6 +245,8 @@ interpretBuiltin builtin = case builtin of
     Vector a <- popData
     pushData $ Vector (tail a)
 
+  Builtin.UnsafePurify11 -> return ()
+
   Builtin.Vector -> do
     a <- popData
     pushData $ Vector [a]

@@ -222,6 +222,10 @@ infer typedTerm = case typedTerm of
       -> (\ a -> [VectorType a] --> [VectorType a])
       <$> freshVarM
 
+    Builtin.UnsafePurify11
+      -> (\ a b -> [[a] ==> [b]] --> [[a] --> [b]])
+      <$> freshVarM <*> freshVarM
+
     Builtin.Vector
       -> (\ a -> [a] --> [VectorType a])
       <$> freshVarM

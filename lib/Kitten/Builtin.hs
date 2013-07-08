@@ -71,6 +71,7 @@ data Builtin
   | Stdin
   | Stdout
   | Tail
+  | UnsafePurify11
   | Vector
   | XorBool
   | XorInt
@@ -96,65 +97,66 @@ names = map fst fromStringTable
 
 fromStringTable :: [(String, Builtin)]
 fromStringTable =
-  [ (,) "__add_float"   AddFloat
-  , (,) "__add_int"     AddInt
-  , (,) "__add_vector"  AddVector
-  , (,) "__and_bool"    AndBool
-  , (,) "__and_int"     AndInt
-  , (,) "__apply01"     Apply01
-  , (,) "__apply11"     Apply11
-  , (,) "__apply21"     Apply21
-  , (,) "__call01"      Call01
-  , (,) "__call10"      Call10
-  , (,) "__char_to_int" CharToInt
-  , (,) "__close"       Close
-  , (,) "__div_float"   DivFloat
-  , (,) "__div_int"     DivInt
-  , (,) "__eq_float"    EqFloat
-  , (,) "__eq_int"      EqInt
-  , (,) "__exit"        Exit
-  , (,) "__first"       First
-  , (,) "__ge_float"    GeFloat
-  , (,) "__ge_int"      GeInt
-  , (,) "__get"         Get
-  , (,) "__get_line"    GetLine
-  , (,) "__gt_float"    GtFloat
-  , (,) "__gt_int"      GtInt
-  , (,) "__init"        Init
-  , (,) "__le_float"    LeFloat
-  , (,) "__le_int"      LeInt
-  , (,) "__length"      Length
-  , (,) "__lt_float"    LtFloat
-  , (,) "__lt_int"      LtInt
-  , (,) "__mod_float"   ModFloat
-  , (,) "__mod_int"     ModInt
-  , (,) "__mul_float"   MulFloat
-  , (,) "__mul_int"     MulInt
-  , (,) "__ne_float"    NeFloat
-  , (,) "__ne_int"      NeInt
-  , (,) "__neg_float"   NegFloat
-  , (,) "__neg_int"     NegInt
-  , (,) "__not_bool"    NotBool
-  , (,) "__not_int"     NotInt
-  , (,) "__open_in"     OpenIn
-  , (,) "__open_out"    OpenOut
-  , (,) "__or_bool"     OrBool
-  , (,) "__or_int"      OrInt
-  , (,) "__pair"        Pair
-  , (,) "__print"       Print
-  , (,) "__rest"        Rest
-  , (,) "__set"         Set
-  , (,) "__show_float"  ShowFloat
-  , (,) "__show_int"    ShowInt
-  , (,) "__sub_float"   SubFloat
-  , (,) "__sub_int"     SubInt
-  , (,) "__stderr"      Stderr
-  , (,) "__stdin"       Stdin
-  , (,) "__stdout"      Stdout
-  , (,) "__tail"        Tail
-  , (,) "__vector"      Vector
-  , (,) "__xor_bool"    XorBool
-  , (,) "__xor_int"     XorInt
+  [ (,) "__add_float"       AddFloat
+  , (,) "__add_int"         AddInt
+  , (,) "__add_vector"      AddVector
+  , (,) "__and_bool"        AndBool
+  , (,) "__and_int"         AndInt
+  , (,) "__apply01"         Apply01
+  , (,) "__apply11"         Apply11
+  , (,) "__apply21"         Apply21
+  , (,) "__call01"          Call01
+  , (,) "__call10"          Call10
+  , (,) "__char_to_int"     CharToInt
+  , (,) "__close"           Close
+  , (,) "__div_float"       DivFloat
+  , (,) "__div_int"         DivInt
+  , (,) "__eq_float"        EqFloat
+  , (,) "__eq_int"          EqInt
+  , (,) "__exit"            Exit
+  , (,) "__first"           First
+  , (,) "__ge_float"        GeFloat
+  , (,) "__ge_int"          GeInt
+  , (,) "__get"             Get
+  , (,) "__get_line"        GetLine
+  , (,) "__gt_float"        GtFloat
+  , (,) "__gt_int"          GtInt
+  , (,) "__init"            Init
+  , (,) "__le_float"        LeFloat
+  , (,) "__le_int"          LeInt
+  , (,) "__length"          Length
+  , (,) "__lt_float"        LtFloat
+  , (,) "__lt_int"          LtInt
+  , (,) "__mod_float"       ModFloat
+  , (,) "__mod_int"         ModInt
+  , (,) "__mul_float"       MulFloat
+  , (,) "__mul_int"         MulInt
+  , (,) "__ne_float"        NeFloat
+  , (,) "__ne_int"          NeInt
+  , (,) "__neg_float"       NegFloat
+  , (,) "__neg_int"         NegInt
+  , (,) "__not_bool"        NotBool
+  , (,) "__not_int"         NotInt
+  , (,) "__open_in"         OpenIn
+  , (,) "__open_out"        OpenOut
+  , (,) "__or_bool"         OrBool
+  , (,) "__or_int"          OrInt
+  , (,) "__pair"            Pair
+  , (,) "__print"           Print
+  , (,) "__rest"            Rest
+  , (,) "__set"             Set
+  , (,) "__show_float"      ShowFloat
+  , (,) "__show_int"        ShowInt
+  , (,) "__sub_float"       SubFloat
+  , (,) "__sub_int"         SubInt
+  , (,) "__stderr"          Stderr
+  , (,) "__stdin"           Stdin
+  , (,) "__stdout"          Stdout
+  , (,) "__tail"            Tail
+  , (,) "__unsafe_purify11" UnsafePurify11
+  , (,) "__vector"          Vector
+  , (,) "__xor_bool"        XorBool
+  , (,) "__xor_int"         XorInt
   ]
 
 toStringTable :: [(Builtin, String)]

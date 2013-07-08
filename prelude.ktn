@@ -718,6 +718,15 @@ def tail ([a] -> [a]):
 def unlines ([[Char]] -> [Char]):
   "\n" join
 
+// Unsafely calls a unary procedure with one result.
+def unsafeCall11 (a (a => b) -> b):
+  unsafePurify11 apply11
+
+// Unsafely casts a unary procedure with one result into a
+// similarly typed function.
+def unsafePurify11 ((a => b) -> (a -> b)):
+  __unsafe_purify11
+
 // Wraps a value in a vector.
 def vector (a -> [a]):
   __vector
