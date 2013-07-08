@@ -41,7 +41,7 @@ main = do
   preludes <- liftM nub
     . mapM (canonicalizePath . (</> "prelude.ktn"))
     $ "."
-    : "./lib"
+    : ("." </> "lib")
     : libraryDirectories arguments
     ++ [currentDirectory, currentDirectory </> "lib"]
 
