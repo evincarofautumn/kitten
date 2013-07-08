@@ -19,6 +19,7 @@ import Kitten.Infer.Scheme
 import Kitten.Infer.Type
 import Kitten.Infer.Unify
 import Kitten.Name
+import Kitten.Purity
 import Kitten.Resolved (Resolved)
 import Kitten.Type
 import Kitten.Typed
@@ -87,7 +88,7 @@ infer typedTerm = case typedTerm of
   Builtin name loc -> withLocation loc $ case name of
 
     Builtin.AddVector
-      -> (\ a -> [VectorType a, VectorType a] :> [VectorType a])
+      -> (\ a -> [VectorType a, VectorType a] --> [VectorType a])
       <$> freshVarM
 
     Builtin.AddFloat -> binary FloatType
@@ -99,27 +100,31 @@ infer typedTerm = case typedTerm of
     Builtin.AndInt -> binary IntType
 
     Builtin.Apply01
-      -> (\ a -> [[] :> [a]] :> [a])
-      <$> freshVarM
-
-    Builtin.Apply10
-      -> (\ a -> [a, [a] :> []] :> [])
+      -> (\ a -> [[] --> [a]] --> [a])
       <$> freshVarM
 
     Builtin.Apply11
-      -> (\ a b -> [a, [a] :> [b]] :> [b])
+      -> (\ a b -> [a, [a] --> [b]] --> [b])
       <$> freshVarM
       <*> freshVarM
 
     Builtin.Apply21
-      -> (\ a b c -> [a, b, [a, b] :> [c]] :> [c])
+      -> (\ a b c -> [a, b, [a, b] --> [c]] --> [c])
       <$> freshVarM
       <*> freshVarM
       <*> freshVarM
 
-    Builtin.CharToInt -> return $ [CharType] :> [IntType]
+    Builtin.Call01
+      -> (\ a -> [[] ==> [a]] ==> [a])
+      <$> freshVarM
 
-    Builtin.Close -> return $ [HandleType] :> []
+    Builtin.Call10
+      -> (\ a -> [a, [a] ==> []] ==> [])
+      <$> freshVarM
+
+    Builtin.CharToInt -> return $ [CharType] --> [IntType]
+
+    Builtin.Close -> return $ [HandleType] ==> []
 
     Builtin.DivFloat -> binary FloatType
 
@@ -128,34 +133,34 @@ infer typedTerm = case typedTerm of
     Builtin.EqFloat -> relational FloatType
     Builtin.EqInt -> relational IntType
 
-    Builtin.Exit -> return $ [IntType] :> []
+    Builtin.Exit -> return $ [IntType] ==> []
 
     Builtin.First
-      -> (\ a b -> [a :& b] :> [a])
+      -> (\ a b -> [a :& b] --> [a])
       <$> freshVarM <*> freshVarM
 
     Builtin.GeFloat -> relational FloatType
     Builtin.GeInt -> relational IntType
 
     Builtin.Get
-      -> (\ a -> [VectorType a, IntType] :> [a])
+      -> (\ a -> [VectorType a, IntType] --> [a])
       <$> freshVarM
 
     Builtin.GetLine
-      -> return $ [HandleType] :> [VectorType CharType]
+      -> return $ [HandleType] ==> [VectorType CharType]
 
     Builtin.GtFloat -> relational FloatType
     Builtin.GtInt -> relational IntType
 
     Builtin.Init
-      -> (\ a -> [VectorType a] :> [VectorType a])
+      -> (\ a -> [VectorType a] --> [VectorType a])
       <$> freshVarM
 
     Builtin.LeFloat -> relational FloatType
     Builtin.LeInt -> relational IntType
 
     Builtin.Length
-      -> (\ a -> [VectorType a] :> [IntType])
+      -> (\ a -> [VectorType a] --> [IntType])
       <$> freshVarM
 
     Builtin.LtFloat -> relational FloatType
@@ -177,48 +182,48 @@ infer typedTerm = case typedTerm of
     Builtin.NotInt -> unary IntType
 
     Builtin.OpenIn
-      -> return $ [VectorType CharType] :> [HandleType]
+      -> return $ [VectorType CharType] ==> [HandleType]
 
     Builtin.OpenOut
-      -> return $ [VectorType CharType] :> [HandleType]
+      -> return $ [VectorType CharType] ==> [HandleType]
 
     Builtin.OrBool -> binary BoolType
     Builtin.OrInt -> binary IntType
 
     Builtin.Rest
-      -> (\ a b -> [a :& b] :> [b])
+      -> (\ a b -> [a :& b] --> [b])
       <$> freshVarM <*> freshVarM
 
     Builtin.Set
-      -> (\ a -> [VectorType a, a, IntType] :> [VectorType a])
+      -> (\ a -> [VectorType a, a, IntType] --> [VectorType a])
       <$> freshVarM
 
     Builtin.ShowFloat
-      -> return $ [FloatType] :> [VectorType CharType]
+      -> return $ [FloatType] --> [VectorType CharType]
 
     Builtin.ShowInt
-      -> return $ [IntType] :> [VectorType CharType]
+      -> return $ [IntType] --> [VectorType CharType]
 
-    Builtin.Stderr -> return $ [] :> [HandleType]
-    Builtin.Stdin -> return $ [] :> [HandleType]
-    Builtin.Stdout -> return $ [] :> [HandleType]
+    Builtin.Stderr -> return $ [] --> [HandleType]
+    Builtin.Stdin -> return $ [] --> [HandleType]
+    Builtin.Stdout -> return $ [] --> [HandleType]
 
     Builtin.SubFloat -> binary FloatType
     Builtin.SubInt -> binary IntType
 
     Builtin.Pair
-      -> (\ a b -> [a, b] :> [a :& b])
+      -> (\ a b -> [a, b] --> [a :& b])
       <$> freshVarM <*> freshVarM
 
     Builtin.Print
-      -> return $ [VectorType CharType, HandleType] :> []
+      -> return $ [VectorType CharType, HandleType] ==> []
 
     Builtin.Tail
-      -> (\ a -> [VectorType a] :> [VectorType a])
+      -> (\ a -> [VectorType a] --> [VectorType a])
       <$> freshVarM
 
     Builtin.Vector
-      -> (\ a -> [a] :> [VectorType a])
+      -> (\ a -> [a] --> [VectorType a])
       <$> freshVarM
 
     Builtin.XorBool -> binary BoolType
@@ -231,42 +236,41 @@ infer typedTerm = case typedTerm of
   Compose terms -> do
     types <- mapM infer terms
     foldM
-      (\ (a :> b) (c :> d) -> inferCompose a b c d)
-      ([] :> [])
+      (\ (FunctionType a b p1) (FunctionType c d p2)
+        -> inferCompose a b c d (p1 <=> p2))
+      ([] --> [])
       types
 
   If true false loc -> withLocation loc $ do
-    (a :> b) <- infer true
-    (c :> d) <- infer false
+    FunctionType a b p1 <- infer true
+    FunctionType c d p2 <- infer false
     unifyRowM a c
     unifyRowM b d
-    return (a ++ [BoolType] :> b)
+    return (FunctionType (a ++ [BoolType]) b (p1 <=> p2))
 
   PairTerm a b loc -> withLocation loc $ do
-    a' <- infer a
-    a'' <- fromConstant a'
-    b' <- infer b
-    b'' <- fromConstant b'
-    return $ [] :> [a'' :& b'']
+    a' <- fromConstant =<< infer a
+    b' <- fromConstant =<< infer b
+    return $ [] --> [a' :& b']
 
   Push value loc -> withLocation loc $ do
     a <- inferValue value
-    return $ [] :> [a]
+    return $ [] --> [a]
 
   Scoped term loc -> withLocation loc $ do
     a <- freshVarM
-    (b :> c) <- local a $ infer term
-    return $ b ++ [a] :> c
+    FunctionType b c p <- local a $ infer term
+    return $ FunctionType (b ++ [a]) c p
 
   VectorTerm values loc -> withLocation loc $ do
     values' <- mapM infer values
-    values'' <- unifyEach values'
-    values''' <- fromConstant values''
-    return $ [] :> [VectorType values''']
+    values'' <- fromConstant =<< unifyEach values'
+    return $ FunctionType [] [VectorType values'']
+      (if any isImpure values' then Impure else Pure)
 
 fromConstant :: Type -> Inferred Type
-fromConstant ([] :> [a]) = return a
-fromConstant ([] :> xs) = do
+fromConstant (FunctionType [] [a] _) = return a
+fromConstant (FunctionType [] xs _) = do
   here <- getsEnv envLocation
   Inferred . throwMany . (:[]) . TypeError here $ unwords
     [ "expected one value but got"
@@ -275,13 +279,13 @@ fromConstant ([] :> xs) = do
 fromConstant a = return a
 
 binary :: Type -> Inferred Type
-binary a = return $ [a, a] :> [a]
+binary a = return $ [a, a] --> [a]
 
 relational :: Type -> Inferred Type
-relational a = return $ [a, a] :> [BoolType]
+relational a = return $ [a, a] --> [BoolType]
 
 unary :: Type -> Inferred Type
-unary a = return $ [a] :> [a]
+unary a = return $ [a] --> [a]
 
 local :: Type -> Inferred a -> Inferred a
 local type_ action = do
@@ -360,14 +364,20 @@ unifyEach (x : y : zs) = unifyM x y >> unifyEach (y : zs)
 unifyEach [x] = return x
 unifyEach [] = freshVarM
 
-inferCompose :: [Type] -> [Type] -> [Type] -> [Type] -> Inferred Type
-inferCompose in1 out1 in2 out2 = let
+inferCompose
+  :: [Type]
+  -> [Type]
+  -> [Type]
+  -> [Type]
+  -> Purity
+  -> Inferred Type
+inferCompose in1 out1 in2 out2 purity = let
   (pairs, surplus, deficit) = zipRemainder (reverse out1) (reverse in2)
   consumption = reverse deficit ++ in1
   production = reverse surplus ++ out2
   in do
     mapM_ (uncurry unifyM_) pairs
-    return $ consumption :> production
+    return $ FunctionType consumption production purity
 
 zipRemainder :: [a] -> [b] -> ([(a, b)], [a], [b])
 zipRemainder = zipRemainder' []

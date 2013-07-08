@@ -33,7 +33,9 @@ unify' type1 type2 env = case (type1, type2) of
 
   (a :& b, c :& d) -> unify b d env >>= unify a c
 
-  (a :> b, c :> d) -> unifyRow b d env >>= unifyRow a c
+  (FunctionType a b p1, FunctionType c d p2)
+    | p1 == p2
+    -> unifyRow b d env >>= unifyRow a c
 
   (TypeVar var, type_) -> unifyVar var type_ env
   (type_, TypeVar var) -> unifyVar var type_ env
@@ -51,7 +53,8 @@ type1 <: type2 = case (type1, type2) of
   _ | type1 == type2 -> True
   (VectorType a, VectorType b) -> a <: b
   (a :& b, c :& d) -> b <: d && a <: c
-  (a :> b, c :> d)
+  (FunctionType a b p1, FunctionType c d p2)
+    | p1 == p2
     -> let xs <:... ys = all (uncurry (<:)) (zip xs ys)
     in b <:... d && a <:... c
   (TypeVar{}, TypeVar{}) -> False

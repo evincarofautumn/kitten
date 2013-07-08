@@ -138,11 +138,14 @@ def mapFrom ([a] (a -> a) Int -> [a]):
     vec function offset modify
     function offset++ mapFrom
 
-// Maps an impure function over each element of a vector.
-def each ([a] (a ->) ->):
-  -> f
-  { dup f apply10 } map
-  drop
+// Maps a procedure over each element of a vector.
+def each ([a] (a =>) =>):
+  -> { xs f }
+  if xs empty then:
+    pass
+  else:
+    xs head f call10
+    xs tail f each
 
 // Produces a vector with some number of copies of a value.
 def replicate (a Int -> [a]):
@@ -329,16 +332,20 @@ def any ([a] (a -> Bool) -> Bool):
 def apply01 ((-> a) -> a):
   __apply01
 
-// Applies a unary function with no results.
-def apply10 (a (a ->) ->):
-  __apply10
-
 // Applies a unary function with one result.
 def apply11 (a (a -> b) -> b):
   __apply11
 
 def apply21 (a b (a b -> c) -> c):
   __apply21
+
+// Applies a nullary procedure with one result.
+def call01 ((=> a) => a):
+  __call01
+
+// Applies a unary procedure with no results.
+def call10 (a (a =>) =>):
+  __call10
 
 // Concatenates two vectors.
 def cat ([a] [a] -> [a]):
@@ -409,7 +416,7 @@ def evenf (Float -> Bool):
 def eveni (Int -> Bool):
   2 % 0 =
 
-def exit (Int ->):
+def exit (Int =>):
   __exit
 
 // Character greater than or equal.
@@ -421,7 +428,7 @@ def get ([a] Int -> a):
   __get
 
 // Reads a line from standard input.
-def getLine (-> [Char]):
+def getLine (=> [Char]):
   stdin __get_line
 
 // Character greater than.
@@ -429,15 +436,15 @@ def gtc (Char Char -> Bool):
   {charToInt} on >
 
 // Closes a handle.
-def handleClose (Handle ->):
+def handleClose (Handle =>):
   __close
 
 // Reads a line from a handle.
-def handleGetLine (Handle -> [Char]):
+def handleGetLine (Handle => [Char]):
   __get_line
 
 // Writes a string to a handle.
-def handlePrint ([Char] Handle ->):
+def handlePrint ([Char] Handle =>):
   __print
 
 // Identity function.
@@ -513,7 +520,7 @@ def negi (Int -> Int):
   __neg_int
 
 // Writes a newline to standard output.
-def newline (->):
+def newline (=>):
   "\n" print
 
 // Whether a floating-point number is odd.
@@ -530,11 +537,11 @@ def on (a a (a -> b) -> b b):
   x f apply11 y f apply11
 
 // Opens a file for input.
-def openInput ([Char] -> Handle):
+def openInput ([Char] => Handle):
   __open_in
 
 // Opens a file for output.
-def openOutput ([Char] -> Handle):
+def openOutput ([Char] => Handle):
   __open_out
 
 // Whether any element of a vector is true.
@@ -564,35 +571,35 @@ def prependToAll ([a] a -> [a]):
     sep prepend
 
 // Writes a string to standard output.
-def print ([Char] ->):
+def print ([Char] =>):
   stdout __print
 
 // Prints a Boolean.
-def printb (Bool ->):
+def printb (Bool =>):
   showb print
 
 // Prints a Boolean vector.
-def printbv ([Bool] ->):
+def printbv ([Bool] =>):
   showbv print
 
 // Prints a string vector.
-def printcvv ([[Char]] ->):
+def printcvv ([[Char]] =>):
   showcvv print
 
 // Prints a floating-point number.
-def printf (Float ->):
+def printf (Float =>):
   showf print
 
 // Prints a floating-point vector.
-def printfv ([Float] ->):
+def printfv ([Float] =>):
   showfv print
 
 // Prints an integer.
-def printi (Int ->):
+def printi (Int =>):
   showi print
 
 // Prints an integer vector.
-def printiv ([Int] ->):
+def printiv ([Int] =>):
   showiv print
 
 // The product of a vector of floating-point numbers.
@@ -604,35 +611,35 @@ def producti ([Int] -> Int):
   1 {*} fold
 
 // Prints a string followed by a newline.
-def say ([Char] ->):
+def say ([Char] =>):
   print newline
 
 // Says a Boolean.
-def sayb (Bool ->):
+def sayb (Bool =>):
   printb newline
 
 // Says a Boolean vector.
-def saybv ([Bool] ->):
+def saybv ([Bool] =>):
   printbv newline
 
 // Says a string vector.
-def saycvv ([[Char]] ->):
+def saycvv ([[Char]] =>):
   printcvv newline
 
 // Says a floating-point number.
-def sayf (Float ->):
+def sayf (Float =>):
   printf newline
 
 // Says a floating-point vector.
-def sayfv ([Float] ->):
+def sayfv ([Float] =>):
   printfv newline
 
 // Says an integer.
-def sayi (Int ->):
+def sayi (Int =>):
   printi newline
 
 // Says an integer vector.
-def sayiv ([Int] ->):
+def sayiv ([Int] =>):
   printiv newline
 
 // Sets the value at an index in a vector.
@@ -674,7 +681,7 @@ def showv ([a] (a -> [Char]) -> [Char]):
   "[" v f map ", " join "]" cat cat
 
 // Prints a space to standard output.
-def space (->):
+def space (=>):
   " " print
 
 // The standard error handle.

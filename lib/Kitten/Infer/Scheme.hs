@@ -60,7 +60,7 @@ free = nub . free'
   free' :: Type -> [Name]
   free' type_ = case type_ of
     a :& b -> free a ++ free b
-    a :> b -> concatMap free' a ++ concatMap free' b
+    FunctionType a b _ -> concatMap free' a ++ concatMap free' b
     BoolType -> []
     CharType -> []
     FloatType -> []
@@ -89,7 +89,9 @@ occurs = (((> 0) .) .) . occurrences
 occurrences :: Name -> Env -> Type -> Int
 occurrences name env type_ = case type_ of
   a :& b -> occurrences name env a + occurrences name env b
-  a :> b -> sum (map (occurrences name env) a) + sum (map (occurrences name env) b)
+  FunctionType a b _
+    -> sum (map (occurrences name env) a)
+    + sum (map (occurrences name env) b)
   BoolType -> 0
   CharType -> 0
   FloatType -> 0
@@ -160,7 +162,7 @@ subTerm env typed = case typed of
 
 sub :: Env -> Type -> Type
 sub env type_ = case type_ of
-  a :> b -> map (sub env) a :> map (sub env) b
+  FunctionType a b p -> FunctionType (map (sub env) a) (map (sub env) b) p
   a :& b -> sub env a :& sub env b
   BoolType{} -> type_
   CharType{} -> type_

@@ -52,6 +52,7 @@ library
     Kitten.Parse.Primitive,
     Kitten.Parse.Type,
     Kitten.Parsec,
+    Kitten.Purity,
     Kitten.Resolve,
     Kitten.Resolve.Monad,
     Kitten.Resolved,

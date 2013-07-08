@@ -115,9 +115,10 @@ fromAnnoType startIndex annoType
   fromAnnoType' :: Anno.Type -> State [String] Type
   fromAnnoType' type_ = case type_ of
 
-    a Anno.:> b -> (:>)
+    Anno.Function a b p -> FunctionType
       <$> mapM fromAnnoType' a
       <*> mapM fromAnnoType' b
+      <*> pure p
 
     Anno.Bool -> return BoolType
 

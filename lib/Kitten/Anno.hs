@@ -7,6 +7,7 @@ module Kitten.Anno
   ) where
 
 import Kitten.Location
+import Kitten.Purity
 import Kitten.Util.Show
 
 data Anno = Anno Type Location
@@ -16,7 +17,7 @@ instance Show Anno where
   show (Anno type_ _) = show type_
 
 data Type
-  = [Type] :> [Type]
+  = Function [Type] [Type] Purity
   | Bool
   | Char
   | Float
@@ -30,10 +31,12 @@ data Type
 
 instance Show Type where
   show type_ = case type_ of
-    a :> b -> concat
+    Function a b purity -> concat
       [ "("
       , showWords a
-      , " -> "
+      , case purity of
+        Pure -> " -> "
+        Impure -> " => "
       , showWords b
       , ")"
       ]

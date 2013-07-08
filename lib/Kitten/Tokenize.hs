@@ -53,7 +53,8 @@ token = (<?> "token") . located $ choice
   , VectorEnd <$ char ']'
   , Text <$> (char '"' *> text <* char '"')
   , try number
-  , try $ Arrow <$ string "->"
+  , try $ Arrow <$ string "->" <* notFollowedBy symbolCharacter
+  , try $ FatArrow <$ string "=>" <* notFollowedBy symbolCharacter
   , word
   ]
   where
@@ -113,7 +114,10 @@ token = (<?> "token") . located $ choice
       <*> many (letter <|> digit <|> char '_')
 
     symbolic :: Parser String
-    symbolic = many1 $ oneOf "!#$%&*+-./;<=>?@\\^|~"
+    symbolic = many1 symbolCharacter
+
+  symbolCharacter :: Parser Char
+  symbolCharacter = oneOf "!#$%&*+-./;<=>?@\\^|~"
 
 silence :: Parser ()
 silence = skipMany $ comment <|> whitespace

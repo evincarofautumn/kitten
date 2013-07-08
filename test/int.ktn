@@ -4,15 +4,15 @@ def unary (-> Int):
 def binary (-> Int Int):
   1 2
 
-def ii ((Int -> Int) ->):
+def ii ((Int -> Int) =>):
   -> f
   unary f apply11 sayi
 
-def iib ((Int Int -> Bool) ->):
+def iib ((Int Int -> Bool) =>):
   -> f
   binary f apply21 sayb
 
-def iii ((Int Int -> Int) ->):
+def iii ((Int Int -> Int) =>):
   -> f
   binary f apply21 sayi
 

@@ -1,6 +1,10 @@
 module Kitten.Type
   ( Scheme(..)
   , Type(..)
+  , (-->)
+  , (==>)
+  , isImpure
+  , isPure
   , mono
   ) where
 
@@ -10,11 +14,12 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 
 import Kitten.Name
+import Kitten.Purity
 import Kitten.Util.Show
 
 data Type
   = Type :& Type
-  | [Type] :> [Type]
+  | FunctionType [Type] [Type] Purity
   | BoolType
   | CharType
   | FloatType
@@ -27,7 +32,21 @@ data Type
   | VectorType Type
 
 infixr 5 :&
-infix 4 :>
+infix 4 -->
+infix 4 ==>
+
+(-->) :: [Type] -> [Type] -> Type
+a --> b = FunctionType a b Pure
+
+(==>) :: [Type] -> [Type] -> Type
+a ==> b = FunctionType a b Impure
+
+isImpure :: Type -> Bool
+isImpure = not . isPure
+
+isPure :: Type -> Bool
+isPure (FunctionType _ _ Impure) = False
+isPure _ = True
 
 data Scheme
   = Forall (Set Name) (Type)
@@ -39,7 +58,7 @@ instance Eq Type where
   GeneratedType == GeneratedType = True
 
   (a :& b) == (c :& d) = (a, b) == (c, d)
-  (a :> b) == (c :> d) = (a, b) == (c, d)
+  FunctionType a b p1 == FunctionType c d p2 = (a, b, p1) == (c, d, p2)
   BoolType == BoolType = True
   CharType == CharType = True
   FloatType == FloatType = True
@@ -54,10 +73,12 @@ instance Show Type where
   showsPrec _ type_ = case type_ of
     t1 :& t2 -> showParen True
       $ shows t1 . showString " & " . shows t2
-    r1 :> r2
+    FunctionType r1 r2 purity
       -> showParen True
       $ showString (showWords r1)
-      . showString " -> "
+      . showString (case purity of
+        Pure -> " -> "
+        Impure -> " => ")
       . showString (showWords r2)
     BoolType -> showString "Bool"
     CharType -> showString "Char"

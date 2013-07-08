@@ -21,9 +21,10 @@ data Builtin
   | AndBool
   | AndInt
   | Apply01
-  | Apply10
   | Apply11
   | Apply21
+  | Call01
+  | Call10
   | CharToInt
   | Close
   | DivFloat
@@ -101,9 +102,10 @@ fromStringTable =
   , (,) "__and_bool"    AndBool
   , (,) "__and_int"     AndInt
   , (,) "__apply01"     Apply01
-  , (,) "__apply10"     Apply10
   , (,) "__apply11"     Apply11
   , (,) "__apply21"     Apply21
+  , (,) "__call01"      Call01
+  , (,) "__call10"      Call10
   , (,) "__char_to_int" CharToInt
   , (,) "__close"       Close
   , (,) "__div_float"   DivFloat

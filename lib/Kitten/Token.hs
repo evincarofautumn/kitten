@@ -21,6 +21,7 @@ data Token
   | Comma
   | Def
   | Else
+  | FatArrow
   | GroupBegin
   | GroupEnd
   | Float Double
@@ -51,6 +52,7 @@ instance Show Token where
     Comma -> ","
     Def -> "def"
     Else -> "else"
+    FatArrow -> "=>"
     GroupBegin -> "("
     GroupEnd -> ")"
     Float value -> show value
