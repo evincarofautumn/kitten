@@ -210,8 +210,6 @@ def loop ((=> Bool) =>):
   -> f
   if f call01 then:
     f loop
-  else:
-    pass
 
 def prompt_play_another (=> Bool):
   "Play another game? [yN] " print

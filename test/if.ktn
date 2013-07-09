@@ -1,0 +1,22 @@
+if true then:
+  "true"
+else:
+  "false"
+say
+
+if 2 2 = then:
+  "true" say
+
+if false then:
+  "false" say
+
+if 2 2 + 4 = then: "true" say
+
+def f (=>):
+  if 2 2 * 4 = then:
+    "true" say
+
+def g (->):
+  pass
+
+f

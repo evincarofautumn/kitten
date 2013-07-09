@@ -4,6 +4,7 @@ module Kitten.Parse
 
 import Control.Applicative
 import Control.Monad
+import Data.Maybe
 
 import qualified Text.Parsec as Parsec
 
@@ -71,7 +72,7 @@ term = locate $ choice
   if_ = If
     <$> (match Token.If *> many term)
     <*> (match Token.Then *> branch)
-    <*> (match Token.Else *> branch)
+    <*> (fromMaybe [] <$> optionMaybe (match Token.Else *> branch))
     <?> "if"
     where branch = block <|> list <$> locate if_
 

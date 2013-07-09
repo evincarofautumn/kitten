@@ -5,7 +5,6 @@ def bottles_of_beer (Int =>):
   x verse
   if x 1 > then:
     x-- bottles_of_beer
-  else {}
 
 def verse (Int =>):
   -> x
