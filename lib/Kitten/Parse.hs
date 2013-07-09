@@ -88,7 +88,7 @@ term = locate $ choice
         (reverse names)
     ]
 
-  -- pair :: [Value] -> Location -> Value
+  pair :: [[Term]] -> Location -> Term
   pair values loc
     = foldr (\ x y -> PairTerm x [y] loc) (Push (Unit loc) loc) values
 
