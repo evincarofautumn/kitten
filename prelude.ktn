@@ -181,8 +181,8 @@ def set2 ([[a]] a Int Int -> [[a]]):
 // Splits a vector into two parts at the given index.
 def splitAt ([a] Int -> [a] [a]):
   -> { xs n }
-  xs n toss
   xs n keep
+  xs n toss
 
 // Gets the third element of a tuple.
 def third ((a & b & c & d) -> c):
