@@ -1,0 +1,48 @@
+def test ([Int] [Int] [Int] [Int] =>):
+  -> { actualL actualR expectedL expectedR }
+  if
+    actualL expectedL {=} eqv !
+    actualR expectedR {=} eqv !
+    ||
+  then:
+    "Expected:" say
+      tab expectedL sayiv
+      tab expectedR sayiv
+    "But got:" say
+      tab actualL sayiv
+      tab actualR sayiv
+    1 __exit
+
+[] 0 splitAt
+[] []
+test
+
+[0] 0 splitAt
+[] [0]
+test
+
+[0] 1 splitAt
+[0] []
+test
+
+[0, 1] 0 splitAt
+[] [0, 1]
+test
+
+[0, 1] 1 splitAt
+[0] [1]
+test
+
+[0, 1] 2 splitAt
+[0, 1] []
+test
+
+[1, 2, 3, 4, 5] -> v
+
+v -1 splitAt
+[] v
+test
+
+v v length 2 / splitAt
+[1, 2] [3, 4, 5]
+test
