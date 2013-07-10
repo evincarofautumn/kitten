@@ -401,7 +401,9 @@ def equ (() () -> Bool):
 
 def eqv ([a] [a] (a a -> Bool) -> Bool):
   -> { xs ys eq }
-  if xs empty ys empty && then:
+  if xs length ys length != then:
+    false
+  else if xs empty ys empty && then:
     true
   else if xs head ys head eq apply21 then:
     xs tail ys tail eq eqv
