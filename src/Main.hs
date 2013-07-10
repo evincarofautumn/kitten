@@ -9,6 +9,7 @@ import System.Directory
 import System.Exit
 import System.FilePath
 import System.IO
+import System.IO.Error
 
 import Kitten.Compile (compile)
 import Kitten.Error (CompileError)
@@ -39,7 +40,9 @@ main = do
   arguments <- parseArguments
   currentDirectory <- getCurrentDirectory
   preludes <- liftM nub
-    . mapM (canonicalizePath . (</> "prelude.ktn"))
+    . mapM (\ path -> canonicalizePath (path </> "prelude.ktn")
+      `catchIOError` (\ e
+      -> if isDoesNotExistError e then return [] else ioError e))
     $ "."
     : ("." </> "lib")
     : libraryDirectories arguments
