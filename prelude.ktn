@@ -716,6 +716,10 @@ def swap (a b -> b a):
   -> { a b }
   b a
 
+// Prints a tab character to standard output.
+def tab (=>):
+  "\t" print
+
 // Removes the first element of a vector.
 def tail ([a] -> [a]):
   __tail
