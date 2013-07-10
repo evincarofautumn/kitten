@@ -1,0 +1,38 @@
+def test ([Int] [Int] =>):
+  -> { actual expected }
+  if actual expected {=} eqv ! then:
+    "Expected " print expected sayiv
+    "But got  " print actual sayiv
+    1 __exit
+
+0 0 rangeUntil
+[]
+test
+
+0 1 rangeUntil
+[0]
+test
+
+-1 1 rangeUntil
+[-1, 0]
+test
+
+0 0 rangeTo
+[0]
+test
+
+0 1 rangeTo
+[0, 1]
+test
+
+-1 1 rangeTo
+[-1, 0, 1]
+test
+
+1 5 ..
+[1, 2, 3, 4, 5]
+test
+
+1 5 ...
+[1, 2, 3, 4]
+test
