@@ -58,7 +58,7 @@ def = (<?> "definition") . locate $ do
 
 term :: Parser Term
 term = locate $ choice
-  [ Push <$> value
+  [ try $ Push <$> value
   , Call <$> littleWord
   , VectorTerm <$> vector
   , pair <$> tuple
@@ -111,7 +111,7 @@ value :: Parser Value
 value = locate $ choice
   [ mapOne toLiteral <?> "literal"
   , Function <$> block <?> "function"
-  , try unit
+  , unit
   ]
   where
 
