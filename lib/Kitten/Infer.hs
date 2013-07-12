@@ -18,12 +18,14 @@ import Kitten.Infer.Monad
 import Kitten.Infer.Scheme
 import Kitten.Infer.Type
 import Kitten.Infer.Unify
+import Kitten.Location
 import Kitten.Name
 import Kitten.Purity
 import Kitten.Resolved (Resolved)
 import Kitten.Type
 import Kitten.Typed
 import Kitten.Util.FailWriter
+import Kitten.Util.Show
 import Kitten.Util.Void
 
 import qualified Kitten.Builtin as Builtin
@@ -69,7 +71,15 @@ inferFragment prelude fragment = do
       , defName def
       ]
 
-  void $ infer (Compose (fragmentTerms fragment))
+  FunctionType consumption _ _
+    <- infer (Compose (fragmentTerms fragment))
+
+  unless (null consumption)
+    . Inferred . throwMany . (:[]) . TypeError UnknownLocation $ unwords
+    [ "program must work on empty stack but expects"
+    , showWords consumption
+    ]
+
   getsEnv (subFragment fragment)
 
   where
