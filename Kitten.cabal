@@ -61,7 +61,6 @@ library
     Kitten.Token,
     Kitten.Tokenize,
     Kitten.Type,
-    Kitten.Typed,
     Kitten.Util.Applicative,
     Kitten.Util.Either,
     Kitten.Util.FailWriter,

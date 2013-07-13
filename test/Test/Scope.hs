@@ -9,8 +9,8 @@ import Kitten.ClosedName
 import Kitten.Fragment
 import Kitten.Location
 import Kitten.Name
+import Kitten.Resolved
 import Kitten.Scope
-import Kitten.Typed
 
 import qualified Kitten.Builtin as Builtin
 
@@ -39,14 +39,14 @@ spec = do
                 , biAdd]]]]])
 
 testScope
-  :: Fragment Value Typed -> Fragment Value Typed -> Spec
+  :: Fragment Value Resolved -> Fragment Value Resolved -> Spec
 testScope source expected = let
     actual = scope source
   in
     it (show source) . unless (actual == expected)
       $ expectedButGot (show expected) (show actual)
 
-biAdd :: Typed
+biAdd :: Resolved
 biAdd = Builtin Builtin.AddInt TestLocation
 
 closed :: Int -> Value
@@ -55,26 +55,26 @@ closed index = Closed (Name index)
 closedName :: Int -> ClosedName
 closedName = ClosedName . Name
 
-closure :: [ClosedName] -> [Typed] -> Typed
+closure :: [ClosedName] -> [Resolved] -> Resolved
 closure names terms = push $ Closure names (compose terms)
 
-compose :: [Typed] -> Typed
+compose :: [Resolved] -> Resolved
 compose = Compose
 
-function :: [Typed] -> Typed
+function :: [Resolved] -> Resolved
 function terms = push $ Function (compose terms)
 
 local :: Int -> Value
 local index = Local (Name index)
 
-push :: Value -> Typed
+push :: Value -> Resolved
 push value = Push value TestLocation
 
 reclosedName :: Int -> ClosedName
 reclosedName = ReclosedName . Name
 
-scoped :: [Typed] -> Typed
+scoped :: [Resolved] -> Resolved
 scoped terms = Scoped (compose terms) TestLocation
 
-word :: Int -> Typed
+word :: Int -> Resolved
 word index = Call (Name index) TestLocation

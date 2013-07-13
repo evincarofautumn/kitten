@@ -14,10 +14,10 @@ import Kitten.ClosedName
 import Kitten.Def
 import Kitten.Fragment
 import Kitten.Name
-import Kitten.Typed
+import Kitten.Resolved
 import Kitten.Util.List
 
-scope :: Fragment Value Typed -> Fragment Value Typed
+scope :: Fragment Value Resolved -> Fragment Value Resolved
 scope fragment@Fragment{..} = fragment
   { fragmentDefs = map scopeDef fragmentDefs
   , fragmentTerms = map (scopeTerm [0]) fragmentTerms
@@ -27,14 +27,13 @@ scopeDef :: Def Value -> Def Value
 scopeDef def@Def{..} = def
   { defTerm = scopeValue [0] defTerm }
 
-scopeTerm :: [Int] -> Typed -> Typed
+scopeTerm :: [Int] -> Resolved -> Resolved
 scopeTerm stack typed = case typed of
+  Builtin{} -> typed
 
   Call{} -> typed
 
   Compose terms -> Compose (map (scopeTerm stack) terms)
-
-  Builtin{} -> typed
 
   If true false loc -> If
     (scopeTerm stack true)
@@ -65,18 +64,18 @@ scopeValue stack value = case value of
   Closure{} -> value
   Float{} -> value
 
-  Function funTerms
-    -> Closure (map ClosedName capturedNames) capturedTerms
+  Function funTerm
+    -> Closure (map ClosedName capturedNames) capturedTerm
     where
 
-    capturedTerms :: Typed
+    capturedTerm :: Resolved
     capturedNames :: [Name]
-    (capturedTerms, capturedNames)
+    (capturedTerm, capturedNames)
       = runCapture stack'
-      $ captureTerm scopedTerms
+      $ captureTerm scopedTerm
 
-    scopedTerms :: Typed
-    scopedTerms = scopeTerm stack' funTerms
+    scopedTerm :: Resolved
+    scopedTerm = scopeTerm stack' funTerm
 
     stack' :: [Int]
     stack' = 0 : stack
@@ -109,14 +108,13 @@ addName name = do
       lift $ put (names ++ [name])
       return . Name $ length names
 
-captureTerm :: Typed -> Capture Typed
+captureTerm :: Resolved -> Capture Resolved
 captureTerm typed = case typed of
+  Builtin{} -> return typed
 
   Call{} -> return typed
 
   Compose terms -> Compose <$> mapM captureTerm terms
-
-  Builtin{} -> return typed
 
   If true false loc -> If
     <$> captureTerm true

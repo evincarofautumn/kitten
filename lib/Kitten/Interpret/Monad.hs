@@ -23,7 +23,7 @@ import System.IO
 import Kitten.Def
 import Kitten.Location
 import Kitten.Name
-import Kitten.Typed
+import Kitten.Resolved
 
 type Interpret = InterpretM ()
 

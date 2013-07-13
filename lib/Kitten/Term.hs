@@ -7,14 +7,14 @@ import Kitten.Builtin (Builtin)
 import Kitten.Location
 
 data Term
-  = Block [Term]
-  | Builtin Builtin Location
+  = Builtin Builtin Location
   | Call String Location
-  | If [Term] [Term] [Term] Location
-  | Lambda String [Term] Location
-  | PairTerm [Term] [Term] Location
+  | Compose [Term]
+  | If Term Term Location
+  | Lambda String Term Location
+  | PairTerm Term Term Location
   | Push Value Location
-  | VectorTerm [[Term]] Location
+  | VectorTerm [Term] Location
   deriving (Eq, Show)
 
 data Value

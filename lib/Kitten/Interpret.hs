@@ -18,7 +18,7 @@ import Kitten.Def
 import Kitten.Fragment
 import Kitten.Interpret.Monad
 import Kitten.Name
-import Kitten.Typed
+import Kitten.Resolved
 import Kitten.Util.Void
 
 import qualified Kitten.Builtin as Builtin
@@ -26,7 +26,7 @@ import qualified Kitten.Builtin as Builtin
 interpret
   :: [Value]
   -> Fragment Value Void
-  -> Fragment Value Typed
+  -> Fragment Value Resolved
   -> IO ()
 interpret stack prelude fragment = void $ evalStateT
   (mapM interpretTerm (fragmentTerms fragment)) Env
@@ -37,13 +37,13 @@ interpret stack prelude fragment = void $ evalStateT
   , envLocations = []
   }              
 
-interpretTerm :: Typed -> Interpret
+interpretTerm :: Resolved -> Interpret
 interpretTerm resolved = case resolved of
+  Builtin builtin _ -> interpretBuiltin builtin
+
   Call name _ -> interpretOverload name
 
   Compose terms -> mapM_ interpretTerm terms
-
-  Builtin builtin _ -> interpretBuiltin builtin
 
   If true false loc -> withLocation loc $ do
     Bool test <- popData

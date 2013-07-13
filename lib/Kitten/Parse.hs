@@ -69,42 +69,44 @@ term = locate $ choice
   where
 
   if_ :: Parser (Location -> Term)
-  if_ = If
-    <$> (match Token.If *> many term)
-    <*> (match Token.Then *> branch)
-    <*> (fromMaybe [] <$> optionMaybe (match Token.Else *> branch))
-    <?> "if"
+  if_ = (<?> "if") $ do
+    condition <- match Token.If *> many term
+    then_ <- Compose <$> (match Token.Then *> branch)
+    else_ <- Compose
+      <$> (fromMaybe [] <$> optionMaybe (match Token.Else *> branch))
+    return $ \ loc -> Compose (condition ++ [If then_ else_ loc])
     where branch = block <|> list <$> locate if_
 
   lambda :: Parser (Location -> Term)
   lambda = (<?> "lambda") $ match Token.Arrow *> choice
-    [ Lambda <$> littleWord <*> many term
+    [ Lambda <$> littleWord <*> (Compose <$> many term)
     , do
       names <- blocked (many littleWord)
       terms <- many term
       return $ \ loc -> foldr
-        (\ lambdaName lambdaTerms -> Lambda lambdaName [lambdaTerms] loc)
-        (Block terms)
+        (\ lambdaName lambdaTerms -> Lambda lambdaName lambdaTerms loc)
+        (Compose terms)
         (reverse names)
     ]
 
-  pair :: [[Term]] -> Location -> Term
+  pair :: [Term] -> Location -> Term
   pair values loc
-    = foldr (\ x y -> PairTerm x [y] loc) (Push (Unit loc) loc) values
+    = foldr (\ x y -> PairTerm x y loc) (Push (Unit loc) loc) values
 
   toBuiltin :: Token -> Maybe (Location -> Term)
   toBuiltin (Token.Builtin name) = Just $ Builtin name
   toBuiltin _ = Nothing
 
-  tuple :: Parser [[Term]]
-  tuple = grouped (many1 term `sepEndBy1` match Token.Comma)
+  tuple :: Parser [Term]
+  tuple = grouped
+    ((Compose <$> many1 term) `sepEndBy1` match Token.Comma)
     <?> "tuple"
 
-  vector :: Parser [[Term]]
+  vector :: Parser [Term]
   vector = between
     (match Token.VectorBegin)
     (match Token.VectorEnd)
-    (many1 term `sepEndBy` match Token.Comma)
+    ((Compose <$> many1 term) `sepEndBy` match Token.Comma)
     <?> "vector"
 
 value :: Parser Value

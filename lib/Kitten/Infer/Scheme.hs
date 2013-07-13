@@ -8,12 +8,8 @@ module Kitten.Infer.Scheme
   , instantiateM
   , normalize
   , occurs
-  , subDef
-  , subFragment
   , sub
   , subChain
-  , subTerm
-  , subValue
   ) where
 
 import Control.Monad.Trans.Class
@@ -23,12 +19,9 @@ import Data.List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-import Kitten.Def
-import Kitten.Fragment
 import Kitten.Infer.Monad
 import Kitten.Name
 import Kitten.Type
-import Kitten.Typed
 
 instantiateM :: Scheme -> Inferred Type
 instantiateM = Inferred . lift . state . instantiate
@@ -127,39 +120,6 @@ subChain env type_ = case type_ of
     -> subChain env type'
   _ -> type_
 
-subDef :: Env -> Def Value -> Def Value
-subDef env def@Def{..} = def
-  { defName = defName
-  , defTerm = subValue env defTerm
-  }
-
-subFragment
-  :: Fragment Value Typed -> Env -> Fragment Value Typed
-subFragment fragment@Fragment{..} env = fragment
-  { fragmentDefs = map (subDef env) fragmentDefs
-  , fragmentTerms = map (subTerm env) fragmentTerms
-  }
-
-subTerm :: Env -> Typed -> Typed
-subTerm env typed = case typed of
-  Call name loc -> Call name loc
-  Compose terms -> Compose (map (subTerm env) terms)
-  Builtin builtin loc
-    -> Builtin builtin loc
-  If true false loc
-    -> If true false loc
-  PairTerm a b loc -> PairTerm
-    (subTerm env a)
-    (subTerm env b)
-    loc
-  Push value loc
-    -> Push (subValue env value) loc
-  Scoped term loc
-    -> Scoped (subTerm env term) loc
-  VectorTerm items loc -> VectorTerm
-    (map (subTerm env) items)
-    loc
-
 sub :: Env -> Type -> Type
 sub env type_ = case type_ of
   FunctionType a b p -> FunctionType (map (sub env) a) (map (sub env) b) p
@@ -178,22 +138,3 @@ sub env type_ = case type_ of
     -> type_
   UnitType{} -> type_
   VectorType a -> VectorType (sub env a)
-
-subValue :: Env -> Value -> Value
-subValue env value = case value of
-  Activation values term -> Activation
-    (map (subValue env) values)
-    (subTerm env term)
-  Bool{} -> value
-  Char{} -> value
-  Closed name -> Closed name
-  Closure names term -> Closure names (subTerm env term)
-  Float{} -> value
-  Function term -> Function (subTerm env term)
-  Handle{} -> value
-  Int{} -> value
-  Local name -> Local name
-  Pair first second
-    -> Pair (subValue env first) (subValue env second)
-  Unit{} -> value
-  Vector values -> Vector (map (subValue env) values)

@@ -16,11 +16,11 @@ import Kitten.Resolved
 import Kitten.Term (Term)
 import Kitten.Util.Void
 
-import qualified Kitten.Typed as Typed
+import qualified Kitten.Resolved as Resolved
 import qualified Kitten.Term as Term
 
 resolve
-  :: Fragment Typed.Value Void
+  :: Fragment Resolved.Value Void
   -> Fragment Term.Value Term
   -> Either [CompileError] (Fragment Value Resolved)
 resolve prelude (Fragment defs terms)
@@ -43,21 +43,22 @@ resolveTerm unresolved = case unresolved of
   Term.Call name loc -> resolveName name loc
   Term.Push value loc -> Push <$> resolveValue value <*> pure loc
   Term.Builtin name loc -> return $ Builtin name loc
-  Term.Block terms -> Block
+  Term.Compose terms -> Compose
     <$> guardMapM resolveTerm terms
-  Term.Lambda name terms loc -> withLocal name
-    $ Scoped <$> guardMapM resolveTerm terms <*> pure loc
-  Term.If condition true false loc -> If
-    <$> guardMapM resolveTerm condition
-    <*> guardMapM resolveTerm true
-    <*> guardMapM resolveTerm false
+  Term.Lambda name term loc -> withLocal name
+    $ Scoped
+    <$> resolveTerm term
+    <*> pure loc
+  Term.If true false loc -> If
+    <$> resolveTerm true
+    <*> resolveTerm false
     <*> pure loc
   Term.PairTerm as bs loc -> PairTerm
-    <$> guardMapM resolveTerm as
-    <*> guardMapM resolveTerm bs
+    <$> resolveTerm as
+    <*> resolveTerm bs
     <*> pure loc
   Term.VectorTerm items loc -> VectorTerm
-    <$> guardMapM (guardMapM resolveTerm) items
+    <$> guardMapM resolveTerm items
     <*> pure loc
 
 resolveValue :: Term.Value -> Resolution Value
@@ -66,7 +67,7 @@ resolveValue unresolved = case unresolved of
   Term.Char value _ -> return $ Char value
   Term.Float value _ -> return $ Float value
   Term.Function term _ -> Function
-    <$> guardMapM resolveTerm term
+    <$> (Compose <$> guardMapM resolveTerm term)
   Term.Int value _ -> return $ Int value
   Term.Pair a b _ -> do
     a' <- resolveValue a

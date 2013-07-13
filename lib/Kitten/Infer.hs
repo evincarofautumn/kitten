@@ -21,9 +21,8 @@ import Kitten.Infer.Unify
 import Kitten.Location
 import Kitten.Name
 import Kitten.Purity
-import Kitten.Resolved (Resolved)
 import Kitten.Type
-import Kitten.Typed
+import Kitten.Resolved
 import Kitten.Util.FailWriter
 import Kitten.Util.Show
 import Kitten.Util.Void
@@ -34,16 +33,15 @@ import qualified Kitten.Resolved as Resolved
 typeFragment
   :: Fragment Value Void
   -> Fragment Resolved.Value Resolved
-  -> Either [CompileError] (Fragment Value Typed)
+  -> Either [CompileError] ()
 typeFragment prelude fragment
-  = fst . runInference emptyEnv $ do
-    typedFragment <- toTypedFragment fragment
-    inferFragment prelude typedFragment
+  = fst . runInference emptyEnv
+  $ inferFragment prelude fragment
 
 inferFragment
   :: Fragment Value Void
-  -> Fragment Value Typed
-  -> Inferred (Fragment Value Typed)
+  -> Fragment Value Resolved
+  -> Inferred ()
 inferFragment prelude fragment = do
 
   forM_ (zip [0..] allDefs) $ \ (index, def)
@@ -57,7 +55,8 @@ inferFragment prelude fragment = do
   forM_ (zip [(0 :: Int)..] allDefs) $ \ (index, def) -> do
 
     scheme <- generalize (inferValue (defTerm def))
-    declared <- fmap normalize . instantiateM =<< getsEnv ((! Name index) . envDefs)
+    declared <- fmap normalize . instantiateM
+      =<< getsEnv ((! Name index) . envDefs)
     inferred <- normalize <$> instantiateM scheme
 
     unless (inferred <: declared)
@@ -80,8 +79,6 @@ inferFragment prelude fragment = do
     , showWords consumption
     ]
 
-  getsEnv (subFragment fragment)
-
   where
 
   allDefs = fragmentDefs prelude ++ fragmentDefs fragment
@@ -92,7 +89,7 @@ inferFragment prelude fragment = do
 
 
 -- | Infers the type of a term.
-infer :: Typed -> Inferred Type
+infer :: Resolved -> Inferred Type
 infer typedTerm = case typedTerm of
 
   Builtin name loc -> withLocation loc $ case name of

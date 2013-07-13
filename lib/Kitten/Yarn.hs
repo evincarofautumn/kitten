@@ -18,11 +18,11 @@ import Kitten.ClosedName
 import Kitten.Def
 import Kitten.Fragment
 import Kitten.Name
-import Kitten.Typed (Typed)
+import Kitten.Resolved (Resolved)
 import Kitten.Util.Monad
 
 import qualified Kitten.Builtin as Builtin
-import qualified Kitten.Typed as Typed
+import qualified Kitten.Resolved as Resolved
 
 type Label = Int
 type Offset = Int
@@ -106,7 +106,7 @@ data Env = Env
 type Yarn a = ReaderT Int (State Env) a
 
 yarn
-  :: Fragment Typed.Value Typed
+  :: Fragment Resolved.Value Resolved
   -> [Instruction]
 yarn Fragment{..}
   = collectClosures . withClosureOffset $ (++)
@@ -139,22 +139,22 @@ yarn Fragment{..}
     = Label index : instructions ++ [Return]
 
 yarnDef
-  :: Def Typed.Value
+  :: Def Resolved.Value
   -> Int
   -> Yarn [Instruction]
 yarnDef Def{..} index = do
   instructions <- case defTerm of
-    Typed.Closure [] term -> yarnTerm term
+    Resolved.Closure [] term -> yarnTerm term
     _ -> error "Kitten.Yarn.yarnDef: TODO yarn non-function definition"
   return $ Label index : instructions ++ [Return]
 
-yarnTerm :: Typed -> Yarn [Instruction]
+yarnTerm :: Resolved -> Yarn [Instruction]
 yarnTerm term = case term of
-  Typed.Call (Name index) _ -> return [Call index]
-  Typed.Compose terms -> concatMapM yarnTerm terms
-  Typed.Builtin builtin _ -> return [Builtin builtin]
+  Resolved.Call (Name index) _ -> return [Call index]
+  Resolved.Compose terms -> concatMapM yarnTerm terms
+  Resolved.Builtin builtin _ -> return [Builtin builtin]
 
-  Typed.If true false _ -> do
+  Resolved.If true false _ -> do
     true' <- yarnTerm true
     false' <- yarnTerm false
     return $ concat
@@ -163,34 +163,34 @@ yarnTerm term = case term of
       , false'
       ]
 
-  Typed.PairTerm a b _ -> do
+  Resolved.PairTerm a b _ -> do
     a' <- yarnTerm a
     b' <- yarnTerm b
     return $ a' ++ b' ++ [Builtin Builtin.Pair]
 
-  Typed.Push value _ -> yarnValueInstruction value
-  Typed.Scoped terms _ -> do
+  Resolved.Push value _ -> yarnValueInstruction value
+  Resolved.Scoped terms _ -> do
     instructions <- yarnTerm terms
     return $ Enter : instructions ++ [Leave]
 
-  Typed.VectorTerm values _ -> do
+  Resolved.VectorTerm values _ -> do
     values' <- concatMapM yarnTerm values
     return $ values' ++ [MakeVector (length values)]
 
 yarnValueInstruction
-  :: Typed.Value
+  :: Resolved.Value
   -> Yarn [Instruction]
 yarnValueInstruction resolved = case resolved of
-  Typed.Activation{} -> error
+  Resolved.Activation{} -> error
     "Kitten.Yarn.yarnValueInstruction: unexpected activation"
-  Typed.Closed (Name index) {- _ -} -> return [Closure index]
-  Typed.Closure names terms -> do
+  Resolved.Closed (Name index) {- _ -} -> return [Closure index]
+  Resolved.Closure names terms -> do
     instructions <- yarnTerm terms
     index <- yarnClosure instructions
     return [Act index names]
-  Typed.Function{} -> error
+  Resolved.Function{} -> error
     "Kitten.Yarn.yarnValueInstruction: unresolved closure"
-  Typed.Local (Name index) {- _ -} -> return [Local index]
+  Resolved.Local (Name index) {- _ -} -> return [Local index]
   _ -> return [Push $ yarnValue resolved]
 
 yarnClosure :: [Instruction] -> Yarn Label
@@ -201,14 +201,14 @@ yarnClosure terms = do
     { envClosures = envClosures ++ [terms] }
   return $ label + closureOffset
 
-yarnValue :: Typed.Value -> Value
+yarnValue :: Resolved.Value -> Value
 yarnValue resolved = case resolved of
-  Typed.Bool value -> Bool value
-  Typed.Char value -> Char value
-  Typed.Float value -> Float value
-  Typed.Handle value -> Handle value
-  Typed.Int value -> Int value
-  Typed.Pair a b -> Pair (yarnValue a) (yarnValue b)
-  Typed.Unit -> Unit
-  Typed.Vector values -> Vector (map yarnValue values)
+  Resolved.Bool value -> Bool value
+  Resolved.Char value -> Char value
+  Resolved.Float value -> Float value
+  Resolved.Handle value -> Handle value
+  Resolved.Int value -> Int value
+  Resolved.Pair a b -> Pair (yarnValue a) (yarnValue b)
+  Resolved.Unit -> Unit
+  Resolved.Vector values -> Vector (map yarnValue values)
   _ -> error "Kitten.Yarn.yarnValue: instruction where value expected"

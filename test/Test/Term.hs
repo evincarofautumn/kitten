@@ -236,7 +236,7 @@ pushi :: Int -> Term
 pushi value = push $ int value
 
 lambda :: String -> [Term] -> Term
-lambda name terms = Lambda name terms TestLocation
+lambda name terms = Lambda name (Compose terms) TestLocation
 
 push :: Value -> Term
 push value = Push value TestLocation

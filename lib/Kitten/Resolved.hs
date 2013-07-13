@@ -11,24 +11,24 @@ import Kitten.Location
 import Kitten.Name
 
 data Resolved
-  = Block [Resolved]
-  | Builtin Builtin Location
+  = Builtin Builtin Location
   | Call Name Location
-  | If [Resolved] [Resolved] [Resolved] Location
-  | PairTerm [Resolved] [Resolved] Location
+  | Compose [Resolved]
+  | If Resolved Resolved Location
+  | PairTerm Resolved Resolved Location
   | Push Value Location
-  | Scoped [Resolved] Location
-  | VectorTerm [[Resolved]] Location
+  | Scoped Resolved Location
+  | VectorTerm [Resolved] Location
   deriving (Eq, Show)
 
 data Value
-  = Activation [Value] [Resolved]
+  = Activation [Value] Resolved
   | Bool Bool
   | Char Char
   | Closed Name
-  | Closure [ClosedName] [Resolved]
+  | Closure [ClosedName] Resolved
   | Float Double
-  | Function [Resolved]
+  | Function Resolved
   | Handle Handle
   | Int Int
   | Local Name
