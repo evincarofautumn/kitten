@@ -545,6 +545,9 @@ def pair (a b -> (a & b)):
 def pass (->)
   {}
 
+// The ratio of a circle's circumference to its diameter.
+def pi 3.141592653589793
+
 // Prepends a value to the head of a vector.
 def prepend ([a] a -> [a]):
   -> { xs x }
@@ -706,6 +709,9 @@ def tab (=>):
 // Removes the first element of a vector.
 def tail ([a] -> [a]):
   __tail
+
+// The ratio of a circle's circumference to its radius.
+def tau 6.283185307179586
 
 // Joins a vector of lines into a string.
 def unlines ([[Char]] -> [Char]):

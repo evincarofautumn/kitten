@@ -51,7 +51,9 @@ def = (<?> "definition") . locate $ do
   body <- value
   return $ \ loc -> Def
     { defName = name
-    , defTerm = body
+    , defTerm = case body of
+      Function{} -> body
+      _ -> Function [Push body loc] loc
     , defAnno = anno
     , defLocation = loc
     }

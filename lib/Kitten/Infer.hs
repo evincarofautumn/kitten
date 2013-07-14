@@ -14,6 +14,7 @@ import Data.Monoid
 import Data.Map ((!))
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 import Kitten.ClosedName
 import Kitten.Def
@@ -306,8 +307,12 @@ manifestType value = case value of
   Bool{} -> Just $ mono Type.Bool
   Char{} -> Just $ mono Type.Char
   Closed{} -> Nothing
+  Closure _ (Compose [Push constant _] _)
+    -> manifestConstant constant
   Closure{} -> Nothing
   Float{} -> Just $ mono Type.Float
+  Function (Compose [Push constant _] _)
+    -> manifestConstant constant
   Function{} -> Nothing
   Handle{} -> Just $ mono Type.Handle
   Int{} -> Just $ mono Type.Int
@@ -321,6 +326,14 @@ manifestType value = case value of
       (type1 :& type2)
   Unit -> Just $ mono Type.Unit
   Vector{} -> Nothing
+
+  where
+  manifestConstant constant = do
+    Forall rows scalars type_ <- manifestType constant
+    return $ Forall
+      (Set.insert (row (Name 0)) rows)
+      scalars
+      (Type.Var (Name 0) --> Type.Var (Name 0) :. type_)
 
 inferValue :: Value -> Inferred (Type Scalar)
 inferValue value = case value of

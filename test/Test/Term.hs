@@ -173,7 +173,7 @@ spec = do
 
     testTerm
       "def pi 3"
-      $ Fragment [def "pi" $ int 3] []
+      $ Fragment [def "pi" $ function [pushi 3]] []
 
     testTerm
       "def inc {\n\
