@@ -62,6 +62,7 @@ scopeValue stack value = case value of
   Activation{} -> value
   Bool{} -> value
   Char{} -> value
+  Choice{} -> value
   Closed{} -> value
   Closure{} -> value
   Float{} -> value
@@ -85,6 +86,7 @@ scopeValue stack value = case value of
   Handle{} -> value
   Int{} -> value
   Local{} -> value
+  Option{} -> value
   Pair a b -> Pair (scopeValue stack a) (scopeValue stack b)
   Unit -> Unit
   Vector values -> Vector (map (scopeValue stack) values)
@@ -160,6 +162,7 @@ captureValue value = case value of
   Activation{} -> return value
   Bool{} -> return value
   Char{} -> return value
+  Choice{} -> return value
   Closed{} -> return value
   Closure names term -> Closure
     <$> mapM close names
@@ -186,6 +189,7 @@ captureValue value = case value of
       Nothing -> value
       Just closedName -> Closed closedName
 
+  Option{} -> return value
   Pair a b -> Pair <$> captureValue a <*> captureValue b
   Unit{} -> return value
   Vector values -> Vector <$> mapM captureValue values

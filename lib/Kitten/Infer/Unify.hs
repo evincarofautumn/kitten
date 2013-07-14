@@ -55,6 +55,8 @@ instance Unification Scalar where
     _ | type1 == type2 -> Right env
 
     (a :& b, c :& d) -> unify b d env >>= unify a c
+    ((:?) a, (:?) b) -> unify a b env
+    (a :| b, c :| d) -> unify b d env >>= unify a c
 
     (Function a b p1, Function c d p2)
       | p1 == p2

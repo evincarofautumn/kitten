@@ -20,9 +20,11 @@ data Type
   = Function [Type] [Type] Purity
   | Bool
   | Char
+  | Choice Type Type
   | Float
   | Handle
   | Int
+  | Option Type
   | Pair Type Type
   | Unit
   | Var String
@@ -38,12 +40,19 @@ instance Show Type where
       , showWords b
       , ")"
       ]
-
     Bool -> "Bool"
     Char -> "Char"
+    Choice a b -> concat
+      [ "("
+      , show a
+      , " | "
+      , show b
+      , ")"
+      ]
     Float -> "Float"
     Handle -> "Handle"
     Int -> "Int"
+    Option a -> show a ++ "?"
     Pair a b -> concat ["(", show a, " & ", show b, ")"]
     Unit -> "()"
     Var a -> a

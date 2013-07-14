@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PostfixOperators #-}
 
 module Kitten.Infer
   ( infer
@@ -28,7 +29,7 @@ import Kitten.Location
 import Kitten.Name
 import Kitten.Purity
 import Kitten.Resolved
-import Kitten.Type (Type((:&), (:.)))
+import Kitten.Type (Type((:&), (:.), (:?), (:|)))
 import Kitten.Type hiding (Type(..))
 import Kitten.Util.FailWriter
 import Kitten.Util.Void
@@ -133,6 +134,15 @@ infer resolved = case resolved of
     Builtin.First -> forAll $ \ r a b
       -> r :. a :& b --> r :. a
 
+    Builtin.FromLeft -> forAll $ \ r a b
+      -> r :. a :| b --> r :. a
+
+    Builtin.FromRight -> forAll $ \ r a b
+      -> r :. a :| b --> r :. b
+
+    Builtin.FromSome -> forAll $ \ r a
+      -> r :. (a :?) --> r :. a
+
     Builtin.GeFloat -> relational Type.Float
     Builtin.GeInt -> relational Type.Int
 
@@ -151,8 +161,17 @@ infer resolved = case resolved of
     Builtin.Init -> forAll $ \ r a
       -> r :. Type.Vector a --> r :. Type.Vector a
 
+    Builtin.IsNone -> forAll $ \ r a
+      -> r :. (a :?) --> r :. Type.Bool
+
+    Builtin.IsRight -> forAll $ \ r a b
+      -> r :. a :| b --> r :. Type.Bool
+
     Builtin.LeFloat -> relational Type.Float
     Builtin.LeInt -> relational Type.Int
+
+    Builtin.Left -> forAll $ \ r a b
+      -> r :. a --> r :. a :| b
 
     Builtin.Length -> forAll $ \ r a
       -> r :. Type.Vector a --> r :. Type.Int
@@ -172,6 +191,9 @@ infer resolved = case resolved of
     Builtin.NegFloat -> unary Type.Float
     Builtin.NegInt -> unary Type.Int
 
+    Builtin.None -> forAll $ \ r a
+      -> r --> r :. (a :?)
+
     Builtin.NotBool -> unary Type.Bool
     Builtin.NotInt -> unary Type.Int
 
@@ -187,6 +209,9 @@ infer resolved = case resolved of
     Builtin.Rest -> forAll $ \ r a b
       -> r :. a :& b --> r :. b
 
+    Builtin.Right -> forAll $ \ r a b
+      -> r :. b --> r :. a :| b
+
     Builtin.Set -> forAll $ \ r a
       -> r :. Type.Vector a :. a :. Type.Int --> r :. Type.Vector a
 
@@ -195,6 +220,9 @@ infer resolved = case resolved of
 
     Builtin.ShowInt -> forAll $ \ r
       -> r :. Type.Int --> r :. string
+
+    Builtin.Some -> forAll $ \ r a
+      -> r :. a --> r :. (a :?)
 
     Builtin.Stderr -> forAll $ \ r
       -> r --> r :. Type.Handle
@@ -306,6 +334,7 @@ manifestType value = case value of
   Activation{} -> Nothing
   Bool{} -> Just $ mono Type.Bool
   Char{} -> Just $ mono Type.Char
+  Choice{} -> Nothing
   Closed{} -> Nothing
   Closure _ (Compose [Push constant _] _)
     -> manifestConstant constant
@@ -317,6 +346,7 @@ manifestType value = case value of
   Handle{} -> Just $ mono Type.Handle
   Int{} -> Just $ mono Type.Int
   Local{} -> Nothing
+  Option{} -> Nothing
   Pair a b -> do
     Forall rows1 scalars1 type1 <- manifestType a
     Forall rows2 scalars2 type2 <- manifestType b
@@ -337,33 +367,24 @@ manifestType value = case value of
 
 inferValue :: Value -> Inferred (Type Scalar)
 inferValue value = case value of
-
   Activation{} -> error "TODO infer activation"
-
   Bool{} -> return Type.Bool
-
   Char{} -> return Type.Char
-
+  Choice True a -> (:|) <$> freshVarM <*> inferValue a
+  Choice False a -> (:|) <$> inferValue a <*> freshVarM
   Closed (Name index) -> getsEnv ((!! index) . envClosure)
-
   Closure names term -> do
     closed <- mapM getClosedName names
     withClosure closed (infer term)
-
   Float{} -> return Type.Float
-
   Function term -> infer term
-
   Handle{} -> return Type.Handle
-
   Int{} -> return Type.Int
-
   Local (Name index) -> getsEnv ((!! index) . envLocals)
-
+  Option Nothing -> (:?) <$> freshVarM
+  Option (Just a) -> (:?) <$> inferValue a
   Pair a b -> (:&) <$> inferValue a <*> inferValue b
-
   Unit -> return Type.Unit
-
   Vector values -> do
     valueTypes <- mapM inferValue values
     valueType <- unifyEach valueTypes

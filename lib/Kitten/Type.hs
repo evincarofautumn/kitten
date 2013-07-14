@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE PostfixOperators #-}
 
 module Kitten.Type
   ( module Kitten.Kind
@@ -25,6 +26,8 @@ import Kitten.Purity
 data Type a where
   (:&) :: Type Scalar -> Type Scalar -> Type Scalar
   (:.) :: Type Row -> Type Scalar -> Type Row
+  (:?) :: Type Scalar -> Type Scalar
+  (:|) :: Type Scalar -> Type Scalar -> Type Scalar
   Bool :: Type Scalar
   Char :: Type Scalar
   Empty :: Type Row
@@ -46,7 +49,8 @@ row = TypeName
 scalar :: Name -> TypeName Scalar
 scalar = TypeName
 
-infixr 6 :&
+infix 6 :&
+infix 6 :|
 infixl 5 :.
 infix 4 -->
 infix 4 ==>
@@ -75,6 +79,9 @@ instance Eq (Type a) where
   _ == Test = True
 
   (a :& b) == (c :& d) = (a, b) == (c, d)
+  (a :. b) == (c :. d) = (a, b) == (c, d)
+  (:?) a == (:?) b = a == b
+  (a :| b) == (c :| d) = (a, b) == (c, d)
   Bool == Bool = True
   Char == Char = True
   Empty == Empty = True
@@ -92,6 +99,9 @@ instance Show (Type a) where
     t1 :& t2 -> showParen True
       $ shows t1 . showString " & " . shows t2
     t1 :. t2 -> shows t1 . showChar ' ' . shows t2
+    (:?) t -> shows t . showChar '?'
+    t1 :| t2 -> showParen True
+      $ shows t1 . showString " | " . shows t2
     Empty -> id
     Bool -> showString "Bool"
     Char -> showString "Char"

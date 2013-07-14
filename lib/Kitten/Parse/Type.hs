@@ -45,9 +45,14 @@ signature = locate $ Anno <$> functionType
       , try $ grouped type_
       , tuple
       ]
-
-    Anno.Pair prefix <$> (match (Token.LittleWord "&") *> baseType)
-      <|> pure prefix
+    choice
+      [ Anno.Choice prefix
+        <$> (match (Token.LittleWord "|") *> baseType)
+      , Anno.Option prefix <$ match (Token.LittleWord "?")
+      , Anno.Pair prefix
+        <$> (match (Token.LittleWord "&") *> baseType)
+      , pure prefix
+      ]
 
   vector :: Parser Type
   vector = Anno.Vector <$> between

@@ -20,9 +20,11 @@ data Term
 data Value
   = Bool Bool Location
   | Char Char Location
+  | Choice Bool Value Location
   | Float Double Location
   | Function [Term] Location
   | Int Int Location
+  | Option (Maybe Value) Location
   | Pair Value Value Location
   | Unit Location
   | Vector [Value] Location

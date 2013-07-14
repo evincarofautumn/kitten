@@ -66,10 +66,14 @@ resolveValue :: Term.Value -> Resolution Value
 resolveValue unresolved = case unresolved of
   Term.Bool value _ -> return $ Bool value
   Term.Char value _ -> return $ Char value
+  Term.Choice which value _ -> Choice which <$> resolveValue value
   Term.Float value _ -> return $ Float value
   Term.Function term loc -> Function
     <$> (Compose <$> guardMapM resolveTerm term <*> pure loc)
   Term.Int value _ -> return $ Int value
+  Term.Option mValue _ -> case mValue of
+    Just value -> Option . Just <$> resolveValue value
+    Nothing -> pure (Option Nothing)
   Term.Pair a b _ -> do
     a' <- resolveValue a
     b' <- resolveValue b

@@ -39,9 +39,8 @@ fromAnno (Anno annoType _) = do
     -> StateT Env Inferred (Type Scalar)
   fromAnnoType' type_ = case type_ of
     Anno.Bool -> return Bool
-
     Anno.Char -> return Char
-
+    Anno.Choice a b -> (:|) <$> fromAnnoType' a <*> fromAnnoType' b
     Anno.Function a b p -> do
       Var r <- lift freshVarM
       modify $ \ env -> env { envRows = r : envRows env }
@@ -49,17 +48,12 @@ fromAnno (Anno annoType _) = do
         <$> (foldl' (:.) (Var r) <$> mapM fromAnnoType' a)
         <*> (foldl' (:.) (Var r) <$> mapM fromAnnoType' b)
         <*> pure p
-
     Anno.Float -> return Float
-
     Anno.Handle -> return Handle
-
     Anno.Int -> return Int
-
+    Anno.Option a -> (:?) <$> fromAnnoType' a
     Anno.Pair a b -> (:&) <$> fromAnnoType' a <*> fromAnnoType' b
-
     Anno.Unit -> return Unit
-
     Anno.Var name -> do
       mExisting <- gets
         $ \ env -> Map.lookup name (envScalars env)
@@ -70,5 +64,4 @@ fromAnno (Anno annoType _) = do
           modify $ \ env -> env
             { envScalars = Map.insert name var (envScalars env) }
           return (Var var)
-
     Anno.Vector a -> Vector <$> fromAnnoType' a

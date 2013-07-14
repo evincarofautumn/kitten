@@ -1,6 +1,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE PostfixOperators #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -84,6 +85,8 @@ instance Free Row where
 instance Free Scalar where
   free type_ = case type_ of
     a :& b -> free a <> free b
+    (:?) a -> free a
+    a :| b -> free a <> free b
     Function a b _ -> free a <> free b
     Bool -> mempty
     Char -> mempty
@@ -127,6 +130,8 @@ instance Occurrences Row where
 instance Occurrences Scalar where
   occurrences name env type_ = case type_ of
     a :& b -> occurrences name env a + occurrences name env b
+    (:?) a -> occurrences name env a
+    a :| b -> occurrences name env a + occurrences name env b
     Function a b _
       -> occurrences name env a
       + occurrences name env b
@@ -198,6 +203,8 @@ instance Substitute Scalar where
   sub env type_ = case type_ of
     Function a b p -> Function (sub env a) (sub env b) p
     a :& b -> sub env a :& sub env b
+    (:?) a -> (sub env a :?)
+    a :| b -> sub env a :| sub env b
     Bool{} -> type_
     Char{} -> type_
     Float{} -> type_

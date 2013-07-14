@@ -25,6 +25,7 @@ data Value
   = Activation [Value] Resolved
   | Bool Bool
   | Char Char
+  | Choice Bool Value
   | Closed Name
   | Closure [ClosedName] Resolved
   | Float Double
@@ -32,6 +33,7 @@ data Value
   | Handle Handle
   | Int Int
   | Local Name
+  | Option (Maybe Value)
   | Pair Value Value
   | Unit
   | Vector [Value]

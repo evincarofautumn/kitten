@@ -139,6 +139,18 @@ interpretBuiltin builtin = case builtin of
     Pair a _ <- popData
     pushData a
 
+  Builtin.FromLeft -> do
+    Choice False a <- popData
+    pushData a
+
+  Builtin.FromRight -> do
+    Choice True a <- popData
+    pushData a
+
+  Builtin.FromSome -> do
+    Option (Just a) <- popData
+    pushData a
+
   Builtin.GeFloat -> floatsToBool (>=)
   Builtin.GeInt -> intsToBool (>=)
 
@@ -161,8 +173,22 @@ interpretBuiltin builtin = case builtin of
     Vector a <- popData
     pushData $ Vector (init a)
 
+  Builtin.IsNone -> do
+    Option a <- popData
+    pushData . Bool $ case a of
+      Nothing -> True
+      _ -> False
+
+  Builtin.IsRight -> do
+    Choice which _ <- popData
+    pushData $ Bool which
+
   Builtin.LeFloat -> floatsToBool (<=)
   Builtin.LeInt -> intsToBool (<=)
+
+  Builtin.Left -> do
+    a <- popData
+    pushData $ Choice False a
 
   Builtin.Length -> do
     Vector a <- popData
@@ -183,12 +209,12 @@ interpretBuiltin builtin = case builtin of
   Builtin.NegFloat -> floatToFloat negate
   Builtin.NegInt -> intToInt negate
 
-  Builtin.NotBool -> boolToBool not
+  Builtin.None -> pushData $ Option Nothing
 
+  Builtin.NotBool -> boolToBool not
   Builtin.NotInt -> intToInt complement
 
   Builtin.OrBool -> boolsToBool (||)
-
   Builtin.OrInt -> intsToInt (.|.)
 
   Builtin.OpenIn -> do
@@ -217,6 +243,10 @@ interpretBuiltin builtin = case builtin of
     Pair _ b <- popData
     pushData b
 
+  Builtin.Right -> do
+    a <- popData
+    pushData $ Choice True a
+
   Builtin.Set -> do
     Int c <- popData
     b <- popData
@@ -232,6 +262,10 @@ interpretBuiltin builtin = case builtin of
   Builtin.ShowInt -> do
     Int value <- popData
     pushData $ Vector (charsFromString $ show value)
+
+  Builtin.Some -> do
+    a <- popData
+    pushData $ Option (Just a)
 
   Builtin.Stderr -> pushData $ Handle stderr
   Builtin.Stdin -> pushData $ Handle stdin

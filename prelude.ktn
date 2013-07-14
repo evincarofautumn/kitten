@@ -22,6 +22,13 @@ def cartesianWith ([a] [b] (a b -> c) -> [c]):
 def charToInt (Char -> Int):
   __char_to_int
 
+def choice ((a | b) (a -> c) (b -> c) -> c):
+  -> { x l r }
+  if x isLeft then:
+    x fromLeft l@
+  else:
+    x fromRight r@
+
 // Concatenates a vector of vectors.
 def concat ([[a]] -> [a]):
   [] {cat} fold
@@ -76,6 +83,43 @@ def fold ([b] a (a b -> a) -> a):
 // Gets the fourth element of a tuple.
 def fourth ((a & b & c & d & e) -> d):
   rest rest rest first
+
+def fromLeft (a | b -> a):
+  __from_left
+
+def fromRight (a | b -> b):
+  __from_right
+
+def fromOption (a? a -> a):
+  -> { m z }
+  if m isNone then: z else: m fromSome
+
+def fromSome (a? -> a):
+  __from_some
+
+def isLeft (a | b -> Bool):
+  isRight not
+
+def isNone (a? -> Bool):
+  __is_none
+
+def isRight (a | b -> Bool):
+  __is_right
+
+def isSome (a? -> Bool):
+  isNone not
+
+def left (a -> a | b):
+  __left
+
+def none (-> a?):
+  __none
+
+def right (b -> a | b):
+  __right
+
+def some (a -> a?):
+  __some
 
 // Gets a value from a 2D vector.
 def get2 ([[a]] Int Int -> a):
