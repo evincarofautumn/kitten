@@ -1,6 +1,11 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 module Kitten.Infer
   ( infer
   , typeFragment
+  , forAll
   ) where
 
 import Control.Applicative
@@ -21,14 +26,15 @@ import Kitten.Infer.Unify
 import Kitten.Location
 import Kitten.Name
 import Kitten.Purity
-import Kitten.Type
 import Kitten.Resolved
+import Kitten.Type (Type((:&), (:.)))
+import Kitten.Type hiding (Type(..))
 import Kitten.Util.FailWriter
-import Kitten.Util.Show
 import Kitten.Util.Void
 
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.Resolved as Resolved
+import qualified Kitten.Type as Type
 
 typeFragment
   :: Fragment Value Void
@@ -52,32 +58,18 @@ inferFragment prelude fragment = do
         Nothing -> Inferred . throwMany . (:[]) . TypeError (defLocation def)
           $ "missing type declaration for " ++ defName def
 
-  forM_ (zip [(0 :: Int)..] allDefs) $ \ (index, def) -> do
+  forM_ (zip [(0 :: Int)..] allDefs) $ \ (index, def)
+    -> withLocation (defLocation def) $ do
+      scheme <- generalize (inferValue (defTerm def))
+      declaredScheme <- getsEnv ((! Name index) . envDefs)
+      declared <- instantiateM declaredScheme
+      inferred <- instantiateM scheme
+      declared === inferred
 
-    scheme <- generalize (inferValue (defTerm def))
-    declared <- fmap normalize . instantiateM
-      =<< getsEnv ((! Name index) . envDefs)
-    inferred <- normalize <$> instantiateM scheme
+  Type.Function consumption _ _ <- infer
+    $ Compose (fragmentTerms fragment) UnknownLocation
 
-    unless (inferred <: declared)
-      $ Inferred . throwMany . (:[])
-      . TypeError (defLocation def) $ unwords
-      [ "declared type"
-      , show declared
-      , "does not match inferred type"
-      , show inferred
-      , "of"
-      , defName def
-      ]
-
-  FunctionType consumption _ _
-    <- infer (Compose (fragmentTerms fragment))
-
-  unless (null consumption)
-    . Inferred . throwMany . (:[]) . TypeError UnknownLocation $ unwords
-    [ "program must work on empty stack but expects"
-    , showWords consumption
-    ]
+  consumption === Type.Empty
 
   where
 
@@ -87,227 +79,224 @@ inferFragment prelude fragment = do
   saveDef index scheme = modifyEnv $ \ env -> env
     { envDefs = Map.insert (Name index) scheme (envDefs env) }
 
+class ForAll a b where
+  forAll :: a -> Inferred (Type b)
+
+instance ForAll a b => ForAll (Type c -> a) b where
+  forAll f = do
+    var <- freshVarM
+    forAll $ f var
+
+instance ForAll (Type a) a where
+  forAll = pure
 
 -- | Infers the type of a term.
-infer :: Resolved -> Inferred Type
-infer typedTerm = case typedTerm of
+infer :: Resolved -> Inferred (Type Scalar)
+infer resolved = case resolved of
 
   Builtin name loc -> withLocation loc $ case name of
 
-    Builtin.AddVector
-      -> (\ a -> [VectorType a, VectorType a] --> [VectorType a])
-      <$> freshVarM
+    Builtin.AddVector -> forAll $ \ r a
+      -> r :. Type.Vector a :. Type.Vector a
+      --> r :. Type.Vector a
 
-    Builtin.AddFloat -> binary FloatType
+    Builtin.AddFloat -> binary Type.Float
 
-    Builtin.AddInt -> binary IntType
+    Builtin.AddInt -> binary Type.Int
 
-    Builtin.AndBool -> binary BoolType
+    Builtin.AndBool -> binary Type.Bool
 
-    Builtin.AndInt -> binary IntType
+    Builtin.AndInt -> binary Type.Int
 
-    Builtin.Apply01
-      -> (\ a -> [[] --> [a]] --> [a])
-      <$> freshVarM
+    Builtin.Apply01 -> forAll $ \ r s a
+      -> r :. (s --> s :. a) --> r :. a
 
-    Builtin.Apply11
-      -> (\ a b -> [a, [a] --> [b]] --> [b])
-      <$> freshVarM
-      <*> freshVarM
+    Builtin.Apply11 -> forAll $ \ r s a b
+      -> r :. a :. (s :. a --> s :. b) --> r :. b
 
-    Builtin.Apply21
-      -> (\ a b c -> [a, b, [a, b] --> [c]] --> [c])
-      <$> freshVarM
-      <*> freshVarM
-      <*> freshVarM
+    Builtin.Apply21 -> forAll $ \ r s a b c
+      -> r :. a :. b :. (s :. a :. b --> s :. c) --> r :. c
 
-    Builtin.Call01
-      -> (\ a -> [[] ==> [a]] ==> [a])
-      <$> freshVarM
+    Builtin.Call01 -> forAll $ \ r s a
+      -> r :. (s ==> s :. a) ==> r :. a
 
-    Builtin.Call10
-      -> (\ a -> [a, [a] ==> []] ==> [])
-      <$> freshVarM
+    Builtin.Call10 -> forAll $ \ r s a
+      -> r :. a :. (s :. a ==> s) ==> r
 
-    Builtin.CharToInt -> return $ [CharType] --> [IntType]
+    Builtin.CharToInt -> forAll $ \ r
+      -> r :. Type.Char --> r :. Type.Int
 
-    Builtin.Close -> return $ [HandleType] ==> []
+    Builtin.Close -> forAll $ \ r
+      -> r :. Type.Handle ==> r
 
-    Builtin.DivFloat -> binary FloatType
+    Builtin.DivFloat -> binary Type.Float
+    Builtin.DivInt -> binary Type.Int
 
-    Builtin.DivInt -> binary IntType
+    Builtin.EqFloat -> relational Type.Float
+    Builtin.EqInt -> relational Type.Int
 
-    Builtin.EqFloat -> relational FloatType
-    Builtin.EqInt -> relational IntType
+    Builtin.Exit -> forAll $ \ r
+      -> r :. Type.Int ==> r
 
-    Builtin.Exit -> return $ [IntType] ==> []
+    Builtin.First -> forAll $ \ r a b
+      -> r :. a :& b --> r :. a
 
-    Builtin.First
-      -> (\ a b -> [a :& b] --> [a])
-      <$> freshVarM <*> freshVarM
+    Builtin.GeFloat -> relational Type.Float
+    Builtin.GeInt -> relational Type.Int
 
-    Builtin.GeFloat -> relational FloatType
-    Builtin.GeInt -> relational IntType
+    Builtin.Get -> forAll $ \ r a
+      -> r :. Type.Vector a :. Type.Int --> r :. a
 
-    Builtin.Get
-      -> (\ a -> [VectorType a, IntType] --> [a])
-      <$> freshVarM
+    Builtin.GetLine -> forAll $ \ r
+      -> r :. Type.Handle ==> r :. string
 
-    Builtin.GetLine
-      -> return $ [HandleType] ==> [VectorType CharType]
+    Builtin.GtFloat -> relational Type.Float
+    Builtin.GtInt -> relational Type.Int
 
-    Builtin.GtFloat -> relational FloatType
-    Builtin.GtInt -> relational IntType
+    Builtin.Impure -> forAll $ \ r
+      -> r ==> r
 
-    Builtin.Impure -> return $ [] ==> []
+    Builtin.Init -> forAll $ \ r a
+      -> r :. Type.Vector a --> r :. Type.Vector a
 
-    Builtin.Init
-      -> (\ a -> [VectorType a] --> [VectorType a])
-      <$> freshVarM
+    Builtin.LeFloat -> relational Type.Float
+    Builtin.LeInt -> relational Type.Int
 
-    Builtin.LeFloat -> relational FloatType
-    Builtin.LeInt -> relational IntType
+    Builtin.Length -> forAll $ \ r a
+      -> r :. Type.Vector a --> r :. Type.Int
 
-    Builtin.Length
-      -> (\ a -> [VectorType a] --> [IntType])
-      <$> freshVarM
+    Builtin.LtFloat -> relational Type.Float
+    Builtin.LtInt -> relational Type.Int
 
-    Builtin.LtFloat -> relational FloatType
-    Builtin.LtInt -> relational IntType
+    Builtin.ModFloat -> binary Type.Float
+    Builtin.ModInt -> binary Type.Int
 
-    Builtin.ModFloat -> binary FloatType
-    Builtin.ModInt -> binary IntType
+    Builtin.MulFloat -> binary Type.Float
+    Builtin.MulInt -> binary Type.Int
 
-    Builtin.MulFloat -> binary FloatType
-    Builtin.MulInt -> binary IntType
+    Builtin.NeFloat -> relational Type.Float
+    Builtin.NeInt -> relational Type.Int
 
-    Builtin.NeFloat -> relational FloatType
-    Builtin.NeInt -> relational IntType
+    Builtin.NegFloat -> unary Type.Float
+    Builtin.NegInt -> unary Type.Int
 
-    Builtin.NegFloat -> unary FloatType
-    Builtin.NegInt -> unary IntType
+    Builtin.NotBool -> unary Type.Bool
+    Builtin.NotInt -> unary Type.Int
 
-    Builtin.NotBool -> unary BoolType
-    Builtin.NotInt -> unary IntType
+    Builtin.OpenIn -> forAll $ \ r
+      -> r :. string ==> r :. Type.Handle
 
-    Builtin.OpenIn
-      -> return $ [VectorType CharType] ==> [HandleType]
+    Builtin.OpenOut -> forAll $ \ r
+      -> r :. string ==> r :. Type.Handle
 
-    Builtin.OpenOut
-      -> return $ [VectorType CharType] ==> [HandleType]
+    Builtin.OrBool -> binary Type.Bool
+    Builtin.OrInt -> binary Type.Int
 
-    Builtin.OrBool -> binary BoolType
-    Builtin.OrInt -> binary IntType
+    Builtin.Rest -> forAll $ \ r a b
+      -> r :. a :& b --> r :. b
 
-    Builtin.Rest
-      -> (\ a b -> [a :& b] --> [b])
-      <$> freshVarM <*> freshVarM
+    Builtin.Set -> forAll $ \ r a
+      -> r :. Type.Vector a :. a :. Type.Int --> r :. Type.Vector a
 
-    Builtin.Set
-      -> (\ a -> [VectorType a, a, IntType] --> [VectorType a])
-      <$> freshVarM
+    Builtin.ShowFloat -> forAll $ \ r
+      -> r :. Type.Float --> r :. string
 
-    Builtin.ShowFloat
-      -> return $ [FloatType] --> [VectorType CharType]
+    Builtin.ShowInt -> forAll $ \ r
+      -> r :. Type.Int --> r :. string
 
-    Builtin.ShowInt
-      -> return $ [IntType] --> [VectorType CharType]
+    Builtin.Stderr -> forAll $ \ r
+      -> r --> r :. Type.Handle
+    Builtin.Stdin -> forAll $ \ r
+      -> r --> r :. Type.Handle
+    Builtin.Stdout -> forAll $ \ r
+      -> r --> r :. Type.Handle
 
-    Builtin.Stderr -> return $ [] --> [HandleType]
-    Builtin.Stdin -> return $ [] --> [HandleType]
-    Builtin.Stdout -> return $ [] --> [HandleType]
+    Builtin.SubFloat -> binary Type.Float
+    Builtin.SubInt -> binary Type.Int
 
-    Builtin.SubFloat -> binary FloatType
-    Builtin.SubInt -> binary IntType
+    Builtin.Pair -> forAll $ \ r a b
+      -> r :. a :. b --> r :. a :& b
 
-    Builtin.Pair
-      -> (\ a b -> [a, b] --> [a :& b])
-      <$> freshVarM <*> freshVarM
+    Builtin.Print -> forAll $ \ r
+      -> r :. string :. Type.Handle ==> r
 
-    Builtin.Print
-      -> return $ [VectorType CharType, HandleType] ==> []
+    Builtin.Tail -> forAll $ \ r a
+      -> r :. Type.Vector a --> r :. Type.Vector a
 
-    Builtin.Tail
-      -> (\ a -> [VectorType a] --> [VectorType a])
-      <$> freshVarM
+    Builtin.UnsafePurify11 -> forAll $ \ r s a b
+      -> r :. (s :. a ==> s :. b) --> r :. (s :. a --> s :. b)
 
-    Builtin.UnsafePurify11
-      -> (\ a b -> [[a] ==> [b]] --> [[a] --> [b]])
-      <$> freshVarM <*> freshVarM
+    Builtin.Vector -> forAll $ \ r a
+      -> r :. a --> r :. Type.Vector a
 
-    Builtin.Vector
-      -> (\ a -> [a] --> [VectorType a])
-      <$> freshVarM
-
-    Builtin.XorBool -> binary BoolType
-
-    Builtin.XorInt -> binary IntType
+    Builtin.XorBool -> binary Type.Bool
+    Builtin.XorInt -> binary Type.Int
 
   Call name loc -> withLocation loc
     $ instantiateM =<< getsEnv ((! name) . envDefs)
 
-  Compose terms -> do
+  Compose terms loc -> withLocation loc $ do
     types <- mapM infer terms
+    r <- freshVarM
     foldM
-      (\ (FunctionType a b p1) (FunctionType c d p2)
+      (\ (Type.Function a b p1) (Type.Function c d p2)
         -> inferCompose a b c d (p1 <=> p2))
-      ([] --> [])
+      (r --> r)
       types
 
   If true false loc -> withLocation loc $ do
-    FunctionType a b p1 <- infer true
-    FunctionType c d p2 <- infer false
-    unifyRowM a c
-    unifyRowM b d
-    return (FunctionType (a ++ [BoolType]) b (p1 <=> p2))
+    Type.Function a b p1 <- infer true
+    Type.Function c d p2 <- infer false
+    a === c
+    b === d
+    return $ Type.Function (a :. Type.Bool) b (p1 <=> p2)
 
   PairTerm a b loc -> withLocation loc $ do
     a' <- fromConstant =<< infer a
     b' <- fromConstant =<< infer b
-    return $ [] --> [a' :& b']
+    forAll $ \ r -> r --> r :. a' :& b'
 
   Push value loc -> withLocation loc $ do
     a <- inferValue value
-    return $ [] --> [a]
+    forAll $ \ r -> r --> r :. a
 
   Scoped term loc -> withLocation loc $ do
     a <- freshVarM
-    FunctionType b c p <- local a $ infer term
-    return $ FunctionType (b ++ [a]) c p
+    Type.Function b c p <- local a $ infer term
+    return $ Type.Function (b :. a) c p
 
   VectorTerm values loc -> withLocation loc $ do
     values' <- mapM infer values
     values'' <- fromConstant =<< unifyEach values'
-    return $ FunctionType [] [VectorType values'']
-      (if any isImpure values' then Impure else Pure)
+    forAll $ \ r -> r --> r :. Type.Vector values''
 
-fromConstant :: Type -> Inferred Type
-fromConstant (FunctionType [] [a] _) = return a
-fromConstant (FunctionType [] xs _) = do
-  here <- getsEnv envLocation
-  Inferred . throwMany . (:[]) . TypeError here $ unwords
-    [ "expected one value but got"
-    , show (length xs)
-    ]
-fromConstant a = return a
+fromConstant :: Type Scalar -> Inferred (Type Scalar)
+fromConstant type_ = do
+  a <- freshVarM
+  r <- freshVarM
+  type_ === r --> r :. a
+  return a
 
-binary :: Type -> Inferred Type
-binary a = return $ [a, a] --> [a]
+binary :: Type Scalar -> Inferred (Type Scalar)
+binary a = forAll $ \ r -> r :. a :. a --> r :. a
 
-relational :: Type -> Inferred Type
-relational a = return $ [a, a] --> [BoolType]
+relational :: Type Scalar -> Inferred (Type Scalar)
+relational a = forAll $ \ r -> r :. a :. a --> r :. Type.Bool
 
-unary :: Type -> Inferred Type
-unary a = return $ [a] --> [a]
+unary :: Type Scalar -> Inferred (Type Scalar)
+unary a = forAll $ \ r -> r :. a --> r :. a
 
-local :: Type -> Inferred a -> Inferred a
+string :: Type Scalar
+string = Type.Vector Type.Char
+
+local :: Type Scalar -> Inferred a -> Inferred a
 local type_ action = do
   modifyEnv $ \ env -> env { envLocals = type_ : envLocals env }
   result <- action
   modifyEnv $ \ env -> env { envLocals = tail $ envLocals env }
   return result
 
-withClosure :: [Type] -> Inferred a -> Inferred a
+withClosure :: [Type Scalar] -> Inferred a -> Inferred a
 withClosure types action = do
   original <- getsEnv envClosure
   modifyEnv $ \ env -> env { envClosure = types }
@@ -315,7 +304,7 @@ withClosure types action = do
   modifyEnv $ \ env -> env { envClosure = original }
   return result
 
-getClosedName :: ClosedName -> Inferred Type
+getClosedName :: ClosedName -> Inferred (Type Scalar)
 getClosedName name = case name of
   ClosedName (Name index) -> getsEnv $ (!! index) . envLocals
   ReclosedName (Name index) -> getsEnv $ (!! index) . envClosure
@@ -323,30 +312,33 @@ getClosedName name = case name of
 manifestType :: Value -> Maybe Scheme
 manifestType value = case value of
   Activation{} -> Nothing
-  Bool{} -> Just $ mono BoolType
-  Char{} -> Just $ mono CharType
+  Bool{} -> Just $ mono Type.Bool
+  Char{} -> Just $ mono Type.Char
   Closed{} -> Nothing
   Closure{} -> Nothing
-  Float{} -> Just $ mono FloatType
+  Float{} -> Just $ mono Type.Float
   Function{} -> Nothing
-  Handle{} -> Just $ mono HandleType
-  Int{} -> Just $ mono IntType
+  Handle{} -> Just $ mono Type.Handle
+  Int{} -> Just $ mono Type.Int
   Local{} -> Nothing
   Pair a b -> do
-    Forall names1 type1 <- manifestType a
-    Forall names2 type2 <- manifestType b
-    return $ Forall (names1 <> names2) (type1 :& type2)
-  Unit -> Just $ mono UnitType
+    Forall rows1 scalars1 type1 <- manifestType a
+    Forall rows2 scalars2 type2 <- manifestType b
+    return $ Forall
+      (rows1 <> rows2)
+      (scalars1 <> scalars2)
+      (type1 :& type2)
+  Unit -> Just $ mono Type.Unit
   Vector{} -> Nothing
 
-inferValue :: Value -> Inferred Type
+inferValue :: Value -> Inferred (Type Scalar)
 inferValue value = case value of
 
   Activation{} -> error "TODO infer activation"
 
-  Bool{} -> return BoolType
+  Bool{} -> return Type.Bool
 
-  Char{} -> return CharType
+  Char{} -> return Type.Char
 
   Closed (Name index) -> getsEnv ((!! index) . envClosure)
 
@@ -354,49 +346,35 @@ inferValue value = case value of
     closed <- mapM getClosedName names
     withClosure closed (infer term)
 
-  Float{} -> return FloatType
+  Float{} -> return Type.Float
 
   Function term -> infer term
 
-  Handle{} -> return HandleType
-  Int{} -> return IntType
+  Handle{} -> return Type.Handle
+
+  Int{} -> return Type.Int
 
   Local (Name index) -> getsEnv ((!! index) . envLocals)
 
   Pair a b -> (:&) <$> inferValue a <*> inferValue b
 
-  Unit -> return UnitType
+  Unit -> return Type.Unit
 
   Vector values -> do
     valueTypes <- mapM inferValue values
     valueType <- unifyEach valueTypes
-    return $ VectorType valueType
+    return $ Type.Vector valueType
 
-unifyEach :: [Type] -> Inferred Type
-unifyEach (x : y : zs) = unifyM x y >> unifyEach (y : zs)
+unifyEach :: [Type Scalar] -> Inferred (Type Scalar)
+unifyEach (x : y : zs) = x === y >> unifyEach (y : zs)
 unifyEach [x] = return x
 unifyEach [] = freshVarM
 
 inferCompose
-  :: [Type]
-  -> [Type]
-  -> [Type]
-  -> [Type]
+  :: Type Row -> Type Row
+  -> Type Row -> Type Row
   -> Purity
-  -> Inferred Type
-inferCompose in1 out1 in2 out2 purity = let
-  (pairs, surplus, deficit) = zipRemainder (reverse out1) (reverse in2)
-  consumption = reverse deficit ++ in1
-  production = reverse surplus ++ out2
-  in do
-    mapM_ (uncurry unifyM_) pairs
-    return $ FunctionType consumption production purity
-
-zipRemainder :: [a] -> [b] -> ([(a, b)], [a], [b])
-zipRemainder = zipRemainder' []
-  where
-  zipRemainder' acc [] [] = (reverse acc, [], [])
-  zipRemainder' acc xs [] = (reverse acc, xs, [])
-  zipRemainder' acc [] ys = (reverse acc, [], ys)
-  zipRemainder' acc (x : xs) (y : ys)
-    = zipRemainder' ((x, y) : acc) xs ys
+  -> Inferred (Type Scalar)
+inferCompose in1 out1 in2 out2 purity = do
+  out1 === in2
+  return $ Type.Function in1 out2 purity

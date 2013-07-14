@@ -70,22 +70,23 @@ term = locate $ choice
 
   if_ :: Parser (Location -> Term)
   if_ = (<?> "if") $ do
-    condition <- match Token.If *> many term
-    then_ <- Compose <$> (match Token.Then *> branch)
-    else_ <- Compose
+    void (match Token.If)
+    condition <- locate $ Compose <$> many term
+    then_ <- locate $ Compose <$> (match Token.Then *> branch)
+    else_ <- locate $ Compose
       <$> (fromMaybe [] <$> optionMaybe (match Token.Else *> branch))
-    return $ \ loc -> Compose (condition ++ [If then_ else_ loc])
+    return $ \ loc -> Compose [condition, If then_ else_ loc] loc
     where branch = block <|> list <$> locate if_
 
   lambda :: Parser (Location -> Term)
   lambda = (<?> "lambda") $ match Token.Arrow *> choice
-    [ Lambda <$> littleWord <*> (Compose <$> many term)
+    [ Lambda <$> littleWord <*> locate (Compose <$> many term)
     , do
       names <- blocked (many littleWord)
       terms <- many term
       return $ \ loc -> foldr
         (\ lambdaName lambdaTerms -> Lambda lambdaName lambdaTerms loc)
-        (Compose terms)
+        (Compose terms loc)
         (reverse names)
     ]
 
@@ -99,14 +100,14 @@ term = locate $ choice
 
   tuple :: Parser [Term]
   tuple = grouped
-    ((Compose <$> many1 term) `sepEndBy1` match Token.Comma)
+    (locate (Compose <$> many1 term) `sepEndBy1` match Token.Comma)
     <?> "tuple"
 
   vector :: Parser [Term]
   vector = between
     (match Token.VectorBegin)
     (match Token.VectorEnd)
-    ((Compose <$> many1 term) `sepEndBy` match Token.Comma)
+    (locate (Compose <$> many1 term) `sepEndBy` match Token.Comma)
     <?> "vector"
 
 value :: Parser Value

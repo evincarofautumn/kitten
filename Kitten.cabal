@@ -43,6 +43,7 @@ library
     Kitten.Infer.Unify,
     Kitten.Interpret,
     Kitten.Interpret.Monad,
+    Kitten.Kind,
     Kitten.Location,
     Kitten.Name,
     Kitten.Parse,

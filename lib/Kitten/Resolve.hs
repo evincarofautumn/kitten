@@ -43,8 +43,9 @@ resolveTerm unresolved = case unresolved of
   Term.Call name loc -> resolveName name loc
   Term.Push value loc -> Push <$> resolveValue value <*> pure loc
   Term.Builtin name loc -> return $ Builtin name loc
-  Term.Compose terms -> Compose
+  Term.Compose terms loc -> Compose
     <$> guardMapM resolveTerm terms
+    <*> pure loc
   Term.Lambda name term loc -> withLocal name
     $ Scoped
     <$> resolveTerm term
@@ -66,8 +67,8 @@ resolveValue unresolved = case unresolved of
   Term.Bool value _ -> return $ Bool value
   Term.Char value _ -> return $ Char value
   Term.Float value _ -> return $ Float value
-  Term.Function term _ -> Function
-    <$> (Compose <$> guardMapM resolveTerm term)
+  Term.Function term loc -> Function
+    <$> (Compose <$> guardMapM resolveTerm term <*> pure loc)
   Term.Int value _ -> return $ Int value
   Term.Pair a b _ -> do
     a' <- resolveValue a

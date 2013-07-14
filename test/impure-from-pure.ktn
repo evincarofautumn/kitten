@@ -1,5 +1,0 @@
-def impureFromPure (Int -> Int):
-  "Impure!" say
-  ++
-
-5 impureFromPure sayi

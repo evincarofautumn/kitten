@@ -59,7 +59,7 @@ closure :: [ClosedName] -> [Resolved] -> Resolved
 closure names terms = push $ Closure names (compose terms)
 
 compose :: [Resolved] -> Resolved
-compose = Compose
+compose terms = Compose terms TestLocation
 
 function :: [Resolved] -> Resolved
 function terms = push $ Function (compose terms)

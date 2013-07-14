@@ -1,103 +1,141 @@
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Kitten.Infer.Unify
   ( (<:)
-  , unify
+  , (===)
   , unifyM
   , unifyM_
-  , unifyRow
-  , unifyRowM
   , unifyVar
   ) where
 
 import Control.Monad
-import Data.Foldable (foldrM)
 import Data.Function
 
 import Kitten.Error
 import Kitten.Infer.Monad
 import Kitten.Infer.Scheme
-import Kitten.Name
 import Kitten.Type
 import Kitten.Util.FailWriter
-import Kitten.Util.Show
 
 -- | Simplifies and unifies two types.
-unify :: Type -> Type -> Env -> Either CompileError Env
-unify a b env = (unify' `on` subChain env) a b env
+unify
+  :: (Unification a, Simplify a)
+  => Type a
+  -> Type a
+  -> Env
+  -> Either CompileError Env
+unify a b env = (unification `on` simplify env) a b env
 
--- | Unifies two simplified types.
-unify' :: Type -> Type -> Env -> Either CompileError Env
-unify' type1 type2 env = case (type1, type2) of
-  _ | type1 == type2 -> Right env
+class Unification a where
+  unification
+    :: Type a
+    -> Type a
+    -> Env
+    -> Either CompileError Env
 
-  (VectorType a, VectorType b) -> unify a b env
+instance Unification Row where
+  unification type1 type2 env = case (type1, type2) of
+    _ | type1 == type2 -> Right env
 
-  (a :& b, c :& d) -> unify b d env >>= unify a c
+    (a :. b, c :. d) -> unify b d env >>= unify a c
 
-  (FunctionType a b p1, FunctionType c d p2)
-    | p1 == p2
-    -> unifyRow b d env >>= unifyRow a c
+    (Var var, type_) -> unifyVar (row var) type_ env
+    (type_, Var var) -> unifyVar (row var) type_ env
 
-  (TypeVar var, type_) -> unifyVar var type_ env
-  (type_, TypeVar var) -> unifyVar var type_ env
+    _ -> Left . TypeError (envLocation env) $ unwords
+      [ "cannot solve row type constraint:"
+      , show type1
+      , "="
+      , show type2
+      ]
 
-  _ -> Left . TypeError (envLocation env) $ unwords
-    [ "cannot solve scalar type constraint:"
-    , show type1
-    , "="
-    , show type2
-    ]
+instance Unification Scalar where
+  unification type1 type2 env = case (type1, type2) of
+    _ | type1 == type2 -> Right env
 
--- | Whether one type is a subtype of another.
-(<:) :: Type -> Type -> Bool
-type1 <: type2 = case (type1, type2) of
-  _ | type1 == type2 -> True
-  (VectorType a, VectorType b) -> a <: b
-  (a :& b, c :& d) -> b <: d && a <: c
-  (FunctionType a b p1, FunctionType c d p2)
-    | p1 == p2
-    -> let xs <:... ys = all (uncurry (<:)) (zip xs ys)
-    in b <:... d && a <:... c
-  (TypeVar{}, TypeVar{}) -> False
-  (TypeVar{}, _) -> True
-  _ -> False
+    (a :& b, c :& d) -> unify b d env >>= unify a c
+
+    (Function a b p1, Function c d p2)
+      | p1 == p2
+      -> unify b d env >>= unify a c
+
+    (Vector a, Vector b) -> unify a b env
+
+    (Var var, type_) -> unifyVar (scalar var) type_ env
+    (type_, Var var) -> unifyVar (scalar var) type_ env
+
+    _ -> Left . TypeError (envLocation env) $ unwords
+      [ "cannot solve scalar type constraint:"
+      , show type1
+      , "="
+      , show type2
+      ]
+
+class Subtype a where
+  (<:) :: Type a -> Type a -> Bool
+
+instance Subtype Row where
+  type1 <: type2 = case (type1, type2) of
+    _ | type1 == type2 -> True
+    (a :. b, c :. d) -> b <: d && a <: c
+    (Var{}, Var{}) -> False
+    (Var{}, _) -> True
+    _ -> False
+
+instance Subtype Scalar where
+  type1 <: type2 = case (type1, type2) of
+    _ | type1 == type2 -> True
+    (a :& b, c :& d) -> b <: d && a <: c
+    (Function a b p1, Function c d p2)
+      -> p1 == p2 && a <: c && b <: d
+    (Vector a, Vector b) -> a <: b
+    (Var{}, Var{}) -> False
+    (Var{}, _) -> True
+    _ -> False
 
 -- | Unifies two types, returning the second type.
-unifyM :: Type -> Type -> Inferred Type
+unifyM
+  :: (Unification a, Simplify a)
+  => Type a
+  -> Type a
+  -> Inferred (Type a)
 unifyM type1 type2 = do
   env <- getsEnv $ unify type1 type2
   case env of
     Right env' -> putEnv env' >> return type2
     Left err -> Inferred $ throwMany [err]
 
-unifyM_ :: Type -> Type -> Inferred ()
+unifyM_
+  :: (Unification a, Simplify a)
+  => Type a
+  -> Type a
+  -> Inferred ()
 unifyM_ = (void .) . unifyM
 
-unifyVar :: Name -> Type -> Env -> Either CompileError Env
+(===)
+  :: (Unification a, Simplify a)
+  => Type a
+  -> Type a
+  -> Inferred ()
+(===) = unifyM_
+
+infix 3 ===
+
+unifyVar
+  :: forall a. (Declare a, Occurrences a, Substitute a)
+  => TypeName a
+  -> Type a
+  -> Env
+  -> Either CompileError Env
 unifyVar var1 type_ env = case type_ of
-  TypeVar var2 | var1 == var2 -> return env
-  TypeVar{} -> return $ declare var1 type_ env
-  _ | occurs var1 env type_
+  Var var2 | typeName var1 == var2 -> return env
+  Var{} -> return $ declare var1 type_ env
+  _ | occurs (typeName var1) env type_
     -> Left . TypeError (envLocation env) $ unwords
       [ "cannot construct infinite type"
-      , show $ sub env (TypeVar var1)
+      , show $ sub env (Var (typeName var1) :: Type a)
       , "="
       , show $ sub env type_
       ]
   _ -> return $ declare var1 type_ env
-
-unifyRow :: [Type] -> [Type] -> Env -> Either CompileError Env
-unifyRow as bs env = if length as /= length bs
-  then Left $ TypeError (envLocation env) $ unwords
-    [ "cannot solve row type constraint:"
-    , showWords $ map (sub env) as
-    , "="
-    , showWords $ map (sub env) bs
-    ]
-  else foldrM (uncurry unify) env $ zip as bs
-
-unifyRowM :: [Type] -> [Type] -> Inferred ()
-unifyRowM a b = do
-  env <- getsEnv $ unifyRow a b
-  case env of
-    Right env' -> putEnv env'
-    Left err -> Inferred $ throwMany [err]

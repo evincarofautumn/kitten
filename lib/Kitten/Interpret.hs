@@ -41,9 +41,10 @@ interpretTerm :: Resolved -> Interpret
 interpretTerm resolved = case resolved of
   Builtin builtin _ -> interpretBuiltin builtin
 
-  Call name _ -> interpretOverload name
+  Call name loc -> withLocation loc $ interpretOverload name
 
-  Compose terms -> mapM_ interpretTerm terms
+  Compose terms loc -> withLocation loc
+    $ mapM_ interpretTerm terms
 
   If true false loc -> withLocation loc $ do
     Bool test <- popData

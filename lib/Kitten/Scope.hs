@@ -33,7 +33,9 @@ scopeTerm stack typed = case typed of
 
   Call{} -> typed
 
-  Compose terms -> Compose (map (scopeTerm stack) terms)
+  Compose terms loc -> Compose
+    (map (scopeTerm stack) terms)
+    loc
 
   If true false loc -> If
     (scopeTerm stack true)
@@ -114,7 +116,9 @@ captureTerm typed = case typed of
 
   Call{} -> return typed
 
-  Compose terms -> Compose <$> mapM captureTerm terms
+  Compose terms loc -> Compose
+    <$> mapM captureTerm terms
+    <*> pure loc
 
   If true false loc -> If
     <$> captureTerm true

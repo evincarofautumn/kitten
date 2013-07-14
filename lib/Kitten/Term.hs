@@ -9,7 +9,7 @@ import Kitten.Location
 data Term
   = Builtin Builtin Location
   | Call String Location
-  | Compose [Term]
+  | Compose [Term] Location
   | If Term Term Location
   | Lambda String Term Location
   | PairTerm Term Term Location

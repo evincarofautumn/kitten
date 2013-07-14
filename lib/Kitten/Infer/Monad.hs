@@ -4,10 +4,8 @@
 module Kitten.Infer.Monad
   ( Env(..)
   , Inferred(..)
-  , Instantiation(..)
-  , declare
+  , Declare(..)
   , emptyEnv
-  , findType
   , freshNameM
   , freshVar
   , freshVarM
@@ -15,6 +13,7 @@ module Kitten.Infer.Monad
   , getsEnv
   , modifyEnv
   , putEnv
+  , retrieve
   , runInference
   , withLocation
   ) where
@@ -34,27 +33,29 @@ import Kitten.Util.FailWriter
 import Kitten.Util.Maybe
 
 data Env = Env
-  { envClosure :: [Type]
+  { envClosure :: [Type Scalar]
   , envDefs :: Map Name Scheme
-  , envLocals :: [Type]
+  , envLocals :: [Type Scalar]
   , envLocation :: Location
   , envNext  :: Name
-  , envTypes :: Map Name Type
+  , envRows :: Map Name (Type Row)
+  , envScalars :: Map Name (Type Scalar)
   } deriving (Show)
 
 newtype Inferred a = Inferred
   { unwrapInferred :: FailWriterT [CompileError] (State Env) a
   } deriving (Applicative, Functor, Monad)
 
-data Instantiation = Instantiation
-  { instantiationLocation :: Location
-  , instantiationName :: Name
-  , instantiationType :: Type
-  }
+class Declare a where
+  declare :: TypeName a -> Type a -> Env -> Env
 
-declare :: Name -> Type -> Env -> Env
-declare name type_ env = env
-  { envTypes = Map.insert name type_ (envTypes env) }
+instance Declare Row where
+  declare (TypeName name) type_ env = env
+    { envRows = Map.insert name type_ (envRows env) }
+
+instance Declare Scalar where
+  declare (TypeName name) type_ env = env
+    { envScalars = Map.insert name type_ (envScalars env) }
 
 emptyEnv :: Env
 emptyEnv = Env
@@ -63,16 +64,26 @@ emptyEnv = Env
   , envLocals = []
   , envLocation = UnknownLocation
   , envNext = Name 0
-  , envTypes = Map.empty
+  , envRows = Map.empty
+  , envScalars = Map.empty
   }
 
-findType :: Env -> Name -> Either CompileError Type
-findType Env{..} name = maybeToEither nonexistent
-  $ Map.lookup name envTypes
-  where
-  nonexistent :: CompileError
-  nonexistent = TypeError envLocation $ unwords
-    [ "nonexistent type variable:"
+class Retrieve a where
+  retrieve :: Env -> TypeName a -> Either CompileError (Type a)
+
+instance Retrieve Row where
+  retrieve Env{..} (TypeName name)
+    = flip maybeToEither (Map.lookup name envRows)
+    $ TypeError envLocation $ unwords
+    [ "nonexistent row type variable:"
+    , show name
+    ]
+
+instance Retrieve Scalar where
+  retrieve Env{..} (TypeName name)
+    = flip maybeToEither (Map.lookup name envScalars)
+    $ TypeError envLocation $ unwords
+    [ "nonexistent scalar type variable:"
     , show name
     ]
 
@@ -81,15 +92,15 @@ freshName env
   = let current = envNext env
   in (current, env { envNext = succ current })
 
-freshVar :: Env -> (Type, Env)
+freshVar :: Env -> (Type a, Env)
 freshVar env
   = let (name, env') = freshName env
-  in (TypeVar name, env')
+  in (Var name, env')
 
 freshNameM :: Inferred Name
 freshNameM = Inferred . lift $ state freshName
 
-freshVarM :: Inferred Type
+freshVarM :: Inferred (Type a)
 freshVarM = Inferred . lift $ state freshVar
 
 getEnv :: Inferred Env

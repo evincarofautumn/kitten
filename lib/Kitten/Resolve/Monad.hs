@@ -46,7 +46,9 @@ compileError err = Resolution $ FailWriter.throwMany [err]
 defIndices :: String -> Env -> [Int]
 defIndices expected Env{..} = findExpected envPrelude
   ++ ((length envPrelude +) <$> findExpected envDefs)
-  where findExpected = findIndices $ (== expected) . defName
+  where
+  findExpected :: [Def a] -> [Int]
+  findExpected = findIndices $ (== expected) . defName
 
 evalResolution :: Env -> Resolution a -> Either [CompileError] a
 evalResolution env (Resolution m)

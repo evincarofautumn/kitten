@@ -13,7 +13,7 @@ import Kitten.Name
 data Resolved
   = Builtin Builtin Location
   | Call Name Location
-  | Compose [Resolved]
+  | Compose [Resolved] Location
   | If Resolved Resolved Location
   | PairTerm Resolved Resolved Location
   | Push Value Location

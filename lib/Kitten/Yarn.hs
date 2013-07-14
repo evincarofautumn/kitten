@@ -151,7 +151,7 @@ yarnDef Def{..} index = do
 yarnTerm :: Resolved -> Yarn [Instruction]
 yarnTerm term = case term of
   Resolved.Call (Name index) _ -> return [Call index]
-  Resolved.Compose terms -> concatMapM yarnTerm terms
+  Resolved.Compose terms _ -> concatMapM yarnTerm terms
   Resolved.Builtin builtin _ -> return [Builtin builtin]
 
   Resolved.If true false _ -> do
@@ -183,14 +183,14 @@ yarnValueInstruction
 yarnValueInstruction resolved = case resolved of
   Resolved.Activation{} -> error
     "Kitten.Yarn.yarnValueInstruction: unexpected activation"
-  Resolved.Closed (Name index) {- _ -} -> return [Closure index]
+  Resolved.Closed (Name index) -> return [Closure index]
   Resolved.Closure names terms -> do
     instructions <- yarnTerm terms
     index <- yarnClosure instructions
     return [Act index names]
   Resolved.Function{} -> error
     "Kitten.Yarn.yarnValueInstruction: unresolved closure"
-  Resolved.Local (Name index) {- _ -} -> return [Local index]
+  Resolved.Local (Name index) -> return [Local index]
   _ -> return [Push $ yarnValue resolved]
 
 yarnClosure :: [Instruction] -> Yarn Label
