@@ -108,20 +108,11 @@ infer resolved = case resolved of
 
     Builtin.AndInt -> binary Type.Int
 
-    Builtin.Apply01 -> forAll $ \ r s a
-      -> r :. (s --> s :. a) --> r :. a
+    Builtin.Apply -> forAll $ \ r s
+      -> r :. (r --> s) --> s
 
-    Builtin.Apply11 -> forAll $ \ r s a b
-      -> r :. a :. (s :. a --> s :. b) --> r :. b
-
-    Builtin.Apply21 -> forAll $ \ r s a b c
-      -> r :. a :. b :. (s :. a :. b --> s :. c) --> r :. c
-
-    Builtin.Call01 -> forAll $ \ r s a
-      -> r :. (s ==> s :. a) ==> r :. a
-
-    Builtin.Call10 -> forAll $ \ r s a
-      -> r :. a :. (s :. a ==> s) ==> r
+    Builtin.Call -> forAll $ \ r s
+      -> r :. (r ==> s) ==> s
 
     Builtin.CharToInt -> forAll $ \ r
       -> r :. Type.Char --> r :. Type.Int

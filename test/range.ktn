@@ -1,6 +1,6 @@
 def test ([Int] [Int] =>):
   -> { actual expected }
-  if actual expected {=} eqv ! then:
+  if actual expected {=} eqv not then:
     "Expected " print expected sayiv
     "But got  " print actual sayiv
     1 __exit

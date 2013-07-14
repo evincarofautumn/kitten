@@ -208,7 +208,7 @@ def game (=>):
 
 def loop ((=> Bool) =>):
   -> f
-  if f call01 then:
+  if f! then:
     f loop
 
 def prompt_play_another (=> Bool):

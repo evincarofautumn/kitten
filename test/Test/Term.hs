@@ -23,7 +23,7 @@ spec = do
   describe "terms" $ do
     testTerm "1 2 3"
       (Fragment [] [pushi 1, pushi 2, pushi 3])
-    testTerm "dup swap drop vector cat function compose apply"
+    testTerm "dup swap drop vector cat function compose"
       $ Fragment []
         [ word "dup"
         , word "swap"
@@ -32,7 +32,6 @@ spec = do
         , word "cat"
         , word "function"
         , word "compose"
-        , word "apply"
         ]
 
   describe "function" $ do

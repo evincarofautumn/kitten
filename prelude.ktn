@@ -36,7 +36,7 @@ def filter ([a] (a -> Bool) -> [a]):
   -> { v f }
   if v empty then:
     v
-  else if v head f apply11 then:
+  else if v head f@ then:
     v tail f filter
     v head prepend
   else:
@@ -61,7 +61,7 @@ def foldr ([a] b (a b -> b) -> b):
   else:
     xs head
     xs tail z k foldr
-    k apply21
+    k@
 
 // Folds elements of a vector left-associatively.
 def fold ([b] a (a b -> a) -> a):
@@ -70,7 +70,7 @@ def fold ([b] a (a b -> a) -> a):
     z
   else:
     xs tail
-    z xs head k apply21
+    z xs head k@
     k fold
 
 // Gets the fourth element of a tuple.
@@ -89,10 +89,10 @@ def head ([a] -> a):
 // Iterates a function on a value until a predicate holds.
 def until (a (a -> a) (a -> Bool) -> a):
   -> { x f p }
-  if x p apply11 then:
+  if x p@ then:
     x
   else:
-    x f apply11
+    x f@
     f p until
 
 // Keeps the first n elements of a vector, tossing the rest.
@@ -111,14 +111,14 @@ def map ([a] (a -> b) -> [b]):
     []
   else:
     xs tail f map
-    xs head f apply11
+    xs head f@
     prepend
 
 // Maps a function over a value for each integer in a range.
 def mapRange (a (a Int -> a) Int Int -> a):
   -> { value function start end }
   if start end <= then:
-    value start function apply21
+    value start function@
     function start++ end mapRange
   else:
     value
@@ -126,7 +126,7 @@ def mapRange (a (a Int -> a) Int Int -> a):
 // Maps a function over an element of a vector.
 def modify ([a] (a -> a) Int -> [a]):
   -> { vec function offset }
-  vec offset get function apply11 -> value
+  vec offset get function@ -> value
   vec value offset set
 
 // Maps a function over part of a vector.
@@ -144,7 +144,7 @@ def each ([a] (a =>) =>):
   if xs empty then:
     pass
   else:
-    xs head f call10
+    xs head f!
     xs tail f each
 
 // Produces a vector with some number of copies of a value.
@@ -197,7 +197,7 @@ def toss ([a] Int -> [a]):
     xs tail n-- toss
 
 // Logical NOT.
-def ! (Bool -> Bool):
+def not (Bool -> Bool):
   __not_bool
 
 // Integer inequality.
@@ -328,25 +328,6 @@ def and ([Bool] -> Bool):
 def any ([a] (a -> Bool) -> Bool):
   map or
 
-// Applies a nullary function with one result.
-def apply01 ((-> a) -> a):
-  __apply01
-
-// Applies a unary function with one result.
-def apply11 (a (a -> b) -> b):
-  __apply11
-
-def apply21 (a b (a b -> c) -> c):
-  __apply21
-
-// Applies a nullary procedure with one result.
-def call01 ((=> a) => a):
-  __call01
-
-// Applies a unary procedure with no results.
-def call10 (a (a =>) =>):
-  __call10
-
 // Concatenates two vectors.
 def cat ([a] [a] -> [a]):
   __add_vector
@@ -354,7 +335,7 @@ def cat ([a] [a] -> [a]):
 // Composes two unary functions with one result.
 def compose ((a -> b) (b -> c) -> (a -> c)):
   -> { f g }
-  { f apply11 g apply11 }
+  { f@ g@ }
 
 // Wraps a value in a function.
 def const (a -> (b -> a)):
@@ -405,7 +386,7 @@ def eqv ([a] [a] (a a -> Bool) -> Bool):
     false
   else if xs empty ys empty && then:
     true
-  else if xs head ys head eq apply21 then:
+  else if xs head ys head eq@ then:
     xs tail ys tail eq eqv
   else:
     false
@@ -531,16 +512,18 @@ def newline (=>):
 
 // Whether a floating-point number is odd.
 def oddf (Float -> Bool):
-  evenf !
+  evenf not
 
 // Whether an integer is odd.
 def oddi (Int -> Bool):
-  eveni !
+  eveni not
 
 // Apply a unary function to two values.
 def on (a a (a -> b) -> b b):
   -> { x y f }
-  x f apply11 y f apply11
+  x f@ -> a
+  y f@ -> b
+  a b
 
 // Opens a file for input.
 def openInput ([Char] => Handle):
@@ -730,7 +713,7 @@ def unlines ([[Char]] -> [Char]):
 
 // Unsafely calls a unary procedure with one result.
 def unsafeCall11 (a (a => b) -> b):
-  unsafePurify11 apply11
+  unsafePurify11@
 
 // Unsafely casts a unary procedure with one result into a
 // similarly typed function.
@@ -764,16 +747,16 @@ def zipWith ([a] [b] (a b -> c) -> [c]):
     []
   else:
     as tail bs tail f zipWith
-    as head bs head f apply21 prepend
+    as head bs head f@ prepend
 
 // Range of integers from start to finish generating
 // based on a given next and compare functions
 def rangeFor (Int Int (Int -> Int) (Int Int -> Bool) -> [Int]):
   -> { start end next cmp }
-  if start end cmp apply21 then:
+  if start end cmp@ then:
     []
   else:
-    start next apply11 end next cmp rangeFor start prepend
+    start next@ end next cmp rangeFor start prepend
 
 // Non-inclusive range
 def rangeUntil (Int Int -> [Int]):
@@ -813,7 +796,7 @@ def scanlRest ([b] a (a b -> a) -> [a]):
   if xs empty then:
     []
   else:
-    z xs head k apply21 -> q
+    z xs head k@ -> q
     xs tail q k scanlRest
     q prepend
 
@@ -829,7 +812,7 @@ def scanr ([a] b (a b -> b) -> [b]):
     [z]
   else:
     xs tail z k scanr dup head
-    xs head swap k apply21
+    xs head swap k@
     prepend
 
 // Scan left with vector head as accumulator
