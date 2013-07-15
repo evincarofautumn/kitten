@@ -136,6 +136,10 @@ def ## ([[a]] Int Int -> a):
 def head ([a] -> a):
   0#
 
+def headTail ([a] -> a [a]):
+  -> xs
+  xs head xs tail
+
 // Iterates a function on a value until a predicate holds.
 def until (a (a -> a) (a -> Bool) -> a):
   -> { x f p }
@@ -769,6 +773,20 @@ def tail ([a] -> [a]):
 
 // The ratio of a circle's circumference to its radius.
 def tau 6.283185307179586
+
+// Transposes the rows and columns of a 2D vector.
+def transpose ([[a]] -> [[a]]):
+  -> xss
+  if xss isEmpty then:
+    []
+  else if xss head isEmpty then:
+    xss tail transpose
+  else:
+    xss headTail -> { xs xss }
+    xs headTail -> { x xs }
+    xss {tail} map  xs prepend  transpose
+    xss {head} map  x prepend
+    prepend
 
 // Joins a vector of lines into a string.
 def unlines ([[Char]] -> [Char]):
