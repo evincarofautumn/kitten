@@ -1,3 +1,9 @@
+def absInt (Int -> Int):
+  if dup 0 < then: negInt else: id
+
+def absFloat (Float -> Float):
+  if dup 0.0 <. then: negFloat else: id
+
 // Whether all elements of a vector satisfy a predicate.
 def all ([a] (a -> Bool) -> Bool):
   map and
