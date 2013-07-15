@@ -1,10 +1,10 @@
-99 bottles_of_beer
+99 bottlesOfBeer
 
-def bottles_of_beer (Int =>):
+def bottlesOfBeer (Int =>):
   -> x
   x verse
   if x 1 > then:
-    x-- bottles_of_beer
+    x-- bottlesOfBeer
 
 def verse (Int =>):
   -> x
@@ -30,5 +30,5 @@ def bottles (Int =>):
   else if x 1 = then:
     "one bottle"
   else:
-    x showi " bottles" cat
+    x showInt " bottles" cat
   print

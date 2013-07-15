@@ -10,13 +10,15 @@ def append ([a] a -> [a]):
 def cartesian ([a] [b] -> [(a, b)]):
   {double} cartesianWith
 
-// The Cartesian product of two vectors with a
-// generalized tupling function.
+// The Cartesian product of two vectors with a generalized
+// tupling function.
 def cartesianWith ([a] [b] (a b -> c) -> [c]):
-  -> { xs ys fn }
-  xs { ys length replicate } mapConcat -> xs2
-  ys xs length replicate concat -> ys2
-  xs2 ys2 fn zipWith
+  -> { xs ys function }
+  xs { -> x
+    ys { -> y
+      [x y function@]
+    } mapConcat
+  } mapConcat
 
 // Converts a character to an integer code point.
 def charToInt (Char -> Int):
@@ -31,7 +33,7 @@ def choice ((a | b) (a -> c) (b -> c) -> c):
 
 // Concatenates a vector of vectors.
 def concat ([[a]] -> [a]):
-  [] {cat} fold
+  [] {cat} foldl
 
 // Constructs a 2-tuple.
 def double (a b -> (a, b)):
@@ -41,7 +43,7 @@ def double (a b -> (a, b)):
 // Filters a vector by a predicate.
 def filter ([a] (a -> Bool) -> [a]):
   -> { v f }
-  if v empty then:
+  if v isEmpty then:
     v
   else if v head f@ then:
     v tail f filter
@@ -55,15 +57,13 @@ def first ((a & b) -> a):
 
 // Flips the elements of a double.
 def flip ((a, b) -> (b, a)):
-  -> d
-  d first -> a
-  d second -> b
-  (b, a)
+  -> pair
+  (pair second, pair first)
 
 // Folds elements of a vector right-associatively.
 def foldr ([a] b (a b -> b) -> b):
   -> { xs z k }
-  if xs empty then:
+  if xs isEmpty then:
     z
   else:
     xs head
@@ -71,14 +71,14 @@ def foldr ([a] b (a b -> b) -> b):
     k@
 
 // Folds elements of a vector left-associatively.
-def fold ([b] a (a b -> a) -> a):
+def foldl ([b] a (a b -> a) -> a):
   -> { xs z k }
-  if xs empty then:
+  if xs isEmpty then:
     z
   else:
     xs tail
     z xs head k@
-    k fold
+    k foldl
 
 // Gets the fourth element of a tuple.
 def fourth ((a & b & c & d & e) -> d):
@@ -122,13 +122,13 @@ def some (a -> a?):
   __some
 
 // Gets a value from a 2D vector.
-def get2 ([[a]] Int Int -> a):
+def ## ([[a]] Int Int -> a):
   -> { i j }
-  i get j get
+  i# j#
 
 // Gets the first element of a vector.
 def head ([a] -> a):
-  0 get
+  0#
 
 // Iterates a function on a value until a predicate holds.
 def until (a (a -> a) (a -> Bool) -> a):
@@ -142,7 +142,7 @@ def until (a (a -> a) (a -> Bool) -> a):
 // Keeps the first n elements of a vector, tossing the rest.
 def keep ([a] Int -> [a]):
   -> { xs n }
-  if n 0 <=  xs empty  || then:
+  if n 0 <=  xs isEmpty  || then:
     []
   else:
     xs tail n-- keep
@@ -151,7 +151,7 @@ def keep ([a] Int -> [a]):
 // Lifts a function on values to a function on vectors.
 def map ([a] (a -> b) -> [b]):
   -> { xs f }
-  if xs empty then:
+  if xs isEmpty then:
     []
   else:
     xs tail f map
@@ -168,24 +168,24 @@ def mapRange (a (a Int -> a) Int Int -> a):
     value
 
 // Maps a function over an element of a vector.
-def modify ([a] (a -> a) Int -> [a]):
+def #@ ([a] (a -> a) Int -> [a]):
   -> { vec function offset }
-  vec offset get function@ -> value
-  vec value offset set
+  vec offset# function@ -> value
+  vec value offset #!
 
 // Maps a function over part of a vector.
 def mapFrom ([a] (a -> a) Int -> [a]):
   -> { vec function offset }
-  if vec empty  offset vec length >=  || then:
+  if vec isEmpty  offset vec length >=  || then:
     vec
   else:
-    vec function offset modify
+    vec function offset #@
     function offset++ mapFrom
 
 // Maps a procedure over each element of a vector.
 def each ([a] (a =>) =>):
   -> { xs f }
-  if xs empty then:
+  if xs isEmpty then:
     pass
   else:
     xs head f!
@@ -207,7 +207,7 @@ def rest ((a & b) -> b):
 // Reverses a vector.
 def reverse ([a] -> [a]):
   -> xs
-  if xs empty then:
+  if xs isEmpty then:
     []
   else:
     xs init reverse
@@ -218,9 +218,9 @@ def second ((a & b & c) -> b):
   rest first
 
 // Sets a value in a 2D vector.
-def set2 ([[a]] a Int Int -> [[a]]):
+def ##! ([[a]] a Int Int -> [[a]]):
   -> { x i j }
-  { x j set } i modify
+  { x j#! } i#@
 
 // Splits a vector into two parts at the given index.
 def splitAt ([a] Int -> [a] [a]):
@@ -235,7 +235,7 @@ def third ((a & b & c & d) -> c):
 // Tosses the first n elements of a vector, keeping the rest.
 def toss ([a] Int -> [a]):
   -> { xs n }
-  if n 0 <=  xs empty  || then:
+  if n 0 <=  xs isEmpty  || then:
     xs
   else:
     xs tail n-- toss
@@ -366,7 +366,7 @@ def ^^ (Bool Bool -> Bool):
 
 // Whether all elements of a vector are true.
 def and ([Bool] -> Bool):
-  true {&&} fold
+  true {&&} foldl
 
 // Whether any element of a vector satisfies a predicate.
 def any ([a] (a -> Bool) -> Bool):
@@ -396,70 +396,70 @@ def dup (a -> a a):
   x x
 
 // Whether a character is present in a string.
-def elemc ([Char] Char -> Bool):
-  -> x
-  { x eqc } any
+def elemChar ([Char] Char -> Bool):
+  {eqChar} elem
+
+def elem ([a] a (a a -> Bool) -> Bool):
+  -> { xs x f }
+  xs { x f@ } any
 
 // Whether an integer is present in an integer vector.
-def elemi ([Int] Int -> Bool):
-  -> x
-  { x = } any
+def elemInt ([Int] Int -> Bool):
+  {=} elem
 
 // Whether a vector is empty.
-def empty ([a] -> Bool):
+def isEmpty ([a] -> Bool):
   length 0 =
 
 // Character equality.
-def eqc (Char Char -> Bool):
+def eqChar (Char Char -> Bool):
   {charToInt} on =
 
 // String equality.
-def eqcv ([Char] [Char] -> Bool):
-  {eqc} eqv
+def eqString ([Char] [Char] -> Bool):
+  {eqChar} eqVector
 
-// Integer vector equality.
-def eqiv ([Int] [Int] -> Bool):
-  {=} eqv
-
-def equ (() () -> Bool):
+def eqUnit (() () -> Bool):
   drop drop true
 
-def eqv ([a] [a] (a a -> Bool) -> Bool):
+def eqVector ([a] [a] (a a -> Bool) -> Bool):
   -> { xs ys eq }
   if xs length ys length != then:
     false
-  else if xs empty ys empty && then:
-    true
-  else if xs head ys head eq@ then:
-    xs tail ys tail eq eqv
   else:
-    false
+    xs ys eq zipWith and
 
 // Whether a floating-point number is even.
-def evenf (Float -> Bool):
+def evenFloat (Float -> Bool):
   2.0 %. 0.0 =.
 
 // Whether an integer is even.
-def eveni (Int -> Bool):
+def evenInt (Int -> Bool):
   2 % 0 =
 
 def exit (Int =>):
   __exit
 
 // Character greater than or equal.
-def gec (Char Char -> Bool):
+def geChar (Char Char -> Bool):
   {charToInt} on >=
 
 // Gets an element of a vector.
-def get ([a] Int -> a):
+def # ([a] Int -> a):
   __get
+
+// Gets multiple elements of a vector.
+def getAll ([a] [Int] -> [a]):
+  -> indices
+  -> xs
+  indices { xs swap # } map
 
 // Reads a line from standard input.
 def getLine (=> [Char]):
   stdin __get_line
 
 // Character greater than.
-def gtc (Char Char -> Bool):
+def gtChar (Char Char -> Bool):
   {charToInt} on >
 
 // Closes a handle.
@@ -494,7 +494,7 @@ def join ([[a]] [a] -> [a]):
 // Intersperses a value between the values of a vector.
 def intersperse ([a] a -> [a]):
   -> { xs sep }
-  if xs empty then:
+  if xs isEmpty then:
     []
   else:
     xs tail sep prependToAll
@@ -502,10 +502,10 @@ def intersperse ([a] a -> [a]):
 
 // Gets the last element of a vector.
 def last ([a] -> a):
-  dup length 1 - get
+  dup  length 1 -  #
 
 // Character less than or equal.
-def lec (Char Char -> Bool):
+def leChar (Char Char -> Bool):
   {charToInt} on <=
 
 // Gets the length of a vector.
@@ -513,8 +513,13 @@ def length ([a] -> Int):
   __length
 
 // Character less than.
-def ltc (Char Char -> Bool):
+def ltChar (Char Char -> Bool):
   {charToInt} on <
+
+// Repeats an action until a condition is false.
+def loopWhile ((=> Bool) =>):
+  -> f
+  if f! then: f loopWhile
 
 // Maps a function over a vector and concatenates the results.
 def mapConcat ([a] (a -> [b]) -> [b]):
@@ -539,15 +544,15 @@ def min3 (Int Int Int -> Int):
   min2 min2
 
 // Character inequality.
-def nec (Char Char -> Bool):
+def neChar (Char Char -> Bool):
   {charToInt} on !=
 
 // Floating-point negation.
-def negf (Float -> Float):
+def negFloat (Float -> Float):
   __neg_float
 
 // Integer negation.
-def negi (Int -> Int):
+def negInt (Int -> Int):
   __neg_int
 
 // Writes a newline to standard output.
@@ -555,12 +560,12 @@ def newline (=>):
   "\n" print
 
 // Whether a floating-point number is odd.
-def oddf (Float -> Bool):
-  evenf not
+def oddFloat (Float -> Bool):
+  evenFloat not
 
 // Whether an integer is odd.
-def oddi (Int -> Bool):
-  eveni not
+def oddInt (Int -> Bool):
+  evenInt not
 
 // Apply a unary function to two values.
 def on (a a (a -> b) -> b b):
@@ -579,7 +584,7 @@ def openOutput ([Char] => Handle):
 
 // Whether any element of a vector is true.
 def or ([Bool] -> Bool):
-  false {||} fold
+  false {||} foldl
 
 // Constructs a pair.
 def pair (a b -> (a & b)):
@@ -599,7 +604,7 @@ def prepend ([a] a -> [a]):
 
 def prependToAll ([a] a -> [a]):
   -> { xs sep }
-  if xs empty then:
+  if xs isEmpty then:
     []
   else:
     xs tail sep prependToAll
@@ -611,108 +616,110 @@ def print ([Char] =>):
   stdout __print
 
 // Prints a Boolean.
-def printb (Bool =>):
-  showb print
+def printBool (Bool =>):
+  showBool print
 
 // Prints a Boolean vector.
-def printbv ([Bool] =>):
-  showbv print
+def printBools ([Bool] =>):
+  showBools print
 
 // Prints a string vector.
-def printcvv ([[Char]] =>):
-  showcvv print
+def printStrings ([[Char]] =>):
+  showStrings print
 
 // Prints a floating-point number.
-def printf (Float =>):
-  showf print
+def printFloat (Float =>):
+  showFloat print
 
 // Prints a floating-point vector.
-def printfv ([Float] =>):
-  showfv print
+def printFloats ([Float] =>):
+  showFloats print
 
 // Prints an integer.
-def printi (Int =>):
-  showi print
+def printInt (Int =>):
+  showInt print
 
 // Prints an integer vector.
-def printiv ([Int] =>):
-  showiv print
+def printInts ([Int] =>):
+  showInts print
 
 // The product of a vector of floating-point numbers.
-def productf ([Float] -> Float):
-  1.0 {*.} fold
+def productFloats ([Float] -> Float):
+  1.0 {*.} foldl
 
 // The product of a vector of integers.
-def producti ([Int] -> Int):
-  1 {*} fold
+def productInts ([Int] -> Int):
+  1 {*} foldl
+
+def prompt ([Char] => [Char]):
+  print getLine
 
 // Prints a string followed by a newline.
 def say ([Char] =>):
   print newline
 
 // Says a Boolean.
-def sayb (Bool =>):
-  printb newline
+def sayBool (Bool =>):
+  printBool newline
 
 // Says a Boolean vector.
-def saybv ([Bool] =>):
-  printbv newline
+def sayBools ([Bool] =>):
+  printBools newline
 
 // Says a string vector.
-def saycvv ([[Char]] =>):
-  printcvv newline
+def sayStrings ([[Char]] =>):
+  printStrings newline
 
 // Says a floating-point number.
-def sayf (Float =>):
-  printf newline
+def sayFloat (Float =>):
+  printFloat newline
 
 // Says a floating-point vector.
-def sayfv ([Float] =>):
-  printfv newline
+def sayFloats ([Float] =>):
+  printFloats newline
 
 // Says an integer.
-def sayi (Int =>):
-  printi newline
+def sayInt (Int =>):
+  printInt newline
 
 // Says an integer vector.
-def sayiv ([Int] =>):
-  printiv newline
+def sayInts ([Int] =>):
+  printInts newline
 
 // Sets the value at an index in a vector.
-def set ([a] a Int -> [a]):
+def #! ([a] a Int -> [a]):
   __set
 
 // Shows a Boolean as a string.
-def showb (Bool -> [Char]):
-  if then: "true"
-  else: "false"
+def showBool (Bool -> [Char]):
+  if then: "true" else: "false"
 
 // Shows a Boolean vector as a string.
-def showbv ([Bool] -> [Char]):
-  {showb} showv
+def showBools ([Bool] -> [Char]):
+  {showBool} showVector
 
 // Shows a string vector as a string.
-def showcvv ([[Char]] -> [Char]):
-  {id} showv
+def showStrings ([[Char]] -> [Char]):
+  {id} showVector
 
 // Shows a floating-point number as a string.
-def showf (Float -> [Char]):
+def showFloat (Float -> [Char]):
   __show_float
 
 // Shows a floating-point vector as a string.
-def showfv ([Float] -> [Char]):
-  {showf} showv
+def showFloats ([Float] -> [Char]):
+  {showFloat} showVector
 
 // Shows an integer as a string.
-def showi (Int -> [Char]):
+def showInt (Int -> [Char]):
   __show_int
 
 // Shows an integer vector as a string.
-def showiv ([Int] -> [Char]):
-  {showi} showv
+def showInts ([Int] -> [Char]):
+  {showInt} showVector
 
 // Shows a vector as a string.
-def showv ([a] (a -> [Char]) -> [Char]):
+def showVector ([a] (a -> [Char]) -> [Char]):
   -> { v f }
   "[" v f map ", " join "]" cat cat
 
@@ -733,12 +740,12 @@ def stdout (-> Handle):
   __stdout
 
 // The sum of a vector of floating-point numbers.
-def sumf ([Float] -> Float):
-  0.0 {+.} fold
+def sumFloats ([Float] -> Float):
+  0.0 {+.} foldl
 
 // The sum of a vector of integers.
-def sumi ([Int] -> Int):
-  0 {+} fold
+def sumInts ([Int] -> Int):
+  0 {+} foldl
 
 // Swaps two values. Useful for changing argument order when
 // partially applying a function.
@@ -793,7 +800,7 @@ def zip ([a] [b] -> [(a, b)]):
 // Zips two lists together with a function.
 def zipWith ([a] [b] (a b -> c) -> [c]):
   -> { as bs f }
-  if as empty  bs empty  || then:
+  if as isEmpty  bs isEmpty  || then:
     []
   else:
     as tail bs tail f zipWith
@@ -806,7 +813,9 @@ def rangeFor (Int Int (Int -> Int) (Int Int -> Bool) -> [Int]):
   if start end cmp@ then:
     []
   else:
-    start next@ end next cmp rangeFor start prepend
+    start next@
+      end next cmp rangeFor
+    start prepend
 
 // Non-inclusive range
 def rangeUntil (Int Int -> [Int]):
@@ -833,7 +842,7 @@ def ... (Int Int -> [Int]) { rangeUntil }
 // Left-leaning vector fold starting from first element
 def foldl1 ([a] (a a -> a) -> a):
   -> { xs fn }
-  xs tail xs head fn fold
+  xs tail xs head fn foldl
 
 // Right-leaning vector fold starting from last element
 def foldr1 ([a] (a a -> a) -> a):
@@ -843,7 +852,7 @@ def foldr1 ([a] (a a -> a) -> a):
 // Scan fold of remaining elements
 def scanlRest ([b] a (a b -> a) -> [a]):
   -> { xs z k }
-  if xs empty then:
+  if xs isEmpty then:
     []
   else:
     z xs head k@ -> q
@@ -858,7 +867,7 @@ def scanl ([b] a (a b -> a) -> [a]):
 // Produce a list of fold-right results
 def scanr ([a] b (a b -> b) -> [b]):
   -> { xs z k }
-  if xs empty then:
+  if xs isEmpty then:
     [z]
   else:
     xs tail z k scanr dup head

@@ -1,10 +1,10 @@
 def procedure (Int => Int):
-  dup sayi --
+  dup sayInt --
 
 def function (Int -> Int):
   ++
 
 [2, 4, 6, 8, 10] -> xs
 
-xs {function} map sayiv
-xs {{procedure} unsafeCall11} map sayiv
+xs {function} map sayInts
+xs {{procedure} unsafeCall11} map sayInts

@@ -2,4 +2,4 @@ def pureFromImpure (Int => Int):
   impure
   ++
 
-5 pureFromImpure sayi
+5 pureFromImpure sayInt

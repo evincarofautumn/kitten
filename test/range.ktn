@@ -1,8 +1,8 @@
 def test ([Int] [Int] =>):
   -> { actual expected }
-  if actual expected {=} eqv not then:
-    "Expected " print expected sayiv
-    "But got  " print actual sayiv
+  if actual expected {=} eqVector not then:
+    "Expected " print expected sayInts
+    "But got  " print actual sayInts
     1 __exit
 
 0 0 rangeUntil

@@ -1,17 +1,17 @@
 def test ([Int] [Int] [Int] [Int] =>):
   -> { actualL actualR expectedL expectedR }
   if
-    actualL expectedL {=} eqv not
-    actualR expectedR {=} eqv not
+    actualL expectedL {=} eqVector not
+    actualR expectedR {=} eqVector not
     ||
   then:
     "Expected:" say
-      tab expectedL sayiv
-      tab expectedR sayiv
+      tab expectedL sayInts
+      tab expectedR sayInts
     "But got:" say
-      tab actualL sayiv
-      tab actualR sayiv
-    1 __exit
+      tab actualL sayInts
+      tab actualR sayInts
+    1 exit
 
 [] 0 splitAt
 [] []

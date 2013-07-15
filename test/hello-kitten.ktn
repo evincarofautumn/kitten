@@ -1,5 +1,2 @@
-def prompt ([Char] => [Char]):
-  print getLine
-
 "What is your name? " prompt -> name
-"Hello, " name cat "!" cat say
+["Hello, ", name, "!"] concat say

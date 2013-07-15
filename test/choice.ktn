@@ -1,7 +1,7 @@
 def sayIntOrString (Int | [Char] =>):
   -> x
   if x isLeft then:
-    x fromLeft sayi
+    x fromLeft sayInt
   else:
     x fromRight say
 
@@ -9,7 +9,7 @@ def sayIntOrString (Int | [Char] =>):
 "purr" right sayIntOrString
 
 def showNum (Int | Float -> [Char]):
-  {showi} {showf} choice
+  {showInt} {showFloat} choice
 
 12 left showNum say
 6.25 right showNum say

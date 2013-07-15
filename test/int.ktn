@@ -6,15 +6,15 @@ def binary (-> Int Int):
 
 def ii ((Int -> Int) =>):
   -> f
-  unary f@ sayi
+  unary f@ sayInt
 
 def iib ((Int Int -> Bool) =>):
   -> f
-  binary f@ sayb
+  binary f@ sayBool
 
 def iii ((Int Int -> Int) =>):
   -> f
-  binary f@ sayi
+  binary f@ sayInt
 
 {+} iii
 {&} iii
@@ -29,7 +29,7 @@ def iii ((Int Int -> Int) =>):
 {%} iii
 {*} iii
 {!=} iib
-{negi} ii
+{negInt} ii
 {~} ii
 {|} iii
 {-} iii

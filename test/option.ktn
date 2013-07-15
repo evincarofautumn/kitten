@@ -5,19 +5,19 @@ def test (a? (a -> [Char]) =>):
   else:
     "(none)" say
 
-5 some {showi} test
+5 some {showInt} test
 "meow" some {id} test
 none {id} test
 
 def or0 (Int? -> Int):
   0 fromOption
 
-10 some or0 sayi
-none or0 sayi
+10 some or0 sayInt
+none or0 sayInt
 
 def /? (Int Int -> Int?):
   -> { x y }
   if y 0 = then: none else: x y / some
 
-20 10 /? or0 sayi
-10 0 /? or0 sayi
+20 10 /? or0 sayInt
+10 0 /? or0 sayInt

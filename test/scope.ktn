@@ -9,7 +9,7 @@
     b1 y1 +
   }@
 }@
-sayi
+sayInt
 
 1000 -> x2
 100 -> y2
@@ -22,4 +22,4 @@ sayi
     b2 x2 +
   }@
 }@
-sayi
+sayInt
