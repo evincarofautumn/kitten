@@ -536,22 +536,30 @@ def mapConcat ([a] (a -> [b]) -> [b]):
   map concat
 
 // The maximum of two integers.
-def max2 (Int Int -> Int):
+def maxInt (Int Int -> Int):
   -> { a b }
   if a b > then: a else: b
 
 // The maximum of three integers.
-def max3 (Int Int Int -> Int):
-  max2 max2
+def maxInt3 (Int Int Int -> Int):
+  maxInt maxInt
+
+// The maximum of a vector of integers.
+def maxInts ([Int] -> Int):
+  {maxInt} foldl1
 
 // The minimum of two integers.
-def min2 (Int Int -> Int):
+def minInt (Int Int -> Int):
   -> { a b }
   if a b < then: a else: b
 
 // The minimum of three integers.
-def min3 (Int Int Int -> Int):
-  min2 min2
+def minInt3 (Int Int Int -> Int):
+  minInt minInt
+
+// The minimum of a vector of integers.
+def minInts ([Int] -> Int):
+  {minInt} foldl1
 
 // Character inequality.
 def neChar (Char Char -> Bool):
