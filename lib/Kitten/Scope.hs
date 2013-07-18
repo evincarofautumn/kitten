@@ -30,32 +30,20 @@ scopeDef def@Def{..} = def
 scopeTerm :: [Int] -> Resolved -> Resolved
 scopeTerm stack typed = case typed of
   Builtin{} -> typed
-
   Call{} -> typed
-
-  Compose terms loc -> Compose
-    (map (scopeTerm stack) terms)
-    loc
-
-  If true false loc -> If
-    (scopeTerm stack true)
-    (scopeTerm stack false)
-    loc
-
-  PairTerm as bs loc -> PairTerm
-    (scopeTerm stack as)
-    (scopeTerm stack bs)
-    loc
-
+  Compose terms loc -> Compose (map recur terms) loc
+  Group terms loc -> Group (map recur terms) loc
+  If true false loc -> If (recur true) (recur false) loc
+  PairTerm as bs loc -> PairTerm (recur as) (recur bs) loc
   Push value loc -> Push (scopeValue stack value) loc
-
   Scoped term loc -> Scoped
     (scopeTerm (mapHead succ stack) term)
     loc
+  VectorTerm items loc -> VectorTerm (map recur items) loc
 
-  VectorTerm items loc -> VectorTerm
-    (map (scopeTerm stack) items)
-    loc
+  where
+  recur :: Resolved -> Resolved
+  recur = scopeTerm stack
 
 scopeValue :: [Int] -> Value -> Value
 scopeValue stack value = case value of
@@ -115,10 +103,12 @@ addName name = do
 captureTerm :: Resolved -> Capture Resolved
 captureTerm typed = case typed of
   Builtin{} -> return typed
-
   Call{} -> return typed
-
   Compose terms loc -> Compose
+    <$> mapM captureTerm terms
+    <*> pure loc
+
+  Group terms loc -> Group
     <$> mapM captureTerm terms
     <*> pure loc
 

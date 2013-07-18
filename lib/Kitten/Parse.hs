@@ -63,12 +63,16 @@ term = locate $ choice
   [ try $ Push <$> value
   , Call <$> littleWord
   , VectorTerm <$> vector
+  , try group
   , pair <$> tuple
   , mapOne toBuiltin <?> "builtin"
   , lambda
   , if_
   ]
   where
+
+  group :: Parser (Location -> Term)
+  group = (<?> "group") $ Group <$> grouped (many1 term)
 
   if_ :: Parser (Location -> Term)
   if_ = (<?> "if") $ do

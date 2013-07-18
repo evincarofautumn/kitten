@@ -40,30 +40,25 @@ interpret stack prelude fragment = void $ evalStateT
 interpretTerm :: Resolved -> Interpret
 interpretTerm resolved = case resolved of
   Builtin builtin _ -> interpretBuiltin builtin
-
   Call name loc -> withLocation loc $ interpretOverload name
-
   Compose terms loc -> withLocation loc
     $ mapM_ interpretTerm terms
-
+  Group terms loc -> withLocation loc
+    $ mapM_ interpretTerm terms
   If true false loc -> withLocation loc $ do
     Bool test <- popData
     interpretTerm $ if test then true else false
-
   PairTerm a b loc -> withLocation loc $ do
     interpretTerm a
     a' <- popData
     interpretTerm b
     b' <- popData
     pushData $ Pair a' b'
-
   Push value loc -> withLocation loc $ interpretValue value
-
   Scoped term loc -> withLocation loc $ do
     pushLocal =<< popData
     interpretTerm term
     popLocal
-
   VectorTerm terms loc -> withLocation loc $ do
     mapM_ interpretTerm terms
     values <- replicateM (length terms) popData

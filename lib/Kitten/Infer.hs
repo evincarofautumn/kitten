@@ -264,6 +264,8 @@ infer resolved = case resolved of
       (r --> r)
       types
 
+  Group terms loc -> infer (Compose terms loc)
+
   If true false loc -> withLocation loc $ do
     Type.Function a b p1 <- infer true
     Type.Function c d p2 <- infer false

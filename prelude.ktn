@@ -152,7 +152,7 @@ def until (a (a -> a) (a -> Bool) -> a):
 // Keeps the first n elements of a vector, tossing the rest.
 def keep ([a] Int -> [a]):
   -> { xs n }
-  if n 0 <=  xs isEmpty  || then:
+  if (n 0 <=) (xs isEmpty) || then:
     []
   else:
     xs tail n-- keep
@@ -186,7 +186,7 @@ def #@ ([a] (a -> a) Int -> [a]):
 // Maps a function over part of a vector.
 def mapFrom ([a] (a -> a) Int -> [a]):
   -> { vec function offset }
-  if vec isEmpty  offset vec length >=  || then:
+  if (vec isEmpty) (offset vec length >=) || then:
     vec
   else:
     vec function offset #@
@@ -245,7 +245,7 @@ def third ((a & b & c & d) -> c):
 // Tosses the first n elements of a vector, keeping the rest.
 def toss ([a] Int -> [a]):
   -> { xs n }
-  if n 0 <=  xs isEmpty  || then:
+  if (n 0 <=) (xs isEmpty) || then:
     xs
   else:
     xs tail n-- toss
@@ -512,7 +512,7 @@ def intersperse ([a] a -> [a]):
 
 // Gets the last element of a vector.
 def last ([a] -> a):
-  dup  length 1 -  #
+  dup (length 1 -) #
 
 // Character less than or equal.
 def leChar (Char Char -> Bool):
@@ -792,8 +792,8 @@ def transpose ([[a]] -> [[a]]):
   else:
     xss headTail -> { xs xss }
     xs headTail -> { x xs }
-    xss {tail} map  xs prepend  transpose
-    xss {head} map  x prepend
+    ((xss {tail} map) xs prepend) transpose
+    (xss {head} map) x prepend
     prepend
 
 // Joins a vector of lines into a string.
@@ -832,7 +832,7 @@ def zip ([a] [b] -> [(a, b)]):
 // Zips two lists together with a function.
 def zipWith ([a] [b] (a b -> c) -> [c]):
   -> { as bs f }
-  if as isEmpty  bs isEmpty  || then:
+  if (as isEmpty) (bs isEmpty) || then:
     []
   else:
     as tail bs tail f zipWith

@@ -14,6 +14,7 @@ data Resolved
   = Builtin Builtin Location
   | Call Name Location
   | Compose [Resolved] Location
+  | Group [Resolved] Location
   | If Resolved Resolved Location
   | PairTerm Resolved Resolved Location
   | Push Value Location

@@ -46,13 +46,16 @@ resolveTerm unresolved = case unresolved of
   Term.Compose terms loc -> Compose
     <$> guardMapM resolveTerm terms
     <*> pure loc
-  Term.Lambda name term loc -> withLocal name
-    $ Scoped
-    <$> resolveTerm term
+  Term.Group terms loc -> Group
+    <$> guardMapM resolveTerm terms
     <*> pure loc
   Term.If true false loc -> If
     <$> resolveTerm true
     <*> resolveTerm false
+    <*> pure loc
+  Term.Lambda name term loc -> withLocal name
+    $ Scoped
+    <$> resolveTerm term
     <*> pure loc
   Term.PairTerm as bs loc -> PairTerm
     <$> resolveTerm as

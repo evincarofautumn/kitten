@@ -153,7 +153,7 @@ yarnTerm term = case term of
   Resolved.Call (Name index) _ -> return [Call index]
   Resolved.Compose terms _ -> concatMapM yarnTerm terms
   Resolved.Builtin builtin _ -> return [Builtin builtin]
-
+  Resolved.Group terms _ -> concatMapM yarnTerm terms
   Resolved.If true false _ -> do
     true' <- yarnTerm true
     false' <- yarnTerm false
@@ -162,17 +162,14 @@ yarnTerm term = case term of
       , true'
       , false'
       ]
-
   Resolved.PairTerm a b _ -> do
     a' <- yarnTerm a
     b' <- yarnTerm b
     return $ a' ++ b' ++ [Builtin Builtin.Pair]
-
   Resolved.Push value _ -> yarnValueInstruction value
   Resolved.Scoped terms _ -> do
     instructions <- yarnTerm terms
     return $ Enter : instructions ++ [Leave]
-
   Resolved.VectorTerm values _ -> do
     values' <- concatMapM yarnTerm values
     return $ values' ++ [MakeVector (length values)]
