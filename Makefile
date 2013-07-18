@@ -13,10 +13,10 @@ TESTER = ./test/run.sh
 TESTS = $(basename $(notdir $(wildcard test/*.ktn)))
 
 .PHONY : default
-default : build prelude unit test lint
+default : build prelude unit test
 
 .PHONY : all
-all : deps configure default
+all : deps configure default lint
 
 .PHONY : build
 build $(KITTEN) :
