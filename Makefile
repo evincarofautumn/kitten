@@ -12,12 +12,6 @@ PRELUDE = ./dist/build/Kitten/prelude.ktn
 TESTER = ./test/run.sh
 TESTS = $(basename $(notdir $(wildcard test/*.ktn)))
 
-TIME =
-ifdef time
-  TIME = time
-  TIMEP = time -p
-endif
-
 .PHONY : default
 default : build prelude unit test
 
@@ -50,12 +44,11 @@ $(PRELUDE) : $(KITTEN) prelude.ktn
 
 .PHONY: unit
 unit:
-	@ $(TIMEP) $(CABAL) test
+	$(CABAL) test
 
 define TESTRULE
 test-$1 : $(KITTEN) $(PRELUDE) $(TESTER)
-	@ $(if ifdef time, printf "%-20s" "$1")
-	@ $(TIME) $(TESTER) $$(realpath $(KITTEN)) $1
+	@$(TESTER) $$(realpath $(KITTEN)) $1
 test : test-$1
 endef
 
@@ -64,7 +57,7 @@ $(foreach TEST,$(TESTS),$(eval $(call TESTRULE,$(TEST))))
 
 .PHONY : lint
 lint :
-	@ $(TIMEP) $(HLINT) src lib
+	@ $(HLINT) src lib
 
 .PHONY : loc
 loc :
