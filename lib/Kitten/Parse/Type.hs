@@ -62,7 +62,7 @@ signature = locate $ Anno <$> functionType
 
   tuple :: Parser Type
   tuple = do
-    types <- grouped (baseType `sepEndBy1` match Token.Comma)
+    types <- grouped (type_ `sepEndBy1` match Token.Comma)
     return $ foldr Anno.Pair Anno.Unit types
 
   unit :: Parser Type

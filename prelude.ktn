@@ -41,6 +41,63 @@ def choice ((a | b) (a -> c) (b -> c) -> c):
 def concat ([[a]] -> [a]):
   [] {cat} foldl
 
+// 'cond' accepts a value, a vector of patterns, and a
+// default function. A pattern consists of a matching
+// function and a body. Each matching function is attempted
+// in turn; the body corresponding to the first match to
+// return 'some' value is evaluated. If all of the matches
+// returned 'none', then 'cond' evaluates the default.
+def cond (
+  a                    // Matched value
+  [(a -> b?, b -> c)]  // (pattern, function) pairs
+  (-> c)               // default function
+  ->
+  c
+):
+  -> { x ps z }
+  if ps isEmpty then:
+    z@
+  else:
+    ps head -> p
+    x (p first)@ -> m
+    if m isSome then:
+      (m fromSome) (p second)@
+    else:
+      x (ps tail) z cond
+
+// 'cond' without a default.
+def cond1 (
+  a
+  [(a -> b?, b -> c)]
+  ->
+  c
+):
+  -> { x ps }
+  ps head -> p
+  x (p first)@ -> m
+  if m isSome then:
+    (m fromSome) (p second)@
+  else:
+    x (ps tail) cond1
+
+// 'cond' for procedures.
+def cond_ (
+  a                  // Matched value
+  [(a -> b?, b =>)]  // (pattern, action) pairs
+  (=>)               // default action
+  =>
+):
+  -> { x ps z }
+  if ps isEmpty then:
+    z!
+  else:
+    ps head -> p
+    x (p first)@ -> m
+    if m isSome then:
+      (m fromSome) (p second)!
+    else:
+      x (ps tail) z cond_
+
 // Constructs a 2-tuple.
 def double (a b -> (a, b)):
   -> { a b }
@@ -167,6 +224,46 @@ def map ([a] (a -> b) -> [b]):
     xs tail f map
     xs head f@
     prepend
+
+// Safely gets the left branch of a choice.
+def getLeft ((a | b) -> a?):
+  -> x
+  if x isLeft then: x fromLeft some else: none
+
+// Safely gets the right branch of a choice.
+def getRight ((a | b) -> b?):
+  -> x
+  if x isRight then: x fromRight some else: none
+
+// Maps a function over the left branch of a choice.
+def mapLeft ((a | b) (a -> c) -> c | b):
+  -> f
+  [ ({getLeft}, {f@ left})
+  , ({getRight}, {right})
+  ]
+  cond1
+
+// Maps a function over the right branch of a choice.
+def mapRight ((a | b) (b -> c) -> a | c):
+  -> f
+  [ ({getLeft}, {left})
+  , ({getRight}, {f@ right})
+  ]
+  cond1
+
+// Maps a function over an option value.
+def mapOption (a? (a -> b) -> b?):
+  -> f
+  [ ({id}, { f@ some })
+  ] {none}
+  cond
+
+// Maps a procedure over an option value.
+def mapOption_ (a? (a =>) =>):
+  -> f
+  [ ({id}, f)
+  ] {noop}
+  cond_
 
 // Maps a function over a value for each integer in a range.
 def mapRange (a (a Int -> a) Int Int -> a):
