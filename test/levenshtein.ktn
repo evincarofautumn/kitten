@@ -33,7 +33,7 @@ def levenshtein ([Char] [Char] -> Int):
         distances row-- column   ##  // deletion
         distances row   column-- ##  // insertion
         distances row-- column-- ##  // substitution
-        min3 ++
+        minInt3 ++
       row column ##!
 
     } 1 columns mapRange
