@@ -22,8 +22,8 @@ def cartesianWith ([a] [b] (a b -> c) -> [c]):
   -> { xs ys function }
   xs { -> x
     ys { -> y
-      [x y function@]
-    } mapConcat
+      x y function@
+    } map
   } mapConcat
 
 // Converts a character to an integer code point.
