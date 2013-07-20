@@ -202,6 +202,13 @@ unbound Env{..} = filter
 class Simplify a where
   simplify :: Env -> Type a -> Type a
 
+instance Simplify Effect where
+  simplify env type_ = case type_ of
+    Var name
+      | Right type' <- retrieve env (effect name)
+      -> simplify env type'
+    _ -> type_
+
 instance Simplify Row where
   simplify env type_ = case type_ of
     Var name

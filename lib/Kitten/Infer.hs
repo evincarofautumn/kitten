@@ -28,7 +28,7 @@ import Kitten.Infer.Unify
 import Kitten.Location
 import Kitten.Name
 import Kitten.Resolved
-import Kitten.Type (Type((:&), (:.), (:?), (:|), (:+)))
+import Kitten.Type (Type((:&), (:.), (:?), (:|)))
 import Kitten.Type hiding (Type(..))
 import Kitten.Util.FailWriter
 import Kitten.Util.Void
@@ -270,7 +270,7 @@ infer resolved = case resolved of
     Type.Function c d e2 <- infer false
     a === c
     b === d
-    return $ Type.Function (a :. Type.Bool) b (e1 :+ e2)
+    return $ Type.Function (a :. Type.Bool) b (e1 +: e2)
 
   PairTerm a b loc -> withLocation loc $ do
     a' <- fromConstant =<< infer a
@@ -405,4 +405,4 @@ inferCompose
   -> Inferred (Type Scalar)
 inferCompose in1 out1 in2 out2 e1 e2 = do
   out1 === in2
-  return $ Type.Function in1 out2 (e1 :+ e2)
+  return $ Type.Function in1 out2 (e1 +: e2)

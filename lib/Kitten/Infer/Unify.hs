@@ -34,6 +34,21 @@ class Unification a where
     -> Env
     -> Either CompileError Env
 
+instance Unification Effect where
+  unification type1 type2 env = case (type1, type2) of
+    _ | type1 == type2 -> Right env
+    (a :+ b, c :+ d) | a +: b == c +: d -> Right env
+
+    (Var var, type_) -> unifyVar (effect var) type_ env
+    (type_, Var var) -> unifyVar (effect var) type_ env
+
+    _ -> Left . TypeError (envLocation env) $ unwords
+      [ "cannot solve effect type constraint:"
+      , show type1
+      , "="
+      , show type2
+      ]
+
 instance Unification Row where
   unification type1 type2 env = case (type1, type2) of
     _ | type1 == type2 -> Right env
@@ -59,8 +74,7 @@ instance Unification Scalar where
     (a :| b, c :| d) -> unify b d env >>= unify a c
 
     (Function a b e1, Function c d e2)
-      | sub env e1 == sub env e2
-      -> unify b d env >>= unify a c
+      -> unify b d env >>= unify a c >>= unify e1 e2
 
     (Vector a, Vector b) -> unify a b env
 
