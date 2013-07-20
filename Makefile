@@ -1,6 +1,6 @@
 .NOTPARALLEL :
 
-HLINT := hlint
+HLINT ?= hlint
 CABAL ?= cabal
 
 CABALFLAGS += --enable-tests
@@ -57,7 +57,7 @@ $(foreach TEST,$(TESTS),$(eval $(call TESTRULE,$(TEST))))
 
 .PHONY : lint
 lint :
-	@ $(HLINT) src lib
+	@ $(HLINT) src lib || echo "Can't lint; hlint not on the path."
 
 .PHONY : loc
 loc :
