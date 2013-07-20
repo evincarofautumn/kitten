@@ -37,7 +37,17 @@ class Unification a where
 instance Unification Effect where
   unification type1 type2 env = case (type1, type2) of
     _ | type1 == type2 -> Right env
+
+    (NoEffect, a :+ b)
+      -> unify a NoEffect env
+      >>= unify b NoEffect
+
+    (a :+ b, NoEffect)
+      -> unify a NoEffect env
+      >>= unify b NoEffect
+
     (a :+ b, c :+ d) | a +: b == c +: d -> Right env
+    (a :+ b, c :+ d) -> unify a c env >>= unify b d
 
     (Var var, type_) -> unifyVar (effect var) type_ env
     (type_, Var var) -> unifyVar (effect var) type_ env

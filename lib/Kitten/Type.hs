@@ -68,10 +68,12 @@ a --> b = Function a b NoEffect
 a ==> b = Function a b IOEffect
 
 (+:) :: Type Effect -> Type Effect -> Type Effect
-IOEffect +: IOEffect = IOEffect
-IOEffect +: NoEffect = IOEffect
-NoEffect +: IOEffect = IOEffect
-NoEffect +: NoEffect = NoEffect
+a +: b | a == b = a
+IOEffect +: _ = IOEffect
+NoEffect +: a = a
+_ +: IOEffect = IOEffect
+a +: NoEffect = a
+(a :+ b) +: c = a +: (b +: c)
 a +: b = a :+ b
 
 data Scheme = Forall

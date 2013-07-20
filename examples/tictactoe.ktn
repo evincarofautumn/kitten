@@ -9,10 +9,10 @@
 
 ticTacToe
 
-def ticTacToe (=>):
+def ticTacToe (-> +IO):
   { game playAgain } loopWhile
 
-def game (=>):
+def game (-> +IO):
   newBoard 'x' gameLoop -> { finalBoard winner }
 
   newline
@@ -24,7 +24,7 @@ def game (=>):
 
   finalBoard printBoard
 
-def gameLoop ([Char] Char => [Char] Char):
+def gameLoop ([Char] Char -> [Char] Char +IO):
   -> player
   -> board
 
@@ -35,7 +35,7 @@ def gameLoop ([Char] Char => [Char] Char):
     board player askTurn
     player nextPlayer gameLoop
 
-def askTurn ([Char] Char => [Char]):
+def askTurn ([Char] Char -> [Char] +IO):
   -> player
   -> board
 
@@ -106,11 +106,11 @@ def getWinner ([Char] -> Char):
     else:
       '*'
 
-def playAgain (=> Bool):
+def playAgain (-> Bool +IO):
   "Play another game? [yN] " prompt -> input
   if input isYes then:
     newline true
-  else if input isNo  input isEmpty  || then:
+  else if (input isNo) (input isEmpty) || then:
     newline false
   else:
     playAgain
@@ -124,9 +124,9 @@ def newBoard (-> [Char]): ' ' 9 replicate
 
 def editBoard ([Char] Int Char -> [Char]):
   -> { number player }
-  player  number cellNumberToIndex  #!
+  player (number cellNumberToIndex) #!
 
-def printBoard ([Char] =>):
+def printBoard ([Char] -> +IO):
   showBoard print
 
 def showBoard ([Char] -> [Char]):
@@ -161,7 +161,7 @@ def showBoardCell (Char -> Char):
 def readMoveLine ([Char] -> (Int, Int)?):
   -> chars
   if chars length 2 = then:
-    chars 0#  chars 1#  readXY
+    (chars 0#) (chars 1#) readXY
   else:
     none
 
@@ -176,7 +176,7 @@ def readXY (Char Char -> (Int, Int)?):
 def readXY_ (Char Char -> (Int, Int)?):
   readX -> mx
   readY -> my
-  if mx isSome  my isSome  && then:
+  if (mx isSome) (my isSome) && then:
     (mx fromSome, my fromSome) some
   else:
     none

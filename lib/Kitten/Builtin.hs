@@ -21,7 +21,6 @@ data Builtin
   | AndBool
   | AndInt
   | Apply
-  | Call
   | CharToInt
   | Close
   | DivFloat
@@ -104,8 +103,7 @@ names = map fst fromStringTable
 
 fromStringTable :: [(String, Builtin)]
 fromStringTable =
-  [ (,) "!"                 Call
-  , (,) "@"                 Apply
+  [ (,) "@"                 Apply
   , (,) "__add_float"       AddFloat
   , (,) "__add_int"         AddInt
   , (,) "__add_vector"      AddVector

@@ -26,4 +26,5 @@ data Type
   | Vector Type
   | NoEffect
   | IOEffect
+  | Join Type Type
   deriving (Eq, Show)

@@ -108,7 +108,6 @@ interpretBuiltin builtin = case builtin of
   Builtin.AndInt -> intsToInt (.&.)
 
   Builtin.Apply -> apply
-  Builtin.Call -> apply
 
   Builtin.CharToInt -> do
     Char a <- popData

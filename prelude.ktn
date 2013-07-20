@@ -48,11 +48,11 @@ def concat ([[a]] -> [a]):
 // return 'some' value is evaluated. If all of the matches
 // returned 'none', then 'cond' evaluates the default.
 def cond (
-  a                    // Matched value
-  [(a -> b?, b -> c)]  // (pattern, function) pairs
-  (-> c)               // default function
+  a                       // Matched value
+  [(a -> b?, b -> c +e)]  // (pattern, function) pairs
+  (-> c +e)               // default function
   ->
-  c
+  c +e
 ):
   -> { x ps z }
   if ps isEmpty then:
@@ -68,9 +68,9 @@ def cond (
 // 'cond' without a default.
 def cond1 (
   a
-  [(a -> b?, b -> c)]
+  [(a -> b?, b -> c +e)]
   ->
-  c
+  c +e
 ):
   -> { x ps }
   ps head -> p
@@ -79,25 +79,6 @@ def cond1 (
     (m fromSome) (p second)@
   else:
     x (ps tail) cond1
-
-// 'cond' for procedures.
-def cond_ (
-  a                      // Matched value
-  [(a -> b?, b -> +IO)]  // (pattern, action) pairs
-  (-> +IO)               // default action
-  ->
-  +IO
-):
-  -> { x ps z }
-  if ps isEmpty then:
-    z!
-  else:
-    ps head -> p
-    x (p first)@ -> m
-    if m isSome then:
-      (m fromSome) (p second)!
-    else:
-      x (ps tail) z cond_
 
 // Constructs a 2-tuple.
 def double (a b -> (a, b)):
@@ -217,14 +198,14 @@ def keep ([a] Int -> [a]):
     xs head prepend
 
 // Lifts a function on values to a function on vectors.
-def map ([a] (a -> b) -> [b]):
+def map ([a] (a -> b +e) -> [b] +e):
   -> { xs f }
   if xs isEmpty then:
     []
   else:
+    xs head f@ vector
     xs tail f map
-    xs head f@
-    prepend
+    cat
 
 // Safely gets the left branch of a choice.
 def getLeft ((a | b) -> a?):
@@ -253,18 +234,11 @@ def mapRight ((a | b) (b -> c) -> a | c):
   cond1
 
 // Maps a function over an option value.
-def mapOption (a? (a -> b) -> b?):
+def mapOption (a? (a -> b +e) -> b? +e):
   -> f
   [ ({id}, { f@ some })
   ] {none}
   cond
-
-// Maps a procedure over an option value.
-def mapOption_ (a? (a -> +IO) -> +IO):
-  -> f
-  [ ({id}, f)
-  ] {noop}
-  cond_
 
 // Maps a function over a value for each integer in a range.
 def mapRange (a (a Int -> a) Int Int -> a):
@@ -289,15 +263,6 @@ def mapFrom ([a] (a -> a) Int -> [a]):
   else:
     vec function offset #@
     function offset++ mapFrom
-
-// Maps a procedure over each element of a vector.
-def each ([a] (a -> +IO) -> +IO):
-  -> { xs f }
-  if xs isEmpty then:
-    pass
-  else:
-    xs head f!
-    xs tail f each
 
 // Produces a vector with some number of copies of a value.
 def replicate (a Int -> [a]):
@@ -485,7 +450,7 @@ def cat ([a] [a] -> [a]):
   __add_vector
 
 // Composes two unary functions with one result.
-def compose ((a -> b) (b -> c) -> (a -> c)):
+def compose ((a -> b +e1) (b -> c +e2) -> (a -> c +(e1 + e2))):
   -> { f g }
   { f@ g@ }
 
@@ -627,7 +592,7 @@ def ltChar (Char Char -> Bool):
 // Repeats an action until a condition is false.
 def loopWhile ((-> Bool +IO) -> +IO):
   -> f
-  if f! then: f loopWhile
+  if f@ then: f loopWhile
 
 // Maps a function over a vector and concatenates the results.
 def mapConcat ([a] (a -> [b]) -> [b]):

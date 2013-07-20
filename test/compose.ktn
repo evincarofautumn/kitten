@@ -1,0 +1,3 @@
+5 {2*} {3+} compose @ sayInt
+5 {dup sayInt} {++} compose @ sayInt
+5 {--} {dup sayInt} compose @ sayInt

@@ -24,11 +24,24 @@ signature = locate $ Anno <$> functionType
     left <- many baseType
     right <- match Token.Arrow *> many baseType
     effect <- choice
-      [ Anno.IOEffect
-        <$ (match (Token.Operator "+") *> match Token.IOType)
+      [ match (Token.Operator "+") *> effectType
       , pure Anno.NoEffect
       ]
     return $ Anno.Function left right effect
+
+  effectType :: Parser Type
+  effectType = do
+    left <- choice
+      [ Anno.IOEffect <$ match Token.IOType
+      , Anno.Var <$> littleWord
+      , try $ Anno.NoEffect <$ unit
+      , grouped effectType
+      ]
+    choice
+      [ Anno.Join left
+        <$> (match (Token.Operator "+") *> effectType)
+      , pure left
+      ]
 
   baseType :: Parser Type
   baseType = (<?> "base type") $ do

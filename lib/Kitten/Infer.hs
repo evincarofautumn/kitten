@@ -109,11 +109,8 @@ infer resolved = case resolved of
 
     Builtin.AndInt -> binary Type.Int
 
-    Builtin.Apply -> forAll $ \ r s
-      -> r :. (r --> s) --> s
-
-    Builtin.Call -> forAll $ \ r s
-      -> r :. (r ==> s) ==> s
+    Builtin.Apply -> forAll $ \ r s e
+      -> Type.Function (r :. Type.Function r s e) s e
 
     Builtin.CharToInt -> forAll $ \ r
       -> r :. Type.Char --> r :. Type.Int

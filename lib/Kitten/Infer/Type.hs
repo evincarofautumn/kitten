@@ -85,4 +85,5 @@ fromAnno (Anno annoType _) = do
           modify $ \ env -> env
             { envEffects = Map.insert name var (envEffects env) }
           return (Var var)
+    Anno.Join a b -> (+:) <$> fromAnnoEffect a <*> fromAnnoEffect b
     _ -> error "converting non-effect annotation to effect type"
