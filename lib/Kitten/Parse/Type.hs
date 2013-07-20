@@ -8,7 +8,6 @@ import Kitten.Anno (Anno(..), Type)
 import Kitten.Parse.Monad
 import Kitten.Parsec
 import Kitten.Parse.Primitive
-import Kitten.Purity
 
 import qualified Kitten.Anno as Anno
 import qualified Kitten.Token as Token
@@ -25,9 +24,9 @@ signature = locate $ Anno <$> functionType
     left <- many baseType
     (right, purity) <- choice
       [ match Token.Arrow
-        *> ((,) <$> many baseType <*> pure Pure)
+        *> ((,) <$> many baseType <*> pure Anno.NoEffect)
       , match Token.FatArrow
-        *> ((,) <$> many baseType <*> pure Impure)
+        *> ((,) <$> many baseType <*> pure Anno.IOEffect)
       ]
     return $ Anno.Function left right purity
 

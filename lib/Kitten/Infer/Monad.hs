@@ -35,6 +35,7 @@ import Kitten.Util.Maybe
 data Env = Env
   { envClosure :: [Type Scalar]
   , envDefs :: Map Name Scheme
+  , envEffects :: Map Name (Type Effect)
   , envLocals :: [Type Scalar]
   , envLocation :: Location
   , envNext  :: Name
@@ -49,6 +50,10 @@ newtype Inferred a = Inferred
 class Declare a where
   declare :: TypeName a -> Type a -> Env -> Env
 
+instance Declare Effect where
+  declare (TypeName name) type_ env = env
+    { envEffects = Map.insert name type_ (envEffects env) }
+
 instance Declare Row where
   declare (TypeName name) type_ env = env
     { envRows = Map.insert name type_ (envRows env) }
@@ -61,6 +66,7 @@ emptyEnv :: Env
 emptyEnv = Env
   { envClosure = []
   , envDefs = Map.empty
+  , envEffects = Map.empty
   , envLocals = []
   , envLocation = UnknownLocation
   , envNext = Name 0
@@ -70,6 +76,14 @@ emptyEnv = Env
 
 class Retrieve a where
   retrieve :: Env -> TypeName a -> Either CompileError (Type a)
+
+instance Retrieve Effect where
+  retrieve Env{..} (TypeName name)
+    = flip maybeToEither (Map.lookup name envEffects)
+    $ TypeError envLocation $ unwords
+    [ "nonexistent effect variable:"
+    , show name
+    ]
 
 instance Retrieve Row where
   retrieve Env{..} (TypeName name)

@@ -8,8 +8,8 @@ module Kitten.Type
   , TypeName(..)
   , (-->)
   , (==>)
-  , isImpure
-  , isPure
+  , (+:)
+  , effect
   , mono
   , row
   , scalar
@@ -21,7 +21,6 @@ import qualified Data.Set as Set
 
 import Kitten.Kind
 import Kitten.Name
-import Kitten.Purity
 
 data Type a where
   (:&) :: Type Scalar -> Type Scalar -> Type Scalar
@@ -32,7 +31,7 @@ data Type a where
   Char :: Type Scalar
   Empty :: Type Row
   Float :: Type Scalar
-  Function :: Type Row -> Type Row -> Purity -> Type Scalar
+  Function :: Type Row -> Type Row -> Type Effect -> Type Scalar
   Handle :: Type Scalar
   Int :: Type Scalar
   Test :: Type a
@@ -40,8 +39,15 @@ data Type a where
   Var :: Name -> Type a
   Vector :: Type Scalar -> Type Scalar
 
+  (:+) :: Type Effect -> Type Effect -> Type Effect
+  NoEffect :: Type Effect
+  IOEffect :: Type Effect
+
 newtype TypeName a = TypeName { typeName :: Name }
   deriving (Eq, Ord, Show)
+
+effect :: Name -> TypeName Effect
+effect = TypeName
 
 row :: Name -> TypeName Row
 row = TypeName
@@ -55,22 +61,23 @@ infixl 5 :.
 infix 4 -->
 infix 4 ==>
 
-isImpure :: Type Scalar -> Bool
-isImpure = not . isPure
-
-isPure :: Type Scalar -> Bool
-isPure (Function _ _ Impure) = False
-isPure _ = True
-
 (-->) :: Type Row -> Type Row -> Type Scalar
-a --> b = Function a b Pure
+a --> b = Function a b NoEffect
 
 (==>) :: Type Row -> Type Row -> Type Scalar
-a ==> b = Function a b Impure
+a ==> b = Function a b IOEffect
+
+(+:) :: Type Effect -> Type Effect -> Type Effect
+IOEffect +: IOEffect = IOEffect
+IOEffect +: NoEffect = IOEffect
+NoEffect +: IOEffect = IOEffect
+NoEffect +: NoEffect = NoEffect
+a +: b = a :+ b
 
 data Scheme = Forall
   (Set (TypeName Row))
   (Set (TypeName Scalar))
+  (Set (TypeName Effect))
   (Type Scalar)
   deriving (Eq, Show)
 
@@ -92,6 +99,11 @@ instance Eq (Type a) where
   Unit == Unit = True
   Var a == Var b = a == b
   Vector a == Vector b = a == b
+
+  (a :+ b) == (c :+ d) = (a, b) == (c, d)
+  NoEffect == NoEffect = True
+  IOEffect == IOEffect = True
+
   _ == _ = False
 
 instance Show (Type a) where
@@ -106,11 +118,13 @@ instance Show (Type a) where
     Bool -> showString "Bool"
     Char -> showString "Char"
     Float -> showString "Float"
-    Function r1 r2 purity
+    Function r1 r2 e
       -> showParen True
       $ shows r1
-      . shows purity
+      . showString " -> "
       . shows r2
+      . showString " + "
+      . shows e
     Handle -> showString "Handle"
     Int -> showString "Int"
     Test -> id
@@ -118,5 +132,10 @@ instance Show (Type a) where
     Unit -> showString "()"
     Vector t -> showChar '[' . shows t . showChar ']'
 
+    t1 :+ t2 -> showParen True
+      $ shows t1 . showString " + " . shows t2
+    NoEffect -> showString "()"
+    IOEffect -> showString "IO"
+
 mono :: Type Scalar -> Scheme
-mono = Forall Set.empty Set.empty
+mono = Forall Set.empty Set.empty Set.empty

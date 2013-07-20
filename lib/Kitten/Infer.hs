@@ -27,9 +27,8 @@ import Kitten.Infer.Type
 import Kitten.Infer.Unify
 import Kitten.Location
 import Kitten.Name
-import Kitten.Purity
 import Kitten.Resolved
-import Kitten.Type (Type((:&), (:.), (:?), (:|)))
+import Kitten.Type (Type((:&), (:.), (:?), (:|), (:+)))
 import Kitten.Type hiding (Type(..))
 import Kitten.Util.FailWriter
 import Kitten.Util.Void
@@ -259,19 +258,19 @@ infer resolved = case resolved of
     types <- mapM infer terms
     r <- freshVarM
     foldM
-      (\ (Type.Function a b p1) (Type.Function c d p2)
-        -> inferCompose a b c d (p1 <=> p2))
+      (\ (Type.Function a b e1) (Type.Function c d e2)
+        -> inferCompose a b c d e1 e2)
       (r --> r)
       types
 
   Group terms loc -> infer (Compose terms loc)
 
   If true false loc -> withLocation loc $ do
-    Type.Function a b p1 <- infer true
-    Type.Function c d p2 <- infer false
+    Type.Function a b e1 <- infer true
+    Type.Function c d e2 <- infer false
     a === c
     b === d
-    return $ Type.Function (a :. Type.Bool) b (p1 <=> p2)
+    return $ Type.Function (a :. Type.Bool) b (e1 :+ e2)
 
   PairTerm a b loc -> withLocation loc $ do
     a' <- fromConstant =<< infer a
@@ -350,21 +349,23 @@ manifestType value = case value of
   Local{} -> Nothing
   Option{} -> Nothing
   Pair a b -> do
-    Forall rows1 scalars1 type1 <- manifestType a
-    Forall rows2 scalars2 type2 <- manifestType b
+    Forall rows1 scalars1 effects1 type1 <- manifestType a
+    Forall rows2 scalars2 effects2 type2 <- manifestType b
     return $ Forall
       (rows1 <> rows2)
       (scalars1 <> scalars2)
+      (effects1 <> effects2)
       (type1 :& type2)
   Unit -> Just $ mono Type.Unit
   Vector{} -> Nothing
 
   where
   manifestConstant constant = do
-    Forall rows scalars type_ <- manifestType constant
+    Forall rows scalars effects type_ <- manifestType constant
     return $ Forall
       (Set.insert (row (Name 0)) rows)
       scalars
+      effects
       (Type.Var (Name 0) --> Type.Var (Name 0) :. type_)
 
 inferValue :: Value -> Inferred (Type Scalar)
@@ -400,8 +401,8 @@ unifyEach [] = freshVarM
 inferCompose
   :: Type Row -> Type Row
   -> Type Row -> Type Row
-  -> Purity
+  -> Type Effect -> Type Effect
   -> Inferred (Type Scalar)
-inferCompose in1 out1 in2 out2 purity = do
+inferCompose in1 out1 in2 out2 e1 e2 = do
   out1 === in2
-  return $ Type.Function in1 out2 purity
+  return $ Type.Function in1 out2 (e1 :+ e2)

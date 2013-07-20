@@ -17,7 +17,6 @@ module Kitten.Infer.Scheme
   , occurs
   ) where
 
-import Control.Arrow
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict
 import Data.List
@@ -34,10 +33,12 @@ instantiateM :: Scheme -> Inferred (Type Scalar)
 instantiateM = Inferred . lift . state . instantiate
 
 instantiate :: Scheme -> Env -> (Type Scalar, Env)
-instantiate (Forall rows scalars type_) env = let
+instantiate (Forall rows scalars effects type_) env = let
+  -- TODO Use State monad.
   (renamedEnv, env') = foldr rename (emptyEnv, env) (Set.toList rows)
   (renamedEnv', env'') = foldr rename (renamedEnv, env') (Set.toList scalars)
-  in (sub renamedEnv' type_, env'')
+  (renamedEnv'', env''') = foldr rename (renamedEnv', env'') (Set.toList effects)
+  in (sub renamedEnv'' type_, env''')
   where
   rename :: (Declare a) => TypeName a -> (Env, Env) -> (Env, Env)
   rename name (localEnv, globalEnv)
@@ -59,28 +60,44 @@ generalize action = do
 
     rows :: [TypeName Row]
     scalars :: [TypeName Scalar]
-    (rows, scalars) = filter dependent *** filter dependent
-      $ freeVars substituted
+    effects :: [TypeName Effect]
+    (rows, scalars, effects)
+      = let (r, s, e) = freeVars substituted
+      in (filter dependent r, filter dependent s, filter dependent e)
 
   return $ Forall
     (Set.fromList rows)
     (Set.fromList scalars)
+    (Set.fromList effects)
     substituted
 
-freeVars :: (Free a) => Type a -> ([TypeName Row], [TypeName Scalar])
+freeVars
+  :: (Free a)
+  => Type a
+  -> ([TypeName Row], [TypeName Scalar], [TypeName Effect])
 freeVars type_
-  = let (rows, scalars) = free type_
-  in (nub rows, nub scalars)
+  = let (rows, scalars, effects) = free type_
+  in (nub rows, nub scalars, nub effects)
 
 class Free a where
-  free :: Type a -> ([TypeName Row], [TypeName Scalar])
+  free
+    :: Type a
+    -> ([TypeName Row], [TypeName Scalar], [TypeName Effect])
+
+instance Free Effect where
+  free type_ = case type_ of
+    a :+ b -> free a <> free b
+    Test -> mempty
+    NoEffect -> mempty
+    IOEffect -> mempty
+    Var name -> ([], [], [effect name])
 
 instance Free Row where
   free type_ = case type_ of
     a :. b -> free a <> free b
     Empty -> mempty
     Test -> mempty
-    Var name -> ([row name], [])
+    Var name -> ([row name], [], [])
 
 instance Free Scalar where
   free type_ = case type_ of
@@ -94,18 +111,22 @@ instance Free Scalar where
     Handle -> mempty
     Int -> mempty
     Test -> mempty
-    Var name -> ([], [scalar name])
+    Var name -> ([], [scalar name], [])
     Unit -> mempty
     Vector a -> free a
 
 normalize :: Type Scalar -> Type Scalar
 normalize type_ = let
-  (rows, scalars) = freeVars type_
+  (rows, scalars, effects) = freeVars type_
+  rowCount = length rows
+  rowScalarCount = rowCount + length scalars
   env = emptyEnv
     { envRows = Map.fromList
       $ zip (map typeName rows) (map var [0..])
     , envScalars = Map.fromList
-      $ zip (map typeName scalars) (map var [length rows..])
+      $ zip (map typeName scalars) (map var [rowCount..])
+    , envEffects = Map.fromList
+      $ zip (map typeName effects) (map var [rowScalarCount..])
     }
   in sub env type_
   where
@@ -117,6 +138,16 @@ occurs = (((> 0) .) .) . occurrences
 
 class Occurrences a where
   occurrences :: Name -> Env -> Type a -> Int
+
+instance Occurrences Effect where
+  occurrences name env type_ = case type_ of
+    a :+ b -> occurrences name env a + occurrences name env b
+    NoEffect -> 0
+    IOEffect -> 0
+    Test -> 0
+    Var name' -> case retrieve env (effect name') of
+      Left{} -> if name == name' then 1 else 0
+      Right type' -> occurrences name env type'
 
 instance Occurrences Row where
   occurrences name env type_ = case type_ of
@@ -188,6 +219,18 @@ instance Simplify Scalar where
 class Substitute a where
   sub :: Env -> Type a -> Type a
 
+instance Substitute Effect where
+  sub env type_ = case type_ of
+    a :+ b -> sub env a +: sub env b
+    NoEffect -> type_
+    IOEffect -> type_
+    Test{} -> type_
+    Var name
+      | Right type' <- retrieve env (effect name)
+      -> sub env type'
+      | otherwise
+      -> type_
+
 instance Substitute Row where
   sub env type_ = case type_ of
     a :. b -> sub env a :. sub env b
@@ -201,7 +244,10 @@ instance Substitute Row where
 
 instance Substitute Scalar where
   sub env type_ = case type_ of
-    Function a b p -> Function (sub env a) (sub env b) p
+    Function a b e -> Function
+      (sub env a)
+      (sub env b)
+      (sub env e)
     a :& b -> sub env a :& sub env b
     (:?) a -> (sub env a :?)
     a :| b -> sub env a :| sub env b

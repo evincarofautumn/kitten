@@ -21,33 +21,37 @@ import qualified Kitten.Anno as Anno
 data Env = Env
   { envRows :: [Name]
   , envScalars :: Map String Name
+  , envEffects :: Map String Name
   }
+
+type Converted a = StateT Env Inferred a
 
 fromAnno :: Anno -> Inferred Scheme
 fromAnno (Anno annoType _) = do
   (type_, env) <- flip runStateT Env
     { envRows = []
     , envScalars = Map.empty
+    , envEffects = Map.empty
     } $ fromAnnoType' annoType
   return $ Forall
     (Set.fromList (map row (envRows env)))
     (Set.fromList . map scalar . Map.elems $ envScalars env)
+    (Set.fromList . map effect . Map.elems $ envEffects env)
     type_
   where
-  fromAnnoType'
-    :: Anno.Type
-    -> StateT Env Inferred (Type Scalar)
+
+  fromAnnoType' :: Anno.Type -> Converted (Type Scalar)
   fromAnnoType' type_ = case type_ of
     Anno.Bool -> return Bool
     Anno.Char -> return Char
     Anno.Choice a b -> (:|) <$> fromAnnoType' a <*> fromAnnoType' b
-    Anno.Function a b p -> do
+    Anno.Function a b e -> do
       Var r <- lift freshVarM
       modify $ \ env -> env { envRows = r : envRows env }
       Function
         <$> (foldl' (:.) (Var r) <$> mapM fromAnnoType' a)
         <*> (foldl' (:.) (Var r) <$> mapM fromAnnoType' b)
-        <*> pure p
+        <*> fromAnnoEffect e
     Anno.Float -> return Float
     Anno.Handle -> return Handle
     Anno.Int -> return Int
@@ -65,3 +69,20 @@ fromAnno (Anno annoType _) = do
             { envScalars = Map.insert name var (envScalars env) }
           return (Var var)
     Anno.Vector a -> Vector <$> fromAnnoType' a
+    _ -> error "converting effect annotation to non-effect type"
+
+  fromAnnoEffect :: Anno.Type -> Converted (Type Effect)
+  fromAnnoEffect e = case e of
+    Anno.NoEffect -> return NoEffect
+    Anno.IOEffect -> return IOEffect
+    Anno.Var name -> do
+      mExisting <- gets
+        $ \ env -> Map.lookup name (envEffects env)
+      case mExisting of
+        Just existing -> return (Var existing)
+        Nothing -> do
+          Var var <- lift freshVarM
+          modify $ \ env -> env
+            { envEffects = Map.insert name var (envEffects env) }
+          return (Var var)
+    _ -> error "converting non-effect annotation to effect type"

@@ -58,8 +58,8 @@ instance Unification Scalar where
     ((:?) a, (:?) b) -> unify a b env
     (a :| b, c :| d) -> unify b d env >>= unify a c
 
-    (Function a b p1, Function c d p2)
-      | p1 == p2
+    (Function a b e1, Function c d e2)
+      | sub env e1 == sub env e2
       -> unify b d env >>= unify a c
 
     (Vector a, Vector b) -> unify a b env
