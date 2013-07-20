@@ -103,7 +103,6 @@ test-suite test
     Kitten,
     base,
     containers,
-    hlint,
     hspec == 1.4.*,
     HUnit,
     QuickCheck == 2.6.*,
