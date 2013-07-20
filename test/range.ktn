@@ -1,4 +1,4 @@
-def test ([Int] [Int] =>):
+def test ([Int] [Int] -> +IO):
   -> { actual expected }
   if actual expected {=} eqVector not then:
     "Expected " print expected sayInts

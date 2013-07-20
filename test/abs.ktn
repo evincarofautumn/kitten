@@ -1,4 +1,4 @@
-def test (Int Int =>):
+def test (Int Int -> +IO):
   -> { input expected }
   input absInt -> actual
   if actual expected != then:

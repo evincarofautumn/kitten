@@ -21,17 +21,18 @@ data Token
   | Comma
   | Def
   | Else
-  | FatArrow
   | GroupBegin
   | GroupEnd
   | Float Double
   | FloatType
   | HandleType
+  | IOType
   | If
   | Int Int
   | IntType
   | Layout
   | LittleWord String
+  | Operator String
   | Text String
   | Then
   | VectorBegin
@@ -52,17 +53,18 @@ instance Show Token where
     Comma -> ","
     Def -> "def"
     Else -> "else"
-    FatArrow -> "=>"
     GroupBegin -> "("
     GroupEnd -> ")"
     Float value -> show value
     FloatType -> "Float"
     HandleType -> "Handle"
+    IOType -> "IO"
     If -> "if"
     Int value -> show value
     IntType -> "Int"
     Layout -> ":"
     LittleWord word -> word
+    Operator word -> word
     Text value -> show value
     Then -> "then"
     VectorBegin -> "["

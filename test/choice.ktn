@@ -1,4 +1,4 @@
-def sayIntOrString (Int | [Char] =>):
+def sayIntOrString (Int | [Char] -> +IO):
   -> x
   if x isLeft then:
     x fromLeft sayInt

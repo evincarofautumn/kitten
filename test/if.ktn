@@ -12,7 +12,7 @@ if false then:
 
 if 2 2 + 4 = then: "true" say
 
-def f (=>):
+def f (-> +IO):
   if 2 2 * 4 = then:
     "true" say
 

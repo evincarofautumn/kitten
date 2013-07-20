@@ -22,13 +22,13 @@ signature = locate $ Anno <$> functionType
   functionType :: Parser Type
   functionType = do
     left <- many baseType
-    (right, purity) <- choice
-      [ match Token.Arrow
-        *> ((,) <$> many baseType <*> pure Anno.NoEffect)
-      , match Token.FatArrow
-        *> ((,) <$> many baseType <*> pure Anno.IOEffect)
+    right <- match Token.Arrow *> many baseType
+    effect <- choice
+      [ Anno.IOEffect
+        <$ (match (Token.Operator "+") *> match Token.IOType)
+      , pure Anno.NoEffect
       ]
-    return $ Anno.Function left right purity
+    return $ Anno.Function left right effect
 
   baseType :: Parser Type
   baseType = (<?> "base type") $ do
@@ -46,10 +46,10 @@ signature = locate $ Anno <$> functionType
       ]
     choice
       [ Anno.Choice prefix
-        <$> (match (Token.LittleWord "|") *> baseType)
-      , Anno.Option prefix <$ match (Token.LittleWord "?")
+        <$> (match (Token.Operator "|") *> baseType)
+      , Anno.Option prefix <$ match (Token.Operator "?")
       , Anno.Pair prefix
-        <$> (match (Token.LittleWord "&") *> baseType)
+        <$> (match (Token.Operator "&") *> baseType)
       , pure prefix
       ]
 

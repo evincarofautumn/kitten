@@ -82,10 +82,11 @@ def cond1 (
 
 // 'cond' for procedures.
 def cond_ (
-  a                  // Matched value
-  [(a -> b?, b =>)]  // (pattern, action) pairs
-  (=>)               // default action
-  =>
+  a                      // Matched value
+  [(a -> b?, b -> +IO)]  // (pattern, action) pairs
+  (-> +IO)               // default action
+  ->
+  +IO
 ):
   -> { x ps z }
   if ps isEmpty then:
@@ -259,7 +260,7 @@ def mapOption (a? (a -> b) -> b?):
   cond
 
 // Maps a procedure over an option value.
-def mapOption_ (a? (a =>) =>):
+def mapOption_ (a? (a -> +IO) -> +IO):
   -> f
   [ ({id}, f)
   ] {noop}
@@ -290,7 +291,7 @@ def mapFrom ([a] (a -> a) Int -> [a]):
     function offset++ mapFrom
 
 // Maps a procedure over each element of a vector.
-def each ([a] (a =>) =>):
+def each ([a] (a -> +IO) -> +IO):
   -> { xs f }
   if xs isEmpty then:
     pass
@@ -544,7 +545,7 @@ def evenFloat (Float -> Bool):
 def evenInt (Int -> Bool):
   2 % 0 =
 
-def exit (Int =>):
+def exit (Int -> +IO):
   __exit
 
 // Character greater than or equal.
@@ -562,7 +563,7 @@ def getAll ([a] [Int] -> [a]):
   indices { xs swap # } map
 
 // Reads a line from standard input.
-def getLine (=> [Char]):
+def getLine (-> [Char] +IO):
   stdin __get_line
 
 // Character greater than.
@@ -570,15 +571,15 @@ def gtChar (Char Char -> Bool):
   {charToInt} on >
 
 // Closes a handle.
-def handleClose (Handle =>):
+def handleClose (Handle -> +IO):
   __close
 
 // Reads a line from a handle.
-def handleGetLine (Handle => [Char]):
+def handleGetLine (Handle -> [Char] +IO):
   __get_line
 
 // Writes a string to a handle.
-def handlePrint ([Char] Handle =>):
+def handlePrint ([Char] Handle -> +IO):
   __print
 
 // Identity function.
@@ -587,7 +588,7 @@ def id (a -> a):
   x
 
 // An impure no-op, for casting a function to a procedure.
-def noop (=>):
+def noop (-> +IO):
   __impure
 
 // Removes the last element of a vector.
@@ -624,7 +625,7 @@ def ltChar (Char Char -> Bool):
   {charToInt} on <
 
 // Repeats an action until a condition is false.
-def loopWhile ((=> Bool) =>):
+def loopWhile ((-> Bool +IO) -> +IO):
   -> f
   if f! then: f loopWhile
 
@@ -671,7 +672,7 @@ def negInt (Int -> Int):
   __neg_int
 
 // Writes a newline to standard output.
-def newline (=>):
+def newline (-> +IO):
   "\n" print
 
 // Whether a floating-point number is odd.
@@ -690,11 +691,11 @@ def on (a a (a -> b) -> b b):
   a b
 
 // Opens a file for input.
-def openInput ([Char] => Handle):
+def openInput ([Char] -> Handle +IO):
   __open_in
 
 // Opens a file for output.
-def openOutput ([Char] => Handle):
+def openOutput ([Char] -> Handle +IO):
   __open_out
 
 // Whether any element of a vector is true.
@@ -727,35 +728,35 @@ def prependToAll ([a] a -> [a]):
     sep prepend
 
 // Writes a string to standard output.
-def print ([Char] =>):
+def print ([Char] -> +IO):
   stdout __print
 
 // Prints a Boolean.
-def printBool (Bool =>):
+def printBool (Bool -> +IO):
   showBool print
 
 // Prints a Boolean vector.
-def printBools ([Bool] =>):
+def printBools ([Bool] -> +IO):
   showBools print
 
 // Prints a string vector.
-def printStrings ([[Char]] =>):
+def printStrings ([[Char]] -> +IO):
   showStrings print
 
 // Prints a floating-point number.
-def printFloat (Float =>):
+def printFloat (Float -> +IO):
   showFloat print
 
 // Prints a floating-point vector.
-def printFloats ([Float] =>):
+def printFloats ([Float] -> +IO):
   showFloats print
 
 // Prints an integer.
-def printInt (Int =>):
+def printInt (Int -> +IO):
   showInt print
 
 // Prints an integer vector.
-def printInts ([Int] =>):
+def printInts ([Int] -> +IO):
   showInts print
 
 // The product of a vector of floating-point numbers.
@@ -766,39 +767,39 @@ def productFloats ([Float] -> Float):
 def productInts ([Int] -> Int):
   1 {*} foldl
 
-def prompt ([Char] => [Char]):
+def prompt ([Char] -> [Char] +IO):
   print getLine
 
 // Prints a string followed by a newline.
-def say ([Char] =>):
+def say ([Char] -> +IO):
   print newline
 
 // Says a Boolean.
-def sayBool (Bool =>):
+def sayBool (Bool -> +IO):
   printBool newline
 
 // Says a Boolean vector.
-def sayBools ([Bool] =>):
+def sayBools ([Bool] -> +IO):
   printBools newline
 
 // Says a string vector.
-def sayStrings ([[Char]] =>):
+def sayStrings ([[Char]] -> +IO):
   printStrings newline
 
 // Says a floating-point number.
-def sayFloat (Float =>):
+def sayFloat (Float -> +IO):
   printFloat newline
 
 // Says a floating-point vector.
-def sayFloats ([Float] =>):
+def sayFloats ([Float] -> +IO):
   printFloats newline
 
 // Says an integer.
-def sayInt (Int =>):
+def sayInt (Int -> +IO):
   printInt newline
 
 // Says an integer vector.
-def sayInts ([Int] =>):
+def sayInts ([Int] -> +IO):
   printInts newline
 
 // Sets the value at an index in a vector.
@@ -839,7 +840,7 @@ def showVector ([a] (a -> [Char]) -> [Char]):
   "[" v f map ", " join "]" cat cat
 
 // Prints a space to standard output.
-def space (=>):
+def space (-> +IO):
   " " print
 
 // The standard error handle.
@@ -869,7 +870,7 @@ def swap (a b -> b a):
   b a
 
 // Prints a tab character to standard output.
-def tab (=>):
+def tab (-> +IO):
   "\t" print
 
 // Removes the first element of a vector.
@@ -898,12 +899,12 @@ def unlines ([[Char]] -> [Char]):
   "\n" join
 
 // Unsafely calls a unary procedure with one result.
-def unsafeCall11 (a (a => b) -> b):
+def unsafeCall11 (a (a -> b +IO) -> b):
   unsafePurify11@
 
 // Unsafely casts a unary procedure with one result into a
 // similarly typed function.
-def unsafePurify11 ((a => b) -> (a -> b)):
+def unsafePurify11 ((a -> b +IO) -> (a -> b)):
   __unsafe_purify11
 
 // Wraps a value in a vector.

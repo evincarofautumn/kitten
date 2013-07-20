@@ -1,4 +1,4 @@
-def test (a? (a -> [Char]) =>):
+def test (a? (a -> [Char]) -> +IO):
   -> { x show }
   if x isSome then:
     x fromSome show@ say

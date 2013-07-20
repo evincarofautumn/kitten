@@ -46,7 +46,7 @@ element = choice
 def :: Parser (Def Value)
 def = (<?> "definition") . locate $ do
   void (match Token.Def)
-  name <- littleWord
+  name <- functionName
   anno <- optionMaybe (grouped signature)
   body <- value
   return $ \ loc -> Def
@@ -61,7 +61,7 @@ def = (<?> "definition") . locate $ do
 term :: Parser Term
 term = locate $ choice
   [ try $ Push <$> value
-  , Call <$> littleWord
+  , Call <$> functionName
   , VectorTerm <$> vector
   , try group
   , pair <$> tuple

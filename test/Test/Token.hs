@@ -92,10 +92,10 @@ spec = do
     testTokens "not_a_keyword" [LittleWord "not_a_keyword"]
     testTokens "alsoNot" [LittleWord "alsoNot"]
     testTokens "thisThat123" [LittleWord "thisThat123"]
-    testTokens "+-" [LittleWord "+-"]
-    testTokens "<=>" [LittleWord "<=>"]
+    testTokens "+-" [Operator "+-"]
+    testTokens "<=>" [Operator "<=>"]
     testTokens "!#$%&*+-./;<=>?@^|~"
-      [LittleWord "!#$%&*+-./;<=>?@^|~"]
+      [Operator "!#$%&*+-./;<=>?@^|~"]
 
 testComment :: String -> Assertion
 testComment source = case tokenize "test" source of

@@ -1,4 +1,4 @@
-def pureFromImpure (Int => Int):
+def pureFromImpure (Int -> Int +IO):
   noop
   ++
 

@@ -1,4 +1,4 @@
-def procedure (Int => Int):
+def procedure (Int -> Int +IO):
   dup sayInt --
 
 def function (Int -> Int):

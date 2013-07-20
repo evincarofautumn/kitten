@@ -4,15 +4,15 @@ def unary (-> Int):
 def binary (-> Int Int):
   1 2
 
-def ii ((Int -> Int) =>):
+def ii ((Int -> Int) -> +IO):
   -> f
   unary f@ sayInt
 
-def iib ((Int Int -> Bool) =>):
+def iib ((Int Int -> Bool) -> +IO):
   -> f
   binary f@ sayBool
 
-def iii ((Int Int -> Int) =>):
+def iii ((Int Int -> Int) -> +IO):
   -> f
   binary f@ sayInt
 
