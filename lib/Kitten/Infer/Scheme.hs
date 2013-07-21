@@ -19,8 +19,10 @@ module Kitten.Infer.Scheme
 
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict
+import Data.Foldable (foldrM)
 import Data.List
 import Data.Monoid
+import Data.Set (Set)
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -28,22 +30,39 @@ import qualified Data.Set as Set
 import Kitten.Infer.Monad
 import Kitten.Name
 import Kitten.Type
+import Kitten.Util.Monad
 
 instantiateM :: Scheme -> Inferred (Type Scalar)
 instantiateM = Inferred . lift . state . instantiate
 
 instantiate :: Scheme -> Env -> (Type Scalar, Env)
-instantiate (Forall rows scalars effects type_) env = let
-  -- TODO Use State monad.
-  (renamedEnv, env') = foldr rename (emptyEnv, env) (Set.toList rows)
-  (renamedEnv', env'') = foldr rename (renamedEnv, env') (Set.toList scalars)
-  (renamedEnv'', env''') = foldr rename (renamedEnv', env'') (Set.toList effects)
-  in (sub renamedEnv'' type_, env''')
+instantiate (Forall rows scalars effects type_) env
+  = (sub renamed type_, env')
+
   where
-  rename :: (Declare a) => TypeName a -> (Env, Env) -> (Env, Env)
-  rename name (localEnv, globalEnv)
-    = let (var, globalEnv') = freshVar globalEnv
-    in (declare name var localEnv, globalEnv')
+  renamed :: Env
+  env' :: Env
+  (renamed, env') = flip runState env $ composeM
+    [ renames rows
+    , renames scalars
+    , renames effects
+    ] emptyEnv
+
+  renames
+    :: (Declare a)
+    => Set (TypeName a)
+    -> Env
+    -> State Env Env
+  renames = flip (foldrM rename) . Set.toList
+
+  rename
+    :: (Declare a)
+    => TypeName a
+    -> Env
+    -> State Env Env
+  rename name localEnv = do
+    var <- state freshVar
+    return (declare name var localEnv)
 
 generalize :: Inferred (Type Scalar) -> Inferred Scheme
 generalize action = do
