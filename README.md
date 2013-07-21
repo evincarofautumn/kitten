@@ -6,6 +6,8 @@
 
  * Browse some [examples][examples].
 
+ * Skim a quick [intro][intro].
+
  * Read a (work in progress) [tutorial][tutorial].
 
 The original implementation was compiled to C. In the interest of faster iteration on language features, the current implementation is interpreted.
@@ -21,5 +23,6 @@ make all
 ```
 
 [examples]: https://github.com/evincarofautumn/kitten/tree/master/examples
+[intro]: http://kittenlang.org/intro/
 [site]: http://kittenlang.org/
 [tutorial]: http://kittenlang.org/tutorial/
