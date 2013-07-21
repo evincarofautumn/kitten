@@ -1,8 +1,8 @@
 def absInt (Int -> Int):
-  if (dup 0 <): negInt else: id
+  if (dup 0 <): negInt
 
 def absFloat (Float -> Float):
-  if (dup 0.0 <.): negFloat else: id
+  if (dup 0.0 <.): negFloat
 
 // Whether all elements of a vector satisfy a predicate.
 def all ([a] (a -> Bool) -> Bool):
