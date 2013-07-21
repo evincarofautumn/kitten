@@ -101,7 +101,6 @@ token = (<?> "token") . located $ choice
       "else" -> Else
       "false" -> Bool False
       "if" -> If
-      "then" -> Then
       "true" -> Bool True
       (first : _) | isUpper first -> BigWord name
       _ -> case Builtin.fromString name of

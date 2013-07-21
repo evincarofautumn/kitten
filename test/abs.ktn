@@ -1,7 +1,7 @@
 def test (Int Int -> +IO):
   -> { input expected }
   input absInt -> actual
-  if actual expected != then:
+  if (actual expected !=):
     "Expected: " print expected sayInt
     "But got:  " print actual sayInt
 

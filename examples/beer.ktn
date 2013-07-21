@@ -3,7 +3,7 @@
 def bottlesOfBeer (Int -> +IO):
   -> x
   x verse
-  if x 1 > then:
+  if (x 1 >):
     x-- bottlesOfBeer
 
 def verse (Int -> +IO):
@@ -25,9 +25,9 @@ def take (-> +IO):
 
 def bottles (Int -> +IO):
   -> x
-  if x 0 = then:
+  if (x 0 =):
     "no more bottles"
-  else if x 1 = then:
+  else if (x 1 =):
     "one bottle"
   else:
     x showInt " bottles" cat

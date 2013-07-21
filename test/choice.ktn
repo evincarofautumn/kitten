@@ -1,6 +1,6 @@
 def sayIntOrString (Int | [Char] -> +IO):
   -> x
-  if x isLeft then:
+  if (x isLeft):
     x fromLeft sayInt
   else:
     x fromRight say

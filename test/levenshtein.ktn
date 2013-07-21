@@ -27,7 +27,7 @@ def levenshtein ([Char] [Char] -> Int):
       second column-- # -> secondChar
 
       distances
-      if firstChar secondChar eqChar then:
+      if (firstChar secondChar eqChar):
         distances row-- column-- ##
       else:
         distances row-- column   ##  // deletion

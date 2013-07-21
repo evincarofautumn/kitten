@@ -1,19 +1,19 @@
-if true then:
+if true:
   "true"
 else:
   "false"
 say
 
-if 2 2 = then:
+if (2 2 =):
   "true" say
 
-if false then:
+if false:
   "false" say
 
-if 2 2 + 4 = then: "true" say
+if (2 2 + 4 =): "true" say
 
 def f (-> +IO):
-  if 2 2 * 4 = then:
+  if (2 2 * 4 =):
     "true" say
 
 def g (->):

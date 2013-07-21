@@ -1,10 +1,10 @@
 def test ([Int] [Int] [Int] [Int] -> +IO):
   -> { actualL actualR expectedL expectedR }
-  if
+  if (
     actualL expectedL {=} eqVector not
     actualR expectedR {=} eqVector not
     ||
-  then:
+  ):
     "Expected:" say
       tab expectedL sayInts
       tab expectedR sayInts
