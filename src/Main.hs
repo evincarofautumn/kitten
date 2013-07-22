@@ -8,10 +8,9 @@ import System.Console.CmdArgs.Explicit
 import System.Exit
 import System.IO
 
-import Kitten.Compile (compile)
+import Kitten.Compile (compile, locateImport)
 import Kitten.Error (CompileError)
 import Kitten.Fragment
-import Kitten.Imports
 import Kitten.Interpret
 import Kitten.Yarn (yarn)
 
@@ -36,8 +35,7 @@ main :: IO ()
 main = do
 
   arguments <- parseArguments
-  preludes <- locateImport "prelude"
-    (libraryDirectories arguments)
+  preludes <- locateImport (libraryDirectories arguments) "prelude"
 
   prelude <- if not (enableImplicitPrelude arguments)
     then return mempty
@@ -52,6 +50,8 @@ main = do
       mPrelude <- compile Compile.Config
         { Compile.dumpResolved = dumpResolved arguments
         , Compile.dumpScoped = dumpScoped arguments
+        , Compile.libraryDirectories
+          = libraryDirectories arguments
         , Compile.name = filename
         , Compile.prelude = mempty
         , Compile.source = source
@@ -80,6 +80,7 @@ main = do
     mResult <- compile Compile.Config
       { Compile.dumpResolved = dumpResolved arguments
       , Compile.dumpScoped = dumpScoped arguments
+      , Compile.libraryDirectories = libraryDirectories arguments
       , Compile.name = filename
       , Compile.prelude = prelude
       , Compile.source = program

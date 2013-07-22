@@ -1,0 +1,4 @@
+def importedFunction (-> +IO):
+  "importedFunction" say
+
+importedFunction

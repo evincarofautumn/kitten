@@ -39,7 +39,6 @@ library
     Kitten.Error,
     Kitten.Fragment,
     Kitten.Import,
-    Kitten.Imports,
     Kitten.Infer,
     Kitten.Infer.Monad,
     Kitten.Infer.Scheme,
