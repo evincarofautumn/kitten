@@ -3,18 +3,15 @@
 module Main where
 
 import Control.Monad
-import Data.List
 import Data.Monoid
 import System.Console.CmdArgs.Explicit
-import System.Directory
 import System.Exit
-import System.FilePath
 import System.IO
-import System.IO.Error
 
 import Kitten.Compile (compile)
 import Kitten.Error (CompileError)
 import Kitten.Fragment
+import Kitten.Imports
 import Kitten.Interpret
 import Kitten.Yarn (yarn)
 
@@ -39,24 +36,13 @@ main :: IO ()
 main = do
 
   arguments <- parseArguments
-  currentDirectory <- getCurrentDirectory
-  preludes <- liftM nub
-    . mapM (\ path -> canonicalizePath (path </> "prelude.ktn")
-      `catchIOError` (\ e
-      -> if isDoesNotExistError e then return [] else ioError e))
-    $ "."
-    : ("." </> "lib")
-    : libraryDirectories arguments
-    ++ [currentDirectory, currentDirectory </> "lib"]
-
-  existingPreludes <- filterM doesFileExist preludes
+  preludes <- locateImport "prelude"
+    (libraryDirectories arguments)
 
   prelude <- if enableImplicitPrelude arguments
-    then case existingPreludes of
+    then case preludes of
       [] -> do
-        hPutStrLn stderr . unlines
-          $ "No prelude found. Searched:"
-          : preludes
+        hPutStrLn stderr "No module 'prelude' found."
         exitFailure
 
       [filename] -> do
@@ -85,7 +71,7 @@ main = do
       _ -> do
         hPutStrLn stderr . unlines
           $ "Too many prelude candidates:"
-          : existingPreludes
+          : preludes
         exitFailure
 
     else return mempty

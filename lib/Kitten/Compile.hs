@@ -14,6 +14,7 @@ import Text.Parsec.Error
 
 import Kitten.Error
 import Kitten.Fragment
+import Kitten.Imports
 import Kitten.Infer
 import Kitten.Parse
 import Kitten.Resolve
@@ -42,7 +43,8 @@ compile Config{..} = liftM (mapLeft sort) . runEitherT $ do
   resolved <- hoistEither $ do
     tokenized <- liftParseError $ tokenize name source
     parsed <- liftParseError $ parse name tokenized
-    resolve prelude parsed
+    substituted <- substituteImports parsed
+    resolve prelude substituted
 
   when dumpResolved . lift $ hPrint stderr resolved
   hoistEither $ typeFragment prelude resolved
