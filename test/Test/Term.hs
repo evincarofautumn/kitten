@@ -1,6 +1,7 @@
 module Test.Term where
 
 import Control.Monad
+import Data.Monoid
 import Test.HUnit.Lang (assertFailure)
 import Test.Hspec
 
@@ -18,13 +19,13 @@ import Kitten.Util.Either
 spec :: Spec
 spec = do
   describe "empty program"
-    $ testTerm "" (Fragment [] [])
+    $ testTerm "" mempty
 
   describe "terms" $ do
     testTerm "1 2 3"
-      (Fragment [] [pushi 1, pushi 2, pushi 3])
+      mempty { fragmentTerms = [pushi 1, pushi 2, pushi 3] }
     testTerm "dup swap drop vector cat function compose"
-      $ Fragment []
+      $ mempty { fragmentTerms =
         [ word "dup"
         , word "swap"
         , word "drop"
@@ -32,79 +33,63 @@ spec = do
         , word "cat"
         , word "function"
         , word "compose"
-        ]
+        ] }
 
   describe "function" $ do
 
     testTerm
       "{}"
-      $ Fragment []
-        [ push $ function []
-        ]
+      $ mempty { fragmentTerms =
+        [push $ function []] }
 
     testTerm
       "{3}"
-      $ Fragment []
-        [ push $ function [pushi 3]
-        ]
+      $ mempty { fragmentTerms =
+        [push $ function [pushi 3]] }
 
     testTerm
       "{ 1 + }"
-      $ Fragment []
-        [ push $ function [pushi 1, word "+"]
-        ]
+      $ mempty { fragmentTerms =
+        [push $ function [pushi 1, word "+"]] }
 
   describe "lambda" $ do
 
     testTerm
       "->x x x *"
-      $ Fragment []
+      $ mempty { fragmentTerms =
         [ lambda "x"
           [ word "x"
           , word "x"
-          , word "*"
-          ]
-        ]
+          , word "*"]] }
 
     testTerm
       "->x ->y x y *"
-      $ Fragment []
+      $ mempty { fragmentTerms =
         [ lambda "x"
           [ lambda "y"
             [ word "x"
             , word "y"
-            , word "*"
-            ]
-          ]
-        ]
+            , word "*"]]] }
 
     testTerm
       "{ ->x ->y x y * }"
-      $ Fragment []
+      $ mempty { fragmentTerms =
         [ push $ function
           [ lambda "x"
             [ lambda "y"
               [ word "x"
               , word "y"
-              , word "*"
-              ]
-            ]
-          ]
-        ]
+              , word "*"]]]] }
 
     testTerm
       ": ->x ->y x y *"
-      $ Fragment []
+      $ mempty { fragmentTerms =
         [ push $ function
           [ lambda "x"
             [ lambda "y"
               [ word "x"
               , word "y"
-              , word "*"
-              ]
-            ]
-          ]
-        ]
+              , word "*"]]]] }
 
   describe "layout" $ do
 
@@ -112,46 +97,36 @@ spec = do
       ": sameLine\n\
       \  nextLine\n\
       \  anotherLine\n"
-      $ Fragment []
+      $ mempty { fragmentTerms =
         [ push $ function
           [ word "sameLine"
           , word "nextLine"
-          , word "anotherLine"
-          ]
-        ]
+          , word "anotherLine"]] }
 
     testTerm
       "{ : sameLine\n\
       \    nextLine\n\
       \    anotherLine }\n"
-      $ Fragment []
+      $ mempty { fragmentTerms =
         [ push $ function
           [ push $ function
             [ word "sameLine"
             , word "nextLine"
-            , word "anotherLine"
-            ]
-          ]
-        ]
+            , word "anotherLine"]]] }
 
     testTerm "{ one : two three }"
-      $ Fragment []
-      [ push $ function
-        [ word "one"
-        , push $ function
-          [ word "two"
-          , word "three"
-          ]
-        ]
-      ]
+      $ mempty { fragmentTerms =
+        [ push $ function
+          [ word "one"
+          , push $ function
+            [ word "two"
+            , word "three"]]] }
 
     testTerm ": {one} {two}"
-      $ Fragment []
-      [ push $ function
-        [ push $ function [word "one"]
-        , push $ function [word "two"]
-        ]
-      ]
+      $ mempty { fragmentTerms =
+        [ push $ function
+          [ push $ function [word "one"]
+          , push $ function [word "two"]]] }
 
     testTermFailure ":"
 
@@ -166,23 +141,22 @@ spec = do
     testTerm
       ": :\n\
       \  3\n"
-      $ Fragment []
-      [push $ function [push $ function [pushi 3]]]
+      $ mempty { fragmentTerms =
+        [push $ function [push $ function [pushi 3]]] }
 
   describe "definition" $ do
 
     testTerm
       "def pi 3"
-      $ Fragment [def "pi" $ function [pushi 3]] []
+      $ mempty { fragmentDefs =
+        [def "pi" $ function [pushi 3]] }
 
     testTerm
       "def inc {\n\
       \  1 +\n\
       \}\n"
-      $ Fragment
-        [ def "inc" $ function [pushi 1, word "+"]
-        ]
-        []
+      $ mempty { fragmentDefs =
+        [def "inc" $ function [pushi 1, word "+"]] }
 
     testTerm
       "def inc:\n\
@@ -191,11 +165,9 @@ spec = do
       \def dec:\n\
       \  1 -\n\
       \\n"
-      $ Fragment
+      $ mempty { fragmentDefs =
         [ def "inc" $ function [pushi 1, word "+"]
-        , def "dec" $ function [pushi 1, word "-"]
-        ]
-        []
+        , def "dec" $ function [pushi 1, word "-"]] }
 
 testTerm :: String -> Fragment Value Term -> Spec
 testTerm source expected = it (show source)

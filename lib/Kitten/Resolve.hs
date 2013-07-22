@@ -23,12 +23,19 @@ resolve
   :: Fragment Resolved.Value Void
   -> Fragment Term.Value Term
   -> Either [CompileError] (Fragment Value Resolved)
-resolve prelude (Fragment defs terms)
+resolve prelude fragment
   = evalResolution emptyEnv
-  $ guardLiftM2 Fragment
-    (resolveDefs defs)
-    (guardMapM resolveTerm terms)
-  where emptyEnv = Env (fragmentDefs prelude) defs []
+  $ guardLiftM2 (\ defs terms -> fragment
+    { fragmentDefs = defs
+    , fragmentTerms = terms
+    })
+    (resolveDefs (fragmentDefs fragment))
+    (guardMapM resolveTerm (fragmentTerms fragment))
+  where
+  emptyEnv = Env
+    (fragmentDefs prelude)
+    (fragmentDefs fragment)
+    []
 
 resolveDefs :: [Def Term.Value] -> Resolution [Def Value]
 resolveDefs = guardMapM resolveDef

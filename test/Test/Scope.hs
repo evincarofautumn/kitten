@@ -1,6 +1,7 @@
 module Test.Scope where
 
 import Control.Monad
+import Data.Monoid
 import Test.Hspec
 
 import Test.Util
@@ -18,25 +19,25 @@ spec :: Spec
 spec = do
   describe "no change" $ do
     testScope
-      (Fragment [] [function [scoped [push $ local 0]]])
-      (Fragment [] [closure [] [scoped [push $ local 0]]])
+      mempty { fragmentTerms = [function [scoped [push $ local 0]]] }
+      mempty { fragmentTerms = [closure [] [scoped [push $ local 0]]] }
 
   describe "non-nested closure" $ do
     testScope
-      (Fragment [] [scoped [function [push $ local 0]]])
-      (Fragment [] [scoped [closure [closedName 0] [push $ closed 0]]])
+      mempty { fragmentTerms = [scoped [function [push $ local 0]]] }
+      mempty { fragmentTerms = [scoped [closure [closedName 0] [push $ closed 0]]] }
 
   describe "nested closure" $ do
     testScope
-      (Fragment [] [scoped [function [scoped [function [push $ local 1, push $ local 0, biAdd]]]]])
-      (Fragment []
+      mempty { fragmentTerms = [scoped [function [scoped [function [push $ local 1, push $ local 0, biAdd]]]]] }
+      mempty { fragmentTerms =
         [scoped
           [ closure [closedName 0]
             [ scoped
               [ closure [reclosedName 0, closedName 0]
                 [ push $ closed 0
                 , push $ closed 1
-                , biAdd]]]]])
+                , biAdd]]]]] }
 
 testScope
   :: Fragment Value Resolved -> Fragment Value Resolved -> Spec

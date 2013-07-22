@@ -9,6 +9,7 @@ import qualified Text.Parsec as Parsec
 
 import Kitten.Def
 import Kitten.Fragment
+import Kitten.Import
 import Kitten.Location
 import Kitten.Parsec
 import Kitten.Parse.Element
@@ -31,14 +32,12 @@ parse name
   >=> Parsec.parse fragment name
 
 fragment :: Parser (Fragment Value Term)
-fragment = do
-  elements <- many element <* eof
-  let (defs, terms) = partitionElements elements
-  return $ Fragment defs terms
+fragment = partitionElements <$> (many element <* eof)
 
 element :: Parser Element
 element = choice
   [ DefElement <$> def
+  , ImportElement <$> import_
   , TermElement <$> term
   ]
 
@@ -55,6 +54,15 @@ def = (<?> "definition") . locate $ do
       _ -> Function [Push body loc] loc
     , defAnno = anno
     , defLocation = loc
+    }
+
+import_ :: Parser Import
+import_ = (<?> "import") . locate $ do
+  void (match Token.Import)
+  name <- functionName
+  return $ \ loc -> Import
+    { importName = name
+    , importLocation = loc
     }
 
 term :: Parser Term

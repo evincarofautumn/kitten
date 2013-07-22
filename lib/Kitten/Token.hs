@@ -28,6 +28,7 @@ data Token
   | HandleType
   | IOType
   | If
+  | Import
   | Int Int
   | IntType
   | Layout
@@ -59,6 +60,7 @@ instance Show Token where
     HandleType -> "Handle"
     IOType -> "IO"
     If -> "if"
+    Import -> "import"
     Int value -> show value
     IntType -> "Int"
     Layout -> ":"

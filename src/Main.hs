@@ -4,6 +4,7 @@ module Main where
 
 import Control.Monad
 import Data.List
+import Data.Monoid
 import System.Console.CmdArgs.Explicit
 import System.Directory
 import System.Exit
@@ -65,7 +66,7 @@ main = do
           { Compile.dumpResolved = dumpResolved arguments
           , Compile.dumpScoped = dumpScoped arguments
           , Compile.name = filename
-          , Compile.prelude = Fragment [] []
+          , Compile.prelude = mempty
           , Compile.source = source
           }
 
@@ -79,7 +80,7 @@ main = do
           hPutStrLn stderr "Prelude includes executable code."
           exitFailure
 
-        return $ Fragment fragmentDefs []
+        return mempty { fragmentDefs = fragmentDefs }
 
       _ -> do
         hPutStrLn stderr . unlines
@@ -87,7 +88,7 @@ main = do
           : existingPreludes
         exitFailure
 
-    else return $ Fragment [] []
+    else return mempty
 
   forM_ (entryPoints arguments) $ \ filename -> do
     program <- readFile filename
