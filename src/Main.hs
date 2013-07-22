@@ -39,42 +39,41 @@ main = do
   preludes <- locateImport "prelude"
     (libraryDirectories arguments)
 
-  prelude <- if enableImplicitPrelude arguments
-    then case preludes of
-      [] -> do
-        hPutStrLn stderr "No module 'prelude' found."
-        exitFailure
+  prelude <- if not (enableImplicitPrelude arguments)
+    then return mempty
+    else case preludes of
 
-      [filename] -> do
+    [] -> do
+      hPutStrLn stderr "No module 'prelude' found."
+      exitFailure
 
-        source <- readFile filename
-        mPrelude <- compile Compile.Config
-          { Compile.dumpResolved = dumpResolved arguments
-          , Compile.dumpScoped = dumpScoped arguments
-          , Compile.name = filename
-          , Compile.prelude = mempty
-          , Compile.source = source
-          }
+    [filename] -> do
+      source <- readFile filename
+      mPrelude <- compile Compile.Config
+        { Compile.dumpResolved = dumpResolved arguments
+        , Compile.dumpScoped = dumpScoped arguments
+        , Compile.name = filename
+        , Compile.prelude = mempty
+        , Compile.source = source
+        }
 
-        Fragment{..} <- case mPrelude of
-          Left compileErrors -> do
-            printCompileErrors compileErrors
-            exitFailure
-          Right prelude -> return prelude
-
-        unless (null fragmentTerms) $ do
-          hPutStrLn stderr "Prelude includes executable code."
+      Fragment{..} <- case mPrelude of
+        Left compileErrors -> do
+          printCompileErrors compileErrors
           exitFailure
+        Right prelude -> return prelude
 
-        return mempty { fragmentDefs = fragmentDefs }
-
-      _ -> do
-        hPutStrLn stderr . unlines
-          $ "Too many prelude candidates:"
-          : preludes
+      unless (null fragmentTerms) $ do
+        hPutStrLn stderr "Prelude includes executable code."
         exitFailure
 
-    else return mempty
+      return mempty { fragmentDefs = fragmentDefs }
+
+    _ -> do
+      hPutStrLn stderr . unlines
+        $ "Too many prelude candidates:"
+        : preludes
+      exitFailure
 
   forM_ (entryPoints arguments) $ \ filename -> do
     program <- readFile filename
