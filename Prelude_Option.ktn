@@ -1,0 +1,31 @@
+// Safely gets a value from an option value.
+def fromOption (a? a -> a):
+  -> { m z }
+  if (m isNone): z else: m fromSome
+
+// Unsafely gets the value from an option.
+def fromSome (a? -> a):
+  __from_some
+
+// Whether an option is empty.
+def isNone (a? -> Bool):
+  __is_none
+
+// Whether an option contains a value.
+def isSome (a? -> Bool):
+  isNone not
+
+// Maps a function over an option value.
+def mapOption (a? (a -> b +e) -> b? +e):
+  -> f
+  [ ({id}, { f@ some })
+  ] {none}
+  cond
+
+// Constructs an empty option.
+def none (-> a?):
+  __none
+
+// Constructs an option with a value.
+def some (a -> a?):
+  __some

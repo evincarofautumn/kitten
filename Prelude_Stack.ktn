@@ -1,0 +1,14 @@
+// Duplicates a value.
+def dup (a -> a a):
+  -> x
+  x x
+
+// Drops a value.
+def drop (a ->):
+  -> x
+
+// Swaps two values. Useful for changing argument order when
+// partially applying a function.
+def swap (a b -> b a):
+  -> { a b }
+  b a

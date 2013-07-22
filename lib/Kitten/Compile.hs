@@ -61,7 +61,7 @@ compile
 compile Config{..} = liftM (mapLeft sort) . runEitherT $ do
   parsed <- hoistEither $ parseSource name source
   substituted <- hoistEither
-    =<< lift (substituteImports libraryDirectories parsed)
+    =<< lift (substituteImports libraryDirectories parsed [])
   resolved <- hoistEither $ resolve prelude substituted
 
   when dumpResolved . lift $ hPrint stderr resolved
@@ -100,21 +100,30 @@ locateImport libraryDirectories importName = do
 substituteImports
   :: [FilePath]
   -> Fragment Term.Value Term
+  -> [Import]
   -> IO (Either [CompileError] (Fragment Term.Value Term))
-substituteImports libraryDirectories fragment = runEitherT $ do
-  imports <- lift . forM (fragmentImports fragment) $ \ import_ -> do
-    located <- locateImport libraryDirectories (importName import_)
-    return (importName import_, located)
+substituteImports libraryDirectories fragment inScope
+  = runEitherT $ do
 
-  imported <- forM imports $ \ (name, import_) -> case import_ of
-    -- FIXME fail with "hoistEither . Left . CompileError" or something
-    -- FIXME better error messages
-    -- FIXME add importName to parseSource call
-    [] -> fail $ concat ["unable to find import '", name, "'"]
-    [filename] -> do
-      source <- lift $ readFile filename
-      hoistEither $ parseSource filename source
-    _ -> fail $ concat ["ambiguous import '", name, "'"]
-  return $ foldr (<>) fragment
-    $ for imported
-    $ (\ defs -> mempty { fragmentDefs = defs }) . fragmentDefs
+    let inScope' = fragmentImports fragment \\ inScope
+
+    imports <- lift . forM inScope'
+      $ \ import_ -> do
+        located <- locateImport libraryDirectories (importName import_)
+        return (import_, located)
+
+    imported <- forM imports $ \ (import_, possible) -> case possible of
+      [filename] -> do
+        source <- lift $ readFile filename
+        parsed <- hoistEither $ parseSource filename source
+        hoistEither =<< lift
+          (substituteImports libraryDirectories parsed inScope')
+
+      -- FIXME fail with "hoistEither . Left . CompileError" or something
+      -- FIXME better error messages
+      [] -> fail $ concat ["unable to find import '", importName import_, "'"]
+      _ -> fail $ concat ["ambiguous import '", importName import_, "'"]
+
+    return $ foldr (<>) fragment
+      $ for imported
+      $ (\ defs -> mempty { fragmentDefs = defs }) . fragmentDefs

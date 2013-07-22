@@ -1,0 +1,16 @@
+// An impure no-op, for casting a function to a procedure.
+def noop (-> +IO):
+  __impure
+
+// No-op.
+def pass (->)
+  {}
+
+// Unsafely calls a unary procedure with one result.
+def unsafeCall11 (a (a -> b +IO) -> b):
+  unsafePurify11@
+
+// Unsafely casts a unary procedure with one result into a
+// similarly typed function.
+def unsafePurify11 ((a -> b +IO) -> (a -> b)):
+  __unsafe_purify11

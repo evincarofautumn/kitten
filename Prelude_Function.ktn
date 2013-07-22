@@ -1,0 +1,21 @@
+// Composes two unary functions with one result.
+def compose ((a -> b +e1) (b -> c +e2) -> (a -> c +(e1 + e2))):
+  -> { f g }
+  { f@ g@ }
+
+// Wraps a value in a function.
+def const (a -> (b -> a)):
+  -> x
+  { drop x }
+
+// Identity function.
+def id (a -> a):
+  -> x
+  x
+
+// Apply a unary function to two values.
+def on (a a (a -> b) -> b b):
+  -> { x y f }
+  x f@ -> a
+  y f@ -> b
+  a b

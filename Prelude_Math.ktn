@@ -1,0 +1,231 @@
+// Absolute value of an integer.
+def absInt (Int -> Int):
+  if (dup 0 <): negInt
+
+// Absolute value of a floating-point number.
+def absFloat (Float -> Float):
+  if (dup 0.0 <.): negFloat
+
+// Whether all elements of a vector satisfy a predicate.
+def all ([a] (a -> Bool) -> Bool):
+  map and
+
+// Whether all elements of a vector are true.
+def and ([Bool] -> Bool):
+  true {&&} foldl
+
+// Whether any element of a vector satisfies a predicate.
+def any ([a] (a -> Bool) -> Bool):
+  map or
+
+// Whether a floating-point number is even.
+def evenFloat (Float -> Bool):
+  2.0 %. 0.0 =.
+
+// Whether an integer is even.
+def evenInt (Int -> Bool):
+  2 % 0 =
+
+// The maximum of two integers.
+def maxInt (Int Int -> Int):
+  -> { a b }
+  if (a b >): a else: b
+
+// The maximum of three integers.
+def maxInt3 (Int Int Int -> Int):
+  maxInt maxInt
+
+// The maximum of a vector of integers.
+def maxInts ([Int] -> Int):
+  {maxInt} foldl1
+
+// The minimum of two integers.
+def minInt (Int Int -> Int):
+  -> { a b }
+  if (a b <): a else: b
+
+// The minimum of three integers.
+def minInt3 (Int Int Int -> Int):
+  minInt minInt
+
+// The minimum of a vector of integers.
+def minInts ([Int] -> Int):
+  {minInt} foldl1
+
+// Floating-point negation.
+def negFloat (Float -> Float):
+  __neg_float
+
+// Integer negation.
+def negInt (Int -> Int):
+  __neg_int
+
+// Logical NOT.
+def not (Bool -> Bool):
+  __not_bool
+
+// Whether a floating-point number is odd.
+def oddFloat (Float -> Bool):
+  evenFloat not
+
+// Whether an integer is odd.
+def oddInt (Int -> Bool):
+  evenInt not
+
+// Whether any element of a vector is true.
+def or ([Bool] -> Bool):
+  false {||} foldl
+
+// The ratio of a circle's circumference to its diameter.
+def pi 3.141592653589793
+
+// The product of a vector of floating-point numbers.
+def productFloats ([Float] -> Float):
+  1.0 {*.} foldl
+
+// The product of a vector of integers.
+def productInts ([Int] -> Int):
+  1 {*} foldl
+
+// The sum of a vector of floating-point numbers.
+def sumFloats ([Float] -> Float):
+  0.0 {+.} foldl
+
+// The sum of a vector of integers.
+def sumInts ([Int] -> Int):
+  0 {+} foldl
+
+// The ratio of a circle's circumference to its radius.
+def tau 6.283185307179586
+
+// Integer inequality.
+def != (Int Int -> Bool):
+  __ne_int
+
+// Floating-point inequality.
+def !=. (Float Float -> Bool):
+  __ne_float
+
+// Integer modulus.
+def % (Int Int -> Int):
+  __mod_int
+
+// Floating-point modulus.
+def %. (Float Float -> Float):
+  __mod_float
+
+// Bitwise AND.
+def & (Int Int -> Int):
+  __and_int
+
+// Logical AND.
+def && (Bool Bool -> Bool):
+  __and_bool
+
+// Integer multiplication.
+def * (Int Int -> Int):
+  __mul_int
+
+// Floating-point multiplication.
+def *. (Float Float -> Float):
+  __mul_float
+
+// Integer addition.
+def + (Int Int -> Int):
+  __add_int
+
+// Floating-point addition.
+def +. (Float Float -> Float):
+  __add_float
+
+// Integer increment.
+def ++ (Int -> Int):
+  1 +
+
+// Floating-point increment.
+def ++. (Float -> Float):
+  1.0 +.
+
+// Integer subtraction.
+def - (Int Int -> Int):
+  __sub_int
+
+// Floating-point subtraction.
+def -. (Float Float -> Float):
+  __sub_float
+
+// Integer decrement.
+def -- (Int -> Int):
+  1 -
+
+// Floating-point decrement.
+def --. (Float -> Float):
+  1.0 -.
+
+// Integer division.
+def / (Int Int -> Int):
+  __div_int
+
+// Floating-point division.
+def /. (Float Float -> Float):
+  __div_float
+
+// Integer less than.
+def < (Int Int -> Bool):
+  __lt_int
+
+// Floating-point less than.
+def <. (Float Float -> Bool):
+  __lt_float
+
+// Integer less than or equal.
+def <= (Int Int -> Bool):
+  __le_int
+
+// Floating-point less than or equal.
+def <=. (Float Float -> Bool):
+  __le_float
+
+// Integer equality.
+def = (Int Int -> Bool):
+  __eq_int
+
+// Floating-point equality.
+def =. (Float Float -> Bool):
+  __eq_float
+
+// Integer greater than.
+def > (Int Int -> Bool):
+  __gt_int
+
+// Floating-point greater than.
+def >. (Float Float -> Bool):
+  __gt_float
+
+// Integer greater than or equal.
+def >= (Int Int -> Bool):
+  __ge_int
+
+// Floating-point greater than or equal.
+def >=. (Float Float -> Bool):
+  __ge_float
+
+// Bitwise XOR.
+def ^ (Int Int -> Int):
+  __xor_int
+
+// Boolean XOR.
+def ^^ (Bool Bool -> Bool):
+  __xor_bool
+
+// Bitwise OR.
+def | (Int Int -> Int):
+  __or_int
+
+// Logical OR.
+def || (Bool Bool -> Bool):
+  __or_bool
+
+// Bitwise NOT.
+def ~ (Int -> Int):
+  __not_int

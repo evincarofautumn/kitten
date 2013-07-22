@@ -1,0 +1,32 @@
+// Range of integers from start to finish generating
+// based on a given next and compare functions
+def rangeFor (Int Int (Int -> Int) (Int Int -> Bool) -> [Int]):
+  -> { start end next cmp }
+  if (start end cmp@):
+    []
+  else:
+    start next@
+      end next cmp rangeFor
+    start prepend
+
+// Inclusive range
+def rangeTo (Int Int -> [Int]):
+  -> { start end }
+  if (start end <):
+    start end { ++ } { > } rangeFor
+  else:
+    start end { -- } { < } rangeFor
+
+// Non-inclusive range
+def rangeUntil (Int Int -> [Int]):
+  -> { start end }
+  if (start end <):
+    start end { ++ } { >= } rangeFor
+  else:
+    start end { -- } { <= } rangeFor
+
+// Inclusive range (shorthand)
+def .. (Int Int -> [Int]) { rangeTo }
+
+// Non-inclusive range (shorthand)
+def ... (Int Int -> [Int]) { rangeUntil }

@@ -7,8 +7,9 @@ CABALFLAGS += --enable-tests
 MAKEFLAGS += --warn-undefined-variables
 .SECONDARY :
 
-KITTEN = ./dist/build/Kitten/kitten
-PRELUDE = ./dist/build/Kitten/prelude.ktn
+BUILDDIR = ./dist/build/Kitten
+KITTEN = $(BUILDDIR)/kitten
+PRELUDE = $(BUILDDIR)/Prelude.ktn
 TESTER = ./test/run.sh
 TESTS = $(basename $(notdir $(wildcard test/*.ktn)))
 
@@ -38,8 +39,9 @@ deps :
 .PHONY : prelude
 prelude : $(PRELUDE)
 
-$(PRELUDE) : $(KITTEN) prelude.ktn
-	cp prelude.ktn $(PRELUDE)
+$(PRELUDE) : $(KITTEN) Prelude.ktn
+	cp Prelude.ktn $(PRELUDE)
+	cp Prelude_*.ktn $(BUILDDIR)
 	$(KITTEN) --no-implicit-prelude $(PRELUDE)
 
 .PHONY: unit

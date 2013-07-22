@@ -1,0 +1,52 @@
+// 'cond' accepts a value, a vector of patterns, and a
+// default function. A pattern consists of a matching
+// function and a body. Each matching function is attempted
+// in turn; the body corresponding to the first match to
+// return 'some' value is evaluated. If all of the matches
+// returned 'none', then 'cond' evaluates the default.
+def cond (
+  a                       // Matched value
+  [(a -> b?, b -> c +e)]  // (pattern, function) pairs
+  (-> c +e)               // default function
+  ->
+  c +e
+):
+  -> { x ps z }
+  if (ps isEmpty):
+    z@
+  else:
+    ps head -> p
+    x (p first)@ -> m
+    if (m isSome):
+      (m fromSome) (p second)@
+    else:
+      x (ps tail) z cond
+
+// 'cond' without a default.
+def cond1 (
+  a
+  [(a -> b?, b -> c +e)]
+  ->
+  c +e
+):
+  -> { x ps }
+  ps head -> p
+  x (p first)@ -> m
+  if (m isSome):
+    (m fromSome) (p second)@
+  else:
+    x (ps tail) cond1
+
+// Repeats an action until a condition is false.
+def loopWhile ((-> Bool +IO) -> +IO):
+  -> f
+  if (f@): f loopWhile
+
+// Iterates a function on a value until a predicate holds.
+def until (a (a -> a) (a -> Bool) -> a):
+  -> { x f p }
+  if (x p@):
+    x
+  else:
+    x f@
+    f p until

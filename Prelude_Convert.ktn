@@ -1,0 +1,3 @@
+// Converts a character to an integer code point.
+def charToInt (Char -> Int):
+  __char_to_int

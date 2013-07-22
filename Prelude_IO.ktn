@@ -1,0 +1,114 @@
+// Reads a line from standard input.
+def getLine (-> [Char] +IO):
+  stdin __get_line
+
+// Closes a handle.
+def handleClose (Handle -> +IO):
+  __close
+
+// Reads a line from a handle.
+def handleGetLine (Handle -> [Char] +IO):
+  __get_line
+
+// Writes a string to a handle.
+def handlePrint ([Char] Handle -> +IO):
+  __print
+
+// Writes a newline to standard output.
+def newline (-> +IO):
+  "\n" print
+
+// Opens a file for input.
+def openInput ([Char] -> Handle +IO):
+  __open_in
+
+// Opens a file for output.
+def openOutput ([Char] -> Handle +IO):
+  __open_out
+
+// Writes a string to standard output.
+def print ([Char] -> +IO):
+  stdout __print
+
+// Prints a Boolean.
+def printBool (Bool -> +IO):
+  showBool print
+
+// Prints a Boolean vector.
+def printBools ([Bool] -> +IO):
+  showBools print
+
+// Prints a string vector.
+def printStrings ([[Char]] -> +IO):
+  showStrings print
+
+// Prints a floating-point number.
+def printFloat (Float -> +IO):
+  showFloat print
+
+// Prints a floating-point vector.
+def printFloats ([Float] -> +IO):
+  showFloats print
+
+// Prints an integer.
+def printInt (Int -> +IO):
+  showInt print
+
+// Prints an integer vector.
+def printInts ([Int] -> +IO):
+  showInts print
+
+def prompt ([Char] -> [Char] +IO):
+  print getLine
+
+// Prints a string followed by a newline.
+def say ([Char] -> +IO):
+  print newline
+
+// Says a Boolean.
+def sayBool (Bool -> +IO):
+  printBool newline
+
+// Says a Boolean vector.
+def sayBools ([Bool] -> +IO):
+  printBools newline
+
+// Says a string vector.
+def sayStrings ([[Char]] -> +IO):
+  printStrings newline
+
+// Says a floating-point number.
+def sayFloat (Float -> +IO):
+  printFloat newline
+
+// Says a floating-point vector.
+def sayFloats ([Float] -> +IO):
+  printFloats newline
+
+// Says an integer.
+def sayInt (Int -> +IO):
+  printInt newline
+
+// Says an integer vector.
+def sayInts ([Int] -> +IO):
+  printInts newline
+
+// Prints a space to standard output.
+def space (-> +IO):
+  " " print
+
+// The standard error handle.
+def stderr (-> Handle):
+  __stderr
+
+// The standard input handle.
+def stdin (-> Handle):
+  __stdin
+
+// The standard output handle.
+def stdout (-> Handle):
+  __stdout
+
+// Prints a tab character to standard output.
+def tab (-> +IO):
+  "\t" print
