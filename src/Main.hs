@@ -35,14 +35,14 @@ main :: IO ()
 main = do
 
   arguments <- parseArguments
-  preludes <- locateImport (libraryDirectories arguments) "prelude"
+  preludes <- locateImport (libraryDirectories arguments) "Prelude"
 
   prelude <- if not (enableImplicitPrelude arguments)
     then return mempty
     else case preludes of
 
     [] -> do
-      hPutStrLn stderr "No module 'prelude' found."
+      hPutStrLn stderr "No module 'Prelude' found."
       exitFailure
 
     [filename] -> do
@@ -71,7 +71,7 @@ main = do
 
     _ -> do
       hPutStrLn stderr . unlines
-        $ "Too many prelude candidates:"
+        $ "Too many Prelude candidates:"
         : preludes
       exitFailure
 

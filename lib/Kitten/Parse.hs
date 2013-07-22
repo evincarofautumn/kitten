@@ -59,7 +59,7 @@ def = (<?> "definition") . locate $ do
 import_ :: Parser Import
 import_ = (<?> "import") . locate $ do
   void (match Token.Import)
-  name <- functionName
+  name <- bigWord
   return $ \ loc -> Import
     { importName = name
     , importLocation = loc
