@@ -31,14 +31,13 @@ import Kitten.Resolved
 import Kitten.Type (Type((:&), (:.), (:?), (:|)))
 import Kitten.Type hiding (Type(..))
 import Kitten.Util.FailWriter
-import Kitten.Util.Void
 
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.Resolved as Resolved
 import qualified Kitten.Type as Type
 
 typeFragment
-  :: Fragment Value Void
+  :: Fragment Value Resolved
   -> Fragment Resolved.Value Resolved
   -> Either [CompileError] ()
 typeFragment prelude fragment
@@ -46,7 +45,7 @@ typeFragment prelude fragment
   $ inferFragment prelude fragment
 
 inferFragment
-  :: Fragment Value Void
+  :: Fragment Value Resolved
   -> Fragment Value Resolved
   -> Inferred ()
 inferFragment prelude fragment = do

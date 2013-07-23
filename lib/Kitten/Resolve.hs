@@ -14,13 +14,12 @@ import Kitten.Name
 import Kitten.Resolve.Monad
 import Kitten.Resolved
 import Kitten.Term (Term)
-import Kitten.Util.Void
 
 import qualified Kitten.Resolved as Resolved
 import qualified Kitten.Term as Term
 
 resolve
-  :: Fragment Resolved.Value Void
+  :: Fragment Resolved.Value Resolved
   -> Fragment Term.Value Term
   -> Either [CompileError] (Fragment Value Resolved)
 resolve prelude fragment

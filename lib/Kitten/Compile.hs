@@ -31,7 +31,6 @@ import Kitten.Term (Term)
 import Kitten.Tokenize
 import Kitten.Util.Either
 import Kitten.Util.Function
-import Kitten.Util.Void
 
 import qualified Kitten.Term as Term
 
@@ -40,7 +39,7 @@ data Config = Config
   , dumpScoped :: Bool
   , libraryDirectories :: [FilePath]
   , name :: String
-  , prelude :: Fragment Value Void
+  , prelude :: Fragment Value Resolved
   , source :: String
   }
 

@@ -19,13 +19,12 @@ import Kitten.Fragment
 import Kitten.Interpret.Monad
 import Kitten.Name
 import Kitten.Resolved
-import Kitten.Util.Void
 
 import qualified Kitten.Builtin as Builtin
 
 interpret
   :: [Value]
-  -> Fragment Value Void
+  -> Fragment Value Resolved
   -> Fragment Value Resolved
   -> IO ()
 interpret stack prelude fragment = void $ evalStateT
