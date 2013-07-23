@@ -110,7 +110,7 @@ interpretAll entryPoints compileMode prelude config
     case mResult of
       Left compileErrors -> printCompileErrors compileErrors
       Right result -> case compileMode of
-        CompileMode -> mapM_ print $ yarn result
+        CompileMode -> mapM_ print $ yarn (prelude <> result)
         InterpretMode -> void $ interpret [] prelude result
 
 parseArguments :: IO Arguments

@@ -76,7 +76,6 @@ data Builtin
   | SubInt
   | Tail
   | UnsafePurify11
-  | Vector
   | XorBool
   | XorInt
   deriving (Eq, Ord)
@@ -162,7 +161,6 @@ fromStringTable =
   , (,) "__sub_int"         SubInt
   , (,) "__tail"            Tail
   , (,) "__unsafe_purify11" UnsafePurify11
-  , (,) "__vector"          Vector
   , (,) "__xor_bool"        XorBool
   , (,) "__xor_int"         XorInt
   ]

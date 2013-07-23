@@ -240,9 +240,6 @@ infer resolved = case resolved of
     Builtin.UnsafePurify11 -> forAll $ \ r s a b
       -> r :. (s :. a ==> s :. b) --> r :. (s :. a --> s :. b)
 
-    Builtin.Vector -> forAll $ \ r a
-      -> r :. a --> r :. Type.Vector a
-
     Builtin.XorBool -> binary Type.Bool
     Builtin.XorInt -> binary Type.Int
 

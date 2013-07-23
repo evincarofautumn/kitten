@@ -272,10 +272,6 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.UnsafePurify11 -> return ()
 
-  Builtin.Vector -> do
-    a <- popData
-    pushData $ Vector [a]
-
   Builtin.XorBool -> boolsToBool (/=)
 
   Builtin.XorInt -> intsToInt xor

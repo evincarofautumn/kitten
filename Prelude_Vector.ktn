@@ -274,7 +274,8 @@ def transpose ([[a]] -> [[a]]):
 
 // Wraps a value in a vector.
 def vector (a -> [a]):
-  __vector
+  -> x
+  [x]
 
 // Zips two lists together as pairs.
 def zip ([a] [b] -> [(a, b)]):

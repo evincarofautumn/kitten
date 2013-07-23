@@ -12,9 +12,13 @@ KITTEN = $(BUILDDIR)/kitten
 PRELUDE = $(BUILDDIR)/Prelude.ktn
 TESTER = ./test/run.sh
 TESTS = $(basename $(notdir $(wildcard test/*.ktn)))
+YARN = $(BUILDDIR)/yarn
+
+YARN_HEADERS = $(wildcard interpreter/*.h)
+YARN_SOURCES = $(wildcard interpreter/*.cpp)
 
 .PHONY : default
-default : build prelude unit test
+default : build yarn prelude unit test
 
 .PHONY : all
 all : deps configure default lint
@@ -22,6 +26,12 @@ all : deps configure default lint
 .PHONY : build
 build $(KITTEN) :
 	$(CABAL) build
+
+.PHONY : yarn
+yarn : $(YARN) $(YARN_HEADERS)
+
+$(YARN) : $(YARN_SOURCES)
+	$(CXX) $^ -o $@ -std=c++11 -stdlib=libc++ -Wall -pedantic -g
 
 .PHONY : clean
 clean :
