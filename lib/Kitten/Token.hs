@@ -21,19 +21,20 @@ data Token
   | Comma
   | Def
   | Else
-  | FatArrow
   | GroupBegin
   | GroupEnd
   | Float Double
   | FloatType
   | HandleType
+  | IOType
   | If
+  | Import
   | Int Int
   | IntType
   | Layout
   | LittleWord String
+  | Operator String
   | Text String
-  | Then
   | VectorBegin
   | VectorEnd
   deriving (Eq)
@@ -52,19 +53,20 @@ instance Show Token where
     Comma -> ","
     Def -> "def"
     Else -> "else"
-    FatArrow -> "=>"
     GroupBegin -> "("
     GroupEnd -> ")"
     Float value -> show value
     FloatType -> "Float"
     HandleType -> "Handle"
+    IOType -> "IO"
     If -> "if"
+    Import -> "import"
     Int value -> show value
     IntType -> "Int"
     Layout -> ":"
     LittleWord word -> word
+    Operator word -> word
     Text value -> show value
-    Then -> "then"
     VectorBegin -> "["
     VectorEnd -> "]"
 

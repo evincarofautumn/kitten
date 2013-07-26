@@ -1,0 +1,15 @@
+def sayIntOrString (Int | [Char] -> +IO):
+  -> x
+  if (x isLeft):
+    x fromLeft sayInt
+  else:
+    x fromRight say
+
+11 left sayIntOrString
+"purr" right sayIntOrString
+
+def showNum (Int | Float -> [Char]):
+  {showInt} {showFloat} choice
+
+12 left showNum say
+6.25 right showNum say

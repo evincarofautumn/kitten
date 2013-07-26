@@ -85,16 +85,16 @@ spec = do
   describe "tokenize builtin" $ do
     testTokens "__vector" [Builtin Builtin.Vector]
     testTokens "__add_vector" [Builtin Builtin.AddVector]
-    testTokens "__apply11" [Builtin Builtin.Apply11]
+    testTokens "@" [Builtin Builtin.Apply]
 
   describe "tokenize word" $ do
     testTokens "not_a_keyword" [LittleWord "not_a_keyword"]
     testTokens "alsoNot" [LittleWord "alsoNot"]
     testTokens "thisThat123" [LittleWord "thisThat123"]
-    testTokens "+-" [LittleWord "+-"]
-    testTokens "<=>" [LittleWord "<=>"]
+    testTokens "+-" [Operator "+-"]
+    testTokens "<=>" [Operator "<=>"]
     testTokens "!#$%&*+-./;<=>?@^|~"
-      [LittleWord "!#$%&*+-./;<=>?@^|~"]
+      [Operator "!#$%&*+-./;<=>?@^|~"]
 
 testComment :: String -> Assertion
 testComment source = case tokenize "test" source of

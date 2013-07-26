@@ -1,0 +1,314 @@
+// Appends a value to the end of a vector.
+def append ([a] a -> [a]):
+  vector cat
+
+// The Cartesian product of two vectors.
+def cartesian ([a] [b] -> [(a, b)]):
+  {double} cartesianWith
+
+// The Cartesian product of two vectors with a generalized
+// tupling function.
+def cartesianWith ([a] [b] (a b -> c) -> [c]):
+  -> { xs ys function }
+  xs { -> x
+    ys { -> y
+      x y function@
+    } map
+  } mapConcat
+
+// Concatenates two vectors.
+def cat ([a] [a] -> [a]):
+  __add_vector
+
+// Concatenates a vector of vectors.
+def concat ([[a]] -> [a]):
+  [] {cat} foldl
+
+// Whether an element is present in a vector according to
+// the given equality predicate.
+def elem ([a] a (a a -> Bool) -> Bool):
+  -> { xs x f }
+  xs { x f@ } any
+
+// Whether a character is present in a string.
+def elemChar ([Char] Char -> Bool):
+  {eqChar} elem
+
+// Whether an integer is present in an integer vector.
+def elemInt ([Int] Int -> Bool):
+  {=} elem
+
+// Whether two vectors are equal according to the given
+// equality predicate.
+def eqVector ([a] [a] (a a -> Bool) -> Bool):
+  -> { xs ys eq }
+  if (xs length ys length !=):
+    false
+  else:
+    xs ys eq zipWith and
+
+// Filters a vector by a predicate.
+def filter ([a] (a -> Bool) -> [a]):
+  -> { v f }
+  if (v isEmpty):
+    v
+  else if (v head f@):
+    v tail f filter
+    v head prepend
+  else:
+    v tail f filter
+
+// Folds elements of a vector right-associatively.
+def foldr ([a] b (a b -> b) -> b):
+  -> { xs z k }
+  if (xs isEmpty):
+    z
+  else:
+    xs head
+    xs tail z k foldr
+    k@
+
+// Right-leaning vector fold starting from last element
+def foldr1 ([a] (a a -> a) -> a):
+  -> { xs fn }
+  xs init xs last fn foldr
+
+// Folds elements of a vector left-associatively.
+def foldl ([b] a (a b -> a) -> a):
+  -> { xs z k }
+  if (xs isEmpty):
+    z
+  else:
+    xs tail
+    z xs head k@
+    k foldl
+
+// Left-leaning vector fold starting from first element
+def foldl1 ([a] (a a -> a) -> a):
+  -> { xs fn }
+  xs tail xs head fn foldl
+
+// Gets multiple elements of a vector.
+def getAll ([a] [Int] -> [a]):
+  -> indices
+  -> xs
+  indices { xs swap # } map
+
+// Unsafely gets the first element of a vector.
+def head ([a] -> a):
+  0#
+
+// Unsafely splits a vector into its head and tail.
+def headTail ([a] -> a [a]):
+  -> xs
+  xs head xs tail
+
+// Unsafely removes the last element of a vector.
+def init ([a] -> [a]):
+  __init
+
+// Intersperses a value between the values of a vector.
+def intersperse ([a] a -> [a]):
+  -> { xs sep }
+  if (xs isEmpty):
+    []
+  else:
+    xs tail sep prependToAll
+    xs head prepend
+
+// Whether a vector is empty.
+def isEmpty ([a] -> Bool):
+  length 0 =
+
+// Joins a vector with a separator.
+def join ([[a]] [a] -> [a]):
+  intersperse concat
+
+// Keeps the first n elements of a vector, tossing the rest.
+def keep ([a] Int -> [a]):
+  -> { xs n }
+  if ((n 0 <=) (xs isEmpty) ||):
+    []
+  else:
+    xs tail n-- keep
+    xs head prepend
+
+// Gets the last element of a vector.
+def last ([a] -> a):
+  dup (length 1 -) #
+
+// Gets the length of a vector.
+def length ([a] -> Int):
+  __length
+
+// Lifts a function on values to a function on vectors.
+def map ([a] (a -> b +e) -> [b] +e):
+  -> { xs f }
+  if (xs isEmpty):
+    []
+  else:
+    xs head f@ vector
+    xs tail f map
+    cat
+
+// Maps a function over a vector and concatenates the results.
+def mapConcat ([a] (a -> [b]) -> [b]):
+  map concat
+
+// Maps a function over part of a vector.
+def mapFrom ([a] (a -> a) Int -> [a]):
+  -> { vec function offset }
+  if ((vec isEmpty) (offset vec length >=) ||):
+    vec
+  else:
+    vec function offset #@
+    function offset++ mapFrom
+
+// Maps a function over a value for each integer in a range.
+def mapRange (a (a Int -> a) Int Int -> a):
+  -> { value function start end }
+  if (start end <=):
+    value start function@
+    function start++ end mapRange
+  else:
+    value
+
+// Prepends a value to the head of a vector.
+def prepend ([a] a -> [a]):
+  -> { xs x }
+  x vector xs cat
+
+def prependToAll ([a] a -> [a]):
+  -> { xs sep }
+  if (xs isEmpty):
+    []
+  else:
+    xs tail sep prependToAll
+    xs head prepend
+    sep prepend
+
+// Produces a vector with some number of copies of a value.
+def replicate (a Int -> [a]):
+  -> { value count }
+  if (count 0 <=):
+    []
+  else:
+    value count-- replicate
+    value prepend
+
+// Reverses a vector.
+def reverse ([a] -> [a]):
+  -> xs
+  if (xs isEmpty):
+    []
+  else:
+    xs init reverse
+    xs last prepend
+
+// Produce a list of fold-left results
+def scanl ([b] a (a b -> a) -> [a]):
+  -> { xs z k }
+  xs z k scanlRest z prepend
+
+// Scan left with vector head as accumulator
+def scanl1 ([a] (a a -> a) -> [a]):
+  -> { xs k }
+  xs tail xs head k scanl
+
+// Scan fold of remaining elements
+def scanlRest ([b] a (a b -> a) -> [a]):
+  -> { xs z k }
+  if (xs isEmpty):
+    []
+  else:
+    z xs head k@ -> q
+    xs tail q k scanlRest
+    q prepend
+
+// Produce a list of fold-right results
+def scanr ([a] b (a b -> b) -> [b]):
+  -> { xs z k }
+  if (xs isEmpty):
+    [z]
+  else:
+    xs tail z k scanr dup head
+    xs head swap k@
+    prepend
+
+// Scan right with vector last as accumulator
+def scanr1 ([a] (a a -> a) -> [a]):
+  -> { xs k }
+  xs init xs last k scanr
+
+// Splits a vector into two parts at the given index.
+def splitAt ([a] Int -> [a] [a]):
+  -> { xs n }
+  xs n keep
+  xs n toss
+
+// Unsafely removes the first element of a vector.
+def tail ([a] -> [a]):
+  __tail
+
+// Tosses the first n elements of a vector, keeping the rest.
+def toss ([a] Int -> [a]):
+  -> { xs n }
+  if ((n 0 <=) (xs isEmpty) ||):
+    xs
+  else:
+    xs tail n-- toss
+
+// Transposes the rows and columns of a 2D vector.
+def transpose ([[a]] -> [[a]]):
+  -> xss
+  if (xss isEmpty):
+    []
+  else if (xss head isEmpty):
+    xss tail transpose
+  else:
+    xss headTail -> { xs xss }
+    xs headTail -> { x xs }
+    ((xss {tail} map) xs prepend) transpose
+    (xss {head} map) x prepend
+    prepend
+
+// Wraps a value in a vector.
+def vector (a -> [a]):
+  __vector
+
+// Zips two lists together as pairs.
+def zip ([a] [b] -> [(a, b)]):
+  {double} zipWith
+
+// Zips two lists together with a function.
+def zipWith ([a] [b] (a b -> c) -> [c]):
+  -> { as bs f }
+  if ((as isEmpty) (bs isEmpty) ||):
+    []
+  else:
+    as tail bs tail f zipWith
+    as head bs head f@ prepend
+
+// Unsafely gets an element of a vector.
+def # ([a] Int -> a):
+  __get
+
+// Sets the value at an index in a vector.
+def #! ([a] a Int -> [a]):
+  __set
+
+// Maps a function over an element of a vector.
+def #@ ([a] (a -> a) Int -> [a]):
+  -> { vec function offset }
+  vec offset# function@ -> value
+  vec value offset #!
+
+// Unsafely gets a value from a 2D vector.
+def ## ([[a]] Int Int -> a):
+  -> { i j }
+  i# j#
+
+// Sets a value in a 2D vector.
+def ##! ([[a]] a Int Int -> [[a]]):
+  -> { x i j }
+  { x j#! } i#@

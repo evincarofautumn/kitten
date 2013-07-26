@@ -10,6 +10,6 @@ def fun2 (->):
 { ->y z z x }
 { ->z x x y }
 
-if bad then: hi hello
-else if bad then: hi hello
+if bad: hi hello
+else if bad: hi hello
 else: bad hi

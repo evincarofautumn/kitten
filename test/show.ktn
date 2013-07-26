@@ -1,9 +1,9 @@
-false sayb
-true sayb
-[false, true, false, true] saybv
-0 sayi
-1 sayi
-[0, 1, 2, 3] sayiv
-0.0 sayf
-1.0 sayf
-[0.0, 1.1, 2.2, 3.3] sayfv
+false sayBool
+true sayBool
+[false, true, false, true] sayBools
+0 sayInt
+1 sayInt
+[0, 1, 2, 3] sayInts
+0.0 sayFloat
+1.0 sayFloat
+[0.0, 1.1, 2.2, 3.3] sayFloats

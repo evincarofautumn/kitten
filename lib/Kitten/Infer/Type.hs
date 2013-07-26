@@ -1,146 +1,89 @@
-{-# LANGUAGE RecordWildCards #-}
-
 module Kitten.Infer.Type
-  ( toTypedDef
-  , toTypedFragment
-  , toTypedTerm
-  , fromAnno
+  ( fromAnno
   ) where
 
 import Control.Applicative
+import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.List
+import Data.Map (Map)
 
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 import Kitten.Anno (Anno(Anno))
-import Kitten.Def
-import Kitten.Fragment
-import Kitten.Infer.Monad
+import Kitten.Infer.Monad (Inferred, freshVarM)
 import Kitten.Name
-import Kitten.Resolved (Resolved)
 import Kitten.Type
-import Kitten.Typed
 
 import qualified Kitten.Anno as Anno
-import qualified Kitten.Resolved as Resolved
 
-toTypedDef
-  :: Def Resolved.Value
-  -> Inferred (Def Value)
-toTypedDef def@Def{..} = do
-  defTerm' <- toTypedValue defTerm
-  return def { defTerm = defTerm' }
+data Env = Env
+  { envRows :: [Name]
+  , envScalars :: Map String Name
+  , envEffects :: Map String Name
+  }
 
-toTypedFragment
-  :: Fragment Resolved.Value Resolved
-  -> Inferred (Fragment Value Typed)
-toTypedFragment fragment@Fragment{..} = do
-  fragmentDefs' <- mapM toTypedDef fragmentDefs
-  fragmentTerms' <- mapM toTypedTerm fragmentTerms
-  return fragment
-    { fragmentDefs = fragmentDefs'
-    , fragmentTerms = fragmentTerms'
-    }
-
-toTypedTerm :: Resolved -> Inferred Typed
-toTypedTerm resolved = case resolved of
-  Resolved.Block terms -> compose terms
-  Resolved.Builtin builtin loc
-    -> pure $ Builtin builtin loc
-  Resolved.Call name loc -> pure $ Call name loc
-  Resolved.If condition true false loc -> do
-    condition' <- mapM toTypedTerm condition
-    typed <- If
-      <$> compose true
-      <*> compose false
-      <*> pure loc
-    return $ Compose (condition' ++ [typed])
-  Resolved.PairTerm as bs loc -> PairTerm
-    <$> compose as
-    <*> compose bs
-    <*> pure loc
-  Resolved.Push value loc -> Push
-    <$> toTypedValue value
-    <*> pure loc
-  Resolved.Scoped terms loc -> Scoped
-    <$> compose terms
-    <*> pure loc
-  Resolved.VectorTerm terms loc -> VectorTerm
-    <$> mapM compose terms
-    <*> pure loc
-
-toTypedValue :: Resolved.Value -> Inferred Value
-toTypedValue resolved = case resolved of
-  Resolved.Activation closure terms -> Activation
-    <$> mapM toTypedValue closure
-    <*> compose terms
-  Resolved.Bool bool -> pure $ Bool bool
-  Resolved.Char char -> pure $ Char char
-  Resolved.Closed name
-    -> pure $ Closed name
-  Resolved.Closure names terms
-    -> Closure names <$> compose terms
-  Resolved.Float float -> pure $ Float float
-  Resolved.Function terms -> Function <$> compose terms
-  Resolved.Handle handle -> pure $ Handle handle
-  Resolved.Int int -> pure $ Int int
-  Resolved.Local name -> pure $ Local name
-  Resolved.Pair a b
-    -> Pair <$> toTypedValue a <*> toTypedValue b
-  Resolved.Unit -> pure Unit
-  Resolved.Vector values -> Vector
-    <$> mapM toTypedValue values
-
-compose :: [Resolved] -> Inferred Typed
-compose terms = Compose <$> mapM toTypedTerm terms
+type Converted a = StateT Env Inferred a
 
 fromAnno :: Anno -> Inferred Scheme
 fromAnno (Anno annoType _) = do
-  Name startIndex <- getsEnv envNext
-  let
-    (count, type_) = fromAnnoType startIndex annoType
-    scheme = Forall
-      (Set.fromList (map (Name . (startIndex +)) [0 .. pred count]))
-      type_
-  modifyEnv $ \ env -> env { envNext = Name (nameIndex (envNext env) + count) }
-  return scheme
-
-fromAnnoType :: Int -> Anno.Type -> (Int, Type)
-fromAnnoType startIndex annoType
-  = let (type_, names) = flip runState [] $ fromAnnoType' annoType
-  in (length names, type_)
-
+  (type_, env) <- flip runStateT Env
+    { envRows = []
+    , envScalars = Map.empty
+    , envEffects = Map.empty
+    } $ fromAnnoType' annoType
+  return $ Forall
+    (Set.fromList (map row (envRows env)))
+    (Set.fromList . map scalar . Map.elems $ envScalars env)
+    (Set.fromList . map effect . Map.elems $ envEffects env)
+    type_
   where
-  fromAnnoType' :: Anno.Type -> State [String] Type
+
+  fromAnnoType' :: Anno.Type -> Converted (Type Scalar)
   fromAnnoType' type_ = case type_ of
-
-    Anno.Function a b p -> FunctionType
-      <$> mapM fromAnnoType' a
-      <*> mapM fromAnnoType' b
-      <*> pure p
-
-    Anno.Bool -> return BoolType
-
-    Anno.Char -> return CharType
-
-    Anno.Float -> return FloatType
-
-    Anno.Handle -> return HandleType
-
-    Anno.Int -> return IntType
-
+    Anno.Bool -> return Bool
+    Anno.Char -> return Char
+    Anno.Choice a b -> (:|) <$> fromAnnoType' a <*> fromAnnoType' b
+    Anno.Function a b e -> do
+      Var r <- lift freshVarM
+      modify $ \ env -> env { envRows = r : envRows env }
+      Function
+        <$> (foldl' (:.) (Var r) <$> mapM fromAnnoType' a)
+        <*> (foldl' (:.) (Var r) <$> mapM fromAnnoType' b)
+        <*> fromAnnoEffect e
+    Anno.Float -> return Float
+    Anno.Handle -> return Handle
+    Anno.Int -> return Int
+    Anno.Option a -> (:?) <$> fromAnnoType' a
     Anno.Pair a b -> (:&) <$> fromAnnoType' a <*> fromAnnoType' b
-
-    Anno.Unit -> return UnitType
-
+    Anno.Unit -> return Unit
     Anno.Var name -> do
-      mExisting <- gets $ elemIndex name
+      mExisting <- gets
+        $ \ env -> Map.lookup name (envScalars env)
       case mExisting of
-        Just existing -> return $ TypeVar (Name (startIndex + existing))
+        Just existing -> return (Var existing)
         Nothing -> do
-          index <- gets length
-          modify (++ [name])
-          return $ TypeVar (Name (startIndex + index))
+          Var var <- lift freshVarM
+          modify $ \ env -> env
+            { envScalars = Map.insert name var (envScalars env) }
+          return (Var var)
+    Anno.Vector a -> Vector <$> fromAnnoType' a
+    _ -> error "converting effect annotation to non-effect type"
 
-    Anno.Vector a -> VectorType <$> fromAnnoType' a
+  fromAnnoEffect :: Anno.Type -> Converted (Type Effect)
+  fromAnnoEffect e = case e of
+    Anno.NoEffect -> return NoEffect
+    Anno.IOEffect -> return IOEffect
+    Anno.Var name -> do
+      mExisting <- gets
+        $ \ env -> Map.lookup name (envEffects env)
+      case mExisting of
+        Just existing -> return (Var existing)
+        Nothing -> do
+          Var var <- lift freshVarM
+          modify $ \ env -> env
+            { envEffects = Map.insert name var (envEffects env) }
+          return (Var var)
+    Anno.Join a b -> (+:) <$> fromAnnoEffect a <*> fromAnnoEffect b
+    _ -> error "converting non-effect annotation to effect type"

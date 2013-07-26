@@ -1,22 +1,23 @@
 .NOTPARALLEL :
 
-HLINT := hlint
+HLINT ?= hlint
 CABAL ?= cabal
 
 CABALFLAGS += --enable-tests
 MAKEFLAGS += --warn-undefined-variables
 .SECONDARY :
 
-KITTEN = ./dist/build/Kitten/kitten
-PRELUDE = ./dist/build/Kitten/prelude.ktn
+BUILDDIR = ./dist/build/Kitten
+KITTEN = $(BUILDDIR)/kitten
+PRELUDE = $(BUILDDIR)/Prelude.ktn
 TESTER = ./test/run.sh
 TESTS = $(basename $(notdir $(wildcard test/*.ktn)))
 
 .PHONY : default
-default : build prelude unit test lint
+default : build prelude unit test
 
 .PHONY : all
-all : deps configure default
+all : deps configure default lint
 
 .PHONY : build
 build $(KITTEN) :
@@ -38,8 +39,9 @@ deps :
 .PHONY : prelude
 prelude : $(PRELUDE)
 
-$(PRELUDE) : $(KITTEN) prelude.ktn
-	cp prelude.ktn $(PRELUDE)
+$(PRELUDE) : $(KITTEN) Prelude.ktn
+	cp Prelude.ktn $(PRELUDE)
+	cp Prelude_*.ktn $(BUILDDIR)
 	$(KITTEN) --no-implicit-prelude $(PRELUDE)
 
 .PHONY: unit
@@ -57,7 +59,7 @@ $(foreach TEST,$(TESTS),$(eval $(call TESTRULE,$(TEST))))
 
 .PHONY : lint
 lint :
-	@ $(HLINT) src lib
+	@ $(HLINT) src lib || echo "Can't lint; hlint not on the path."
 
 .PHONY : loc
 loc :

@@ -7,3 +7,5 @@ test/many-resolve-errors.ktn:9:11: compile error: undefined word: z
 test/many-resolve-errors.ktn:10:7: compile error: undefined word: z
 test/many-resolve-errors.ktn:10:9: compile error: undefined word: z
 test/many-resolve-errors.ktn:13:4: compile error: undefined word: bad
+test/many-resolve-errors.ktn:13:9: compile error: undefined word: hi
+test/many-resolve-errors.ktn:13:12: compile error: undefined word: hello

@@ -1,199 +1,292 @@
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE PostfixOperators #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Kitten.Infer.Scheme
-  ( free
+  ( Occurrences(..)
+  , Simplify(..)
+  , Substitute(..)
+  , free
   , generalize
   , instantiate
   , instantiateM
   , normalize
   , occurs
-  , subDef
-  , subFragment
-  , sub
-  , subChain
-  , subTerm
-  , subValue
   ) where
 
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict
+import Data.Foldable (foldrM)
 import Data.List
+import Data.Monoid
+import Data.Set (Set)
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-import Kitten.Def
-import Kitten.Fragment
 import Kitten.Infer.Monad
 import Kitten.Name
 import Kitten.Type
-import Kitten.Typed
+import Kitten.Util.Monad
 
-instantiateM :: Scheme -> Inferred Type
+instantiateM :: Scheme -> Inferred (Type Scalar)
 instantiateM = Inferred . lift . state . instantiate
 
-instantiate :: Scheme -> Env -> (Type, Env)
-instantiate (Forall names type_) env
-  = let (renamedEnv, env') = foldr rename (emptyEnv, env) (Set.toList names)
-  in (sub renamedEnv type_, env')
-  where
-  rename :: Name -> (Env, Env) -> (Env, Env)
-  rename name (localEnv, globalEnv)
-    = let (var, globalEnv') = freshVar globalEnv
-    in (declare name var localEnv, globalEnv')
+instantiate :: Scheme -> Env -> (Type Scalar, Env)
+instantiate (Forall rows scalars effects type_) env
+  = (sub renamed type_, env')
 
-generalize :: Inferred Type -> Inferred Scheme
+  where
+  renamed :: Env
+  env' :: Env
+  (renamed, env') = flip runState env $ composeM
+    [ renames rows
+    , renames scalars
+    , renames effects
+    ] emptyEnv
+
+  renames
+    :: (Declare a)
+    => Set (TypeName a)
+    -> Env
+    -> State Env Env
+  renames = flip (foldrM rename) . Set.toList
+
+  rename
+    :: (Declare a)
+    => TypeName a
+    -> Env
+    -> State Env Env
+  rename name localEnv = do
+    var <- state freshVar
+    return (declare name var localEnv)
+
+generalize :: Inferred (Type Scalar) -> Inferred Scheme
 generalize action = do
   before <- getEnv
   type_ <- action
   after <- getEnv
+
   let
+    substituted :: Type Scalar
     substituted = sub after type_
+
+    dependent :: (Occurrences a) => TypeName a -> Bool
     dependent = dependentBetween before after
-    names = filter dependent $ free substituted
-  return $ Forall (Set.fromList names) substituted
 
-free :: Type -> [Name]
-free = nub . free'
-  where
-  free' :: Type -> [Name]
-  free' type_ = case type_ of
-    a :& b -> free a ++ free b
-    FunctionType a b _ -> concatMap free' a ++ concatMap free' b
-    BoolType -> []
-    CharType -> []
-    FloatType -> []
-    GeneratedType -> []
-    HandleType -> []
-    IntType -> []
-    TestType -> []
-    TypeVar name -> [name]
-    UnitType -> []
-    VectorType a -> free' a
+    rows :: [TypeName Row]
+    scalars :: [TypeName Scalar]
+    effects :: [TypeName Effect]
+    (rows, scalars, effects)
+      = let (r, s, e) = freeVars substituted
+      in (filter dependent r, filter dependent s, filter dependent e)
 
-normalize :: Type -> Type
+  return $ Forall
+    (Set.fromList rows)
+    (Set.fromList scalars)
+    (Set.fromList effects)
+    substituted
+
+freeVars
+  :: (Free a)
+  => Type a
+  -> ([TypeName Row], [TypeName Scalar], [TypeName Effect])
+freeVars type_
+  = let (rows, scalars, effects) = free type_
+  in (nub rows, nub scalars, nub effects)
+
+class Free a where
+  free
+    :: Type a
+    -> ([TypeName Row], [TypeName Scalar], [TypeName Effect])
+
+instance Free Effect where
+  free type_ = case type_ of
+    a :+ b -> free a <> free b
+    Test -> mempty
+    NoEffect -> mempty
+    IOEffect -> mempty
+    Var name -> ([], [], [effect name])
+
+instance Free Row where
+  free type_ = case type_ of
+    a :. b -> free a <> free b
+    Empty -> mempty
+    Test -> mempty
+    Var name -> ([row name], [], [])
+
+instance Free Scalar where
+  free type_ = case type_ of
+    a :& b -> free a <> free b
+    (:?) a -> free a
+    a :| b -> free a <> free b
+    Function a b _ -> free a <> free b
+    Bool -> mempty
+    Char -> mempty
+    Float -> mempty
+    Handle -> mempty
+    Int -> mempty
+    Test -> mempty
+    Var name -> ([], [scalar name], [])
+    Unit -> mempty
+    Vector a -> free a
+
+normalize :: Type Scalar -> Type Scalar
 normalize type_ = let
-  names = free type_
+  (rows, scalars, effects) = freeVars type_
+  rowCount = length rows
+  rowScalarCount = rowCount + length scalars
   env = emptyEnv
-    { envTypes = Map.fromList
-      $ zip names (map var [0..]) }
+    { envRows = Map.fromList
+      $ zip (map typeName rows) (map var [0..])
+    , envScalars = Map.fromList
+      $ zip (map typeName scalars) (map var [rowCount..])
+    , envEffects = Map.fromList
+      $ zip (map typeName effects) (map var [rowScalarCount..])
+    }
   in sub env type_
   where
-  var :: Int -> Type
-  var = TypeVar . Name
+  var :: Int -> Type a
+  var = Var . Name
 
-occurs :: Name -> Env -> Type -> Bool
+occurs :: (Occurrences a) => Name -> Env -> Type a -> Bool
 occurs = (((> 0) .) .) . occurrences
 
-occurrences :: Name -> Env -> Type -> Int
-occurrences name env type_ = case type_ of
-  a :& b -> occurrences name env a + occurrences name env b
-  FunctionType a b _
-    -> sum (map (occurrences name env) a)
-    + sum (map (occurrences name env) b)
-  BoolType -> 0
-  CharType -> 0
-  FloatType -> 0
-  GeneratedType -> 0
-  HandleType -> 0
-  IntType -> 0
-  TestType -> 0
-  TypeVar name' -> case findType env name' of
-    Left{} -> if name == name' then 1 else 0
-    Right type' -> occurrences name env type'
-  UnitType -> 0
-  VectorType a -> occurrences name env a
+class Occurrences a where
+  occurrences :: Name -> Env -> Type a -> Int
+
+instance Occurrences Effect where
+  occurrences name env type_ = case type_ of
+    a :+ b -> occurrences name env a + occurrences name env b
+    NoEffect -> 0
+    IOEffect -> 0
+    Test -> 0
+    Var name' -> case retrieve env (effect name') of
+      Left{} -> if name == name' then 1 else 0
+      Right type' -> occurrences name env type'
+
+instance Occurrences Row where
+  occurrences name env type_ = case type_ of
+    a :. b -> occurrences name env a + occurrences name env b
+    Empty -> 0
+    Test -> 0
+    Var name' -> case retrieve env (row name') of
+      Left{} -> if name == name' then 1 else 0
+      Right type' -> occurrences name env type'
+
+instance Occurrences Scalar where
+  occurrences name env type_ = case type_ of
+    a :& b -> occurrences name env a + occurrences name env b
+    (:?) a -> occurrences name env a
+    a :| b -> occurrences name env a + occurrences name env b
+    Function a b _
+      -> occurrences name env a
+      + occurrences name env b
+    Bool -> 0
+    Char -> 0
+    Float -> 0
+    Handle -> 0
+    Int -> 0
+    Test -> 0
+    Var name' -> case retrieve env (scalar name') of
+      Left{} -> if name == name' then 1 else 0
+      Right type' -> occurrences name env type'
+    Unit -> 0
+    Vector a -> occurrences name env a
 
 -- | Tests whether a variable is dependent between two type
 -- environment states.
-dependentBetween :: Env -> Env -> Name -> Bool
+dependentBetween
+  :: forall a. Occurrences a
+  => Env
+  -> Env
+  -> TypeName a
+  -> Bool
 dependentBetween before after name
   = any (bound after) (unbound before)
   where
-  bound env name' = occurs name env (TypeVar name')
+  bound env name'
+    = occurs (typeName name) env (Var name' :: Type a)
 
 -- | Enumerates those type variables in an environment which
 -- are allocated but not yet bound to a type.
 unbound :: Env -> [Name]
 unbound Env{..} = filter
-  (not . (`Map.member` envTypes))
+  (not . (`Map.member` envScalars))
   [Name 0 .. pred envNext]
 
-subChain :: Env -> Type -> Type
-subChain env type_ = case type_ of
-  TypeVar name
-    | Right type' <- findType env name
-    -> subChain env type'
-  _ -> type_
+class Simplify a where
+  simplify :: Env -> Type a -> Type a
 
-subDef :: Env -> Def Value -> Def Value
-subDef env def@Def{..} = def
-  { defName = defName
-  , defTerm = subValue env defTerm
-  }
+instance Simplify Effect where
+  simplify env type_ = case type_ of
+    Var name
+      | Right type' <- retrieve env (effect name)
+      -> simplify env type'
+    _ -> type_
 
-subFragment
-  :: Fragment Value Typed -> Env -> Fragment Value Typed
-subFragment fragment@Fragment{..} env = fragment
-  { fragmentDefs = map (subDef env) fragmentDefs
-  , fragmentTerms = map (subTerm env) fragmentTerms
-  }
+instance Simplify Row where
+  simplify env type_ = case type_ of
+    Var name
+      | Right type' <- retrieve env (row name)
+      -> simplify env type'
+    _ -> type_
 
-subTerm :: Env -> Typed -> Typed
-subTerm env typed = case typed of
-  Call name loc -> Call name loc
-  Compose terms -> Compose (map (subTerm env) terms)
-  Builtin builtin loc
-    -> Builtin builtin loc
-  If true false loc
-    -> If true false loc
-  PairTerm a b loc -> PairTerm
-    (subTerm env a)
-    (subTerm env b)
-    loc
-  Push value loc
-    -> Push (subValue env value) loc
-  Scoped term loc
-    -> Scoped (subTerm env term) loc
-  VectorTerm items loc -> VectorTerm
-    (map (subTerm env) items)
-    loc
+instance Simplify Scalar where
+  simplify env type_ = case type_ of
+    Var name
+      | Right type' <- retrieve env (scalar name)
+      -> simplify env type'
+    _ -> type_
 
-sub :: Env -> Type -> Type
-sub env type_ = case type_ of
-  FunctionType a b p -> FunctionType (map (sub env) a) (map (sub env) b) p
-  a :& b -> sub env a :& sub env b
-  BoolType{} -> type_
-  CharType{} -> type_
-  FloatType{} -> type_
-  GeneratedType{} -> type_
-  IntType{} -> type_
-  HandleType{} -> type_
-  TestType -> type_
-  TypeVar name
-    | Right type' <- findType env name
-    -> sub env type'
-    | otherwise
-    -> type_
-  UnitType{} -> type_
-  VectorType a -> VectorType (sub env a)
+class Substitute a where
+  sub :: Env -> Type a -> Type a
 
-subValue :: Env -> Value -> Value
-subValue env value = case value of
-  Activation values term -> Activation
-    (map (subValue env) values)
-    (subTerm env term)
-  Bool{} -> value
-  Char{} -> value
-  Closed name -> Closed name
-  Closure names term -> Closure names (subTerm env term)
-  Float{} -> value
-  Function term -> Function (subTerm env term)
-  Handle{} -> value
-  Int{} -> value
-  Local name -> Local name
-  Pair first second
-    -> Pair (subValue env first) (subValue env second)
-  Unit{} -> value
-  Vector values -> Vector (map (subValue env) values)
+instance Substitute Effect where
+  sub env type_ = case type_ of
+    a :+ b -> sub env a +: sub env b
+    NoEffect -> type_
+    IOEffect -> type_
+    Test{} -> type_
+    Var name
+      | Right type' <- retrieve env (effect name)
+      -> sub env type'
+      | otherwise
+      -> type_
+
+instance Substitute Row where
+  sub env type_ = case type_ of
+    a :. b -> sub env a :. sub env b
+    Empty{} -> type_
+    Test{} -> type_
+    Var name
+      | Right type' <- retrieve env (row name)
+      -> sub env type'
+      | otherwise
+      -> type_
+
+instance Substitute Scalar where
+  sub env type_ = case type_ of
+    Function a b e -> Function
+      (sub env a)
+      (sub env b)
+      (sub env e)
+    a :& b -> sub env a :& sub env b
+    (:?) a -> (sub env a :?)
+    a :| b -> sub env a :| sub env b
+    Bool{} -> type_
+    Char{} -> type_
+    Float{} -> type_
+    Int{} -> type_
+    Handle{} -> type_
+    Test -> type_
+    Var name
+      | Right type' <- retrieve env (scalar name)
+      -> sub env type'
+      | otherwise
+      -> type_
+    Unit{} -> type_
+    Vector a -> Vector (sub env a)

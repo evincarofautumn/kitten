@@ -14,10 +14,10 @@ import Kitten.ClosedName
 import Kitten.Def
 import Kitten.Fragment
 import Kitten.Name
-import Kitten.Typed
+import Kitten.Resolved
 import Kitten.Util.List
 
-scope :: Fragment Value Typed -> Fragment Value Typed
+scope :: Fragment Value Resolved -> Fragment Value Resolved
 scope fragment@Fragment{..} = fragment
   { fragmentDefs = map scopeDef fragmentDefs
   , fragmentTerms = map (scopeTerm [0]) fragmentTerms
@@ -27,56 +27,46 @@ scopeDef :: Def Value -> Def Value
 scopeDef def@Def{..} = def
   { defTerm = scopeValue [0] defTerm }
 
-scopeTerm :: [Int] -> Typed -> Typed
+scopeTerm :: [Int] -> Resolved -> Resolved
 scopeTerm stack typed = case typed of
-
-  Call{} -> typed
-
-  Compose terms -> Compose (map (scopeTerm stack) terms)
-
   Builtin{} -> typed
-
-  If true false loc -> If
-    (scopeTerm stack true)
-    (scopeTerm stack false)
-    loc
-
-  PairTerm as bs loc -> PairTerm
-    (scopeTerm stack as)
-    (scopeTerm stack bs)
-    loc
-
+  Call{} -> typed
+  Compose terms loc -> Compose (map recur terms) loc
+  Group terms loc -> Group (map recur terms) loc
+  If true false loc -> If (recur true) (recur false) loc
+  PairTerm as bs loc -> PairTerm (recur as) (recur bs) loc
   Push value loc -> Push (scopeValue stack value) loc
-
   Scoped term loc -> Scoped
     (scopeTerm (mapHead succ stack) term)
     loc
+  VectorTerm items loc -> VectorTerm (map recur items) loc
 
-  VectorTerm items loc -> VectorTerm
-    (map (scopeTerm stack) items)
-    loc
+  where
+  recur :: Resolved -> Resolved
+  recur = scopeTerm stack
 
 scopeValue :: [Int] -> Value -> Value
 scopeValue stack value = case value of
   Activation{} -> value
   Bool{} -> value
   Char{} -> value
+  Choice{} -> value
   Closed{} -> value
   Closure{} -> value
   Float{} -> value
 
-  Function funTerms
-    -> Closure (map ClosedName capturedNames) capturedTerms
+  Function funTerm
+    -> Closure (map ClosedName capturedNames) capturedTerm
     where
 
-    capturedTerms :: Typed
+    capturedTerm :: Resolved
     capturedNames :: [Name]
-    (capturedTerms, capturedNames)
+    (capturedTerm, capturedNames)
       = runCapture stack'
-      $ captureTerm scopedTerms
+      $ captureTerm scopedTerm
 
-    scopedTerms :: Typed
-    scopedTerms = scopeTerm stack' funTerms
+    scopedTerm :: Resolved
+    scopedTerm = scopeTerm stack' funTerm
 
     stack' :: [Int]
     stack' = 0 : stack
@@ -84,6 +74,7 @@ scopeValue stack value = case value of
   Handle{} -> value
   Int{} -> value
   Local{} -> value
+  Option{} -> value
   Pair a b -> Pair (scopeValue stack a) (scopeValue stack b)
   Unit -> Unit
   Vector values -> Vector (map (scopeValue stack) values)
@@ -109,14 +100,17 @@ addName name = do
       lift $ put (names ++ [name])
       return . Name $ length names
 
-captureTerm :: Typed -> Capture Typed
+captureTerm :: Resolved -> Capture Resolved
 captureTerm typed = case typed of
-
-  Call{} -> return typed
-
-  Compose terms -> Compose <$> mapM captureTerm terms
-
   Builtin{} -> return typed
+  Call{} -> return typed
+  Compose terms loc -> Compose
+    <$> mapM captureTerm terms
+    <*> pure loc
+
+  Group terms loc -> Group
+    <$> mapM captureTerm terms
+    <*> pure loc
 
   If true false loc -> If
     <$> captureTerm true
@@ -158,6 +152,7 @@ captureValue value = case value of
   Activation{} -> return value
   Bool{} -> return value
   Char{} -> return value
+  Choice{} -> return value
   Closed{} -> return value
   Closure names term -> Closure
     <$> mapM close names
@@ -184,6 +179,7 @@ captureValue value = case value of
       Nothing -> value
       Just closedName -> Closed closedName
 
+  Option{} -> return value
   Pair a b -> Pair <$> captureValue a <*> captureValue b
   Unit{} -> return value
   Vector values -> Vector <$> mapM captureValue values

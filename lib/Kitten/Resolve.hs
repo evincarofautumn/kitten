@@ -16,19 +16,26 @@ import Kitten.Resolved
 import Kitten.Term (Term)
 import Kitten.Util.Void
 
-import qualified Kitten.Typed as Typed
+import qualified Kitten.Resolved as Resolved
 import qualified Kitten.Term as Term
 
 resolve
-  :: Fragment Typed.Value Void
+  :: Fragment Resolved.Value Void
   -> Fragment Term.Value Term
   -> Either [CompileError] (Fragment Value Resolved)
-resolve prelude (Fragment defs terms)
+resolve prelude fragment
   = evalResolution emptyEnv
-  $ guardLiftM2 Fragment
-    (resolveDefs defs)
-    (guardMapM resolveTerm terms)
-  where emptyEnv = Env (fragmentDefs prelude) defs []
+  $ guardLiftM2 (\ defs terms -> fragment
+    { fragmentDefs = defs
+    , fragmentTerms = terms
+    })
+    (resolveDefs (fragmentDefs fragment))
+    (guardMapM resolveTerm (fragmentTerms fragment))
+  where
+  emptyEnv = Env
+    (fragmentDefs prelude)
+    (fragmentDefs fragment)
+    []
 
 resolveDefs :: [Def Term.Value] -> Resolution [Def Value]
 resolveDefs = guardMapM resolveDef
@@ -43,31 +50,40 @@ resolveTerm unresolved = case unresolved of
   Term.Call name loc -> resolveName name loc
   Term.Push value loc -> Push <$> resolveValue value <*> pure loc
   Term.Builtin name loc -> return $ Builtin name loc
-  Term.Block terms -> Block
+  Term.Compose terms loc -> Compose
     <$> guardMapM resolveTerm terms
-  Term.Lambda name terms loc -> withLocal name
-    $ Scoped <$> guardMapM resolveTerm terms <*> pure loc
-  Term.If condition true false loc -> If
-    <$> guardMapM resolveTerm condition
-    <*> guardMapM resolveTerm true
-    <*> guardMapM resolveTerm false
+    <*> pure loc
+  Term.Group terms loc -> Group
+    <$> guardMapM resolveTerm terms
+    <*> pure loc
+  Term.If true false loc -> If
+    <$> resolveTerm true
+    <*> resolveTerm false
+    <*> pure loc
+  Term.Lambda name term loc -> withLocal name
+    $ Scoped
+    <$> resolveTerm term
     <*> pure loc
   Term.PairTerm as bs loc -> PairTerm
-    <$> guardMapM resolveTerm as
-    <*> guardMapM resolveTerm bs
+    <$> resolveTerm as
+    <*> resolveTerm bs
     <*> pure loc
   Term.VectorTerm items loc -> VectorTerm
-    <$> guardMapM (guardMapM resolveTerm) items
+    <$> guardMapM resolveTerm items
     <*> pure loc
 
 resolveValue :: Term.Value -> Resolution Value
 resolveValue unresolved = case unresolved of
   Term.Bool value _ -> return $ Bool value
   Term.Char value _ -> return $ Char value
+  Term.Choice which value _ -> Choice which <$> resolveValue value
   Term.Float value _ -> return $ Float value
-  Term.Function term _ -> Function
-    <$> guardMapM resolveTerm term
+  Term.Function term loc -> Function
+    <$> (Compose <$> guardMapM resolveTerm term <*> pure loc)
   Term.Int value _ -> return $ Int value
+  Term.Option mValue _ -> case mValue of
+    Just value -> Option . Just <$> resolveValue value
+    Nothing -> pure (Option Nothing)
   Term.Pair a b _ -> do
     a' <- resolveValue a
     b' <- resolveValue b

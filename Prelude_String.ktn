@@ -1,0 +1,60 @@
+// Character equality.
+def eqChar (Char Char -> Bool):
+  {charToInt} on =
+
+// String equality.
+def eqString ([Char] [Char] -> Bool):
+  {eqChar} eqVector
+
+// Character greater than or equal.
+def geChar (Char Char -> Bool):
+  {charToInt} on >=
+
+// Character greater than.
+def gtChar (Char Char -> Bool):
+  {charToInt} on >
+
+// Character less than or equal.
+def leChar (Char Char -> Bool):
+  {charToInt} on <=
+
+// Character less than.
+def ltChar (Char Char -> Bool):
+  {charToInt} on <
+
+// Character inequality.
+def neChar (Char Char -> Bool):
+  {charToInt} on !=
+
+// Shows a Boolean as a string.
+def showBool (Bool -> [Char]):
+  if id: "true" else: "false"
+
+// Shows a Boolean vector as a string.
+def showBools ([Bool] -> [Char]):
+  {showBool} showVector
+
+// Shows a string vector as a string.
+def showStrings ([[Char]] -> [Char]):
+  {id} showVector
+
+// Shows a floating-point number as a string.
+def showFloat (Float -> [Char]):
+  __show_float
+
+// Shows a floating-point vector as a string.
+def showFloats ([Float] -> [Char]):
+  {showFloat} showVector
+
+// Shows an integer as a string.
+def showInt (Int -> [Char]):
+  __show_int
+
+// Shows an integer vector as a string.
+def showInts ([Int] -> [Char]):
+  {showInt} showVector
+
+// Shows a vector as a string.
+def showVector ([a] (a -> [Char]) -> [Char]):
+  -> { v f }
+  "[" v f map ", " join "]" cat cat

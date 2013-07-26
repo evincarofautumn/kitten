@@ -18,7 +18,7 @@ import Kitten.Def
 import Kitten.Fragment
 import Kitten.Interpret.Monad
 import Kitten.Name
-import Kitten.Typed
+import Kitten.Resolved
 import Kitten.Util.Void
 
 import qualified Kitten.Builtin as Builtin
@@ -26,7 +26,7 @@ import qualified Kitten.Builtin as Builtin
 interpret
   :: [Value]
   -> Fragment Value Void
-  -> Fragment Value Typed
+  -> Fragment Value Resolved
   -> IO ()
 interpret stack prelude fragment = void $ evalStateT
   (mapM interpretTerm (fragmentTerms fragment)) Env
@@ -37,32 +37,28 @@ interpret stack prelude fragment = void $ evalStateT
   , envLocations = []
   }              
 
-interpretTerm :: Typed -> Interpret
+interpretTerm :: Resolved -> Interpret
 interpretTerm resolved = case resolved of
-  Call name _ -> interpretOverload name
-
-  Compose terms -> mapM_ interpretTerm terms
-
   Builtin builtin _ -> interpretBuiltin builtin
-
+  Call name loc -> withLocation loc $ interpretOverload name
+  Compose terms loc -> withLocation loc
+    $ mapM_ interpretTerm terms
+  Group terms loc -> withLocation loc
+    $ mapM_ interpretTerm terms
   If true false loc -> withLocation loc $ do
     Bool test <- popData
     interpretTerm $ if test then true else false
-
   PairTerm a b loc -> withLocation loc $ do
     interpretTerm a
     a' <- popData
     interpretTerm b
     b' <- popData
     pushData $ Pair a' b'
-
   Push value loc -> withLocation loc $ interpretValue value
-
   Scoped term loc -> withLocation loc $ do
     pushLocal =<< popData
     interpretTerm term
     popLocal
-
   VectorTerm terms loc -> withLocation loc $ do
     mapM_ interpretTerm terms
     values <- replicateM (length terms) popData
@@ -111,12 +107,7 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.AndInt -> intsToInt (.&.)
 
-  Builtin.Apply01 -> apply
-  Builtin.Apply11 -> apply
-  Builtin.Apply21 -> apply
-
-  Builtin.Call01 -> apply
-  Builtin.Call10 -> apply
+  Builtin.Apply -> apply
 
   Builtin.CharToInt -> do
     Char a <- popData
@@ -142,6 +133,18 @@ interpretBuiltin builtin = case builtin of
     Pair a _ <- popData
     pushData a
 
+  Builtin.FromLeft -> do
+    Choice False a <- popData
+    pushData a
+
+  Builtin.FromRight -> do
+    Choice True a <- popData
+    pushData a
+
+  Builtin.FromSome -> do
+    Option (Just a) <- popData
+    pushData a
+
   Builtin.GeFloat -> floatsToBool (>=)
   Builtin.GeInt -> intsToBool (>=)
 
@@ -164,8 +167,22 @@ interpretBuiltin builtin = case builtin of
     Vector a <- popData
     pushData $ Vector (init a)
 
+  Builtin.IsNone -> do
+    Option a <- popData
+    pushData . Bool $ case a of
+      Nothing -> True
+      _ -> False
+
+  Builtin.IsRight -> do
+    Choice which _ <- popData
+    pushData $ Bool which
+
   Builtin.LeFloat -> floatsToBool (<=)
   Builtin.LeInt -> intsToBool (<=)
+
+  Builtin.Left -> do
+    a <- popData
+    pushData $ Choice False a
 
   Builtin.Length -> do
     Vector a <- popData
@@ -186,12 +203,12 @@ interpretBuiltin builtin = case builtin of
   Builtin.NegFloat -> floatToFloat negate
   Builtin.NegInt -> intToInt negate
 
-  Builtin.NotBool -> boolToBool not
+  Builtin.None -> pushData $ Option Nothing
 
+  Builtin.NotBool -> boolToBool not
   Builtin.NotInt -> intToInt complement
 
   Builtin.OrBool -> boolsToBool (||)
-
   Builtin.OrInt -> intsToInt (.|.)
 
   Builtin.OpenIn -> do
@@ -220,6 +237,10 @@ interpretBuiltin builtin = case builtin of
     Pair _ b <- popData
     pushData b
 
+  Builtin.Right -> do
+    a <- popData
+    pushData $ Choice True a
+
   Builtin.Set -> do
     Int c <- popData
     b <- popData
@@ -235,6 +256,10 @@ interpretBuiltin builtin = case builtin of
   Builtin.ShowInt -> do
     Int value <- popData
     pushData $ Vector (charsFromString $ show value)
+
+  Builtin.Some -> do
+    a <- popData
+    pushData $ Option (Just a)
 
   Builtin.Stderr -> pushData $ Handle stderr
   Builtin.Stdin -> pushData $ Handle stdin

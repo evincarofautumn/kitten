@@ -7,9 +7,9 @@
   {
     -> b1
     b1 y1 +
-  } apply11
-} apply11
-sayi
+  }@
+}@
+sayInt
 
 1000 -> x2
 100 -> y2
@@ -20,6 +20,6 @@ sayi
   {
     -> b2
     b2 x2 +
-  } apply11
-} apply11
-sayi
+  }@
+}@
+sayInt

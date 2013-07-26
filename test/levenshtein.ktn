@@ -11,46 +11,35 @@ def levenshtein ([Char] [Char] -> Int):
   0 columns++ replicate rows++ replicate
 
   // Distance from any first string to empty second string.
-  {
-    -> row
-    row row 0 set2
+  { -> row
+    row  row 0 ##!
   } 0 rows mapRange
 
   // Distance from any second string to empty first string.
-  {
-    -> column
-    column 0 column set2
+  { -> column
+    column  0 column ##!
   } 0 columns mapRange
 
-  {
-    -> row
+  { -> row
+    { -> { distances column }
 
-    {
-      -> column
-      -> distances
-
-      // FIXME: Type variables are not checked, so the
-      // builtin '__get' is required to disambiguate
-      // overloads.
-      first row-- __get -> firstChar
-      second column-- __get -> secondChar
+      first row-- # -> firstChar
+      second column-- # -> secondChar
 
       distances
-      if firstChar secondChar eqc then:
-        distances row-- column-- get2
-        row column set2
+      if (firstChar secondChar eqChar):
+        distances row-- column-- ##
       else:
-        distances row-- column   get2  // deletion
-        distances row   column-- get2  // insertion
-        distances row-- column-- get2  // substitution
-        min3 ++
-        row column set2
+        distances row-- column   ##  // deletion
+        distances row   column-- ##  // insertion
+        distances row-- column-- ##  // substitution
+        minInt3 ++
+      row column ##!
 
     } 1 columns mapRange
-
   } 1 rows mapRange
 
-  rows columns get2
+  rows columns ##
  
-"kitten" "sitting" levenshtein sayi
-"rosettacode" "raisethysword" levenshtein sayi
+"kitten" "sitting" levenshtein sayInt
+"rosettacode" "raisethysword" levenshtein sayInt

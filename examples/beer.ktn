@@ -1,12 +1,12 @@
-99 bottles_of_beer
+99 bottlesOfBeer
 
-def bottles_of_beer (Int =>):
+def bottlesOfBeer (Int -> +IO):
   -> x
   x verse
-  if x 1 > then:
-    x-- bottles_of_beer
+  if (x 1 >):
+    x-- bottlesOfBeer
 
-def verse (Int =>):
+def verse (Int -> +IO):
   -> x
   x wall newline
   x beer newline
@@ -14,21 +14,21 @@ def verse (Int =>):
   x-- wall newline
   newline
 
-def beer (Int =>):
+def beer (Int -> +IO):
   bottles " of beer" print
 
-def wall (Int =>):
+def wall (Int -> +IO):
   beer " on the wall" print
 
-def take (=>):
+def take (-> +IO):
   "take one down, pass it around" print
 
-def bottles (Int =>):
+def bottles (Int -> +IO):
   -> x
-  if x 0 = then:
+  if (x 0 =):
     "no more bottles"
-  else if x 1 = then:
+  else if (x 1 =):
     "one bottle"
   else:
-    x showi " bottles" cat
+    x showInt " bottles" cat
   print

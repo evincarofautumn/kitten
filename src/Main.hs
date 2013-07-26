@@ -3,14 +3,12 @@
 module Main where
 
 import Control.Monad
-import Data.List
+import Data.Monoid
 import System.Console.CmdArgs.Explicit
-import System.Directory
 import System.Exit
-import System.FilePath
 import System.IO
 
-import Kitten.Compile (compile)
+import Kitten.Compile (compile, locateImport)
 import Kitten.Error (CompileError)
 import Kitten.Fragment
 import Kitten.Interpret
@@ -37,60 +35,52 @@ main :: IO ()
 main = do
 
   arguments <- parseArguments
-  currentDirectory <- getCurrentDirectory
-  preludes <- liftM nub
-    . mapM (canonicalizePath . (</> "prelude.ktn"))
-    $ "."
-    : ("." </> "lib")
-    : libraryDirectories arguments
-    ++ [currentDirectory, currentDirectory </> "lib"]
+  preludes <- locateImport (libraryDirectories arguments) "Prelude"
 
-  existingPreludes <- filterM doesFileExist preludes
+  prelude <- if not (enableImplicitPrelude arguments)
+    then return mempty
+    else case preludes of
 
-  prelude <- if enableImplicitPrelude arguments
-    then case existingPreludes of
-      [] -> do
-        hPutStrLn stderr . unlines
-          $ "No prelude found. Searched:"
-          : preludes
-        exitFailure
+    [] -> do
+      hPutStrLn stderr "No module 'Prelude' found."
+      exitFailure
 
-      [filename] -> do
+    [filename] -> do
+      source <- readFile filename
+      mPrelude <- compile Compile.Config
+        { Compile.dumpResolved = dumpResolved arguments
+        , Compile.dumpScoped = dumpScoped arguments
+        , Compile.libraryDirectories
+          = libraryDirectories arguments
+        , Compile.name = filename
+        , Compile.prelude = mempty
+        , Compile.source = source
+        }
 
-        source <- readFile filename
-        mPrelude <- compile Compile.Config
-          { Compile.dumpResolved = dumpResolved arguments
-          , Compile.dumpScoped = dumpScoped arguments
-          , Compile.name = filename
-          , Compile.prelude = Fragment [] []
-          , Compile.source = source
-          }
-
-        Fragment{..} <- case mPrelude of
-          Left compileErrors -> do
-            printCompileErrors compileErrors
-            exitFailure
-          Right prelude -> return prelude
-
-        unless (null fragmentTerms) $ do
-          hPutStrLn stderr "Prelude includes executable code."
+      Fragment{..} <- case mPrelude of
+        Left compileErrors -> do
+          printCompileErrors compileErrors
           exitFailure
+        Right prelude -> return prelude
 
-        return $ Fragment fragmentDefs []
-
-      _ -> do
-        hPutStrLn stderr . unlines
-          $ "Too many prelude candidates:"
-          : existingPreludes
+      unless (null fragmentTerms) $ do
+        hPutStrLn stderr "Prelude includes executable code."
         exitFailure
 
-    else return $ Fragment [] []
+      return mempty { fragmentDefs = fragmentDefs }
+
+    _ -> do
+      hPutStrLn stderr . unlines
+        $ "Too many Prelude candidates:"
+        : preludes
+      exitFailure
 
   forM_ (entryPoints arguments) $ \ filename -> do
     program <- readFile filename
     mResult <- compile Compile.Config
       { Compile.dumpResolved = dumpResolved arguments
       , Compile.dumpScoped = dumpScoped arguments
+      , Compile.libraryDirectories = libraryDirectories arguments
       , Compile.name = filename
       , Compile.prelude = prelude
       , Compile.source = program

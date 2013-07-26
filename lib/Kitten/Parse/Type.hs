@@ -8,7 +8,6 @@ import Kitten.Anno (Anno(..), Type)
 import Kitten.Parse.Monad
 import Kitten.Parsec
 import Kitten.Parse.Primitive
-import Kitten.Purity
 
 import qualified Kitten.Anno as Anno
 import qualified Kitten.Token as Token
@@ -23,13 +22,26 @@ signature = locate $ Anno <$> functionType
   functionType :: Parser Type
   functionType = do
     left <- many baseType
-    (right, purity) <- choice
-      [ match Token.Arrow
-        *> ((,) <$> many baseType <*> pure Pure)
-      , match Token.FatArrow
-        *> ((,) <$> many baseType <*> pure Impure)
+    right <- match Token.Arrow *> many baseType
+    effect <- choice
+      [ match (Token.Operator "+") *> effectType
+      , pure Anno.NoEffect
       ]
-    return $ Anno.Function left right purity
+    return $ Anno.Function left right effect
+
+  effectType :: Parser Type
+  effectType = do
+    left <- choice
+      [ Anno.IOEffect <$ match Token.IOType
+      , Anno.Var <$> littleWord
+      , try $ Anno.NoEffect <$ unit
+      , grouped effectType
+      ]
+    choice
+      [ Anno.Join left
+        <$> (match (Token.Operator "+") *> effectType)
+      , pure left
+      ]
 
   baseType :: Parser Type
   baseType = (<?> "base type") $ do
@@ -45,9 +57,14 @@ signature = locate $ Anno <$> functionType
       , try $ grouped type_
       , tuple
       ]
-
-    Anno.Pair prefix <$> (match (Token.LittleWord "&") *> baseType)
-      <|> pure prefix
+    choice
+      [ Anno.Choice prefix
+        <$> (match (Token.Operator "|") *> baseType)
+      , Anno.Option prefix <$ match (Token.Operator "?")
+      , Anno.Pair prefix
+        <$> (match (Token.Operator "&") *> baseType)
+      , pure prefix
+      ]
 
   vector :: Parser Type
   vector = Anno.Vector <$> between
@@ -57,7 +74,7 @@ signature = locate $ Anno <$> functionType
 
   tuple :: Parser Type
   tuple = do
-    types <- grouped (baseType `sepEndBy1` match Token.Comma)
+    types <- grouped (type_ `sepEndBy1` match Token.Comma)
     return $ foldr Anno.Pair Anno.Unit types
 
   unit :: Parser Type

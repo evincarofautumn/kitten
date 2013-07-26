@@ -1,0 +1,23 @@
+def test (a? (a -> [Char]) -> +IO):
+  -> { x show }
+  if (x isSome):
+    x fromSome show@ say
+  else:
+    "(none)" say
+
+5 some {showInt} test
+"meow" some {id} test
+none {id} test
+
+def or0 (Int? -> Int):
+  0 fromOption
+
+10 some or0 sayInt
+none or0 sayInt
+
+def /? (Int Int -> Int?):
+  -> { x y }
+  if (y 0 =): none else: x y / some
+
+20 10 /? or0 sayInt
+10 0 /? or0 sayInt

@@ -54,7 +54,6 @@ token = (<?> "token") . located $ choice
   , Text <$> (char '"' *> text <* char '"')
   , try number
   , try $ Arrow <$ string "->" <* notFollowedBy symbolCharacter
-  , try $ FatArrow <$ string "=>" <* notFollowedBy symbolCharacter
   , word
   ]
   where
@@ -90,22 +89,28 @@ token = (<?> "token") . located $ choice
     ]
 
   word :: Parser Token
-  word = ffor (alphanumeric <|> symbolic) $ \ name -> case name of
-    "Bool" -> BoolType
-    "Char" -> CharType
-    "Float" -> FloatType
-    "Handle" -> HandleType
-    "Int" -> IntType
-    "def" -> Def
-    "else" -> Else
-    "false" -> Bool False
-    "if" -> If
-    "then" -> Then
-    "true" -> Bool True
-    (first : _) | isUpper first -> BigWord name
-    _ -> case Builtin.fromString name of
+  word = choice
+    [ ffor alphanumeric $ \ name -> case name of
+      "Bool" -> BoolType
+      "Char" -> CharType
+      "Float" -> FloatType
+      "Handle" -> HandleType
+      "IO" -> IOType
+      "Int" -> IntType
+      "def" -> Def
+      "else" -> Else
+      "false" -> Bool False
+      "if" -> If
+      "import" -> Import
+      "true" -> Bool True
+      (first : _) | isUpper first -> BigWord name
+      _ -> case Builtin.fromString name of
+        Just builtin -> Builtin builtin
+        _ -> LittleWord name
+    , ffor symbolic $ \ name -> case Builtin.fromString name of
       Just builtin -> Builtin builtin
-      _ -> LittleWord name
+      _ -> Operator name
+    ]
     where
 
     alphanumeric :: Parser String

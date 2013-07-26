@@ -1,0 +1,33 @@
+// Constructs a 2-tuple.
+def double (a b -> (a, b)):
+  -> { a b }
+  (a, b)
+
+// Gets the first element of a tuple or pair.
+def first ((a & b) -> a):
+  __first
+
+// Gets the second element of a tuple.
+def second ((a & b & c) -> b):
+  rest first
+
+// Gets the third element of a tuple.
+def third ((a & b & c & d) -> c):
+  rest rest first
+
+// Flips the elements of a double.
+def flip ((a, b) -> (b, a)):
+  -> pair
+  (pair second, pair first)
+
+// Gets the fourth element of a tuple.
+def fourth ((a & b & c & d & e) -> d):
+  rest rest rest first
+
+// Constructs a pair.
+def pair (a b -> (a & b)):
+  __pair
+
+// Gets the second element of a pair or the tail of a tuple.
+def rest ((a & b) -> b):
+  __rest

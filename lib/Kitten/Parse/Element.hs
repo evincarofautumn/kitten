@@ -6,16 +6,22 @@ module Kitten.Parse.Element
 import Data.Monoid
 
 import Kitten.Def
+import Kitten.Fragment
+import Kitten.Import
 import Kitten.Term
 
 data Element
   = DefElement (Def Value)
+  | ImportElement Import
   | TermElement Term
 
-partitionElements
-  :: [Element] -> ([Def Value], [Term])
+partitionElements :: [Element] -> Fragment Value Term
 partitionElements = foldr go mempty
   where
-  go element (defs, terms) = case element of
-    DefElement def -> (def : defs, terms)
-    TermElement term -> (defs, term : terms)
+  go element acc = case element of
+    DefElement def -> acc
+      { fragmentDefs = def : fragmentDefs acc }
+    ImportElement import_ -> acc
+      { fragmentImports = import_ : fragmentImports acc }
+    TermElement term -> acc
+      { fragmentTerms = term : fragmentTerms acc }

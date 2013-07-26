@@ -1,5 +1,5 @@
-def pureFromImpure (Int => Int):
-  impure
+def pureFromImpure (Int -> Int +IO):
+  noop
   ++
 
-5 pureFromImpure sayi
+5 pureFromImpure sayInt

@@ -4,17 +4,17 @@ def unary (-> Int):
 def binary (-> Int Int):
   1 2
 
-def ii ((Int -> Int) =>):
+def ii ((Int -> Int) -> +IO):
   -> f
-  unary f apply11 sayi
+  unary f@ sayInt
 
-def iib ((Int Int -> Bool) =>):
+def iib ((Int Int -> Bool) -> +IO):
   -> f
-  binary f apply21 sayb
+  binary f@ sayBool
 
-def iii ((Int Int -> Int) =>):
+def iii ((Int Int -> Int) -> +IO):
   -> f
-  binary f apply21 sayi
+  binary f@ sayInt
 
 {+} iii
 {&} iii
@@ -29,7 +29,7 @@ def iii ((Int Int -> Int) =>):
 {%} iii
 {*} iii
 {!=} iib
-{negi} ii
+{negInt} ii
 {~} ii
 {|} iii
 {-} iii

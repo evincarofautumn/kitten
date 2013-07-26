@@ -4,7 +4,6 @@ module Kitten.Parse.Layout
 
 import Control.Applicative
 import Control.Monad
-import Data.Maybe
 
 import Kitten.Location
 import Kitten.Parse.Monad
@@ -27,17 +26,14 @@ insertBraces = (concat <$> many unit) <* eof
 
   ifThenElse :: Parser [Located]
   ifThenElse = do
-    if_ <- (:) <$> locatedMatch Token.If <*> units
-    then_ <- (:) <$> locatedMatch Token.Then <*> unit
-    else_ <- fromMaybe [] <$> optionMaybe
+    if_ <- (:) <$> locatedMatch Token.If <*> unit
+    then_ <- unit
+    else_ <- option []
       ((:) <$> locatedMatch Token.Else <*> unit)
     return $ concat [if_, then_, else_]
 
   unit :: Parser [Located]
   unit = unitWhere $ const True
-
-  units :: Parser [Located]
-  units = concat <$> many unit
 
   unitWhere :: (Located -> Bool) -> Parser [Located]
   unitWhere predicate
@@ -59,7 +55,6 @@ insertBraces = (concat <$> many unit) <* eof
     , Token.Layout
     , Token.VectorBegin
     , Token.VectorEnd
-    , Token.Then
     , Token.Else
     ]
 
