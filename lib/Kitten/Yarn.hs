@@ -151,6 +151,8 @@ yarnDef Def{..} index = do
 yarnTerm :: Resolved -> Yarn [Instruction]
 yarnTerm term = case term of
   Resolved.Call (Name index) _ -> return [Call index]
+  Resolved.ChoiceTerm{} -> error
+    "Kitten.Yarn.yarnTerm: TODO yarn choice term"
   Resolved.Compose terms _ -> concatMapM yarnTerm terms
   Resolved.Builtin builtin _ -> return [Builtin builtin]
   Resolved.Group terms _ -> concatMapM yarnTerm terms
@@ -162,6 +164,8 @@ yarnTerm term = case term of
       , true'
       , false'
       ]
+  Resolved.OptionTerm{} -> error
+    "Kitten.Yarn.yarnTerm: TODO yarn option term"
   Resolved.PairTerm a b _ -> do
     a' <- yarnTerm a
     b' <- yarnTerm b

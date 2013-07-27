@@ -18,6 +18,7 @@ data Token
   | Builtin Builtin
   | Char Char
   | CharType
+  | Choice
   | Comma
   | Def
   | Else
@@ -34,6 +35,7 @@ data Token
   | Layout
   | LittleWord String
   | Operator String
+  | Option
   | Text String
   | VectorBegin
   | VectorEnd
@@ -50,6 +52,7 @@ instance Show Token where
     Builtin name -> show name
     Char char -> show char
     CharType -> "Char"
+    Choice -> "choice"
     Comma -> ","
     Def -> "def"
     Else -> "else"
@@ -66,6 +69,7 @@ instance Show Token where
     Layout -> ":"
     LittleWord word -> word
     Operator word -> word
+    Option -> "option"
     Text value -> show value
     VectorBegin -> "["
     VectorEnd -> "]"

@@ -4,7 +4,7 @@ module Kitten.Scope
   ( scope
   ) where
 
-import Control.Applicative
+import Control.Applicative hiding (some)
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
@@ -31,9 +31,13 @@ scopeTerm :: [Int] -> Resolved -> Resolved
 scopeTerm stack typed = case typed of
   Builtin{} -> typed
   Call{} -> typed
+  ChoiceTerm left right loc
+    -> ChoiceTerm (recur left) (recur right) loc
   Compose terms loc -> Compose (map recur terms) loc
   Group terms loc -> Group (map recur terms) loc
   If true false loc -> If (recur true) (recur false) loc
+  OptionTerm some none loc
+    -> OptionTerm (recur some) (recur none) loc
   PairTerm as bs loc -> PairTerm (recur as) (recur bs) loc
   Push value loc -> Push (scopeValue stack value) loc
   Scoped term loc -> Scoped
@@ -104,6 +108,12 @@ captureTerm :: Resolved -> Capture Resolved
 captureTerm typed = case typed of
   Builtin{} -> return typed
   Call{} -> return typed
+
+  ChoiceTerm left right loc -> ChoiceTerm
+    <$> captureTerm left
+    <*> captureTerm right
+    <*> pure loc
+
   Compose terms loc -> Compose
     <$> mapM captureTerm terms
     <*> pure loc
@@ -115,6 +125,11 @@ captureTerm typed = case typed of
   If true false loc -> If
     <$> captureTerm true
     <*> captureTerm false
+    <*> pure loc
+
+  OptionTerm some none loc -> OptionTerm
+    <$> captureTerm some
+    <*> captureTerm none
     <*> pure loc
 
   PairTerm a b loc -> PairTerm

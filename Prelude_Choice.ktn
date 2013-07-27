@@ -1,11 +1,3 @@
-// Safely chooses from a choice.
-def choice ((a | b) (a -> c) (b -> c) -> c):
-  -> { x l r }
-  if (x isLeft):
-    x fromLeft l@
-  else:
-    x fromRight r@
-
 // Unsafely gets the left branch of a choice.
 def fromLeft (a | b -> a):
   __from_left
@@ -16,43 +8,52 @@ def fromRight (a | b -> b):
 
 // Safely gets the left branch of a choice.
 def getLeft ((a | b) -> a?):
-  -> x
-  if (x isLeft): x fromLeft some else: none
+  choice id:
+    some
+  else:
+    drop none
 
 // Safely gets the right branch of a choice.
 def getRight ((a | b) -> b?):
-  -> x
-  if (x isRight): x fromRight some else: none
+  choice id:
+    drop none
+  else:
+    some
 
 // Whether a choice is left.
 def isLeft (a | b -> Bool):
-  isRight not
+  choice id:
+    drop true
+  else:
+    drop false
 
 // Whether a choice is right.
 def isRight (a | b -> Bool):
-  __is_right
+  choice id:
+    drop false
+  else:
+    drop true
 
 // Constructs a left choice.
 def left (a -> a | b):
   __left
 
 // Maps a function over the left branch of a choice.
-def mapLeft ((a | b) (a -> c) -> c | b):
+def liftLeft ((a | b) (a -> c) -> c | b):
   -> f
-  [ ({getLeft}, {f@ left})
-  , ({getRight}, {right})
-  ]
-  cond1
+  choice id:
+    f@ left
+  else:
+    right
 
 // Maps a function over the right branch of a choice.
-def mapRight ((a | b) (b -> c) -> a | c):
+def liftRight ((a | b) (b -> c) -> a | c):
   -> f
-  [ ({getLeft}, {left})
-  , ({getRight}, {f@ right})
-  ]
-  cond1
+  choice id:
+    left
+  else:
+    f@ right
 
 // Constructs a right choice.
 def right (b -> a | b):
   __right
-

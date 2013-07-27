@@ -24,13 +24,20 @@ insertBraces = (concat <$> many unit) <* eof
     end <- locatedMatch close
     return $ begin : inner ++ [end]
 
-  ifThenElse :: Parser [Located]
-  ifThenElse = do
-    if_ <- (:) <$> locatedMatch Token.If <*> unit
+  flow :: Token -> Parser [Located]
+  flow prefix = do
+    if_ <- (:) <$> locatedMatch prefix <*> unit
     then_ <- unit
-    else_ <- option []
-      ((:) <$> locatedMatch Token.Else <*> unit)
+    else_ <- elseBranch
     return $ concat [if_, then_, else_]
+
+  ifElse = flow Token.If
+  choiceElse = flow Token.Choice
+  optionElse = flow Token.Option
+
+  elseBranch :: Parser [Located]
+  elseBranch = option []
+    ((:) <$> locatedMatch Token.Else <*> unit)
 
   unit :: Parser [Located]
   unit = unitWhere $ const True
@@ -41,7 +48,9 @@ insertBraces = (concat <$> many unit) <* eof
     [ bracket Token.BlockBegin Token.BlockEnd
     , bracket Token.GroupBegin Token.GroupEnd
     , bracket Token.VectorBegin Token.VectorEnd
-    , ifThenElse
+    , ifElse
+    , choiceElse
+    , optionElse
     , layout
     , list <$> locatedSatisfy (not . isBracket . locatedToken)
     ]

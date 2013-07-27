@@ -9,7 +9,7 @@ module Kitten.Infer
   , forAll
   ) where
 
-import Control.Applicative
+import Control.Applicative hiding (some)
 import Control.Monad
 import Data.Monoid
 import Data.Map ((!))
@@ -156,12 +156,6 @@ infer resolved = case resolved of
     Builtin.Init -> forAll $ \ r a
       -> r :. Type.Vector a --> r :. Type.Vector a
 
-    Builtin.IsNone -> forAll $ \ r a
-      -> r :. (a :?) --> r :. Type.Bool
-
-    Builtin.IsRight -> forAll $ \ r a b
-      -> r :. a :| b --> r :. Type.Bool
-
     Builtin.LeFloat -> relational Type.Float
     Builtin.LeInt -> relational Type.Int
 
@@ -250,6 +244,17 @@ infer resolved = case resolved of
   Call name loc -> withLocation loc
     $ instantiateM =<< getsEnv ((! name) . envDefs)
 
+  ChoiceTerm left right loc -> withLocation loc $ do
+    Type.Function a b e1 <- infer left
+    Type.Function c d e2 <- infer right
+    r <- freshVarM
+    x <- freshVarM
+    y <- freshVarM
+    a === r :. x
+    c === r :. y
+    b === d
+    return $ Type.Function (r :. x :| y) b (e1 +: e2)
+
   Compose terms loc -> withLocation loc $ do
     types <- mapM infer terms
     r <- freshVarM
@@ -267,6 +272,16 @@ infer resolved = case resolved of
     a === c
     b === d
     return $ Type.Function (a :. Type.Bool) b (e1 +: e2)
+
+  OptionTerm some none loc -> withLocation loc $ do
+    Type.Function a b e1 <- infer some
+    Type.Function c d e2 <- infer none
+    x <- freshVarM
+    r <- freshVarM
+    a === r :. x
+    r === c
+    b === d
+    return $ Type.Function (r :. (x :?)) b (e1 +: e2)
 
   PairTerm a b loc -> withLocation loc $ do
     a' <- fromConstant =<< infer a

@@ -9,10 +9,12 @@ import Kitten.Location
 data Term
   = Builtin Builtin Location
   | Call String Location
+  | ChoiceTerm Term Term Location
   | Compose [Term] Location
   | Group [Term] Location
   | If Term Term Location
   | Lambda String Term Location
+  | OptionTerm Term Term Location
   | PairTerm Term Term Location
   | Push Value Location
   | VectorTerm [Term] Location

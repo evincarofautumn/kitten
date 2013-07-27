@@ -1,15 +1,15 @@
 def test (Int? -> +IO):
-  { (2 *) (5 +) } mapOption
-  {dup sayInt} mapOption drop
+  { (2 *) (5 +) } liftOption
+  {dup sayInt} liftOption drop
 
 0 some test
 5 some test
 none test
 
-0 left {++} mapLeft
+0 left {++} liftLeft
 getLeft
-{dup sayInt} mapOption drop
+{dup sayInt} liftOption drop
 
-"hi" right { " there" cat } mapRight -> x
-x getLeft {dup sayInt} mapOption drop
-x getRight {dup say} mapOption drop
+"hi" right { " there" cat } liftRight -> x
+x getLeft {dup sayInt} liftOption drop
+x getRight {dup say} liftOption drop

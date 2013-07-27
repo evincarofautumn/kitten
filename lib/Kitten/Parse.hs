@@ -2,7 +2,7 @@ module Kitten.Parse
   ( parse
   ) where
 
-import Control.Applicative
+import Control.Applicative hiding (some)
 import Control.Monad
 
 import qualified Text.Parsec as Parsec
@@ -75,21 +75,51 @@ term = locate $ choice
   , mapOne toBuiltin <?> "builtin"
   , lambda
   , if_
+  , choiceTerm
+  , optionTerm
   ]
   where
 
   group :: Parser (Location -> Term)
   group = (<?> "group") $ Group <$> grouped (many1 term)
 
+  branchList :: Parser [Term]
+  branchList = block <|> list <$> term
+
+  branch :: Parser Term
+  branch = locate $ Compose <$> branchList
+
+  elseBranch :: Parser Term
+  elseBranch = locate $ Compose
+    <$> (option [] (match Token.Else *> branchList))
+
   if_ :: Parser (Location -> Term)
   if_ = (<?> "if") $ do
     void (match Token.If)
     condition <- term
-    then_ <- locate $ Compose <$> branch
-    else_ <- locate $ Compose
-      <$> (option [] (match Token.Else *> branch))
+    then_ <- branch
+    else_ <- elseBranch
     return $ \ loc -> Compose [condition, If then_ else_ loc] loc
-    where branch = block <|> list <$> locate if_
+
+  choiceTerm :: Parser (Location -> Term)
+  choiceTerm = (<?> "choice") $ do
+    void (match Token.Choice)
+    condition <- term
+    left <- branch
+    right <- elseBranch
+    return $ \ loc -> Compose
+      [condition, ChoiceTerm left right loc]
+      loc
+
+  optionTerm :: Parser (Location -> Term)
+  optionTerm = (<?> "option") $ do
+    void (match Token.Option)
+    condition <- term
+    some <- branch
+    none <- elseBranch
+    return $ \ loc -> Compose
+      [condition, OptionTerm some none loc]
+      loc
 
   lambda :: Parser (Location -> Term)
   lambda = (<?> "lambda") $ match Token.Arrow *> choice
