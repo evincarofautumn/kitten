@@ -57,4 +57,8 @@ def showInts ([Int] -> [Char]):
 // Shows a vector as a string.
 def showVector ([a] (a -> [Char]) -> [Char]):
   -> { v f }
-  "[" v f map ", " join "]" cat cat
+  [
+    "[",
+    (v f map) ", " join,
+    "]",
+  ] concat
