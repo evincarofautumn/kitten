@@ -17,8 +17,8 @@ def cond (
   else:
     ps head -> p
     x (p first)@ -> m
-    if (m isSome):
-      (m fromSome) (p second)@
+    option m:
+      p second @
     else:
       x (ps tail) z cond
 
@@ -32,8 +32,8 @@ def cond1 (
   -> { x ps }
   ps head -> p
   x (p first)@ -> m
-  if (m isSome):
-    (m fromSome) (p second)@
+  option m:
+    p second @
   else:
     x (ps tail) cond1
 

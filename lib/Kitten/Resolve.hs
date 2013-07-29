@@ -4,7 +4,7 @@ module Kitten.Resolve
   ( resolve
   ) where
 
-import Control.Applicative
+import Control.Applicative hiding (some)
 
 import Kitten.Def
 import Kitten.Error
@@ -14,13 +14,12 @@ import Kitten.Name
 import Kitten.Resolve.Monad
 import Kitten.Resolved
 import Kitten.Term (Term)
-import Kitten.Util.Void
 
 import qualified Kitten.Resolved as Resolved
 import qualified Kitten.Term as Term
 
 resolve
-  :: Fragment Resolved.Value Void
+  :: Fragment Resolved.Value Resolved
   -> Fragment Term.Value Term
   -> Either [CompileError] (Fragment Value Resolved)
 resolve prelude fragment
@@ -47,9 +46,12 @@ resolveDefs = guardMapM resolveDef
 
 resolveTerm :: Term -> Resolution Resolved
 resolveTerm unresolved = case unresolved of
-  Term.Call name loc -> resolveName name loc
-  Term.Push value loc -> Push <$> resolveValue value <*> pure loc
   Term.Builtin name loc -> return $ Builtin name loc
+  Term.Call name loc -> resolveName name loc
+  Term.ChoiceTerm left right loc -> ChoiceTerm
+    <$> resolveTerm left
+    <*> resolveTerm right
+    <*> pure loc
   Term.Compose terms loc -> Compose
     <$> guardMapM resolveTerm terms
     <*> pure loc
@@ -64,10 +66,15 @@ resolveTerm unresolved = case unresolved of
     $ Scoped
     <$> resolveTerm term
     <*> pure loc
+  Term.OptionTerm some none loc -> OptionTerm
+    <$> resolveTerm some
+    <*> resolveTerm none
+    <*> pure loc
   Term.PairTerm as bs loc -> PairTerm
     <$> resolveTerm as
     <*> resolveTerm bs
     <*> pure loc
+  Term.Push value loc -> Push <$> resolveValue value <*> pure loc
   Term.VectorTerm items loc -> VectorTerm
     <$> guardMapM resolveTerm items
     <*> pure loc

@@ -19,13 +19,12 @@ import Kitten.Fragment
 import Kitten.Interpret.Monad
 import Kitten.Name
 import Kitten.Resolved
-import Kitten.Util.Void
 
 import qualified Kitten.Builtin as Builtin
 
 interpret
   :: [Value]
-  -> Fragment Value Void
+  -> Fragment Value Resolved
   -> Fragment Value Resolved
   -> IO ()
 interpret stack prelude fragment = void $ evalStateT
@@ -41,6 +40,10 @@ interpretTerm :: Resolved -> Interpret
 interpretTerm resolved = case resolved of
   Builtin builtin _ -> interpretBuiltin builtin
   Call name loc -> withLocation loc $ interpretOverload name
+  ChoiceTerm left right loc -> withLocation loc $ do
+    Choice which value <- popData
+    pushData value
+    interpretTerm $ if which then right else left
   Compose terms loc -> withLocation loc
     $ mapM_ interpretTerm terms
   Group terms loc -> withLocation loc
@@ -48,6 +51,11 @@ interpretTerm resolved = case resolved of
   If true false loc -> withLocation loc $ do
     Bool test <- popData
     interpretTerm $ if test then true else false
+  OptionTerm some none loc -> withLocation loc $ do
+    Option mValue <- popData
+    case mValue of
+      Just value -> pushData value >> interpretTerm some
+      Nothing -> interpretTerm none
   PairTerm a b loc -> withLocation loc $ do
     interpretTerm a
     a' <- popData
@@ -166,16 +174,6 @@ interpretBuiltin builtin = case builtin of
   Builtin.Init -> do
     Vector a <- popData
     pushData $ Vector (init a)
-
-  Builtin.IsNone -> do
-    Option a <- popData
-    pushData . Bool $ case a of
-      Nothing -> True
-      _ -> False
-
-  Builtin.IsRight -> do
-    Choice which _ <- popData
-    pushData $ Bool which
 
   Builtin.LeFloat -> floatsToBool (<=)
   Builtin.LeInt -> intsToBool (<=)

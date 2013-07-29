@@ -50,8 +50,8 @@ def askTurn ([Char] Char -> [Char] +IO):
   getLine -> input
   input readMoveLine -> mxy
 
-  if (mxy isSome):
-    mxy fromSome -> xy
+  option mxy:
+    -> xy
     board
     xy first xy second xyToCellNumber
     player editBoard
@@ -70,7 +70,7 @@ def checkSets (-> [[Int]]):
   [
     [0, 1, 2], [3, 4, 5], [6, 7, 8],  // Rows
     [0, 3, 6], [1, 4, 7], [2, 5, 8],  // Columns
-    [0, 4, 8], [2, 4, 6],  // Diagonals
+    [0, 4, 8], [2, 4, 6],             // Diagonals
   ]
 
 // ' ', 'x', or 'o'
@@ -172,18 +172,15 @@ def readMoveLine ([Char] -> (Int, Int)?):
 def readXY (Char Char -> (Int, Int)?):
   -> { x y }
   x y readXY_ -> mxy
-  if (mxy isSome):
-    mxy
+  option mxy:
+    some
   else:
     y x readXY_
 
 def readXY_ (Char Char -> (Int, Int)?):
   readX -> mx
   readY -> my
-  if ((mx isSome) (my isSome) &&):
-    (mx fromSome, my fromSome) some
-  else:
-    none
+  mx my {double} liftOption2
 
 def readX (Char -> Int?):
   -> c

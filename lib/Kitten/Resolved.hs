@@ -13,9 +13,11 @@ import Kitten.Name
 data Resolved
   = Builtin Builtin Location
   | Call Name Location
+  | ChoiceTerm Resolved Resolved Location
   | Compose [Resolved] Location
   | Group [Resolved] Location
   | If Resolved Resolved Location
+  | OptionTerm Resolved Resolved Location
   | PairTerm Resolved Resolved Location
   | Push Value Location
   | Scoped Resolved Location

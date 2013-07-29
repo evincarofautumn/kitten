@@ -1,7 +1,10 @@
 // Safely gets a value from an option value.
 def fromOption (a? a -> a):
   -> { m z }
-  if (m isNone): z else: m fromSome
+  option m:
+    id
+  else:
+    z
 
 // Unsafely gets the value from an option.
 def fromSome (a? -> a):
@@ -9,18 +12,34 @@ def fromSome (a? -> a):
 
 // Whether an option is empty.
 def isNone (a? -> Bool):
-  __is_none
+  option id:
+    drop false
+  else:
+    true
 
 // Whether an option contains a value.
 def isSome (a? -> Bool):
-  isNone not
+  option id:
+    drop true
+  else:
+    false
 
 // Maps a function over an option value.
-def mapOption (a? (a -> b +e) -> b? +e):
+def liftOption (a? (a -> b +e) -> b? +e):
   -> f
-  [ ({id}, { f@ some })
-  ] {none}
-  cond
+  option id:
+    f@ some
+  else:
+    none
+
+// Combines two option values with a function.
+def liftOption2 (a? b? (a b -> c +e) -> c? +e):
+  -> { mx my f }
+  option mx: -> x
+    option my: -> y
+      x y f@ some
+    else: none
+  else: none
 
 // Constructs an empty option.
 def none (-> a?):

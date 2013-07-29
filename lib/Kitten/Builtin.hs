@@ -40,8 +40,6 @@ data Builtin
   | GtInt
   | Impure
   | Init
-  | IsNone
-  | IsRight
   | LeFloat
   | LeInt
   | Left
@@ -128,8 +126,6 @@ fromStringTable =
   , (,) "__gt_int"          GtInt
   , (,) "__impure"          Impure
   , (,) "__init"            Init
-  , (,) "__is_none"         IsNone
-  , (,) "__is_right"        IsRight
   , (,) "__le_float"        LeFloat
   , (,) "__le_int"          LeInt
   , (,) "__left"            Kitten.Builtin.Left

@@ -97,11 +97,13 @@ token = (<?> "token") . located $ choice
       "Handle" -> HandleType
       "IO" -> IOType
       "Int" -> IntType
+      "choice" -> Choice
       "def" -> Def
       "else" -> Else
       "false" -> Bool False
       "if" -> If
       "import" -> Import
+      "option" -> Option
       "true" -> Bool True
       (first : _) | isUpper first -> BigWord name
       _ -> case Builtin.fromString name of
