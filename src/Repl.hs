@@ -9,6 +9,7 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State.Strict
 import Data.List
+import Data.Maybe
 import Data.Monoid
 import System.Console.Haskeline
 
@@ -31,11 +32,15 @@ type ReplReader = ReaderT [Def Value] IO
 type ReplState = StateT Repl ReplReader
 type ReplInput = InputT ReplState
 
+liftIO :: IO a -> ReplInput a
+liftIO = lift . lift . lift
+
 runRepl :: Fragment Value Resolved -> IO ()
-runRepl prelude
-  = flip runReaderT preludeDefs
-  . flip evalStateT empty
-  $ runInputT settings repl
+runRepl prelude = do
+  welcome
+  flip runReaderT preludeDefs
+    . flip evalStateT empty
+    $ runInputT settings repl
 
   where
   empty :: Repl
@@ -47,67 +52,125 @@ runRepl prelude
   preludeDefs :: [Def Value]
   preludeDefs = fragmentDefs prelude
 
+  welcome :: IO ()
+  welcome = mapM_ putStrLn
+    [ "Welcome to Kitten!"
+    , "Type ':help' for help or ':quit' to quit."
+    ]
+
 repl :: ReplInput ()
 repl = do
   mLine <- getInputLine ">>> "
   case mLine of
     Nothing -> quit
-    Just "" -> repl
-    Just ":quit" -> quit
-    Just ":q" -> quit
-    Just ":clear" -> clear
-    Just ":c" -> clear
-    Just line -> do
-      Repl{..} <- lift get
-      mCompiled <- liftIO $ compile Compile.Config
-        { Compile.dumpResolved = False
-        , Compile.dumpScoped = False
-        , Compile.libraryDirectories = []  -- TODO
-        , Compile.name = replName
-        , Compile.prelude = mempty { fragmentDefs = replDefs }
-        , Compile.source = line
-        , Compile.stack = replStack
-        }
-      case mCompiled of
-        Left compileErrors -> liftIO
-          $ printCompileErrors compileErrors
-        Right compileResult -> do
-          stack' <- liftIO $ interpret replStack
-            mempty { fragmentDefs = replDefs }
-            compileResult
-          lift . modify $ \ s -> s
-            { replStack = stack'
-            , replDefs = replDefs <> fragmentDefs compileResult
-            }
-          showStack
-      repl
+    Just line
+      | not (matched line) -> continue line
+      | null line -> repl
+      | line `elem` [":c", ":clear"] -> clear
+      | line `elem` [":h", ":help"] -> help
+      | line `elem` [":q", ":quit"] -> quit
+      | line `elem` [":reset"] -> reset
+      | otherwise -> eval line
 
+askPreludeDefs :: ReplInput [Def Value]
+askPreludeDefs = lift (lift ask)
+
+matched :: String -> Bool
+matched = go (0::Int)
   where
-  quit :: ReplInput ()
-  quit = return ()
+  go n (x:xs)
+    | isOpen x = go (succ n) xs
+    | isClose x = if n < 0 then True else go (pred n) xs
+    | otherwise = go n xs
+  go n [] = n == 0
+  isOpen = (`elem` "([{")
+  isClose = (`elem` "}])")
 
-  clear :: ReplInput ()
-  clear = do
-    preludeDefs <- askPreludeDefs
-    lift $ put Repl
-      { replStack = []
-      , replDefs = preludeDefs
-      }
-    repl
+eval :: String -> ReplInput ()
+eval line = do
+  Repl{..} <- lift get
+  mCompiled <- liftIO $ compile Compile.Config
+    { Compile.dumpResolved = False
+    , Compile.dumpScoped = False
+    , Compile.libraryDirectories = []  -- TODO
+    , Compile.name = replName
+    , Compile.prelude = mempty { fragmentDefs = replDefs }
+    , Compile.source = line
+    , Compile.stack = replStack
+    }
+  case mCompiled of
+    Left compileErrors -> liftIO
+      $ printCompileErrors compileErrors
+    Right compileResult -> do
+      stack' <- liftIO $ interpret replStack
+        mempty { fragmentDefs = replDefs }
+        compileResult
+      lift . modify $ \ s -> s
+        { replStack = stack'
+        , replDefs = replDefs <> fragmentDefs compileResult
+        }
+      showStack
+  repl
 
-  replName :: String
-  replName = "REPL"
+continue :: String -> ReplInput ()
+continue prefix = do
+  mLine <- getInputLine "... "
+  case mLine of
+    Nothing -> quit
+    Just line -> let whole = prefix ++ line
+      in if matched whole then eval whole else continue whole
 
-  liftIO :: IO a -> ReplInput a
-  liftIO = lift . lift . lift
+showStack :: ReplInput ()
+showStack = do
+  stack <- lift $ gets replStack
+  liftIO . putStrLn . unwords . reverse $ map show stack
 
-  showStack :: ReplInput ()
-  showStack = do
-    stack <- lift $ gets replStack
-    liftIO . putStrLn . unwords . reverse $ map show stack
+replName :: String
+replName = "REPL"
 
-  askPreludeDefs :: ReplInput [Def Value]
-  askPreludeDefs = lift (lift ask)
+help :: ReplInput ()
+help = do
+  liftIO $ printColumns
+    [ Just ("<expression>", "Evaluate <expression> and print the result")
+    , Just ("def <name> (<signature>) <body>", "Introduce a definition")
+    , Nothing
+    , Just (":c, :clear", "Clear the stack")
+    , Just (":h, :help", "Display this help message")
+    , Just (":q, :quit", "Quit the Kitten REPL")
+    , Just (":reset", "Clear the stack and all definitions")
+    , Nothing
+    , Just ("<TAB>", "Autocomplete a definition name")
+    ]
+  repl
+  where
+  printColumns :: [Maybe (String, String)] -> IO ()
+  printColumns columns = mapM_ go columns
+    where
+    margin = 2
+    width = maximum . map (length . fst) $ catMaybes columns
+    go column = case column of
+      Nothing -> putStrLn ""
+      Just (a, b) -> do
+        putStr a
+        putStr (replicate (width + margin - length a) ' ')
+        putStrLn b
+
+quit :: ReplInput ()
+quit = return ()
+
+clear :: ReplInput ()
+clear = do
+  lift . modify $ \ s -> s { replStack = [] }
+  repl
+
+reset :: ReplInput ()
+reset = do
+  preludeDefs <- askPreludeDefs
+  lift $ put Repl
+    { replStack = []
+    , replDefs = preludeDefs
+    }
+  repl
 
 completer :: CompletionFunc ReplState
 completer = completeWord Nothing "\t \"{}[]()\\:" completePrefix
