@@ -388,7 +388,9 @@ manifestType value = case value of
 
 inferValue :: Value -> Inferred (Type Scalar)
 inferValue value = case value of
-  Activation{} -> error "TODO infer activation"
+  Activation values term -> do
+    closed <- mapM inferValue values
+    withClosure closed (infer term)
   Bool{} -> return Type.Bool
   Char{} -> return Type.Char
   Choice True a -> (:|) <$> freshVarM <*> inferValue a
