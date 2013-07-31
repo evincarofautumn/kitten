@@ -26,9 +26,9 @@ interpret
   :: [Value]
   -> Fragment Value Resolved
   -> Fragment Value Resolved
-  -> IO ()
-interpret stack prelude fragment = void $ evalStateT
-  (mapM interpretTerm (fragmentTerms fragment)) Env
+  -> IO [Value]
+interpret stack prelude fragment = liftM envData $ execStateT
+  (mapM_ interpretTerm (fragmentTerms fragment)) Env
   { envData = stack
   , envLocals = []
   , envDefs = fragmentDefs prelude ++ fragmentDefs fragment
@@ -326,13 +326,3 @@ interpretBuiltin builtin = case builtin of
     Int b <- popData
     Int a <- popData
     pushData $ Int (f a b)
-
-stringFromChars :: [Value] -> String
-stringFromChars = map fromChar
-  where
-  fromChar :: Value -> Char
-  fromChar (Char c) = c
-  fromChar _ = error "Kitten.Interpret.stringFromChars: non-character"
-
-charsFromString :: String -> [Value]
-charsFromString = map Char

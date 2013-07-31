@@ -31,18 +31,25 @@ import Kitten.Resolved
 import Kitten.Type (Type((:&), (:.), (:?), (:|)))
 import Kitten.Type hiding (Type(..))
 import Kitten.Util.FailWriter
+import Kitten.Util.Function
 
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.Resolved as Resolved
 import qualified Kitten.Type as Type
 
 typeFragment
-  :: Fragment Value Resolved
+  :: [Value]
+  -> Fragment Value Resolved
   -> Fragment Resolved.Value Resolved
   -> Either [CompileError] ()
-typeFragment prelude fragment
-  = fst . runInference emptyEnv
-  $ inferFragment prelude fragment
+typeFragment stack prelude fragment
+  = fst . runInference emptyEnv $ do
+    inferFragment prelude fragment
+      { fragmentTerms
+        = for (reverse stack)
+          (\ value -> Push value UnknownLocation)
+        ++ fragmentTerms fragment
+      }
 
 inferFragment
   :: Fragment Value Resolved
