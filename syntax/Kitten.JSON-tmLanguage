@@ -1,0 +1,112 @@
+{
+  "name": "Kitten",
+  "scopeName": "source.kitten",
+  "fileTypes": ["ktn"],
+  "repository": {
+    "general": {
+      "patterns": [
+        { "include": "#linecomment" },
+        { "include": "#blockcomment" },
+        { "include": "#functiondef" },
+        { "include": "#builtin" },
+        { "include": "#keyword" },
+        { "include": "#boolean" },
+        { "include": "#numeric" },
+        { "include": "#singlequotestring" },
+        { "include": "#doublequotestring" },
+        { "include": "#operator" }
+      ]
+    },
+    "typesignature": {
+      "patterns": [
+        { "include": "#linecomment" },
+        { "include": "#blockcomment" },
+        { "include": "#typename" },
+        { "include": "#operator" }
+      ]
+    },
+    "linecomment": {
+      "name": "comment.line.kitten",
+      "match": "//.*$"
+    },
+    "blockcomment": {
+      "name": "comment.block.kitten",
+      "begin": "/\\*",
+      "end": "\\*/"
+    },
+    "functiondef": {
+      "name": "meta.functiondef.kitten",
+      "begin": "^\\s*(def)\\s*([a-z][0-9A-Za-z_]*|[!#$%&*+./;<=>?@^\\|~-]+)\\s*\\(",
+      "beginCaptures": {
+          "1": { "name": "keyword.control.kitten" },
+          "2": { "name": "entity.name.function.kitten" }
+      },
+      "end": "\\)\\s*[:{]",
+      "patterns": [
+        { "include": "#typesignature" }
+      ]
+    },
+    "builtin": {
+      "name": "support.function.builtin.kitten",
+      "match": "\\b__[a-z_]+\\b"
+    },
+    "keyword": {
+      "name": "keyword.control.kitten",
+      "match": "\\b(choice|def|else|if|import|option)\\b"
+    },
+    "boolean": {
+      "name": "constant.language.kitten",
+      "match": "\\b(true|false)\\b"
+    },
+    "numeric": {
+      "name": "constant.numeric.kitten",
+      "match": "\\b[+-]?[0-9]+(?:\\.[0-9]+)?\\b"
+    },
+    "singlequotestring": {
+      "name": "string.quoted.single.kitten",
+      "begin": "'",
+      "beginCaptures": {
+        "0": { "name": "punctuation.definition.string.begin.kitten" }
+      },
+      "end": "'",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.string.end.kitten" }
+      },
+      "patterns": [
+        {
+          "match": "\\\\.",
+          "name": "constant.character.escape.kitten"
+        }
+      ]
+    },
+    "doublequotestring": {
+      "name": "string.quoted.double.kitten",
+      "begin": "\"",
+      "beginCaptures": {
+        "0": { "name": "punctuation.definition.string.begin.kitten" }
+      },
+      "end": "\"",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.string.end.kitten" }
+      },
+      "patterns": [
+        {
+          "match": "\\\\.",
+          "name": "constant.character.escape.kitten"
+        }
+      ]
+    },
+    "operator": {
+      "name": "keyword.operator.kitten",
+      "match": "[!#$%&*+./;<=>?@^\\|~-]+"
+    },
+    "typename": {
+      "name": "storage.type.kitten",
+      "match": "\\b[A-Z][0-9A-Za-z_]*\\b"
+    }
+  },
+  "patterns": [
+    { "include": "#general" }
+  ],
+  "uuid": "23d5cf35-7a0f-4f60-bfb3-84d0bf5fdab4"
+}
