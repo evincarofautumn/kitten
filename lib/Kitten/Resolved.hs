@@ -46,20 +46,20 @@ data Value
 
 instance Show Value where
   show value = case value of
-    Activation{} -> "<activation>"
+    Activation{} -> "<function>"
     Bool b -> if b then "true" else "false"
     Char c -> show c
     Choice which v -> unwords
       [show v, if which then "right" else "left"]
     Closed{} -> "<closed>"
-    Closure{} -> "<closure>"
+    Closure{} -> "<function>"
     Float f -> show f
     Function{} -> "<function>"
     Handle{} -> "<handle>"
     Int i -> show i
     Local{} -> "<local>"
     Option m -> maybe "none" ((++ " some") . show) m
-    Pair a b -> concat ["(", show a, ", ", show b, " pair)"]
+    Pair a b -> unwords [show a, show b, "pair"]
     Unit -> "()"
     Vector v@(Char _ : _) -> show (stringFromChars v)
     Vector v -> show v
