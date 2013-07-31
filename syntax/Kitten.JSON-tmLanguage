@@ -41,7 +41,7 @@
           "1": { "name": "keyword.control.kitten" },
           "2": { "name": "entity.name.function.kitten" }
       },
-      "end": "\\)",
+      "end": "\\)\\s*[:{]",
       "patterns": [
         { "include": "#typesignature" }
       ]

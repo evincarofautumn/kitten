@@ -92,7 +92,7 @@
 				</dict>
 			</dict>
 			<key>end</key>
-			<string>\)</string>
+			<string>\)\s*[:{]</string>
 			<key>name</key>
 			<string>meta.functiondef.kitten</string>
 			<key>patterns</key>
