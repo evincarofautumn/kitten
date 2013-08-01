@@ -123,7 +123,7 @@ continue prefix = do
 showStack :: ReplInput ()
 showStack = do
   stack <- lift $ gets replStack
-  liftIO . putStrLn . unwords . reverse $ map show stack
+  liftIO . mapM_ putStrLn . reverse $ map show stack
 
 replName :: String
 replName = "REPL"
