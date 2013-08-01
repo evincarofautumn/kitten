@@ -77,13 +77,19 @@ askPreludeDefs :: ReplInput [Def Value]
 askPreludeDefs = lift (lift ask)
 
 matched :: String -> Bool
-matched = go (0::Int)
+matched = go False (0::Int)
   where
-  go n (x:xs)
-    | isOpen x = go (succ n) xs
-    | isClose x = if n < 0 then True else go (pred n) xs
-    | otherwise = go n xs
-  go n [] = n == 0
+  go q n ('\\':x:xs)
+    | x `elem` "'\"" = go q n xs
+    | otherwise = go q n xs
+  go q n ('"':xs) = go (not q) n xs
+  go True n (_:xs) = go True n xs
+  go True _ [] = True
+  go False n (x:xs)
+    | isOpen x = go False (succ n) xs
+    | isClose x = if n < 0 then True else go False (pred n) xs
+    | otherwise = go False n xs
+  go False n [] = n == 0
   isOpen = (`elem` "([{")
   isClose = (`elem` "}])")
 
