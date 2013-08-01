@@ -92,7 +92,9 @@ executable kitten
     base,
     cmdargs == 0.10.*,
     directory,
-    filepath
+    filepath,
+    haskeline == 0.7.*,
+    transformers
 
 test-suite test
 

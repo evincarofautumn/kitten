@@ -30,19 +30,25 @@ import Kitten.Name
 import Kitten.Resolved
 import Kitten.Type (Type((:&), (:.), (:?), (:|)))
 import Kitten.Type hiding (Type(..))
-import Kitten.Util.FailWriter
+import Kitten.Util.Function
 
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.Resolved as Resolved
 import qualified Kitten.Type as Type
 
 typeFragment
-  :: Fragment Value Resolved
+  :: [Value]
+  -> Fragment Value Resolved
   -> Fragment Resolved.Value Resolved
   -> Either [CompileError] ()
-typeFragment prelude fragment
-  = fst . runInference emptyEnv
-  $ inferFragment prelude fragment
+typeFragment stack prelude fragment
+  = fst . runInference emptyEnv $ do
+    inferFragment prelude fragment
+      { fragmentTerms
+        = for (reverse stack)
+          (\ value -> Push value UnknownLocation)
+        ++ fragmentTerms fragment
+      }
 
 inferFragment
   :: Fragment Value Resolved
@@ -55,8 +61,7 @@ inferFragment prelude fragment = do
       Just scheme -> saveDef index scheme
       Nothing -> case defAnno def of
         Just anno -> saveDef index =<< fromAnno anno
-        Nothing -> Inferred . throwMany . (:[]) . TypeError (defLocation def)
-          $ "missing type declaration for " ++ defName def
+        Nothing -> saveDef index . mono =<< forAll (-->)
 
   forM_ (zip [(0 :: Int)..] allDefs) $ \ (index, def)
     -> withLocation (defLocation def) $ do
@@ -381,7 +386,9 @@ manifestType value = case value of
 
 inferValue :: Value -> Inferred (Type Scalar)
 inferValue value = case value of
-  Activation{} -> error "TODO infer activation"
+  Activation values term -> do
+    closed <- mapM inferValue values
+    withClosure closed (infer term)
   Bool{} -> return Type.Bool
   Char{} -> return Type.Char
   Choice True a -> (:|) <$> freshVarM <*> inferValue a

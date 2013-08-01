@@ -1,10 +1,12 @@
 module Kitten.Error
   ( CompileError(..)
   , parseError
+  , printCompileErrors
   ) where
 
 import Data.Ord (comparing)
 import Text.Parsec.Error
+import System.IO
 
 import Kitten.Location
 
@@ -61,3 +63,7 @@ parseError err = let
       $ errorMessages err
   in
     CompileError location message
+
+printCompileErrors :: [CompileError] -> IO ()
+printCompileErrors errors
+  = hPutStr stderr $ unlines (map show errors)

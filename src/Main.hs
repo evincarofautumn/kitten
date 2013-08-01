@@ -9,10 +9,12 @@ import System.Exit
 import System.IO
 
 import Kitten.Compile (compile, locateImport)
-import Kitten.Error (CompileError)
+import Kitten.Error
 import Kitten.Fragment
 import Kitten.Interpret
+import Kitten.Resolved (Resolved, Value)
 import Kitten.Yarn (yarn)
+import Repl
 
 import qualified Kitten.Compile as Compile
 
@@ -21,23 +23,25 @@ data CompileMode
   | InterpretMode
 
 data Arguments = Arguments
-  { compileMode :: CompileMode
-  , dumpResolved :: Bool
-  , dumpScoped :: Bool
-  , enableImplicitPrelude :: Bool
-  , entryPoints :: [FilePath]
-  , libraryDirectories :: [FilePath]
-  , showHelp :: Bool
-  , showVersion :: Bool
+  { argsCompileMode :: CompileMode
+  , argsDumpResolved :: Bool
+  , argsDumpScoped :: Bool
+  , argsEnableImplicitPrelude :: Bool
+  , argsEntryPoints :: [FilePath]
+  , argsLibraryDirectories :: [FilePath]
+  , argsShowHelp :: Bool
+  , argsShowVersion :: Bool
   }
 
 main :: IO ()
 main = do
 
   arguments <- parseArguments
-  preludes <- locateImport (libraryDirectories arguments) "Prelude"
+  preludes <- locateImport
+    (argsLibraryDirectories arguments)
+    "Prelude"
 
-  prelude <- if not (enableImplicitPrelude arguments)
+  prelude <- if not (argsEnableImplicitPrelude arguments)
     then return mempty
     else case preludes of
 
@@ -48,13 +52,14 @@ main = do
     [filename] -> do
       source <- readFile filename
       mPrelude <- compile Compile.Config
-        { Compile.dumpResolved = dumpResolved arguments
-        , Compile.dumpScoped = dumpScoped arguments
+        { Compile.dumpResolved = argsDumpResolved arguments
+        , Compile.dumpScoped = argsDumpScoped arguments
         , Compile.libraryDirectories
-          = libraryDirectories arguments
+          = argsLibraryDirectories arguments
         , Compile.name = filename
         , Compile.prelude = mempty
         , Compile.source = source
+        , Compile.stack = []
         }
 
       Fragment{..} <- case mPrelude of
@@ -75,35 +80,48 @@ main = do
         : preludes
       exitFailure
 
-  forM_ (entryPoints arguments) $ \ filename -> do
-    program <- readFile filename
-    mResult <- compile Compile.Config
-      { Compile.dumpResolved = dumpResolved arguments
-      , Compile.dumpScoped = dumpScoped arguments
-      , Compile.libraryDirectories = libraryDirectories arguments
+  case argsEntryPoints arguments of
+    [] -> runRepl prelude
+    entryPoints -> interpretAll entryPoints
+      (argsCompileMode arguments) prelude
+      $ \ filename program -> Compile.Config
+      { Compile.dumpResolved = argsDumpResolved arguments
+      , Compile.dumpScoped = argsDumpScoped arguments
+      , Compile.libraryDirectories = argsLibraryDirectories arguments
       , Compile.name = filename
       , Compile.prelude = prelude
       , Compile.source = program
+      , Compile.stack = []
       }
+
+interpretAll
+  :: [FilePath]
+  -> CompileMode
+  -> Fragment Value Resolved
+  -> (FilePath -> String -> Compile.Config)
+  -> IO ()
+interpretAll entryPoints compileMode prelude config
+  = mapM_ interpretOne entryPoints
+  where
+  interpretOne :: FilePath -> IO ()
+  interpretOne filename = do
+    program <- readFile filename
+    mResult <- compile (config filename program)
     case mResult of
       Left compileErrors -> printCompileErrors compileErrors
-      Right result -> case compileMode arguments of
+      Right result -> case compileMode of
         CompileMode -> mapM_ print $ yarn result
-        InterpretMode -> interpret [] prelude result
-
-printCompileErrors :: [CompileError] -> IO ()
-printCompileErrors errors
-  = hPutStr stderr $ unlines (map show errors)
+        InterpretMode -> void $ interpret [] prelude result
 
 parseArguments :: IO Arguments
 parseArguments = do
   arguments <- processArgs argumentsMode
 
-  when (showVersion arguments) $ do
+  when (argsShowVersion arguments) $ do
     putStrLn "Kitten version 1.0"
     exitSuccess
 
-  when (showHelp arguments) $ do
+  when (argsShowHelp arguments) $ do
     print $ helpText [] HelpFormatDefault argumentsMode
     exitSuccess
 
@@ -116,14 +134,14 @@ argumentsMode = mode "kitten" defaultArguments
 
   defaultArguments :: Arguments
   defaultArguments = Arguments
-    { compileMode = InterpretMode
-    , dumpResolved = False
-    , dumpScoped = False
-    , enableImplicitPrelude = True
-    , entryPoints = []
-    , libraryDirectories = []
-    , showHelp = False
-    , showVersion = False
+    { argsCompileMode = InterpretMode
+    , argsDumpResolved = False
+    , argsDumpScoped = False
+    , argsEnableImplicitPrelude = True
+    , argsEntryPoints = []
+    , argsLibraryDirectories = []
+    , argsShowHelp = False
+    , argsShowVersion = False
     }
 
   bareArgument :: Arg Arguments
@@ -132,7 +150,7 @@ argumentsMode = mode "kitten" defaultArguments
   entryPointArgument
     :: FilePath -> Arguments -> Either e Arguments
   entryPointArgument path acc = Right
-    $ acc { entryPoints = path : entryPoints acc }
+    $ acc { argsEntryPoints = path : argsEntryPoints acc }
 
   flagReq'
     :: [Name]
@@ -156,28 +174,28 @@ argumentsMode = mode "kitten" defaultArguments
     [ flagBool' ["c", "compile"]
       "Compile Yarn assembly."
       $ \ flag acc@Arguments{..} -> acc
-      { compileMode = if flag then CompileMode else InterpretMode }
+      { argsCompileMode = if flag then CompileMode else InterpretMode }
 
     , flagBool' ["dump-resolved"]
       "Output result of name resolution."
       $ \ flag acc@Arguments{..} -> acc
-      { dumpResolved = flag }
+      { argsDumpResolved = flag }
 
     , flagBool' ["dump-scoped"]
       "Output result of scope resolution."
       $ \ flag acc@Arguments{..} -> acc
-      { dumpScoped = flag }
+      { argsDumpScoped = flag }
 
     , flagReq' ["L", "library"] "DIR"
       "Add library search directory."
       $ \ path acc@Arguments{..} -> Right $ acc
-      { libraryDirectories = path : libraryDirectories }
+      { argsLibraryDirectories = path : argsLibraryDirectories }
 
     , flagBool' ["no-implicit-prelude"]
       "Disable implicit inclusion of prelude."
       $ \ flag acc@Arguments{..} -> acc
-      { enableImplicitPrelude = not flag }
+      { argsEnableImplicitPrelude = not flag }
 
-    , flagHelpSimple $ \ acc -> acc { showHelp = True }
-    , flagVersion $ \ acc -> acc { showVersion = True }
+    , flagHelpSimple $ \ acc -> acc { argsShowHelp = True }
+    , flagVersion $ \ acc -> acc { argsShowVersion = True }
     ]

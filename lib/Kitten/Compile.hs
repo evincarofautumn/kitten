@@ -41,6 +41,7 @@ data Config = Config
   , name :: String
   , prelude :: Fragment Value Resolved
   , source :: String
+  , stack :: [Value]
   }
 
 liftParseError :: Either ParseError a -> Either [CompileError] a
@@ -64,7 +65,7 @@ compile Config{..} = liftM (mapLeft sort) . runEitherT $ do
   resolved <- hoistEither $ resolve prelude substituted
 
   when dumpResolved . lift $ hPrint stderr resolved
-  hoistEither $ typeFragment prelude resolved
+  hoistEither $ typeFragment stack prelude resolved
 
   let scoped = scope resolved
   when dumpScoped . lift $ hPrint stderr scoped
