@@ -60,6 +60,7 @@ runRepl prelude = do
 
 repl :: ReplInput ()
 repl = do
+  showStack
   mLine <- getInputLine ">>> "
   case mLine of
     Nothing -> quit
@@ -109,7 +110,6 @@ eval line = do
         { replStack = stack'
         , replDefs = replDefs <> fragmentDefs compileResult
         }
-      showStack
   repl
 
 continue :: String -> ReplInput ()
