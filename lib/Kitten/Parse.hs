@@ -46,12 +46,12 @@ def = (<?> "definition") . locate $ do
   void (match Token.Def)
   name <- functionName
   anno <- optionMaybe (grouped signature)
-  body <- value
+  body <- term
   return $ \ loc -> Def
     { defName = name
     , defTerm = case body of
-      Function{} -> body
-      _ -> Function [Push body loc] loc
+      Push function@Function{} _ -> function
+      _ -> Function [body] loc
     , defAnno = anno
     , defLocation = loc
     }
