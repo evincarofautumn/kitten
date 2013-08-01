@@ -123,7 +123,7 @@ continue prefix = do
   mLine <- getInputLine "... "
   case mLine of
     Nothing -> quit
-    Just line -> let whole = prefix ++ line
+    Just line -> let whole = unlines [prefix, line]
       in if matched whole then eval whole else continue whole
 
 showStack :: ReplInput ()
