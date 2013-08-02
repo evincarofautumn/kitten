@@ -4,7 +4,6 @@ module Repl
   ( runRepl
   ) where
 
-import Control.Applicative hiding (empty)
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State.Strict
@@ -185,7 +184,7 @@ completePrefix
   :: String
   -> StateT Repl (ReaderT [Def Value] IO) [Completion]
 completePrefix prefix = do
-  defs <- (++) <$> gets replDefs <*> lift ask
+  defs <- gets replDefs
   let
     names = map defName defs ++ Builtin.names
     matching = filter (prefix `isPrefixOf`) names
