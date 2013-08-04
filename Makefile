@@ -14,8 +14,8 @@ TESTER = ./test/run.sh
 TESTS = $(basename $(notdir $(wildcard test/*.ktn)))
 YARN = $(BUILDDIR)/yarn
 
-YARN_HEADERS = $(wildcard interpreter/*.h)
-YARN_SOURCES = $(wildcard interpreter/*.cpp)
+YARN_HEADERS = $(wildcard yarn/*.h)
+YARN_SOURCES = $(wildcard yarn/*.cpp)
 
 .PHONY : default
 default : build yarn prelude unit test
