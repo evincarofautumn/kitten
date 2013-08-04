@@ -49,9 +49,9 @@ deps :
 .PHONY : prelude
 prelude : $(PRELUDE)
 
-$(PRELUDE) : $(KITTEN) Prelude.ktn
-	cp Prelude.ktn $(PRELUDE)
-	cp Prelude_*.ktn $(BUILDDIR)
+$(PRELUDE) : $(KITTEN) lib/Prelude.ktn
+	cp lib/Prelude.ktn $(PRELUDE)
+	cp lib/Prelude_*.ktn $(BUILDDIR)
 	$(KITTEN) --no-implicit-prelude $(PRELUDE)
 
 .PHONY: unit
