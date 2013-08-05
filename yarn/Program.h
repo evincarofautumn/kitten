@@ -27,7 +27,7 @@ private:
   std::shared_ptr<Instruction>
   read_instruction(std::istream&);
 
-  std::shared_ptr<const Value>
+  ValuePtr
   read_value(std::istream&);
 
   bool

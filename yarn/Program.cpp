@@ -208,7 +208,7 @@ Program::read_instruction(std::istream& stream) {
 
 }
 
-std::shared_ptr<const Value>
+ValuePtr
 Program::read_value(std::istream& stream) {
 
   std::string mnemonic;
@@ -266,7 +266,7 @@ Program::read_value(std::istream& stream) {
     auto vector = std::make_shared<Vector>();
 
     for (decltype(length) i = 0; i < length; ++i) {
-      std::shared_ptr<const Value> element;
+      ValuePtr element;
       if (!(element = read_value(stream)))
         return nullptr;
       vector->value.push_back(element);

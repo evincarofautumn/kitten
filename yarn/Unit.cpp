@@ -2,7 +2,7 @@
 
 #include <ostream>
 
-std::shared_ptr<Value>
+MutableValuePtr
 Unit::copy() const {
   return std::make_shared<Unit>(*this);
 }

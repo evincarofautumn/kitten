@@ -42,14 +42,14 @@ relational(State& state, F function) {
       function(a->as<T>().value, b->as<T>().value)));
 }
 
-std::vector<std::shared_ptr<const Value>>
+std::vector<ValuePtr>
 add_vector(
-  const std::vector<std::shared_ptr<const Value>>& a,
-  const std::vector<std::shared_ptr<const Value>>& b) try {
+  const std::vector<ValuePtr>& a,
+  const std::vector<ValuePtr>& b) try {
 
-  std::vector<std::shared_ptr<const Value>> result;
+  std::vector<ValuePtr> result;
 
-  auto copy = [](const std::shared_ptr<const Value>& value) {
+  auto copy = [](const ValuePtr& value) {
     return value->copy();
   };
 
@@ -68,7 +68,7 @@ struct bit_not {
   }
 };
 
-std::shared_ptr<const Value>
+ValuePtr
 make_char_vector(const std::string& input) {
   const auto result = std::make_shared<Vector>();
   for (const auto character : input)

@@ -13,7 +13,7 @@ Activation::Activation(
     closure.push_back(get_closed_name(state, name));
 }
 
-std::shared_ptr<Value>
+MutableValuePtr
 Activation::copy() const {
   return std::make_shared<Activation>(*this);
 }

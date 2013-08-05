@@ -6,11 +6,11 @@
 struct Option : Value {
 
   Option() = default;
-  explicit Option(std::shared_ptr<const Value>);
-  virtual std::shared_ptr<Value> copy() const final override;
+  explicit Option(ValuePtr);
+  virtual MutableValuePtr copy() const final override;
   virtual void write(std::ostream& stream) const final override;
 
-  std::shared_ptr<const Value> value;
+  ValuePtr value;
 
 };
 

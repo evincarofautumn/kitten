@@ -7,7 +7,7 @@
 Vector::Vector(const type& value)
   : value(value) {}
 
-std::shared_ptr<Value>
+MutableValuePtr
 Vector::copy() const {
   const auto result = std::make_shared<Vector>();
   for (const auto& element : value)

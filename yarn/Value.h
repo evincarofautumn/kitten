@@ -25,4 +25,7 @@ struct Value {
 
 };
 
+typedef std::shared_ptr<Value> MutableValuePtr;
+typedef std::shared_ptr<Value> ValuePtr;
+
 #endif

@@ -10,10 +10,10 @@ struct Activation : Value {
 
   Activation(LabelName, const State&, const std::vector<ClosedName>&);
 
-  virtual std::shared_ptr<Value> copy() const final override;
+  virtual MutableValuePtr copy() const final override;
   virtual void write(std::ostream& stream) const final override;
 
-  std::vector<std::shared_ptr<const Value>> closure;
+  std::vector<ValuePtr> closure;
   LabelName label;
 
 };

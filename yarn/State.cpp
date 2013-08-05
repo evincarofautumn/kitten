@@ -59,7 +59,7 @@ State::call_label(const LabelName label) {
 
 void
 State::call_with_closure(
-  const std::vector<std::shared_ptr<const Value>>& values,
+  const std::vector<ValuePtr>& values,
   const LabelName label) {
   closure.push_back(values);
   call_stack.push_back(CallEntry{ip + 1, CallType::CLOSURE});
@@ -80,12 +80,12 @@ State::drop_local() {
   local.pop_back();
 }
 
-std::shared_ptr<const Value>
+ValuePtr
 State::get_local(const size_t offset) const {
   return *(local.rbegin() + offset);
 }
 
-std::shared_ptr<const Value>
+ValuePtr
 State::get_closure(const size_t offset) const try {
   return closure.back().at(offset);
 } catch (const std::exception&) {
@@ -95,16 +95,16 @@ State::get_closure(const size_t offset) const try {
 }
 
 void
-State::push_data(const std::shared_ptr<const Value> value) {
+State::push_data(const ValuePtr value) {
   data.push_back(value);
 }
 
 void
-State::push_local(const std::shared_ptr<const Value> value) {
+State::push_local(const ValuePtr value) {
   local.push_back(value);
 }
 
-std::shared_ptr<const Value>
+ValuePtr
 State::pop_data() {
   if (data.empty())
     throw std::runtime_error("Stack underflow in pop_data()");
@@ -132,7 +132,7 @@ State::ret() {
 
 }
 
-std::shared_ptr<const Value>
+ValuePtr
 get_closed_name(const State& state, const ClosedName& name) {
   switch (name.segment) {
   case Segment::INVALID:

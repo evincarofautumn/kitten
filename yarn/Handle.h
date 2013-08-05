@@ -6,7 +6,7 @@
 struct Handle : Value {
 
   explicit Handle(void*);
-  virtual std::shared_ptr<Value> copy() const final override;
+  virtual MutableValuePtr copy() const final override;
   virtual void write(std::ostream& stream) const final override;
 
   void* value;

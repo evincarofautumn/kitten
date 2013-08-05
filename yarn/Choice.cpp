@@ -2,10 +2,10 @@
 
 #include <ostream>
 
-Choice::Choice(const bool is_right, const std::shared_ptr<const Value> value)
+Choice::Choice(const bool is_right, const ValuePtr value)
   : is_right(is_right), value(value) {}
 
-std::shared_ptr<Value>
+MutableValuePtr
 Choice::copy() const {
   return std::make_shared<Choice>(*this);
 }

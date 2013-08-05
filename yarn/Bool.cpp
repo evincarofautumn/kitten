@@ -6,7 +6,7 @@
 Bool::Bool(const type value)
   : value(value) {}
 
-std::shared_ptr<Value>
+MutableValuePtr
 Bool::copy() const {
   return std::make_shared<Bool>(*this);
 }

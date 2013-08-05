@@ -3,12 +3,12 @@
 #include <ostream>
 
 Pair::Pair(
-  const std::shared_ptr<const Value> first,
-  const std::shared_ptr<const Value> second)
+  const ValuePtr first,
+  const ValuePtr second)
   : first(first),
     second(second) {}
 
-std::shared_ptr<Value>
+MutableValuePtr
 Pair::copy() const {
   return std::make_shared<Pair>(*this);
 }

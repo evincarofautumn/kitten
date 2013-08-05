@@ -5,12 +5,12 @@
 
 struct Choice : Value {
 
-  Choice(bool, std::shared_ptr<const Value>);
-  virtual std::shared_ptr<Value> copy() const final override;
+  Choice(bool, ValuePtr);
+  virtual MutableValuePtr copy() const final override;
   virtual void write(std::ostream&) const final override;
 
   bool is_right;
-  std::shared_ptr<const Value> value;
+  ValuePtr value;
 
 };
 

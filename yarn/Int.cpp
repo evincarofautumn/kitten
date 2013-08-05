@@ -4,7 +4,7 @@
 
 Int::Int(const type value) : value(value) {}
 
-std::shared_ptr<Value>
+MutableValuePtr
 Int::copy() const {
   return std::make_shared<Int>(*this);
 }

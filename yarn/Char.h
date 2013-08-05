@@ -8,7 +8,7 @@ struct Char : Value {
   typedef uint32_t type;
 
   explicit Char(type);
-  virtual std::shared_ptr<Value> copy() const final override;
+  virtual MutableValuePtr copy() const final override;
   virtual void write(std::ostream& stream) const final override;
 
   type value;

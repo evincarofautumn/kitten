@@ -4,7 +4,7 @@
 
 Handle::Handle(void* value) : value(value) {}
 
-std::shared_ptr<Value>
+MutableValuePtr
 Handle::copy() const {
   return std::make_shared<Handle>(*this);
 }

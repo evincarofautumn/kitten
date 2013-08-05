@@ -5,12 +5,12 @@
 
 struct Pair : Value {
 
-  Pair(std::shared_ptr<const Value>, std::shared_ptr<const Value>);
-  virtual std::shared_ptr<Value> copy() const final override;
+  Pair(ValuePtr, ValuePtr);
+  virtual MutableValuePtr copy() const final override;
   virtual void write(std::ostream& stream) const;
 
-  std::shared_ptr<const Value> first;
-  std::shared_ptr<const Value> second;
+  ValuePtr first;
+  ValuePtr second;
 
 };
 

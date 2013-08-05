@@ -4,7 +4,7 @@
 
 Char::Char(const type value) : value(value) {}
 
-std::shared_ptr<Value>
+MutableValuePtr
 Char::copy() const {
   return std::make_shared<Char>(*this);
 }

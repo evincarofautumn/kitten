@@ -10,7 +10,7 @@ struct Push : Instruction {
   virtual Offset exec(State&) const final override;
   virtual void write(std::ostream& stream) const final override;
 
-  std::shared_ptr<const Value> value;
+  ValuePtr value;
 
 };
 

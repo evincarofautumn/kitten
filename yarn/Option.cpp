@@ -2,10 +2,10 @@
 
 #include <ostream>
 
-Option::Option(const std::shared_ptr<const Value> value)
+Option::Option(const ValuePtr value)
   : value(value) {}
 
-std::shared_ptr<Value>
+MutableValuePtr
 Option::copy() const {
   return std::make_shared<Option>(*this);
 }

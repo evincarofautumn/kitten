@@ -4,7 +4,7 @@
 
 Float::Float(const type value) : value(value) {}
 
-std::shared_ptr<Value>
+MutableValuePtr
 Float::copy() const {
   return std::make_shared<Float>(*this);
 }

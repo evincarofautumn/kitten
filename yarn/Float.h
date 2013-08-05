@@ -8,7 +8,7 @@ struct Float : Value {
   typedef double type;
   explicit Float(type);
 
-  virtual std::shared_ptr<Value> copy() const final override;
+  virtual MutableValuePtr copy() const final override;
   virtual void write(std::ostream&) const final override;
 
   type value;

@@ -25,9 +25,9 @@ class State {
   const std::map<LabelName, Address>& label_offset;
   const std::vector<std::shared_ptr<Instruction>>& instructions;
   Address ip;
-  std::vector<std::vector<std::shared_ptr<const Value>>> closure;
-  std::vector<std::shared_ptr<const Value>> data;
-  std::vector<std::shared_ptr<const Value>> local;
+  std::vector<std::vector<ValuePtr>> closure;
+  std::vector<ValuePtr> data;
+  std::vector<ValuePtr> local;
 
   std::vector<CallEntry> call_stack;
   bool running;
@@ -41,15 +41,15 @@ public:
 
   friend std::ostream& operator<<(std::ostream&, const State&);
 
-  std::shared_ptr<const Value> get_closure(size_t) const;
-  std::shared_ptr<const Value> get_local(size_t) const;
-  std::shared_ptr<const Value> pop_data();
+  ValuePtr get_closure(size_t) const;
+  ValuePtr get_local(size_t) const;
+  ValuePtr pop_data();
 
   void advance();
 
   void call_label(LabelName); 
   void call_with_closure(
-    const std::vector<std::shared_ptr<const Value>>&,
+    const std::vector<ValuePtr>&,
     LabelName);
 
   void drop_data();
@@ -63,8 +63,8 @@ public:
     return running;
   }
 
-  void push_data(std::shared_ptr<const Value>);
-  void push_local(std::shared_ptr<const Value>);
+  void push_data(ValuePtr);
+  void push_local(ValuePtr);
 
   void ret();
 
@@ -72,7 +72,7 @@ public:
 
 class ClosedName;
 
-std::shared_ptr<const Value>
+ValuePtr
 get_closed_name(const State&, const ClosedName&);
 
 #endif

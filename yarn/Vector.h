@@ -7,12 +7,12 @@
 
 struct Vector : Value {
 
-  typedef std::vector<std::shared_ptr<const Value>> type;
+  typedef std::vector<ValuePtr> type;
 
   Vector() = default;
 
   explicit Vector(const type&);
-  virtual std::shared_ptr<Value> copy() const final override;
+  virtual MutableValuePtr copy() const final override;
   virtual void write(std::ostream&) const final override;
 
   type value;
