@@ -11,6 +11,10 @@ struct Handle : Value {
   virtual MutableValuePtr copy() const final override;
   virtual void write(std::ostream& stream) const final override;
 
+  static ValuePtr stderr;
+  static ValuePtr stdin;
+  static ValuePtr stdout;
+
   type value;
 
 };

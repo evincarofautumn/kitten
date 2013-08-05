@@ -1,19 +1,11 @@
-#include <fstream>
-#include <iomanip>
-#include <iostream>
-#include <map>
-#include <memory>
-#include <sstream>
-#include <stack>
-#include <stdexcept>
-#include <unordered_map>
-#include <vector>
-
 #include "Instruction.h"
 #include "Program.h"
 #include "State.h"
 #include "Types.h"
 #include "Value.h"
+
+#include <fstream>
+#include <iostream>
 
 void
 print_exception(const std::exception& e, const unsigned depth = 0) {
@@ -21,7 +13,7 @@ print_exception(const std::exception& e, const unsigned depth = 0) {
     std::cerr << "  ";
   std::cerr << e.what() << '\n';
   try {
-    rethrow_if_nested(e);
+    std::rethrow_if_nested(e);
   } catch (const std::exception& e) {
     print_exception(e, depth + 1);
   } catch (...) {}

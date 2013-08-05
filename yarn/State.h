@@ -64,6 +64,12 @@ public:
   }
 
   void push_data(ValuePtr);
+
+  template<class T, class... Args>
+  void push_data(Args&&... args) {
+    push_data(std::make_shared<T>(std::forward<Args>(args)...));
+  }
+
   void push_local(ValuePtr);
 
   void ret();

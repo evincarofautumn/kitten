@@ -1,6 +1,10 @@
 #include "Handle.h"
 
-#include <ostream>
+#include <iostream>
+
+ValuePtr Handle::stderr(new Handle(&std::cerr));
+ValuePtr Handle::stdin(new Handle(&std::cin));
+ValuePtr Handle::stdout(new Handle(&std::cout));
 
 Handle::Handle(const type value) : value(value) {}
 

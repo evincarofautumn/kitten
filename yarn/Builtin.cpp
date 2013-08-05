@@ -19,7 +19,7 @@ template<class T, class F>
 void
 unary(State& state, F pure) {
   const auto a = state.pop_data();
-  state.push_data(std::make_shared<T>(pure(a->value<T>())));
+  state.push_data<T>(pure(a->value<T>()));
 }
 
 template<class T, class F>
@@ -27,19 +27,15 @@ void
 binary(State& state, F pure) {
   const auto b = state.pop_data();
   const auto a = state.pop_data();
-  state.push_data(
-    std::make_shared<T>(
-      pure(a->value<T>(), b->value<T>())));
+  state.push_data<T>(pure(a->value<T>(), b->value<T>()));
 }
 
 template<class T, class F>
 void
-relational(State& state, F function) {
+relational(State& state, F pure) {
   const auto b = state.pop_data();
   const auto a = state.pop_data();
-  state.push_data(
-    std::make_shared<Bool>(
-      function(a->value<T>(), b->value<T>())));
+  state.push_data<Bool>(pure(a->value<T>(), b->value<T>()));
 }
 
 std::vector<ValuePtr>
@@ -92,7 +88,7 @@ Builtin::exec(State& state) const {
     break;
 
   case BuiltinId::AndBool:
-    relational<Bool>(state, std::logical_and<Bool::type>());
+    binary<Bool>(state, std::logical_and<Bool::type>());
     break;
 
   case BuiltinId::AndInt:
@@ -101,20 +97,14 @@ Builtin::exec(State& state) const {
 
   case BuiltinId::Apply:
   {
-    const auto activation = state.pop_data();
-    state.call_with_closure(
-      activation->as<Activation>().closure,
-      activation->as<Activation>().label);
+    const auto activation = state.pop_data()->as<Activation>();
+    state.call_with_closure(activation.closure, activation.label);
     return 0;
   }
 
   case BuiltinId::CharToInt:
-  {
-    const auto a = state.pop_data();
-    state.push_data(
-      std::make_shared<Int>(a->value<Char>()));
+    state.push_data<Int>(state.pop_data()->value<Char>());
     break;
-  }
 
   // case BuiltinId::Close
   // case BuiltinId::DivFloat
@@ -134,35 +124,26 @@ Builtin::exec(State& state) const {
     break;
 
   case BuiltinId::First:
-  {
-    const auto a = state.pop_data();
-    state.push_data(a->as<Pair>().first);
+    state.push_data(state.pop_data()->as<Pair>().first);
     break;
-  }
 
   case BuiltinId::FromLeft:
-  {
-    const auto a = state.pop_data();
-    state.push_data(a->value<Choice>());
+    state.push_data(state.pop_data()->value<Choice>());
     break;
-  }
 
   // case BuiltinId::FromRight
   // case BuiltinId::FromSome
   // case BuiltinId::GeFloat
 
   case BuiltinId::GeInt:
-  {
     relational<Int>(state, std::greater_equal<Int::type>());
     break;
-  }
 
   case BuiltinId::Get:
   {
-    const auto index = state.pop_data();
-    const auto vector = state.pop_data();
-    state.push_data(
-      vector->value<Vector>().at(index->value<Int>()));
+    const auto index = state.pop_data()->value<Int>();
+    const auto vector = state.pop_data()->value<Vector>();
+    state.push_data(vector.at(index));
     break;
   }
 
@@ -180,10 +161,8 @@ Builtin::exec(State& state) const {
   // case BuiltinId::GtFloat
 
   case BuiltinId::GtInt:
-  {
     relational<Int>(state, std::greater<Int::type>());
     break;
-  }
 
   // case BuiltinId::Impure
 
@@ -198,104 +177,75 @@ Builtin::exec(State& state) const {
   // case BuiltinId::LeFloat
 
   case BuiltinId::LeInt:
-  {
     relational<Int>(state, std::less_equal<Int::type>());
     break;
-  }
 
   case BuiltinId::Left:
-  {
     state.push_data(Choice::make_left(state.pop_data()));
     break;
-  }
 
   case BuiltinId::Length:
-  {
-    const auto a = state.pop_data();
-    state.push_data(
-      std::make_shared<Int>(a->value<Vector>().size()));
+    state.push_data<Int>(state.pop_data()->value<Vector>().size());
     break;
-  }
 
   // case BuiltinId::LtFloat
 
   case BuiltinId::LtInt:
-  {
     relational<Int>(state, std::less<Int::type>());
     break;
-  }
 
   // case BuiltinId::ModFloat
 
   case BuiltinId::ModInt:
-  {
     binary<Int>(state, std::modulus<Int::type>());
     break;
-  }
 
   // case BuiltinId::MulFloat
   
   case BuiltinId::MulInt:
-  {
     binary<Int>(state, std::multiplies<Int::type>());
     break;
-  }
 
   // case BuiltinId::NeFloat
 
   case BuiltinId::NeInt:
-  {
     relational<Int>(state, std::not_equal_to<Int::type>());
     break;
-  }
 
   // case BuiltinId::NegFloat
 
   case BuiltinId::NegInt:
-  {
     unary<Int>(state, std::negate<Int::type>());
     break;
-  }
 
   case BuiltinId::None:
-  {
-    state.push_data(std::make_shared<Option>());
+    state.push_data<Option>();
     break;
-  }
 
   case BuiltinId::NotBool:
-  {
-    const auto a = state.pop_data();
-    state.push_data(std::make_shared<Bool>(!a->value<Bool>()));
+    state.push_data<Bool>(!state.pop_data()->value<Bool>());
     break;
-  }
 
   case BuiltinId::NotInt:
-  {
     unary<Int>(state, bit_not<Int::type>());
     break;
-  }
 
   // case BuiltinId::OpenIn
   // case BuiltinId::OpenOut
 
   case BuiltinId::OrBool:
-  {
     relational<Bool>(state, std::logical_or<Bool::type>());
     break;
-  }
 
   case BuiltinId::OrInt:
-  {
     binary<Int>(state, std::bit_or<Int::type>());
     break;
-  }
 
   case BuiltinId::Pair:
   {
     const auto b = state.pop_data();
     const auto a = state.pop_data();
-    state.push_data(std::make_shared<Pair>(a, b));
+    state.push_data<Pair>(a, b);
     break;
   }
 
@@ -306,7 +256,7 @@ Builtin::exec(State& state) const {
     std::string buffer;
     for (const auto& value : text->value<Vector>()) {
       // TODO Use correct character encoding.
-      buffer.append(1, char(value->value<Char>()));
+      buffer += char(value->value<Char>());
     }
     *static_cast<std::ostream*>(handle->value<Handle>())
       << buffer;
@@ -314,24 +264,19 @@ Builtin::exec(State& state) const {
   }
 
   case BuiltinId::Rest:
-  {
-    const auto a = state.pop_data();
-    state.push_data(a->as<Pair>().second);
+    state.push_data(state.pop_data()->as<Pair>().second);
     break;
-  }
 
   case BuiltinId::Right:
-  {
     state.push_data(Choice::make_right(state.pop_data()));
     break;
-  }
 
   case BuiltinId::Set:
   {
-    const auto index = state.pop_data();
+    const auto index = state.pop_data()->value<Int>();
     const auto value = state.pop_data();
     const auto vector = state.pop_data()->copy();
-    vector->value<Vector>().at(index->value<Int>()) = value;
+    vector->value<Vector>().at(index) = value;
     state.push_data(vector);
     break;
   }
@@ -355,37 +300,26 @@ Builtin::exec(State& state) const {
   }
 
   case BuiltinId::Some:
-  {
-    const auto a = state.pop_data();
-    state.push_data(std::make_shared<Option>(a));
+    state.push_data<Option>(state.pop_data());
     break;
-  }
 
   case BuiltinId::Stderr:
-  {
-    state.push_data(std::make_shared<Handle>(&std::cerr));
+    state.push_data(Handle::stderr);
     break;
-  }
 
   case BuiltinId::Stdin:
-  {
-    state.push_data(std::make_shared<Handle>(&std::cin));
+    state.push_data(Handle::stdin);
     break;
-  }
 
   case BuiltinId::Stdout:
-  {
-    state.push_data(std::make_shared<Handle>(&std::cout));
+    state.push_data(Handle::stdout);
     break;
-  }
 
   // case BuiltinId::SubFloat
 
   case BuiltinId::SubInt:
-  {
     binary<Int>(state, std::minus<Int::type>());
     break;
-  }
 
   case BuiltinId::Tail:
   {
@@ -397,18 +331,14 @@ Builtin::exec(State& state) const {
   }
 
   case BuiltinId::UnsafePurify11:
-  {
     // Cast
     break;
-  }
 
   // case BuiltinId::XorBool
 
   case BuiltinId::XorInt:
-  {
     binary<Int>(state, std::bit_xor<Int::type>());
     break;
-  }
 
   default:
   {
