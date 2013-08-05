@@ -77,7 +77,9 @@ Builtin::exec(State& state) const {
 
   switch (id) {
 
-    // case BuiltinId::AddFloat
+  case BuiltinId::AddFloat:
+    binary<Float>(state, std::plus<Float::type>());
+    break;
 
   case BuiltinId::AddInt:
     binary<Int>(state, std::plus<Int::type>());
@@ -107,13 +109,17 @@ Builtin::exec(State& state) const {
     break;
 
   // case BuiltinId::Close
-  // case BuiltinId::DivFloat
+
+  case BuiltinId::DivFloat:
+    binary<Float>(state, std::divides<Float::type>());
+    break;
   
   case BuiltinId::DivInt:
     binary<Int>(state, std::divides<Int::type>());
     break;
 
-  // case BuiltinId::EqFloat
+  case BuiltinId::EqFloat:
+    relational<Float>(state, std::equal_to<Float::type>());
 
   case BuiltinId::EqInt:
     relational<Int>(state, std::equal_to<Int::type>());
@@ -128,12 +134,14 @@ Builtin::exec(State& state) const {
     break;
 
   case BuiltinId::FromLeft:
+  case BuiltinId::FromRight:
+  case BuiltinId::FromSome:
     state.push_data(state.pop_data()->value<Choice>());
     break;
 
-  // case BuiltinId::FromRight
-  // case BuiltinId::FromSome
-  // case BuiltinId::GeFloat
+  case BuiltinId::GeFloat:
+    relational<Float>(state, std::greater_equal<Float::type>());
+    break;
 
   case BuiltinId::GeInt:
     relational<Int>(state, std::greater_equal<Int::type>());
@@ -158,13 +166,17 @@ Builtin::exec(State& state) const {
     break;
   }
 
-  // case BuiltinId::GtFloat
+  case BuiltinId::GtFloat:
+    relational<Float>(state, std::greater<Float::type>());
+    break;
 
   case BuiltinId::GtInt:
     relational<Int>(state, std::greater<Int::type>());
     break;
 
-  // case BuiltinId::Impure
+  case BuiltinId::Impure:
+    // Cast
+    break;
 
   case BuiltinId::Init:
   {
@@ -174,7 +186,9 @@ Builtin::exec(State& state) const {
     break;
   }
 
-  // case BuiltinId::LeFloat
+  case BuiltinId::LeFloat:
+    relational<Float>(state, std::less_equal<Float::type>());
+    break;
 
   case BuiltinId::LeInt:
     relational<Int>(state, std::less_equal<Int::type>());
@@ -188,31 +202,45 @@ Builtin::exec(State& state) const {
     state.push_data<Int>(state.pop_data()->value<Vector>().size());
     break;
 
-  // case BuiltinId::LtFloat
+  case BuiltinId::LtFloat:
+    relational<Float>(state, std::less<Float::type>());
+    break;
 
   case BuiltinId::LtInt:
     relational<Int>(state, std::less<Int::type>());
     break;
 
-  // case BuiltinId::ModFloat
+  case BuiltinId::ModFloat:
+    binary<Float>(
+      state,
+      static_cast<
+        Float::type(*)(Float::type, Float::type)
+      >(std::fmod));
+    break;
 
   case BuiltinId::ModInt:
     binary<Int>(state, std::modulus<Int::type>());
     break;
 
-  // case BuiltinId::MulFloat
+  case BuiltinId::MulFloat:
+    binary<Float>(state, std::multiplies<Float::type>());
+    break;
   
   case BuiltinId::MulInt:
     binary<Int>(state, std::multiplies<Int::type>());
     break;
 
-  // case BuiltinId::NeFloat
+  case BuiltinId::NeFloat:
+    relational<Float>(state, std::not_equal_to<Float::type>());
+    break;
 
   case BuiltinId::NeInt:
     relational<Int>(state, std::not_equal_to<Int::type>());
     break;
 
-  // case BuiltinId::NegFloat
+  case BuiltinId::NegFloat:
+    unary<Float>(state, std::negate<Float::type>());
+    break;
 
   case BuiltinId::NegInt:
     unary<Int>(state, std::negate<Int::type>());
@@ -315,7 +343,9 @@ Builtin::exec(State& state) const {
     state.push_data(Handle::stdout);
     break;
 
-  // case BuiltinId::SubFloat
+  case BuiltinId::SubFloat:
+    binary<Float>(state, std::minus<Float::type>());
+    break;
 
   case BuiltinId::SubInt:
     binary<Int>(state, std::minus<Int::type>());
@@ -334,7 +364,9 @@ Builtin::exec(State& state) const {
     // Cast
     break;
 
-  // case BuiltinId::XorBool
+  case BuiltinId::XorBool:
+    binary<Int>(state, std::bit_xor<Int::type>());
+    break;
 
   case BuiltinId::XorInt:
     binary<Int>(state, std::bit_xor<Int::type>());
