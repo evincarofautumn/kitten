@@ -5,11 +5,13 @@
 
 struct Handle : Value {
 
-  explicit Handle(void*);
+  typedef void* type;
+
+  explicit Handle(type);
   virtual MutableValuePtr copy() const final override;
   virtual void write(std::ostream& stream) const final override;
 
-  void* value;
+  type value;
 
 };
 

@@ -20,7 +20,7 @@ Vector::write(std::ostream& stream) const {
   if (!value.empty() and typeid(*value[0]) == typeid(Char)) {
     stream << '"';
     for (const auto& element : value)
-      stream << char(element->as<Char>().value);
+      stream << char(element->value<Char>());
     stream << '"';
   } else {
     stream << "[";

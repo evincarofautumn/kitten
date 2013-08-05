@@ -13,7 +13,7 @@ JumpIfNone::write(std::ostream& stream) const {
 Offset
 JumpIfNone::exec(State& state) const {
   const auto a = state.pop_data();
-  const auto& value = a->as<Option>().value;
+  const auto& value = a->value<Option>();
   if (value) {
     state.push_data(value);
     return 1;

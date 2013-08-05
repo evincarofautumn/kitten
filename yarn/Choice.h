@@ -5,12 +5,14 @@
 
 struct Choice : Value {
 
-  Choice(bool, ValuePtr);
+  typedef ValuePtr type;
+
+  Choice(bool, type);
   virtual MutableValuePtr copy() const final override;
   virtual void write(std::ostream&) const final override;
 
   bool is_right;
-  ValuePtr value;
+  type value;
 
 };
 

@@ -20,6 +20,16 @@ struct Value {
     return dynamic_cast<const T&>(*this);
   }
 
+  template<class T>
+  typename T::type& value() {
+    return as<T>().value;
+  }
+
+  template<class T>
+  const typename T::type& value() const {
+    return as<T>().value;
+  }
+
   virtual std::shared_ptr<Value> copy() const = 0;
   virtual void write(std::ostream& stream) const = 0;
 

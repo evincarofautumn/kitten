@@ -19,7 +19,7 @@ template<class T, class F>
 void
 unary(State& state, F pure) {
   const auto a = state.pop_data();
-  state.push_data(std::make_shared<T>(pure(a->as<T>().value)));
+  state.push_data(std::make_shared<T>(pure(a->value<T>())));
 }
 
 template<class T, class F>
@@ -29,7 +29,7 @@ binary(State& state, F pure) {
   const auto a = state.pop_data();
   state.push_data(
     std::make_shared<T>(
-      pure(a->as<T>().value, b->as<T>().value)));
+      pure(a->value<T>(), b->value<T>())));
 }
 
 template<class T, class F>
@@ -39,7 +39,7 @@ relational(State& state, F function) {
   const auto a = state.pop_data();
   state.push_data(
     std::make_shared<Bool>(
-      function(a->as<T>().value, b->as<T>().value)));
+      function(a->value<T>(), b->value<T>())));
 }
 
 std::vector<ValuePtr>
@@ -112,7 +112,7 @@ Builtin::exec(State& state) const {
   {
     const auto a = state.pop_data();
     state.push_data(
-      std::make_shared<Int>(a->as<Char>().value));
+      std::make_shared<Int>(a->value<Char>()));
     break;
   }
 
@@ -143,7 +143,7 @@ Builtin::exec(State& state) const {
   case BuiltinId::FromLeft:
   {
     const auto a = state.pop_data();
-    state.push_data(a->as<Choice>().value);
+    state.push_data(a->value<Choice>());
     break;
   }
 
@@ -162,7 +162,7 @@ Builtin::exec(State& state) const {
     const auto index = state.pop_data();
     const auto vector = state.pop_data();
     state.push_data(
-      vector->as<Vector>().value.at(index->as<Int>().value));
+      vector->value<Vector>().at(index->value<Int>()));
     break;
   }
 
@@ -171,7 +171,7 @@ Builtin::exec(State& state) const {
     const auto handle = state.pop_data();
     std::string line;
     std::getline(
-      *static_cast<std::istream*>(handle->as<Handle>().value),
+      *static_cast<std::istream*>(handle->value<Handle>()),
       line);
     state.push_data(make_char_vector(line));
     break;
@@ -190,7 +190,7 @@ Builtin::exec(State& state) const {
   case BuiltinId::Init:
   {
     const auto result = state.pop_data()->copy();
-    result->as<Vector>().value.pop_back();
+    result->value<Vector>().pop_back();
     state.push_data(result);
     break;
   }
@@ -214,7 +214,7 @@ Builtin::exec(State& state) const {
   {
     const auto a = state.pop_data();
     state.push_data(
-      std::make_shared<Int>(a->as<Vector>().value.size()));
+      std::make_shared<Int>(a->value<Vector>().size()));
     break;
   }
 
@@ -267,7 +267,7 @@ Builtin::exec(State& state) const {
   case BuiltinId::NotBool:
   {
     const auto a = state.pop_data();
-    state.push_data(std::make_shared<Bool>(!a->as<Bool>().value));
+    state.push_data(std::make_shared<Bool>(!a->value<Bool>()));
     break;
   }
 
@@ -305,11 +305,11 @@ Builtin::exec(State& state) const {
     const auto handle = state.pop_data();
     const auto text = state.pop_data();
     std::string buffer;
-    for (const auto& value : text->as<Vector>().value) {
+    for (const auto& value : text->value<Vector>()) {
       // TODO Use correct character encoding.
-      buffer.append(1, char(value->as<Char>().value));
+      buffer.append(1, char(value->value<Char>()));
     }
-    *static_cast<std::ostream*>(handle->as<Handle>().value)
+    *static_cast<std::ostream*>(handle->value<Handle>())
       << buffer;
     break;
   }
@@ -333,7 +333,7 @@ Builtin::exec(State& state) const {
     const auto index = state.pop_data();
     const auto value = state.pop_data();
     const auto vector = state.pop_data()->copy();
-    vector->as<Vector>().value.at(index->as<Int>().value) = value;
+    vector->value<Vector>().at(index->value<Int>()) = value;
     state.push_data(vector);
     break;
   }
@@ -342,7 +342,7 @@ Builtin::exec(State& state) const {
   {
     const auto a = state.pop_data();
     std::ostringstream stream;
-    stream << a->as<Float>().value;
+    stream << a->value<Float>();
     state.push_data(make_char_vector(stream.str()));
     break;
   }
@@ -351,7 +351,7 @@ Builtin::exec(State& state) const {
   {
     const auto a = state.pop_data();
     std::ostringstream stream;
-    stream << a->as<Int>().value;
+    stream << a->value<Int>();
     state.push_data(make_char_vector(stream.str()));
     break;
   }
@@ -392,7 +392,7 @@ Builtin::exec(State& state) const {
   case BuiltinId::Tail:
   {
     const auto result = state.pop_data()->copy();
-    auto& vector = result->as<Vector>().value;
+    auto& vector = result->value<Vector>();
     vector.erase(begin(vector));
     state.push_data(result);
     break;

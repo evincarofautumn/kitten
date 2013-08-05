@@ -13,5 +13,5 @@ JumpIfFalse::write(std::ostream& stream) const {
 Offset
 JumpIfFalse::exec(State& state) const {
   const auto a = state.pop_data();
-  return (a->as<Bool>().value ? 0 : offset) + 1;
+  return (a->value<Bool>() ? 0 : offset) + 1;
 }

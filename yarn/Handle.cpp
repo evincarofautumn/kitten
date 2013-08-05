@@ -2,7 +2,7 @@
 
 #include <ostream>
 
-Handle::Handle(void* value) : value(value) {}
+Handle::Handle(const type value) : value(value) {}
 
 MutableValuePtr
 Handle::copy() const {

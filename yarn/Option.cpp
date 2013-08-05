@@ -2,7 +2,7 @@
 
 #include <ostream>
 
-Option::Option(const ValuePtr value)
+Option::Option(const type value)
   : value(value) {}
 
 MutableValuePtr

@@ -2,7 +2,7 @@
 
 #include <ostream>
 
-Choice::Choice(const bool is_right, const ValuePtr value)
+Choice::Choice(const bool is_right, const type value)
   : is_right(is_right), value(value) {}
 
 MutableValuePtr

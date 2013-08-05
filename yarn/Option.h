@@ -5,12 +5,14 @@
 
 struct Option : Value {
 
+  typedef ValuePtr type;
+
   Option() = default;
-  explicit Option(ValuePtr);
+  explicit Option(type);
   virtual MutableValuePtr copy() const final override;
   virtual void write(std::ostream& stream) const final override;
 
-  ValuePtr value;
+  type value;
 
 };
 
