@@ -2,8 +2,8 @@
 
 #include <ostream>
 
-Choice::Choice(const bool is_right, const type value)
-  : is_right(is_right), value(value) {}
+Choice::Choice(const Which which, const type value)
+  : which(which), value(value) {}
 
 MutableValuePtr
 Choice::copy() const {
@@ -12,5 +12,5 @@ Choice::copy() const {
 
 void
 Choice::write(std::ostream& stream) const {
-  stream << (is_right ? "right" : "left") << ' ' << *value;
+  stream << (which == Which::LEFT ? "left" : "right") << ' ' << *value;
 }

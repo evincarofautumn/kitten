@@ -7,11 +7,26 @@ struct Choice : Value {
 
   typedef ValuePtr type;
 
-  Choice(bool, type);
+  enum class Which {
+    LEFT,
+    RIGHT,
+  };
+
+  Choice(Which, type);
   virtual MutableValuePtr copy() const final override;
   virtual void write(std::ostream&) const final override;
 
-  bool is_right;
+  static std::shared_ptr<Choice>
+  make_left(const type value) {
+    return std::make_shared<Choice>(Which::LEFT, value);
+  }
+
+  static std::shared_ptr<Choice>
+  make_right(const type value) {
+    return std::make_shared<Choice>(Which::RIGHT, value);
+  }
+
+  Which which;
   type value;
 
 };

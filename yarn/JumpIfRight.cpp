@@ -15,5 +15,5 @@ JumpIfRight::exec(State& state) const {
   const auto a = state.pop_data();
   const auto& choice = a->as<Choice>();
   state.push_data(choice.value);
-  return (choice.is_right ? offset : 0) + 1;
+  return (choice.which == Choice::Which::LEFT ? 0 : offset) + 1;
 }

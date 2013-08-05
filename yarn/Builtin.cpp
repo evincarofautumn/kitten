@@ -205,8 +205,7 @@ Builtin::exec(State& state) const {
 
   case BuiltinId::Left:
   {
-    const auto a = state.pop_data();
-    state.push_data(std::make_shared<Choice>(false, a));
+    state.push_data(Choice::make_left(state.pop_data()));
     break;
   }
 
@@ -323,8 +322,7 @@ Builtin::exec(State& state) const {
 
   case BuiltinId::Right:
   {
-    const auto a = state.pop_data();
-    state.push_data(std::make_shared<Choice>(true, a));
+    state.push_data(Choice::make_right(state.pop_data()));
     break;
   }
 
