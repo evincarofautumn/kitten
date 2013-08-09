@@ -46,7 +46,9 @@ interpretTerm resolved = case resolved of
     interpretTerm $ if which then right else left
   Compose terms loc -> withLocation loc
     $ mapM_ interpretTerm terms
-  From{} -> return ()
+  From _ loc -> withLocation loc $ do
+    Wrapped _ value <- popData
+    pushData value
   Group terms loc -> withLocation loc
     $ mapM_ interpretTerm terms
   If true false loc -> withLocation loc $ do
@@ -68,7 +70,9 @@ interpretTerm resolved = case resolved of
     pushLocal =<< popData
     interpretTerm term
     popLocal
-  To{} -> return ()
+  To name loc -> withLocation loc $ do
+    a <- popData
+    pushData $ Wrapped name a
   VectorTerm terms loc -> withLocation loc $ do
     mapM_ interpretTerm terms
     values <- replicateM (length terms) popData

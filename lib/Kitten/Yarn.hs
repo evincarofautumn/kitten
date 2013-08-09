@@ -241,21 +241,22 @@ yarnClosure terms = do
 
 yarnValue :: Resolved.Value -> Value
 yarnValue resolved = case resolved of
+  Resolved.Activation{} -> unexpectedInstruction
   Resolved.Bool value -> Bool value
   Resolved.Char value -> Char value
   Resolved.Choice which value -> Choice which (yarnValue value)
+  Resolved.Closed{} -> unexpectedInstruction
+  Resolved.Closure{} -> unexpectedInstruction
   Resolved.Float value -> Float value
+  Resolved.Function{} -> unexpectedInstruction
   Resolved.Handle value -> Handle value
   Resolved.Int value -> Int value
+  Resolved.Local{} -> unexpectedInstruction
   Resolved.Option value -> Option (yarnValue <$> value)
   Resolved.Pair a b -> Pair (yarnValue a) (yarnValue b)
   Resolved.Unit -> Unit
   Resolved.Vector values -> Vector (map yarnValue values)
-  Resolved.Activation{} -> unexpectedInstruction
-  Resolved.Closed{} -> unexpectedInstruction
-  Resolved.Closure{} -> unexpectedInstruction
-  Resolved.Function{} -> unexpectedInstruction
-  Resolved.Local{} -> unexpectedInstruction
+  Resolved.Wrapped _ inner -> yarnValue inner
   where
   unexpectedInstruction = error
     "Kitten.Yarn.yarnValue: instruction where value expected"

@@ -11,6 +11,7 @@ module Kitten.Infer
 
 import Control.Applicative hiding (some)
 import Control.Monad
+import Data.Function
 import Data.Monoid
 import Data.Map ((!))
 
@@ -58,7 +59,7 @@ inferFragment
   -> Inferred ()
 inferFragment prelude fragment = do
 
-  forM_ (fragmentTypeDefs fragment) $ \ typeDef -> do
+  forM_ allTypeDefs $ \ typeDef -> do
     let name = typeDefName typeDef
     scheme <- fromAnno (typeDefAnno typeDef)
     mExisting <- getsEnv (Map.lookup name . envTypeDefs)
@@ -99,7 +100,8 @@ inferFragment prelude fragment = do
 
   where
 
-  allDefs = fragmentDefs prelude ++ fragmentDefs fragment
+  allTypeDefs = ((++) `on` fragmentTypeDefs) prelude fragment
+  allDefs = ((++) `on` fragmentDefs) prelude fragment
 
   saveDef :: Int -> Scheme -> Inferred ()
   saveDef index scheme = modifyEnv $ \ env -> env
@@ -400,6 +402,7 @@ manifestType value = case value of
       (type1 :& type2)
   Unit -> Just $ mono Type.Unit
   Vector{} -> Nothing
+  Wrapped name _ -> Just $ mono (Type.Named name)
 
   where
   manifestConstant constant = do
@@ -436,6 +439,7 @@ inferValue value = case value of
     valueTypes <- mapM inferValue values
     valueType <- unifyEach valueTypes
     return $ Type.Vector valueType
+  Wrapped name _ -> return (Type.Named name)
 
 unifyEach :: [Type Scalar] -> Inferred (Type Scalar)
 unifyEach (x : y : zs) = x === y >> unifyEach (y : zs)

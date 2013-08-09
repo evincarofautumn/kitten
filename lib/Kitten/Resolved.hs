@@ -44,6 +44,7 @@ data Value
   | Pair Value Value
   | Unit
   | Vector [Value]
+  | Wrapped String Value
   deriving (Eq)
 
 instance Show Value where
@@ -65,6 +66,7 @@ instance Show Value where
     Unit -> "()"
     Vector v@(Char _ : _) -> show (stringFromChars v)
     Vector v -> show v
+    Wrapped name v -> unwords [show v, "to", name]
 
 stringFromChars :: [Value] -> String
 stringFromChars = map fromChar

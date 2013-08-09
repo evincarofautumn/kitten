@@ -18,6 +18,7 @@ import Kitten.Error
 import Kitten.Fragment
 import Kitten.Interpret
 import Kitten.Resolved
+import Kitten.TypeDef
 
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.Compile as Compile
@@ -25,6 +26,7 @@ import qualified Kitten.Compile as Compile
 data Repl = Repl
   { replStack :: [Value]
   , replDefs :: [Def Value]
+  , replTypeDefs :: [TypeDef]
   }
 
 type ReplReader = ReaderT [Def Value] IO
@@ -46,16 +48,16 @@ runRepl prelude = do
   empty = Repl
     { replStack = []
     , replDefs = preludeDefs
+    , replTypeDefs = []
     }
-
-  preludeDefs :: [Def Value]
-  preludeDefs = fragmentDefs prelude
 
   welcome :: IO ()
   welcome = mapM_ putStrLn
     [ "Welcome to Kitten!"
     , "Type ':help' for help or ':quit' to quit."
     ]
+
+  preludeDefs = fragmentDefs prelude
 
 repl :: ReplInput ()
 repl = do
@@ -100,7 +102,10 @@ eval line = do
     , Compile.dumpScoped = False
     , Compile.libraryDirectories = []  -- TODO
     , Compile.name = replName
-    , Compile.prelude = mempty { fragmentDefs = replDefs }
+    , Compile.prelude = mempty
+      { fragmentDefs = replDefs
+      , fragmentTypeDefs = replTypeDefs
+      }
     , Compile.source = line
     , Compile.stack = replStack
     }
@@ -108,12 +113,14 @@ eval line = do
     Left compileErrors -> liftIO
       $ printCompileErrors compileErrors
     Right compileResult -> do
-      stack' <- liftIO $ interpret replStack
-        mempty { fragmentDefs = replDefs }
-        compileResult
+      stack' <- liftIO $ interpret replStack mempty
+        { fragmentDefs = replDefs
+        , fragmentTypeDefs = replTypeDefs
+        } compileResult
       lift . modify $ \ s -> s
         { replStack = stack'
-        , replDefs = replDefs <> fragmentDefs compileResult
+        , replDefs = replDefs ++ fragmentDefs compileResult
+        , replTypeDefs = replTypeDefs ++ fragmentTypeDefs compileResult
         }
   repl
 
@@ -174,6 +181,7 @@ reset = do
   lift $ put Repl
     { replStack = []
     , replDefs = preludeDefs
+    , replTypeDefs = []
     }
   repl
 

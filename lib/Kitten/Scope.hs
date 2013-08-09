@@ -84,6 +84,7 @@ scopeValue stack value = case value of
   Pair a b -> Pair (scopeValue stack a) (scopeValue stack b)
   Unit -> Unit
   Vector values -> Vector (map (scopeValue stack) values)
+  Wrapped name inner -> Wrapped name (scopeValue stack inner)
 
 data Env = Env
   { envStack :: [Int]
@@ -204,3 +205,4 @@ captureValue value = case value of
   Pair a b -> Pair <$> captureValue a <*> captureValue b
   Unit{} -> return value
   Vector values -> Vector <$> mapM captureValue values
+  Wrapped name inner -> Wrapped name <$> captureValue inner
