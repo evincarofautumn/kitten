@@ -170,6 +170,7 @@ yarnEntry terms = do
 
 yarnTerm :: Resolved -> Yarn [Instruction]
 yarnTerm term = case term of
+  Resolved.Builtin builtin _ -> return [Builtin builtin]
   Resolved.Call (Name index) _ -> return [Call index]
   Resolved.ChoiceTerm left right _ -> do
     left' <- yarnTerm left
@@ -181,7 +182,7 @@ yarnTerm term = case term of
       , right'
       ]
   Resolved.Compose terms _ -> concatMapM yarnTerm terms
-  Resolved.Builtin builtin _ -> return [Builtin builtin]
+  Resolved.From{} -> return []
   Resolved.Group terms _ -> concatMapM yarnTerm terms
   Resolved.If true false _ -> do
     true' <- yarnTerm true
@@ -209,6 +210,7 @@ yarnTerm term = case term of
   Resolved.Scoped terms _ -> do
     instructions <- yarnTerm terms
     return $ Enter : instructions ++ [Leave]
+  Resolved.To{} -> return []
   Resolved.VectorTerm values _ -> do
     values' <- concatMapM yarnTerm values
     return $ values' ++ [MakeVector (length values)]

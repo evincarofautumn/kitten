@@ -61,6 +61,7 @@ library
     Kitten.Resolved,
     Kitten.Scope,
     Kitten.Term,
+    Kitten.TypeDef,
     Kitten.Token,
     Kitten.Tokenize,
     Kitten.Type,

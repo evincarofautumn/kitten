@@ -19,6 +19,7 @@ data Type
   | Float
   | Handle
   | Int
+  | Named String
   | Option Type
   | Pair Type Type
   | Unit

@@ -17,11 +17,13 @@ data Resolved
   | Call Name Location
   | ChoiceTerm Resolved Resolved Location
   | Compose [Resolved] Location
+  | From String Location
   | Group [Resolved] Location
   | If Resolved Resolved Location
   | OptionTerm Resolved Resolved Location
   | PairTerm Resolved Resolved Location
   | Push Value Location
+  | To String Location
   | Scoped Resolved Location
   | VectorTerm [Resolved] Location
   deriving (Eq, Show)

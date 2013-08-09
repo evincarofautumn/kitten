@@ -41,6 +41,7 @@ data Env = Env
   , envNext  :: Name
   , envRows :: Map Name (Type Row)
   , envScalars :: Map Name (Type Scalar)
+  , envTypeDefs :: Map String Scheme
   } deriving (Show)
 
 newtype Inferred a = Inferred
@@ -72,6 +73,7 @@ emptyEnv = Env
   , envNext = Name 0
   , envRows = Map.empty
   , envScalars = Map.empty
+  , envTypeDefs = Map.empty
   }
 
 class Retrieve a where

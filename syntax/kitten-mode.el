@@ -10,11 +10,11 @@
 
 (defvar kitten-font-lock-keywords
   (list
-   '("__[a-z_]+" . font-lock-builtin-face)
+   '("__[0-9a-z_]+" . font-lock-builtin-face)
    '("\\<\\(true\\|false\\)\\>" . font-lock-constant-face)
    '("\\<\\([A-Z][0-9A-Za-z_]*\\)\\>" . font-lock-type-face)
    '("\\s_+" . font-lock-variable-name-face)
-   '("\\<\\(choice\\|def\\|else\\|i\\(f\\|mport\\)\\|option\\)\\>" . font-lock-keyword-face)
+   '("\\<\\(choice\\|def\\|else\\|from\\|i\\(f\\|mport\\)\\|option\\|to\\)\\>" . font-lock-keyword-face)
    '("\\([a-z][0-9A-Za-z_]*\\)" 1 font-lock-default-face t))
   "Default highlighting for Kitten mode")
 

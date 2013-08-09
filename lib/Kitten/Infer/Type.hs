@@ -55,6 +55,7 @@ fromAnno (Anno annoType _) = do
     Anno.Float -> return Float
     Anno.Handle -> return Handle
     Anno.Int -> return Int
+    Anno.Named name -> return (Named name)
     Anno.Option a -> (:?) <$> fromAnnoType' a
     Anno.Pair a b -> (:&) <$> fromAnnoType' a <*> fromAnnoType' b
     Anno.Unit -> return Unit

@@ -34,6 +34,7 @@ data Type a where
   Function :: Type Row -> Type Row -> Type Effect -> Type Scalar
   Handle :: Type Scalar
   Int :: Type Scalar
+  Named :: String -> Type Scalar
   Test :: Type a
   Unit :: Type Scalar
   Var :: Name -> Type a
@@ -98,6 +99,7 @@ instance Eq (Type a) where
   Function a b p1 == Function c d p2 = (a, b, p1) == (c, d, p2)
   Handle == Handle = True
   Int == Int = True
+  Named a == Named b = a == b
   Unit == Unit = True
   Var a == Var b = a == b
   Vector a == Vector b = a == b
@@ -129,6 +131,7 @@ instance Show (Type a) where
       . shows e
     Handle -> showString "Handle"
     Int -> showString "Int"
+    Named name -> showString name
     Test -> id
     Var (Name index) -> showChar 't' . shows index
     Unit -> showString "()"

@@ -11,12 +11,14 @@ data Term
   | Call String Location
   | ChoiceTerm Term Term Location
   | Compose [Term] Location
+  | From String Location
   | Group [Term] Location
   | If Term Term Location
   | Lambda String Term Location
   | OptionTerm Term Term Location
   | PairTerm Term Term Location
   | Push Value Location
+  | To String Location
   | VectorTerm [Term] Location
   deriving (Eq, Show)
 

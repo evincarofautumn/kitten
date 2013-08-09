@@ -34,6 +34,7 @@ scopeTerm stack typed = case typed of
   ChoiceTerm left right loc
     -> ChoiceTerm (recur left) (recur right) loc
   Compose terms loc -> Compose (map recur terms) loc
+  From{} -> typed
   Group terms loc -> Group (map recur terms) loc
   If true false loc -> If (recur true) (recur false) loc
   OptionTerm some none loc
@@ -43,6 +44,7 @@ scopeTerm stack typed = case typed of
   Scoped term loc -> Scoped
     (scopeTerm (mapHead succ stack) term)
     loc
+  To{} -> typed
   VectorTerm items loc -> VectorTerm (map recur items) loc
 
   where
@@ -118,6 +120,8 @@ captureTerm typed = case typed of
     <$> mapM captureTerm terms
     <*> pure loc
 
+  From{} -> return typed
+
   Group terms loc -> Group
     <$> mapM captureTerm terms
     <*> pure loc
@@ -147,6 +151,8 @@ captureTerm typed = case typed of
     in Scoped
       <$> local inside (captureTerm terms)
       <*> pure loc
+
+  To{} -> return typed
 
   VectorTerm items loc -> VectorTerm
     <$> mapM captureTerm items

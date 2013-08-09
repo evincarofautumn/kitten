@@ -30,6 +30,8 @@ import Kitten.Name
 import Kitten.Resolved
 import Kitten.Type (Type((:&), (:.), (:?), (:|)))
 import Kitten.Type hiding (Type(..))
+import Kitten.TypeDef
+import Kitten.Util.FailWriter
 import Kitten.Util.Function
 
 import qualified Kitten.Builtin as Builtin
@@ -42,13 +44,13 @@ typeFragment
   -> Fragment Resolved.Value Resolved
   -> Either [CompileError] ()
 typeFragment stack prelude fragment
-  = fst . runInference emptyEnv $ do
-    inferFragment prelude fragment
-      { fragmentTerms
-        = for (reverse stack)
-          (\ value -> Push value UnknownLocation)
-        ++ fragmentTerms fragment
-      }
+  = fst . runInference emptyEnv
+  $ inferFragment prelude fragment
+    { fragmentTerms
+      = for (reverse stack)
+        (\ value -> Push value UnknownLocation)
+      ++ fragmentTerms fragment
+    }
 
 inferFragment
   :: Fragment Value Resolved
@@ -56,12 +58,31 @@ inferFragment
   -> Inferred ()
 inferFragment prelude fragment = do
 
+  forM_ (fragmentTypeDefs fragment) $ \ typeDef -> do
+    let name = typeDefName typeDef
+    scheme <- fromAnno (typeDefAnno typeDef)
+    mExisting <- getsEnv (Map.lookup name . envTypeDefs)
+    case mExisting of
+      Nothing -> modifyEnv $ \ env -> env
+        { envTypeDefs = Map.insert name scheme (envTypeDefs env) }
+      Just existing
+        -> Inferred . throwMany . (:[])
+        . CompileError (typeDefLocation typeDef) $ unwords
+          [ "multiple definitions of type"
+          , name
+          , "as both"
+          , show existing
+          , "and"
+          , show scheme
+          ]
+
   forM_ (zip [0..] allDefs) $ \ (index, def)
     -> case manifestType (defTerm def) of
       Just scheme -> saveDef index scheme
       Nothing -> case defAnno def of
         Just anno -> saveDef index =<< fromAnno anno
-        Nothing -> saveDef index . mono =<< forAll (-->)
+        Nothing -> saveDef index . mono
+          =<< (forAll $ \ r s e -> Type.Function r s e)
 
   forM_ (zip [(0 :: Int)..] allDefs) $ \ (index, def)
     -> withLocation (defLocation def) $ do
@@ -266,6 +287,10 @@ infer resolved = case resolved of
       (r --> r)
       types
 
+  From name loc -> withLocation loc $ do
+    underlying <- instantiateM =<< getsEnv ((! name) . envTypeDefs)
+    forAll $ \r -> r :. Type.Named name --> r :. underlying
+
   Group terms loc -> infer (Compose terms loc)
 
   If true false loc -> withLocation loc $ do
@@ -298,6 +323,10 @@ infer resolved = case resolved of
     a <- freshVarM
     Type.Function b c p <- local a $ infer term
     return $ Type.Function (b :. a) c p
+
+  To name loc -> withLocation loc $ do
+    underlying <- instantiateM =<< getsEnv ((! name) . envTypeDefs)
+    forAll $ \r -> r :. underlying --> r :. Type.Named name
 
   VectorTerm values loc -> withLocation loc $ do
     values' <- mapM infer values

@@ -1,0 +1,28 @@
+type Height Int
+def printHeight: from Height printInt
+
+type Width Int
+def printWidth: from Width printInt
+
+type Size (Width, Height)
+def sizeWidth: from Size first
+def sizeHeight: from Size second
+
+def saySize (Size -> +IO):
+  -> size
+  size sizeWidth printWidth
+  "x" print
+  size sizeHeight printHeight
+  newline
+
+(1 to Width, 2 to Height) to Size -> size
+size sizeWidth printWidth newline
+size sizeHeight printHeight newline
+size saySize
+
+type Id (a -> a)
+
+{id} to Id -> f
+
+3 (f from Id)@ sayInt
+"four" (f from Id)@ say

@@ -1,5 +1,6 @@
 module Kitten.Parse.Type
   ( signature
+  , typeDefType
   ) where
 
 import Control.Applicative
@@ -14,69 +15,72 @@ import qualified Kitten.Token as Token
 
 signature :: Parser Anno
 signature = locate $ Anno <$> functionType
-  where
 
-  type_ :: Parser Type
-  type_ = try functionType <|> baseType
+typeDefType :: Parser Anno
+typeDefType = locate $ Anno <$> baseType
 
-  functionType :: Parser Type
-  functionType = do
-    left <- many baseType
-    right <- match Token.Arrow *> many baseType
-    effect <- choice
-      [ match (Token.Operator "+") *> effectType
-      , pure Anno.NoEffect
-      ]
-    return $ Anno.Function left right effect
+type_ :: Parser Type
+type_ = try functionType <|> baseType
 
-  effectType :: Parser Type
-  effectType = do
-    left <- choice
-      [ Anno.IOEffect <$ match Token.IOType
-      , Anno.Var <$> littleWord
-      , try $ Anno.NoEffect <$ unit
-      , grouped effectType
-      ]
-    choice
-      [ Anno.Join left
-        <$> (match (Token.Operator "+") *> effectType)
-      , pure left
-      ]
+functionType :: Parser Type
+functionType = do
+  left <- many baseType
+  right <- match Token.Arrow *> many baseType
+  effect <- choice
+    [ match (Token.Operator "+") *> effectType
+    , pure Anno.NoEffect
+    ]
+  return $ Anno.Function left right effect
 
-  baseType :: Parser Type
-  baseType = (<?> "base type") $ do
-    prefix <- choice
-      [ Anno.Bool <$ match Token.BoolType
-      , Anno.Char <$ match Token.CharType
-      , Anno.Float <$ match Token.FloatType
-      , Anno.Handle <$ match Token.HandleType
-      , Anno.Int <$ match Token.IntType
-      , Anno.Var <$> littleWord
-      , vector
-      , try unit
-      , try $ grouped type_
-      , tuple
-      ]
-    choice
-      [ Anno.Choice prefix
-        <$> (match (Token.Operator "|") *> baseType)
-      , Anno.Option prefix <$ match (Token.Operator "?")
-      , Anno.Pair prefix
-        <$> (match (Token.Operator "&") *> baseType)
-      , pure prefix
-      ]
+effectType :: Parser Type
+effectType = do
+  left <- choice
+    [ Anno.IOEffect <$ match Token.IOType
+    , Anno.Var <$> littleWord
+    , try $ Anno.NoEffect <$ unit
+    , grouped effectType
+    ]
+  choice
+    [ Anno.Join left
+      <$> (match (Token.Operator "+") *> effectType)
+    , pure left
+    ]
 
-  vector :: Parser Type
-  vector = Anno.Vector <$> between
-    (match Token.VectorBegin)
-    (match Token.VectorEnd)
-    baseType
+baseType :: Parser Type
+baseType = (<?> "base type") $ do
+  prefix <- choice
+    [ Anno.Bool <$ match Token.BoolType
+    , Anno.Char <$ match Token.CharType
+    , Anno.Float <$ match Token.FloatType
+    , Anno.Handle <$ match Token.HandleType
+    , Anno.Int <$ match Token.IntType
+    , Anno.Var <$> littleWord
+    , Anno.Named <$> bigWord
+    , vector
+    , try unit
+    , try $ grouped type_
+    , tuple
+    ]
+  choice
+    [ Anno.Choice prefix
+      <$> (match (Token.Operator "|") *> baseType)
+    , Anno.Option prefix <$ match (Token.Operator "?")
+    , Anno.Pair prefix
+      <$> (match (Token.Operator "&") *> baseType)
+    , pure prefix
+    ]
 
-  tuple :: Parser Type
-  tuple = do
-    types <- grouped (type_ `sepEndBy1` match Token.Comma)
-    return $ foldr Anno.Pair Anno.Unit types
+vector :: Parser Type
+vector = Anno.Vector <$> between
+  (match Token.VectorBegin)
+  (match Token.VectorEnd)
+  baseType
 
-  unit :: Parser Type
-  unit = Anno.Unit
-    <$ (match Token.GroupBegin >> match Token.GroupEnd)
+tuple :: Parser Type
+tuple = do
+  types <- grouped (type_ `sepEndBy1` match Token.Comma)
+  return $ foldr Anno.Pair Anno.Unit types
+
+unit :: Parser Type
+unit = Anno.Unit
+  <$ (match Token.GroupBegin >> match Token.GroupEnd)

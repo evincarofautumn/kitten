@@ -22,6 +22,7 @@ data Token
   | Comma
   | Def
   | Else
+  | From
   | GroupBegin
   | GroupEnd
   | Float Double
@@ -37,6 +38,8 @@ data Token
   | Operator String
   | Option
   | Text String
+  | To
+  | Type
   | VectorBegin
   | VectorEnd
   deriving (Eq)
@@ -56,6 +59,7 @@ instance Show Token where
     Comma -> ","
     Def -> "def"
     Else -> "else"
+    From -> "from"
     GroupBegin -> "("
     GroupEnd -> ")"
     Float value -> show value
@@ -71,6 +75,8 @@ instance Show Token where
     Operator word -> word
     Option -> "option"
     Text value -> show value
+    To -> "to"
+    Type -> "type"
     VectorBegin -> "["
     VectorEnd -> "]"
 

@@ -9,11 +9,13 @@ import Kitten.Def
 import Kitten.Fragment
 import Kitten.Import
 import Kitten.Term
+import Kitten.TypeDef
 
 data Element
   = DefElement (Def Value)
   | ImportElement Import
   | TermElement Term
+  | TypeElement TypeDef
 
 partitionElements :: [Element] -> Fragment Value Term
 partitionElements = foldr go mempty
@@ -25,3 +27,5 @@ partitionElements = foldr go mempty
       { fragmentImports = import_ : fragmentImports acc }
     TermElement term -> acc
       { fragmentTerms = term : fragmentTerms acc }
+    TypeElement type_ -> acc
+      { fragmentTypeDefs = type_ : fragmentTypeDefs acc }

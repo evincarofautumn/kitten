@@ -18,6 +18,7 @@ import Kitten.Parse.Monad
 import Kitten.Parse.Primitive
 import Kitten.Parse.Type
 import Kitten.Term
+import Kitten.TypeDef
 import Kitten.Token (Located(..), Token)
 import Kitten.Util.List
 
@@ -39,6 +40,7 @@ element = choice
   [ DefElement <$> def
   , ImportElement <$> import_
   , TermElement <$> term
+  , TypeElement <$> type_
   ]
 
 def :: Parser (Def Value)
@@ -77,6 +79,8 @@ term = locate $ choice
   , if_
   , choiceTerm
   , optionTerm
+  , to
+  , from
   ]
   where
 
@@ -137,6 +141,12 @@ term = locate $ choice
   pair values loc
     = foldr (\ x y -> PairTerm x y loc) (Push (Unit loc) loc) values
 
+  to :: Parser (Location -> Term)
+  to = To <$> (match Token.To *> bigWord)
+
+  from :: Parser (Location -> Term)
+  from = From <$> (match Token.From *> bigWord)
+
   toBuiltin :: Token -> Maybe (Location -> Term)
   toBuiltin (Token.Builtin name) = Just $ Builtin name
   toBuiltin _ = Nothing
@@ -152,6 +162,17 @@ term = locate $ choice
     (match Token.VectorEnd)
     (locate (Compose <$> many1 term) `sepEndBy` match Token.Comma)
     <?> "vector"
+
+type_ :: Parser TypeDef
+type_ = (<?> "type definition") . locate $ do
+  void (match Token.Type)
+  name <- bigWord
+  anno <- typeDefType
+  return $ \ loc -> TypeDef
+    { typeDefName = name
+    , typeDefAnno = anno
+    , typeDefLocation = loc
+    }
 
 value :: Parser Value
 value = locate $ choice

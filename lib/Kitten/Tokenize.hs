@@ -101,10 +101,13 @@ token = (<?> "token") . located $ choice
       "def" -> Def
       "else" -> Else
       "false" -> Bool False
+      "from" -> From
       "if" -> If
       "import" -> Import
       "option" -> Option
+      "to" -> To
       "true" -> Bool True
+      "type" -> Type
       (first : _) | isUpper first -> BigWord name
       _ -> case Builtin.fromString name of
         Just builtin -> Builtin builtin

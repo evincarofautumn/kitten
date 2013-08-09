@@ -129,6 +129,7 @@ instance Free Scalar where
     Float -> mempty
     Handle -> mempty
     Int -> mempty
+    Named{} -> mempty
     Test -> mempty
     Var name -> ([], [scalar name], [])
     Unit -> mempty
@@ -190,6 +191,7 @@ instance Occurrences Scalar where
     Float -> 0
     Handle -> 0
     Int -> 0
+    Named{} -> 0
     Test -> 0
     Var name' -> case retrieve env (scalar name') of
       Left{} -> if name == name' then 1 else 0
@@ -282,6 +284,7 @@ instance Substitute Scalar where
     Float{} -> type_
     Int{} -> type_
     Handle{} -> type_
+    Named{} -> type_
     Test -> type_
     Var name
       | Right type' <- retrieve env (scalar name)

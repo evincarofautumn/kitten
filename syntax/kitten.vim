@@ -7,9 +7,9 @@ syntax clear
 syn case match
 
 syn keyword kittenBool false true
-syn keyword kittenKeyword choice def else if import option
+syn keyword kittenKeyword choice def else from if import option to
 syn keyword kittenTodo /\(FIXME\|HACK\|NOTE\|TODO\|XXX\)/ contained
-syn match kittenBuiltin /__[a-z_]+/
+syn match kittenBuiltin /__[0-9a-z_]+/
 syn match kittenComment /\/\/.*$/ contains=kittenTodo
 syn match kittenFloat /\<[+-][0-9]+\.[0-9]+\>/
 syn match kittenIdent /[a-z][0-9A-Za-z_]*/
