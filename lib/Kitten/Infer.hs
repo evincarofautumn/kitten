@@ -49,7 +49,7 @@ typeFragment stack prelude fragment
   $ inferFragment prelude fragment
     { fragmentTerms
       = for (reverse stack)
-        (\ value -> Push value UnknownLocation)
+        (`Push` UnknownLocation)
       ++ fragmentTerms fragment
     }
 
@@ -82,8 +82,7 @@ inferFragment prelude fragment = do
       Just scheme -> saveDef index scheme
       Nothing -> case defAnno def of
         Just anno -> saveDef index =<< fromAnno anno
-        Nothing -> saveDef index . mono
-          =<< (forAll $ \ r s e -> Type.Function r s e)
+        Nothing -> saveDef index . mono =<< forAll Type.Function
 
   forM_ (zip [(0 :: Int)..] allDefs) $ \ (index, def)
     -> withLocation (defLocation def) $ do

@@ -95,7 +95,7 @@ term = locate $ choice
 
   elseBranch :: Parser Term
   elseBranch = locate $ Compose
-    <$> (option [] (match Token.Else *> branchList))
+    <$> option [] (match Token.Else *> branchList)
 
   if_ :: Parser (Location -> Term)
   if_ = (<?> "if") $ do
