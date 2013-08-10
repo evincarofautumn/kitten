@@ -69,7 +69,11 @@ $(foreach TEST,$(TESTS),$(eval $(call TESTRULE,$(TEST))))
 
 .PHONY : lint
 lint :
-	@ $(HLINT) src lib || echo "Can't lint; hlint not on the path."
+	@ if which -s $(HLINT); then \
+	  $(HLINT) src lib; \
+	else \
+	  echo "No HLint found."; \
+	fi
 
 .PHONY : loc
 loc :
