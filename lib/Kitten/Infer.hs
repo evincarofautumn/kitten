@@ -82,7 +82,10 @@ inferFragment prelude fragment = do
       Just scheme -> saveDef index scheme
       Nothing -> case defAnno def of
         Just anno -> saveDef index =<< fromAnno anno
-        Nothing -> saveDef index . mono =<< forAll Type.Function
+        Nothing -> do
+          loc <- getsEnv envLocation
+          saveDef index . mono
+            =<< forAll (\ r s e -> Type.Function r s e loc)
 
   forM_ (zip [(0 :: Int)..] allDefs) $ \ (index, def)
     -> withLocation (defLocation def) $ do
@@ -92,10 +95,10 @@ inferFragment prelude fragment = do
       inferred <- instantiateM scheme
       declared === inferred
 
-  Type.Function consumption _ _ <- infer
+  Type.Function consumption _ _ _ <- infer
     $ Compose (fragmentTerms fragment) UnknownLocation
 
-  consumption === Type.Empty
+  consumption === Type.Empty UnknownLocation
 
   where
 
@@ -124,34 +127,34 @@ infer resolved = case resolved of
   Builtin name loc -> withLocation loc $ case name of
 
     Builtin.AddVector -> forAll $ \ r a
-      -> r :. Type.Vector a :. Type.Vector a
-      --> r :. Type.Vector a
+      -> r :. Type.Vector a loc :. Type.Vector a loc
+      --> r :. Type.Vector a loc
 
-    Builtin.AddFloat -> binary Type.Float
+    Builtin.AddFloat -> binary (Type.Float loc)
 
-    Builtin.AddInt -> binary Type.Int
+    Builtin.AddInt -> binary (Type.Int loc)
 
-    Builtin.AndBool -> binary Type.Bool
+    Builtin.AndBool -> binary (Type.Bool loc)
 
-    Builtin.AndInt -> binary Type.Int
+    Builtin.AndInt -> binary (Type.Int loc)
 
     Builtin.Apply -> forAll $ \ r s e
-      -> Type.Function (r :. Type.Function r s e) s e
+      -> Type.Function (r :. Type.Function r s e loc) s e loc
 
     Builtin.CharToInt -> forAll $ \ r
-      -> r :. Type.Char --> r :. Type.Int
+      -> r :. Type.Char loc --> r :. Type.Int loc
 
     Builtin.Close -> forAll $ \ r
-      -> r :. Type.Handle ==> r
+      -> r :. Type.Handle loc ==> r
 
-    Builtin.DivFloat -> binary Type.Float
-    Builtin.DivInt -> binary Type.Int
+    Builtin.DivFloat -> binary (Type.Float loc)
+    Builtin.DivInt -> binary (Type.Int loc)
 
-    Builtin.EqFloat -> relational Type.Float
-    Builtin.EqInt -> relational Type.Int
+    Builtin.EqFloat -> relational (Type.Float loc) loc
+    Builtin.EqInt -> relational (Type.Int loc) loc
 
     Builtin.Exit -> forAll $ \ r
-      -> r :. Type.Int ==> r
+      -> r :. Type.Int loc ==> r
 
     Builtin.First -> forAll $ \ r a b
       -> r :. a :& b --> r :. a
@@ -165,62 +168,62 @@ infer resolved = case resolved of
     Builtin.FromSome -> forAll $ \ r a
       -> r :. (a :?) --> r :. a
 
-    Builtin.GeFloat -> relational Type.Float
-    Builtin.GeInt -> relational Type.Int
+    Builtin.GeFloat -> relational (Type.Float loc) loc
+    Builtin.GeInt -> relational (Type.Int loc) loc
 
     Builtin.Get -> forAll $ \ r a
-      -> r :. Type.Vector a :. Type.Int --> r :. a
+      -> r :. Type.Vector a loc :. Type.Int loc --> r :. a
 
     Builtin.GetLine -> forAll $ \ r
-      -> r :. Type.Handle ==> r :. string
+      -> r :. Type.Handle loc ==> r :. string loc
 
-    Builtin.GtFloat -> relational Type.Float
-    Builtin.GtInt -> relational Type.Int
+    Builtin.GtFloat -> relational (Type.Float loc) loc
+    Builtin.GtInt -> relational (Type.Int loc) loc
 
     Builtin.Impure -> forAll $ \ r
       -> r ==> r
 
     Builtin.Init -> forAll $ \ r a
-      -> r :. Type.Vector a --> r :. Type.Vector a
+      -> r :. Type.Vector a loc --> r :. Type.Vector a loc
 
-    Builtin.LeFloat -> relational Type.Float
-    Builtin.LeInt -> relational Type.Int
+    Builtin.LeFloat -> relational (Type.Float loc) loc
+    Builtin.LeInt -> relational (Type.Int loc) loc
 
     Builtin.Left -> forAll $ \ r a b
       -> r :. a --> r :. a :| b
 
     Builtin.Length -> forAll $ \ r a
-      -> r :. Type.Vector a --> r :. Type.Int
+      -> r :. Type.Vector a loc --> r :. Type.Int loc
 
-    Builtin.LtFloat -> relational Type.Float
-    Builtin.LtInt -> relational Type.Int
+    Builtin.LtFloat -> relational (Type.Float loc) loc
+    Builtin.LtInt -> relational (Type.Int loc) loc
 
-    Builtin.ModFloat -> binary Type.Float
-    Builtin.ModInt -> binary Type.Int
+    Builtin.ModFloat -> binary (Type.Float loc)
+    Builtin.ModInt -> binary (Type.Int loc)
 
-    Builtin.MulFloat -> binary Type.Float
-    Builtin.MulInt -> binary Type.Int
+    Builtin.MulFloat -> binary (Type.Float loc)
+    Builtin.MulInt -> binary (Type.Int loc)
 
-    Builtin.NeFloat -> relational Type.Float
-    Builtin.NeInt -> relational Type.Int
+    Builtin.NeFloat -> relational (Type.Float loc) loc
+    Builtin.NeInt -> relational (Type.Int loc) loc
 
-    Builtin.NegFloat -> unary Type.Float
-    Builtin.NegInt -> unary Type.Int
+    Builtin.NegFloat -> unary (Type.Float loc)
+    Builtin.NegInt -> unary (Type.Int loc)
 
     Builtin.None -> forAll $ \ r a
       -> r --> r :. (a :?)
 
-    Builtin.NotBool -> unary Type.Bool
-    Builtin.NotInt -> unary Type.Int
+    Builtin.NotBool -> unary (Type.Bool loc)
+    Builtin.NotInt -> unary (Type.Int loc)
 
     Builtin.OpenIn -> forAll $ \ r
-      -> r :. string ==> r :. Type.Handle
+      -> r :. string loc ==> r :. Type.Handle loc
 
     Builtin.OpenOut -> forAll $ \ r
-      -> r :. string ==> r :. Type.Handle
+      -> r :. string loc ==> r :. Type.Handle loc
 
-    Builtin.OrBool -> binary Type.Bool
-    Builtin.OrInt -> binary Type.Int
+    Builtin.OrBool -> binary (Type.Bool loc)
+    Builtin.OrInt -> binary (Type.Int loc)
 
     Builtin.Rest -> forAll $ \ r a b
       -> r :. a :& b --> r :. b
@@ -229,87 +232,88 @@ infer resolved = case resolved of
       -> r :. b --> r :. a :| b
 
     Builtin.Set -> forAll $ \ r a
-      -> r :. Type.Vector a :. a :. Type.Int --> r :. Type.Vector a
+      -> r :. Type.Vector a loc :. a :. Type.Int loc
+      --> r :. Type.Vector a loc
 
     Builtin.ShowFloat -> forAll $ \ r
-      -> r :. Type.Float --> r :. string
+      -> r :. Type.Float loc --> r :. string loc
 
     Builtin.ShowInt -> forAll $ \ r
-      -> r :. Type.Int --> r :. string
+      -> r :. Type.Int loc --> r :. string loc
 
     Builtin.Some -> forAll $ \ r a
       -> r :. a --> r :. (a :?)
 
     Builtin.Stderr -> forAll $ \ r
-      -> r --> r :. Type.Handle
+      -> r --> r :. Type.Handle loc
     Builtin.Stdin -> forAll $ \ r
-      -> r --> r :. Type.Handle
+      -> r --> r :. Type.Handle loc
     Builtin.Stdout -> forAll $ \ r
-      -> r --> r :. Type.Handle
+      -> r --> r :. Type.Handle loc
 
-    Builtin.SubFloat -> binary Type.Float
-    Builtin.SubInt -> binary Type.Int
+    Builtin.SubFloat -> binary (Type.Float loc)
+    Builtin.SubInt -> binary (Type.Int loc)
 
     Builtin.Pair -> forAll $ \ r a b
       -> r :. a :. b --> r :. a :& b
 
     Builtin.Print -> forAll $ \ r
-      -> r :. string :. Type.Handle ==> r
+      -> r :. string loc :. Type.Handle loc ==> r
 
     Builtin.Tail -> forAll $ \ r a
-      -> r :. Type.Vector a --> r :. Type.Vector a
+      -> r :. Type.Vector a loc --> r :. Type.Vector a loc
 
     Builtin.UnsafePurify11 -> forAll $ \ r s a b
       -> r :. (s :. a ==> s :. b) --> r :. (s :. a --> s :. b)
 
-    Builtin.XorBool -> binary Type.Bool
-    Builtin.XorInt -> binary Type.Int
+    Builtin.XorBool -> binary (Type.Bool loc)
+    Builtin.XorInt -> binary (Type.Int loc)
 
   Call name loc -> withLocation loc
     $ instantiateM =<< getsEnv ((! name) . envDefs)
 
   ChoiceTerm left right loc -> withLocation loc $ do
-    Type.Function a b e1 <- infer left
-    Type.Function c d e2 <- infer right
+    Type.Function a b e1 _ <- infer left
+    Type.Function c d e2 _ <- infer right
     r <- freshVarM
     x <- freshVarM
     y <- freshVarM
     a === r :. x
     c === r :. y
     b === d
-    return $ Type.Function (r :. x :| y) b (e1 +: e2)
+    return $ Type.Function (r :. x :| y) b (e1 +: e2) loc
 
   Compose terms loc -> withLocation loc $ do
     types <- mapM infer terms
     r <- freshVarM
     foldM
-      (\ (Type.Function a b e1) (Type.Function c d e2)
+      (\ (Type.Function a b e1 _) (Type.Function c d e2 _)
         -> inferCompose a b c d e1 e2)
       (r --> r)
       types
 
   From name loc -> withLocation loc $ do
     underlying <- instantiateM =<< getsEnv ((! name) . envTypeDefs)
-    forAll $ \r -> r :. Type.Named name --> r :. underlying
+    forAll $ \r -> r :. Type.Named name loc --> r :. underlying
 
   Group terms loc -> infer (Compose terms loc)
 
   If true false loc -> withLocation loc $ do
-    Type.Function a b e1 <- infer true
-    Type.Function c d e2 <- infer false
+    Type.Function a b e1 _ <- infer true
+    Type.Function c d e2 _ <- infer false
     a === c
     b === d
-    return $ Type.Function (a :. Type.Bool) b (e1 +: e2)
+    return $ Type.Function (a :. Type.Bool loc) b (e1 +: e2) loc
 
   OptionTerm some none loc -> withLocation loc $ do
-    Type.Function a b e1 <- infer some
-    Type.Function c d e2 <- infer none
+    Type.Function a b e1 _ <- infer some
+    Type.Function c d e2 _ <- infer none
     x <- freshVarM
     r <- freshVarM
     a === r :. x
     r === c
     b === d
-    return $ Type.Function (r :. (x :?)) b (e1 +: e2)
+    return $ Type.Function (r :. (x :?)) b (e1 +: e2) loc
 
   PairTerm a b loc -> withLocation loc $ do
     a' <- fromConstant =<< infer a
@@ -322,17 +326,17 @@ infer resolved = case resolved of
 
   Scoped term loc -> withLocation loc $ do
     a <- freshVarM
-    Type.Function b c p <- local a $ infer term
-    return $ Type.Function (b :. a) c p
+    Type.Function b c e _ <- local a $ infer term
+    return $ Type.Function (b :. a) c e loc
 
   To name loc -> withLocation loc $ do
     underlying <- instantiateM =<< getsEnv ((! name) . envTypeDefs)
-    forAll $ \r -> r :. underlying --> r :. Type.Named name
+    forAll $ \r -> r :. underlying --> r :. Type.Named name loc
 
   VectorTerm values loc -> withLocation loc $ do
     values' <- mapM infer values
     values'' <- fromConstant =<< unifyEach values'
-    forAll $ \ r -> r --> r :. Type.Vector values''
+    forAll $ \ r -> r --> r :. Type.Vector values'' loc
 
 fromConstant :: Type Scalar -> Inferred (Type Scalar)
 fromConstant type_ = do
@@ -344,14 +348,14 @@ fromConstant type_ = do
 binary :: Type Scalar -> Inferred (Type Scalar)
 binary a = forAll $ \ r -> r :. a :. a --> r :. a
 
-relational :: Type Scalar -> Inferred (Type Scalar)
-relational a = forAll $ \ r -> r :. a :. a --> r :. Type.Bool
+relational :: Type Scalar -> Location -> Inferred (Type Scalar)
+relational a loc = forAll $ \ r -> r :. a :. a --> r :. Type.Bool loc
 
 unary :: Type Scalar -> Inferred (Type Scalar)
 unary a = forAll $ \ r -> r :. a --> r :. a
 
-string :: Type Scalar
-string = Type.Vector Type.Char
+string :: Location -> Type Scalar
+string loc = Type.Vector (Type.Char loc) loc
 
 local :: Type Scalar -> Inferred a -> Inferred a
 local type_ action = do
@@ -376,19 +380,19 @@ getClosedName name = case name of
 manifestType :: Value -> Maybe Scheme
 manifestType value = case value of
   Activation{} -> Nothing
-  Bool{} -> Just $ mono Type.Bool
-  Char{} -> Just $ mono Type.Char
+  Bool{} -> Just $ mono (Type.Bool UnknownLocation)
+  Char{} -> Just $ mono (Type.Char UnknownLocation)
   Choice{} -> Nothing
   Closed{} -> Nothing
   Closure _ (Compose [Push constant _] _)
     -> manifestConstant constant
   Closure{} -> Nothing
-  Float{} -> Just $ mono Type.Float
+  Float{} -> Just $ mono (Type.Float UnknownLocation)
   Function (Compose [Push constant _] _)
     -> manifestConstant constant
   Function{} -> Nothing
-  Handle{} -> Just $ mono Type.Handle
-  Int{} -> Just $ mono Type.Int
+  Handle{} -> Just $ mono (Type.Handle UnknownLocation)
+  Int{} -> Just $ mono (Type.Int UnknownLocation)
   Local{} -> Nothing
   Option{} -> Nothing
   Pair a b -> do
@@ -399,9 +403,9 @@ manifestType value = case value of
       (scalars1 <> scalars2)
       (effects1 <> effects2)
       (type1 :& type2)
-  Unit -> Just $ mono Type.Unit
+  Unit -> Just $ mono (Type.Unit UnknownLocation)
   Vector{} -> Nothing
-  Wrapped name _ -> Just $ mono (Type.Named name)
+  Wrapped name _ -> Just $ mono (Type.Named name UnknownLocation)
 
   where
   manifestConstant constant = do
@@ -410,35 +414,36 @@ manifestType value = case value of
       (Set.insert (row (Name 0)) rows)
       scalars
       effects
-      (Type.Var (Name 0) --> Type.Var (Name 0) :. type_)
+      (Type.Var (Name 0) UnknownLocation
+        --> Type.Var (Name 0) UnknownLocation :. type_)
 
 inferValue :: Value -> Inferred (Type Scalar)
-inferValue value = case value of
+inferValue value = getsEnv envLocation >>= \ loc -> case value of
   Activation values term -> do
     closed <- mapM inferValue values
     withClosure closed (infer term)
-  Bool{} -> return Type.Bool
-  Char{} -> return Type.Char
+  Bool{} -> return (Type.Bool loc)
+  Char{} -> return (Type.Char loc)
   Choice True a -> (:|) <$> freshVarM <*> inferValue a
   Choice False a -> (:|) <$> inferValue a <*> freshVarM
   Closed (Name index) -> getsEnv ((!! index) . envClosure)
   Closure names term -> do
     closed <- mapM getClosedName names
     withClosure closed (infer term)
-  Float{} -> return Type.Float
+  Float{} -> return (Type.Float loc)
   Function term -> infer term
-  Handle{} -> return Type.Handle
-  Int{} -> return Type.Int
+  Handle{} -> return (Type.Handle loc)
+  Int{} -> return (Type.Int loc)
   Local (Name index) -> getsEnv ((!! index) . envLocals)
   Option Nothing -> (:?) <$> freshVarM
   Option (Just a) -> (:?) <$> inferValue a
   Pair a b -> (:&) <$> inferValue a <*> inferValue b
-  Unit -> return Type.Unit
+  Unit -> return (Type.Unit loc)
   Vector values -> do
     valueTypes <- mapM inferValue values
     valueType <- unifyEach valueTypes
-    return $ Type.Vector valueType
-  Wrapped name _ -> return (Type.Named name)
+    return $ Type.Vector valueType loc
+  Wrapped name _ -> return (Type.Named name loc)
 
 unifyEach :: [Type Scalar] -> Inferred (Type Scalar)
 unifyEach (x : y : zs) = x === y >> unifyEach (y : zs)
@@ -452,4 +457,4 @@ inferCompose
   -> Inferred (Type Scalar)
 inferCompose in1 out1 in2 out2 e1 e2 = do
   out1 === in2
-  return $ Type.Function in1 out2 (e1 +: e2)
+  Type.Function in1 out2 (e1 +: e2) <$> getsEnv envLocation

@@ -27,7 +27,7 @@ data Env = Env
 type Converted a = StateT Env Inferred a
 
 fromAnno :: Anno -> Inferred Scheme
-fromAnno (Anno annoType _) = do
+fromAnno (Anno annoType loc) = do
   (type_, env) <- flip runStateT Env
     { envRows = []
     , envScalars = Map.empty
@@ -42,49 +42,50 @@ fromAnno (Anno annoType _) = do
 
   fromAnnoType' :: Anno.Type -> Converted (Type Scalar)
   fromAnnoType' type_ = case type_ of
-    Anno.Bool -> return Bool
-    Anno.Char -> return Char
+    Anno.Bool -> return (Bool loc)
+    Anno.Char -> return (Char loc)
     Anno.Choice a b -> (:|) <$> fromAnnoType' a <*> fromAnnoType' b
     Anno.Function a b e -> do
-      Var r <- lift freshVarM
+      Var r _ <- lift freshVarM
       modify $ \ env -> env { envRows = r : envRows env }
       Function
-        <$> (foldl' (:.) (Var r) <$> mapM fromAnnoType' a)
-        <*> (foldl' (:.) (Var r) <$> mapM fromAnnoType' b)
+        <$> (foldl' (:.) (Var r loc) <$> mapM fromAnnoType' a)
+        <*> (foldl' (:.) (Var r loc) <$> mapM fromAnnoType' b)
         <*> fromAnnoEffect e
-    Anno.Float -> return Float
-    Anno.Handle -> return Handle
-    Anno.Int -> return Int
-    Anno.Named name -> return (Named name)
+        <*> pure loc
+    Anno.Float -> return (Float loc)
+    Anno.Handle -> return (Handle loc)
+    Anno.Int -> return (Int loc)
+    Anno.Named name -> return (Named name loc)
     Anno.Option a -> (:?) <$> fromAnnoType' a
     Anno.Pair a b -> (:&) <$> fromAnnoType' a <*> fromAnnoType' b
-    Anno.Unit -> return Unit
+    Anno.Unit -> return (Unit loc)
     Anno.Var name -> do
       mExisting <- gets
         $ \ env -> Map.lookup name (envScalars env)
       case mExisting of
-        Just existing -> return (Var existing)
+        Just existing -> return (Var existing loc)
         Nothing -> do
-          Var var <- lift freshVarM
+          Var var _ <- lift freshVarM
           modify $ \ env -> env
             { envScalars = Map.insert name var (envScalars env) }
-          return (Var var)
-    Anno.Vector a -> Vector <$> fromAnnoType' a
+          return (Var var loc)
+    Anno.Vector a -> Vector <$> fromAnnoType' a <*> pure loc
     _ -> error "converting effect annotation to non-effect type"
 
   fromAnnoEffect :: Anno.Type -> Converted (Type Effect)
   fromAnnoEffect e = case e of
-    Anno.NoEffect -> return NoEffect
-    Anno.IOEffect -> return IOEffect
+    Anno.NoEffect -> return (NoEffect loc)
+    Anno.IOEffect -> return (IOEffect loc)
     Anno.Var name -> do
       mExisting <- gets
         $ \ env -> Map.lookup name (envEffects env)
       case mExisting of
-        Just existing -> return (Var existing)
+        Just existing -> return (Var existing loc)
         Nothing -> do
-          Var var <- lift freshVarM
+          Var var _ <- lift freshVarM
           modify $ \ env -> env
             { envEffects = Map.insert name var (envEffects env) }
-          return (Var var)
+          return (Var var loc)
     Anno.Join a b -> (+:) <$> fromAnnoEffect a <*> fromAnnoEffect b
     _ -> error "converting non-effect annotation to effect type"

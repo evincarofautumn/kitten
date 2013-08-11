@@ -108,16 +108,18 @@ freshName env
   = let current = envNext env
   in (current, env { envNext = succ current })
 
-freshVar :: Env -> (Type a, Env)
-freshVar env
+freshVar :: Location -> Env -> (Type a, Env)
+freshVar loc env
   = let (name, env') = freshName env
-  in (Var name, env')
+  in (Var name loc, env')
 
 freshNameM :: Inferred Name
 freshNameM = Inferred . lift $ state freshName
 
 freshVarM :: Inferred (Type a)
-freshVarM = Inferred . lift $ state freshVar
+freshVarM = do
+  loc <- getsEnv envLocation
+  Inferred . lift $ state (freshVar loc)
 
 getEnv :: Inferred Env
 getEnv = Inferred $ lift get

@@ -15,6 +15,7 @@ data CompileError
   | DuplicateError Location [Location] String
   | InternalError String
   | TypeError Location String
+  | ErrorDetail Location String
   deriving (Eq)
 
 instance Show CompileError where
@@ -42,6 +43,12 @@ instance Show CompileError where
       , message
       ]
 
+    ErrorDetail location message -> concat
+      [ show location
+      , ": note: "
+      , message
+      ]
+
 instance Ord CompileError where
   compare = comparing errorLocation
 
@@ -51,18 +58,18 @@ errorLocation compileError = case compileError of
   DuplicateError location _ _ -> Just location
   InternalError _ -> Nothing
   TypeError location _ -> Just location
+  ErrorDetail location _ -> Just location
 
 parseError :: ParseError -> CompileError
 parseError err = let
-    location = Location
-      { locationStart = errorPos err
-      , locationIndent = 0  -- FIXME
-      }
-    message = showErrorMessages
-      "or" "unknown" "expecting" "unexpected" "end of input"
-      $ errorMessages err
-  in
-    CompileError location message
+  location = Location
+    { locationStart = errorPos err
+    , locationIndent = 0
+    }
+  message = showErrorMessages
+    "or" "unknown" "expecting" "unexpected" "end of input"
+    $ errorMessages err
+  in CompileError location message
 
 printCompileErrors :: [CompileError] -> IO ()
 printCompileErrors errors

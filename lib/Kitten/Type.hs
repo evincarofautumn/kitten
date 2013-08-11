@@ -20,6 +20,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 
 import Kitten.Kind
+import Kitten.Location
 import Kitten.Name
 
 data Type a where
@@ -27,22 +28,22 @@ data Type a where
   (:.) :: Type Row -> Type Scalar -> Type Row
   (:?) :: Type Scalar -> Type Scalar
   (:|) :: Type Scalar -> Type Scalar -> Type Scalar
-  Bool :: Type Scalar
-  Char :: Type Scalar
-  Empty :: Type Row
-  Float :: Type Scalar
-  Function :: Type Row -> Type Row -> Type Effect -> Type Scalar
-  Handle :: Type Scalar
-  Int :: Type Scalar
-  Named :: String -> Type Scalar
+  Bool :: Location -> Type Scalar
+  Char :: Location -> Type Scalar
+  Empty :: Location -> Type Row
+  Float :: Location -> Type Scalar
+  Function :: Type Row -> Type Row -> Type Effect -> Location -> Type Scalar
+  Handle :: Location -> Type Scalar
+  Int :: Location -> Type Scalar
+  Named :: String -> Location -> Type Scalar
   Test :: Type a
-  Unit :: Type Scalar
-  Var :: Name -> Type a
-  Vector :: Type Scalar -> Type Scalar
+  Unit :: Location -> Type Scalar
+  Var :: Name -> Location -> Type a
+  Vector :: Type Scalar -> Location -> Type Scalar
 
   (:+) :: Type Effect -> Type Effect -> Type Effect
-  NoEffect :: Type Effect
-  IOEffect :: Type Effect
+  NoEffect :: Location -> Type Effect
+  IOEffect :: Location -> Type Effect
 
 newtype TypeName a = TypeName { typeName :: Name }
   deriving (Eq, Ord, Show)
@@ -63,17 +64,17 @@ infix 4 -->
 infix 4 ==>
 
 (-->) :: Type Row -> Type Row -> Type Scalar
-a --> b = Function a b NoEffect
+a --> b = Function a b (NoEffect UnknownLocation) UnknownLocation
 
 (==>) :: Type Row -> Type Row -> Type Scalar
-a ==> b = Function a b IOEffect
+a ==> b = Function a b (IOEffect UnknownLocation) UnknownLocation
 
 (+:) :: Type Effect -> Type Effect -> Type Effect
 a +: b | a == b = a
-IOEffect +: _ = IOEffect
-NoEffect +: a = a
-_ +: IOEffect = IOEffect
-a +: NoEffect = a
+IOEffect loc +: _ = IOEffect loc
+NoEffect _ +: a = a
+_ +: IOEffect loc = IOEffect loc
+a +: NoEffect _ = a
 (a :+ b) +: c = a +: (b +: c)
 a +: b = a :+ b
 
@@ -92,21 +93,22 @@ instance Eq (Type a) where
   (a :. b) == (c :. d) = (a, b) == (c, d)
   (:?) a == (:?) b = a == b
   (a :| b) == (c :| d) = (a, b) == (c, d)
-  Bool == Bool = True
-  Char == Char = True
-  Empty == Empty = True
-  Float == Float = True
-  Function a b p1 == Function c d p2 = (a, b, p1) == (c, d, p2)
-  Handle == Handle = True
-  Int == Int = True
-  Named a == Named b = a == b
-  Unit == Unit = True
-  Var a == Var b = a == b
-  Vector a == Vector b = a == b
+  Bool{} == Bool{} = True
+  Char{} == Char{} = True
+  Empty{} == Empty{} = True
+  Float{} == Float{} = True
+  Function a b p1 _ == Function c d p2 _
+    = (a, b, p1) == (c, d, p2)
+  Handle{} == Handle{} = True
+  Int{} == Int{} = True
+  Named a _ == Named b _ = a == b
+  Unit{} == Unit{} = True
+  Var a _ == Var b _ = a == b
+  Vector a _ == Vector b _ = a == b
 
   (a :+ b) == (c :+ d) = (a, b) == (c, d)
-  NoEffect == NoEffect = True
-  IOEffect == IOEffect = True
+  NoEffect{} == NoEffect{} = True
+  IOEffect{} == IOEffect{} = True
 
   _ == _ = False
 
@@ -118,29 +120,29 @@ instance Show (Type a) where
     (:?) t -> shows t . showChar '?'
     t1 :| t2 -> showParen True
       $ shows t1 . showString " | " . shows t2
-    Empty -> id
-    Bool -> showString "Bool"
-    Char -> showString "Char"
-    Float -> showString "Float"
-    Function r1 r2 e
+    Empty{} -> showString "<empty>"
+    Bool{} -> showString "Bool"
+    Char{} -> showString "Char"
+    Float{} -> showString "Float"
+    Function r1 r2 e _
       -> showParen True
       $ shows r1
       . showString " -> "
       . shows r2
       . showString " + "
       . shows e
-    Handle -> showString "Handle"
-    Int -> showString "Int"
-    Named name -> showString name
-    Test -> id
-    Var (Name index) -> showChar 't' . shows index
-    Unit -> showString "()"
-    Vector t -> showChar '[' . shows t . showChar ']'
+    Handle{} -> showString "Handle"
+    Int{} -> showString "Int"
+    Named name _ -> showString name
+    Test{} -> id
+    Var (Name index) _ -> showChar 't' . shows index
+    Unit{} -> showString "()"
+    Vector t _ -> showChar '[' . shows t . showChar ']'
 
     t1 :+ t2 -> showParen True
       $ shows t1 . showString " + " . shows t2
-    NoEffect -> showString "()"
-    IOEffect -> showString "IO"
+    NoEffect{} -> showString "()"
+    IOEffect{} -> showString "IO"
 
 mono :: Type Scalar -> Scheme
 mono = Forall Set.empty Set.empty Set.empty

@@ -40,6 +40,7 @@ library
     Kitten.Fragment,
     Kitten.Import,
     Kitten.Infer,
+    Kitten.Infer.Locations,
     Kitten.Infer.Monad,
     Kitten.Infer.Scheme,
     Kitten.Infer.Type,
