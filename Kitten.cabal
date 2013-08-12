@@ -26,6 +26,14 @@ library
   ghc-options:
     -Wall
     -Werror
+    -O2
+
+    -- http://ghc.haskell.org/trac/ghc/ticket/5550
+    -fno-spec-constr
+
+  if flag(prof)
+    ghc-options:
+      -fprof-auto
 
   hs-source-dirs:
     lib
