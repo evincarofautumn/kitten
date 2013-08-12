@@ -1,9 +1,11 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Kitten.Parse.Element
   ( Element(..)
   , partitionElements
   ) where
 
-import Data.Monoid
+import qualified Data.Vector as V
 
 import Kitten.Def
 import Kitten.Fragment
@@ -17,15 +19,31 @@ data Element
   | TermElement Term
   | TypeElement TypeDef
 
+data Partitioned = Partitioned
+  { partDefs :: [Def Value]
+  , partImports :: [Import]
+  , partTerms :: [Term]
+  , partTypeDefs :: [TypeDef]
+  }
+
 partitionElements :: [Element] -> Fragment Value Term
-partitionElements = foldr go mempty
+partitionElements
+  = fromPartitioned . foldr go (Partitioned [] [] [] [])
   where
   go element acc = case element of
     DefElement def -> acc
-      { fragmentDefs = def : fragmentDefs acc }
+      { partDefs = def : partDefs acc }
     ImportElement import_ -> acc
-      { fragmentImports = import_ : fragmentImports acc }
+      { partImports = import_ : partImports acc }
     TermElement term -> acc
-      { fragmentTerms = term : fragmentTerms acc }
+      { partTerms = term : partTerms acc }
     TypeElement type_ -> acc
-      { fragmentTypeDefs = type_ : fragmentTypeDefs acc }
+      { partTypeDefs = type_ : partTypeDefs acc }
+
+fromPartitioned :: Partitioned -> Fragment Value Term
+fromPartitioned Partitioned{..} = Fragment
+  { fragmentDefs = V.fromList partDefs
+  , fragmentImports = V.fromList partImports
+  , fragmentTerms = V.fromList partTerms
+  , fragmentTypeDefs = V.fromList partTypeDefs
+  }

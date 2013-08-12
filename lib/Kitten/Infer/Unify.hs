@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Kitten.Infer.Unify
@@ -11,6 +12,10 @@ module Kitten.Infer.Unify
 
 import Control.Monad
 import Data.Function
+import Data.Monoid
+import Data.Text (Text)
+
+import qualified Data.Text as T
 
 import Kitten.Error
 import Kitten.Infer.Locations
@@ -19,6 +24,7 @@ import Kitten.Infer.Scheme
 import Kitten.Location
 import Kitten.Type
 import Kitten.Util.FailWriter
+import Kitten.Util.Text (ToText(..))
 
 -- | Simplifies and unifies two types.
 unify
@@ -58,22 +64,22 @@ instance Unification Effect where
       (envLocation env) type1 type2
 
 unificationError
-  :: String
+  :: Text
   -> Location
   -> Type a
   -> Type a
   -> [CompileError]
 unificationError kind location type1 type2
-  = (TypeError location . unwords)
+  = (TypeError location . T.unwords)
     [ "cannot solve", kind, "type constraint"
-    , show type1
+    , toText type1
     , "="
-    , show type2
+    , toText type2
     ]
   : map errorDetail (locations type1 ++ locations type2)
   where
   errorDetail (loc, type_) = ErrorDetail loc
-    $ show type_ ++ " is from here"
+    $ toText type_ <> " is from here"
 
 instance Unification Row where
   unification type1 type2 env = case (type1, type2) of
@@ -166,8 +172,7 @@ unifyVar var1 type_ env = case type_ of
   Var var2 _ | typeName var1 == var2 -> return env
   Var{} -> return $ declare var1 type_ env
   _ | occurs (typeName var1) env type_
-    -> let loc = (envLocation env)
-    in Left
+    -> let loc = envLocation env in Left
       $ unificationError "infinite" loc
         (sub env (Var (typeName var1) UnknownLocation :: Type a))
         (sub env type_)

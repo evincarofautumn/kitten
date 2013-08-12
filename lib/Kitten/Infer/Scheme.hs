@@ -24,14 +24,15 @@ import Data.List
 import Data.Monoid
 import Data.Set (Set)
 
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import qualified Data.Set as S
 
 import Kitten.Infer.Monad
 import Kitten.Location
 import Kitten.Name
 import Kitten.Type
 import Kitten.Util.Monad
+
+import qualified Kitten.NameMap as N
 
 instantiateM :: Scheme -> Inferred (Type Scalar)
 instantiateM scheme = do
@@ -56,7 +57,7 @@ instantiate loc (Forall rows scalars effects type_) env
     => Set (TypeName a)
     -> Env
     -> State Env Env
-  renames = flip (foldrM rename) . Set.toList
+  renames = flip (foldrM rename) . S.toList
 
   rename
     :: (Declare a)
@@ -88,9 +89,9 @@ generalize action = do
       in (filter dependent r, filter dependent s, filter dependent e)
 
   return $ Forall
-    (Set.fromList rows)
-    (Set.fromList scalars)
-    (Set.fromList effects)
+    (S.fromList rows)
+    (S.fromList scalars)
+    (S.fromList effects)
     substituted
 
 freeVars
@@ -144,11 +145,11 @@ normalize loc type_ = let
   rowCount = length rows
   rowScalarCount = rowCount + length scalars
   env = emptyEnv
-    { envRows = Map.fromList
+    { envRows = N.fromList
       $ zip (map typeName rows) (map var [0..])
-    , envScalars = Map.fromList
+    , envScalars = N.fromList
       $ zip (map typeName scalars) (map var [rowCount..])
-    , envEffects = Map.fromList
+    , envEffects = N.fromList
       $ zip (map typeName effects) (map var [rowScalarCount..])
     }
   in sub env type_
@@ -220,7 +221,7 @@ dependentBetween before after name
 -- are allocated but not yet bound to a type.
 unbound :: Env -> [Name]
 unbound Env{..} = filter
-  (not . (`Map.member` envScalars))
+  (not . (`N.member` envScalars))
   [Name 0 .. pred envNext]
 
 class Simplify a where

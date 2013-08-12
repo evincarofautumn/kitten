@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Kitten.Infer.Monad
@@ -22,27 +23,35 @@ import Control.Applicative
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict
 import Data.Map (Map)
+import Data.Vector (Vector)
+import Data.Text (Text)
 
-import qualified Data.Map as Map
+import qualified Data.Map as M
+import qualified Data.Text as T
+import qualified Data.Vector as V
 
 import Kitten.Error
 import Kitten.Location
 import Kitten.Name
+import Kitten.NameMap (NameMap)
 import Kitten.Type
 import Kitten.Util.FailWriter
 import Kitten.Util.Maybe
+import Kitten.Util.Text (ToText(..))
+
+import qualified Kitten.NameMap as N
 
 data Env = Env
-  { envClosure :: [Type Scalar]
-  , envDefs :: Map Name Scheme
-  , envEffects :: Map Name (Type Effect)
+  { envClosure :: !(Vector (Type Scalar))
+  , envDefs :: !(NameMap Scheme)
+  , envEffects :: !(NameMap (Type Effect))
   , envLocals :: [Type Scalar]
-  , envLocation :: Location
-  , envNext  :: Name
-  , envRows :: Map Name (Type Row)
-  , envScalars :: Map Name (Type Scalar)
-  , envTypeDefs :: Map String Scheme
-  } deriving (Show)
+  , envLocation :: !Location
+  , envNext  :: !Name
+  , envRows :: !(NameMap (Type Row))
+  , envScalars :: !(NameMap (Type Scalar))
+  , envTypeDefs :: !(Map Text Scheme)
+  }
 
 newtype Inferred a = Inferred
   { unwrapInferred :: FailWriterT [CompileError] (State Env) a
@@ -53,27 +62,27 @@ class Declare a where
 
 instance Declare Effect where
   declare (TypeName name) type_ env = env
-    { envEffects = Map.insert name type_ (envEffects env) }
+    { envEffects = N.insert name type_ (envEffects env) }
 
 instance Declare Row where
   declare (TypeName name) type_ env = env
-    { envRows = Map.insert name type_ (envRows env) }
+    { envRows = N.insert name type_ (envRows env) }
 
 instance Declare Scalar where
   declare (TypeName name) type_ env = env
-    { envScalars = Map.insert name type_ (envScalars env) }
+    { envScalars = N.insert name type_ (envScalars env) }
 
 emptyEnv :: Env
 emptyEnv = Env
-  { envClosure = []
-  , envDefs = Map.empty
-  , envEffects = Map.empty
+  { envClosure = V.empty
+  , envDefs = N.empty
+  , envEffects = N.empty
   , envLocals = []
   , envLocation = UnknownLocation
   , envNext = Name 0
-  , envRows = Map.empty
-  , envScalars = Map.empty
-  , envTypeDefs = Map.empty
+  , envRows = N.empty
+  , envScalars = N.empty
+  , envTypeDefs = M.empty
   }
 
 class Retrieve a where
@@ -81,26 +90,26 @@ class Retrieve a where
 
 instance Retrieve Effect where
   retrieve Env{..} (TypeName name)
-    = flip maybeToEither (Map.lookup name envEffects)
-    $ TypeError envLocation $ unwords
+    = flip maybeToEither (N.lookup name envEffects)
+    $ TypeError envLocation $ T.unwords
     [ "nonexistent effect variable:"
-    , show name
+    , toText name
     ]
 
 instance Retrieve Row where
   retrieve Env{..} (TypeName name)
-    = flip maybeToEither (Map.lookup name envRows)
-    $ TypeError envLocation $ unwords
+    = flip maybeToEither (N.lookup name envRows)
+    $ TypeError envLocation $ T.unwords
     [ "nonexistent row type variable:"
-    , show name
+    , toText name
     ]
 
 instance Retrieve Scalar where
   retrieve Env{..} (TypeName name)
-    = flip maybeToEither (Map.lookup name envScalars)
-    $ TypeError envLocation $ unwords
+    = flip maybeToEither (N.lookup name envScalars)
+    $ TypeError envLocation $ T.unwords
     [ "nonexistent scalar type variable:"
-    , show name
+    , toText name
     ]
 
 freshName :: Env -> (Name, Env)

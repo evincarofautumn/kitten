@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PostfixOperators #-}
 
 module Kitten.Type
@@ -15,38 +16,46 @@ module Kitten.Type
   , scalar
   ) where
 
+import Data.Monoid
 import Data.Set (Set)
+import Data.Text (Text)
 
-import qualified Data.Set as Set
+import qualified Data.Set as S
 
 import Kitten.Kind
 import Kitten.Location
 import Kitten.Name
+import Kitten.Util.Text (ToText(..), showText)
+
+import qualified Kitten.Util.Text as T
 
 data Type a where
-  (:&) :: Type Scalar -> Type Scalar -> Type Scalar
-  (:.) :: Type Row -> Type Scalar -> Type Row
-  (:?) :: Type Scalar -> Type Scalar
-  (:|) :: Type Scalar -> Type Scalar -> Type Scalar
-  Bool :: Location -> Type Scalar
-  Char :: Location -> Type Scalar
-  Empty :: Location -> Type Row
-  Float :: Location -> Type Scalar
-  Function :: Type Row -> Type Row -> Type Effect -> Location -> Type Scalar
-  Handle :: Location -> Type Scalar
-  Int :: Location -> Type Scalar
-  Named :: String -> Location -> Type Scalar
+  (:&) :: !(Type Scalar) -> !(Type Scalar) -> Type Scalar
+  (:.) :: !(Type Row) -> !(Type Scalar) -> Type Row
+  (:?) :: !(Type Scalar) -> Type Scalar
+  (:|) :: !(Type Scalar) -> !(Type Scalar) -> Type Scalar
+  Bool :: !Location -> Type Scalar
+  Char :: !Location -> Type Scalar
+  Empty :: !Location -> Type Row
+  Float :: !Location -> Type Scalar
+  Function :: !(Type Row) -> !(Type Row) -> !(Type Effect) -> !Location -> Type Scalar
+  Handle :: !Location -> Type Scalar
+  Int :: !Location -> Type Scalar
+  Named :: !Text -> !Location -> Type Scalar
   Test :: Type a
-  Unit :: Location -> Type Scalar
-  Var :: Name -> Location -> Type a
-  Vector :: Type Scalar -> Location -> Type Scalar
+  Unit :: !Location -> Type Scalar
+  Var :: !Name -> !Location -> Type a
+  Vector :: !(Type Scalar) -> !Location -> Type Scalar
 
-  (:+) :: Type Effect -> Type Effect -> Type Effect
-  NoEffect :: Location -> Type Effect
-  IOEffect :: Location -> Type Effect
+  (:+) :: !(Type Effect) -> !(Type Effect) -> Type Effect
+  NoEffect :: !Location -> Type Effect
+  IOEffect :: !Location -> Type Effect
 
 newtype TypeName a = TypeName { typeName :: Name }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord)
+
+instance ToText (TypeName a) where
+  toText = showText . typeName
 
 effect :: Name -> TypeName Effect
 effect = TypeName
@@ -83,7 +92,19 @@ data Scheme = Forall
   (Set (TypeName Scalar))
   (Set (TypeName Effect))
   (Type Scalar)
-  deriving (Eq, Show)
+  deriving (Eq)
+
+instance ToText Scheme where
+  toText (Forall rows scalars effects type_) = T.unwords
+    [ "forall"
+    , wordSetText rows
+    , wordSetText scalars
+    , wordSetText effects
+    , toText type_
+    ]
+    where
+    wordSetText :: Set (TypeName a) -> Text
+    wordSetText = T.unwords . map toText . S.toList
 
 instance Eq (Type a) where
   Test == _ = True
@@ -113,36 +134,30 @@ instance Eq (Type a) where
   _ == _ = False
 
 instance Show (Type a) where
-  showsPrec _ type_ = case type_ of
-    t1 :& t2 -> showParen True
-      $ shows t1 . showString " & " . shows t2
-    t1 :. t2 -> shows t1 . showChar ' ' . shows t2
-    (:?) t -> shows t . showChar '?'
-    t1 :| t2 -> showParen True
-      $ shows t1 . showString " | " . shows t2
-    Empty{} -> showString "<empty>"
-    Bool{} -> showString "Bool"
-    Char{} -> showString "Char"
-    Float{} -> showString "Float"
-    Function r1 r2 e _
-      -> showParen True
-      $ shows r1
-      . showString " -> "
-      . shows r2
-      . showString " + "
-      . shows e
-    Handle{} -> showString "Handle"
-    Int{} -> showString "Int"
-    Named name _ -> showString name
-    Test{} -> id
-    Var (Name index) _ -> showChar 't' . shows index
-    Unit{} -> showString "()"
-    Vector t _ -> showChar '[' . shows t . showChar ']'
+  show = T.unpack . toText
 
-    t1 :+ t2 -> showParen True
-      $ shows t1 . showString " + " . shows t2
-    NoEffect{} -> showString "()"
-    IOEffect{} -> showString "IO"
+instance ToText (Type a) where
+  toText type_ = case type_ of
+    t1 :& t2 -> T.concat ["(", toText t1, " & ", toText t2, ")"]
+    t1 :. t2 -> T.unwords [toText t1, toText t2]
+    (:?) t -> toText t <> "?"
+    t1 :| t2 -> T.concat ["(", toText t1, " | ", toText t2, ")"]
+    Empty{} -> "<empty>"
+    Bool{} -> "Bool"
+    Char{} -> "Char"
+    Float{} -> "Float"
+    Function r1 r2 e _ -> T.unwords [toText r1, "->", toText r2, "+", toText e]
+    Handle{} -> "Handle"
+    Int{} -> "Int"
+    Named name _ -> name
+    Test{} -> ""
+    Var (Name index) _ -> "t" <> showText index
+    Unit{} -> "()"
+    Vector t _ -> T.concat ["[", toText t, "]"]
+
+    t1 :+ t2 -> T.concat ["(", toText t1, " + ", toText t2, ")"]
+    NoEffect{} -> "()"
+    IOEffect{} -> "IO"
 
 mono :: Type Scalar -> Scheme
-mono = Forall Set.empty Set.empty Set.empty
+mono = Forall S.empty S.empty S.empty

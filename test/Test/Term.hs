@@ -1,11 +1,14 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Test.Term where
 
 import Control.Monad
 import Data.Monoid
 import Test.HUnit.Lang (assertFailure)
 import Test.Hspec
+import Data.Text (Text)
 
-import Test.Util
+import qualified Data.Vector as V
 
 import Kitten.Def
 import Kitten.Error
@@ -15,6 +18,7 @@ import Kitten.Parse
 import Kitten.Term
 import Kitten.Tokenize
 import Kitten.Util.Either
+import Test.Util
 
 spec :: Spec
 spec = do
@@ -23,9 +27,9 @@ spec = do
 
   describe "terms" $ do
     testTerm "1 2 3"
-      mempty { fragmentTerms = [pushi 1, pushi 2, pushi 3] }
+      mempty { fragmentTerms = V.fromList [pushi 1, pushi 2, pushi 3] }
     testTerm "dup swap drop vector cat function compose"
-      $ mempty { fragmentTerms =
+      $ mempty { fragmentTerms = V.fromList
         [ word "dup"
         , word "swap"
         , word "drop"
@@ -39,24 +43,24 @@ spec = do
 
     testTerm
       "{}"
-      $ mempty { fragmentTerms =
+      $ mempty { fragmentTerms = V.fromList
         [push $ function []] }
 
     testTerm
       "{3}"
-      $ mempty { fragmentTerms =
+      $ mempty { fragmentTerms = V.fromList
         [push $ function [pushi 3]] }
 
     testTerm
       "{ 1 + }"
-      $ mempty { fragmentTerms =
+      $ mempty { fragmentTerms = V.fromList
         [push $ function [pushi 1, word "+"]] }
 
   describe "lambda" $ do
 
     testTerm
       "->x x x *"
-      $ mempty { fragmentTerms =
+      $ mempty { fragmentTerms = V.fromList
         [ lambda "x"
           [ word "x"
           , word "x"
@@ -64,7 +68,7 @@ spec = do
 
     testTerm
       "->x ->y x y *"
-      $ mempty { fragmentTerms =
+      $ mempty { fragmentTerms = V.fromList
         [ lambda "x"
           [ lambda "y"
             [ word "x"
@@ -73,7 +77,7 @@ spec = do
 
     testTerm
       "{ ->x ->y x y * }"
-      $ mempty { fragmentTerms =
+      $ mempty { fragmentTerms = V.fromList
         [ push $ function
           [ lambda "x"
             [ lambda "y"
@@ -83,7 +87,7 @@ spec = do
 
     testTerm
       ": ->x ->y x y *"
-      $ mempty { fragmentTerms =
+      $ mempty { fragmentTerms = V.fromList
         [ push $ function
           [ lambda "x"
             [ lambda "y"
@@ -97,7 +101,7 @@ spec = do
       ": sameLine\n\
       \  nextLine\n\
       \  anotherLine\n"
-      $ mempty { fragmentTerms =
+      $ mempty { fragmentTerms = V.fromList
         [ push $ function
           [ word "sameLine"
           , word "nextLine"
@@ -107,7 +111,7 @@ spec = do
       "{ : sameLine\n\
       \    nextLine\n\
       \    anotherLine }\n"
-      $ mempty { fragmentTerms =
+      $ mempty { fragmentTerms = V.fromList
         [ push $ function
           [ push $ function
             [ word "sameLine"
@@ -115,7 +119,7 @@ spec = do
             , word "anotherLine"]]] }
 
     testTerm "{ one : two three }"
-      $ mempty { fragmentTerms =
+      $ mempty { fragmentTerms = V.fromList
         [ push $ function
           [ word "one"
           , push $ function
@@ -123,7 +127,7 @@ spec = do
             , word "three"]]] }
 
     testTerm ": {one} {two}"
-      $ mempty { fragmentTerms =
+      $ mempty { fragmentTerms = V.fromList
         [ push $ function
           [ push $ function [word "one"]
           , push $ function [word "two"]]] }
@@ -141,21 +145,21 @@ spec = do
     testTerm
       ": :\n\
       \  3\n"
-      $ mempty { fragmentTerms =
+      $ mempty { fragmentTerms = V.fromList
         [push $ function [push $ function [pushi 3]]] }
 
   describe "definition" $ do
 
     testTerm
       "def pi 3"
-      $ mempty { fragmentDefs =
+      $ mempty { fragmentDefs = V.fromList
         [def "pi" $ function [pushi 3]] }
 
     testTerm
       "def inc {\n\
       \  1 +\n\
       \}\n"
-      $ mempty { fragmentDefs =
+      $ mempty { fragmentDefs = V.fromList
         [def "inc" $ function [pushi 1, word "+"]] }
 
     testTerm
@@ -165,7 +169,7 @@ spec = do
       \def dec:\n\
       \  1 -\n\
       \\n"
-      $ mempty { fragmentDefs =
+      $ mempty { fragmentDefs = V.fromList
         [ def "inc" $ function [pushi 1, word "+"]
         , def "dec" $ function [pushi 1, word "-"]] }
 
@@ -189,7 +193,7 @@ parsed
   = mapLeft parseError . tokenize "test"
   >=> mapLeft parseError . parse "test"
 
-def :: String -> Value -> Def Value
+def :: Text -> Value -> Def Value
 def name value = Def
   { defName = name
   , defAnno = Nothing
@@ -198,7 +202,7 @@ def name value = Def
   }
 
 function :: [Term] -> Value
-function terms = Function terms TestLocation
+function terms = Function (V.fromList terms) TestLocation
 
 int :: Int -> Value
 int value = Int value TestLocation
@@ -206,12 +210,12 @@ int value = Int value TestLocation
 pushi :: Int -> Term
 pushi value = push $ int value
 
-lambda :: String -> [Term] -> Term
+lambda :: Text -> [Term] -> Term
 lambda name terms
-  = Lambda name (Compose terms TestLocation) TestLocation
+  = Lambda name (Compose (V.fromList terms) TestLocation) TestLocation
 
 push :: Value -> Term
 push value = Push value TestLocation
 
-word :: String -> Term
+word :: Text -> Term
 word value = Call value TestLocation

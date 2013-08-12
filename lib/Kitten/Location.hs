@@ -1,12 +1,15 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Kitten.Location
   ( Location(..)
   ) where
 
-import Data.List
-
 import Text.Parsec.Pos
+
+import qualified Data.Text as T
+
+import Kitten.Util.Text (ToText(..), showText)
 
 data Location
   = Location
@@ -41,11 +44,14 @@ instance Ord Location where
   GeneratedLocation `compare` GeneratedLocation = EQ
 
 instance Show Location where
-  show Location{..} = intercalate ":"
-    [ sourceName locationStart
-    , show $ sourceLine locationStart
-    , show $ sourceColumn locationStart
+  show = T.unpack . toText
+
+instance ToText Location where
+  toText Location{..} = T.intercalate ":"
+    [ T.pack $ sourceName locationStart
+    , showText $ sourceLine locationStart
+    , showText $ sourceColumn locationStart
     ]
-  show UnknownLocation = "(unknown)"
-  show GeneratedLocation = "(generated)"
-  show TestLocation = ""
+  toText UnknownLocation = "(unknown)"
+  toText GeneratedLocation = "(generated)"
+  toText TestLocation = ""

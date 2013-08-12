@@ -12,6 +12,10 @@ homepage: http://kittenlang.org/
 bug-reports: https://github.com/evincarofautumn/kitten/issues
 synopsis: A minimalistic concatenative programming language.
 
+flag prof
+  description: Enable profiling
+  default: False
+
 library
 
   build-depends:
@@ -21,7 +25,9 @@ library
     either == 3.4.*,
     filepath == 1.3.*,
     parsec == 3.1.*,
-    transformers == 0.3.*
+    text == 0.11.*,
+    transformers == 0.3.*,
+    vector == 0.10.*
 
   ghc-options:
     -Wall
@@ -58,6 +64,7 @@ library
     Kitten.Kind,
     Kitten.Location,
     Kitten.Name,
+    Kitten.NameMap,
     Kitten.Parse,
     Kitten.Parse.Element,
     Kitten.Parse.Layout,
@@ -83,6 +90,7 @@ library
     Kitten.Util.Monad,
     Kitten.Util.Parsec,
     Kitten.Util.Show,
+    Kitten.Util.Text,
     Kitten.Util.Tuple,
     Kitten.Yarn
 
@@ -97,6 +105,9 @@ executable kitten
   ghc-options:
     -Wall
 
+  if flag(prof)
+    ghc-options: -prof -auto-all
+
   build-depends:
     Kitten,
     base,
@@ -104,7 +115,9 @@ executable kitten
     directory,
     filepath,
     haskeline == 0.7.*,
-    transformers
+    text,
+    transformers,
+    vector
 
 test-suite test
 
@@ -124,7 +137,9 @@ test-suite test
     hspec == 1.4.*,
     HUnit,
     QuickCheck == 2.6.*,
-    transformers
+    text,
+    transformers,
+    vector
 
   ghc-options:
     -Wall

@@ -8,7 +8,11 @@ import Control.Applicative hiding (some)
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
-import Data.List
+import Data.Monoid
+import Data.Vector (Vector)
+
+import qualified Data.Traversable as T
+import qualified Data.Vector as V
 
 import Kitten.ClosedName
 import Kitten.Def
@@ -19,8 +23,8 @@ import Kitten.Util.List
 
 scope :: Fragment Value Resolved -> Fragment Value Resolved
 scope fragment@Fragment{..} = fragment
-  { fragmentDefs = map scopeDef fragmentDefs
-  , fragmentTerms = map (scopeTerm [0]) fragmentTerms
+  { fragmentDefs = scopeDef <$> fragmentDefs
+  , fragmentTerms = scopeTerm [0] <$> fragmentTerms
   }
 
 scopeDef :: Def Value -> Def Value
@@ -33,9 +37,9 @@ scopeTerm stack typed = case typed of
   Call{} -> typed
   ChoiceTerm left right loc
     -> ChoiceTerm (recur left) (recur right) loc
-  Compose terms loc -> Compose (map recur terms) loc
+  Compose terms loc -> Compose (recur <$> terms) loc
   From{} -> typed
-  Group terms loc -> Group (map recur terms) loc
+  Group terms loc -> Group (recur <$> terms) loc
   If true false loc -> If (recur true) (recur false) loc
   OptionTerm some none loc
     -> OptionTerm (recur some) (recur none) loc
@@ -45,7 +49,7 @@ scopeTerm stack typed = case typed of
     (scopeTerm (mapHead succ stack) term)
     loc
   To{} -> typed
-  VectorTerm items loc -> VectorTerm (map recur items) loc
+  VectorTerm items loc -> VectorTerm (recur <$> items) loc
 
   where
   recur :: Resolved -> Resolved
@@ -62,11 +66,11 @@ scopeValue stack value = case value of
   Float{} -> value
 
   Function funTerm
-    -> Closure (map ClosedName capturedNames) capturedTerm
+    -> Closure (ClosedName <$> capturedNames) capturedTerm
     where
 
     capturedTerm :: Resolved
-    capturedNames :: [Name]
+    capturedNames :: Vector Name
     (capturedTerm, capturedNames)
       = runCapture stack'
       $ captureTerm scopedTerm
@@ -83,7 +87,7 @@ scopeValue stack value = case value of
   Option{} -> value
   Pair a b -> Pair (scopeValue stack a) (scopeValue stack b)
   Unit -> Unit
-  Vector values -> Vector (map (scopeValue stack) values)
+  Vector values -> Vector (scopeValue stack <$> values)
   Wrapped name inner -> Wrapped name (scopeValue stack inner)
 
 data Env = Env
@@ -91,21 +95,21 @@ data Env = Env
   , envDepth :: Int
   }
 
-type Capture a = ReaderT Env (State [Name]) a
+type Capture a = ReaderT Env (State (Vector Name)) a
 
-runCapture :: [Int] -> Capture a -> (a, [Name])
+runCapture :: [Int] -> Capture a -> (a, Vector Name)
 runCapture stack
-  = flip runState []
+  = flip runState V.empty
   . flip runReaderT Env { envStack = stack, envDepth = 0 }
 
 addName :: Name -> Capture Name
 addName name = do
   names <- lift get
-  case elemIndex name names of
+  case V.elemIndex name names of
     Just existing -> return $ Name existing
     Nothing -> do
-      lift $ put (names ++ [name])
-      return . Name $ length names
+      lift $ put (names <> V.singleton name)
+      return . Name $ V.length names
 
 captureTerm :: Resolved -> Capture Resolved
 captureTerm typed = case typed of
@@ -118,13 +122,13 @@ captureTerm typed = case typed of
     <*> pure loc
 
   Compose terms loc -> Compose
-    <$> mapM captureTerm terms
+    <$> T.mapM captureTerm terms
     <*> pure loc
 
   From{} -> return typed
 
   Group terms loc -> Group
-    <$> mapM captureTerm terms
+    <$> T.mapM captureTerm terms
     <*> pure loc
 
   If true false loc -> If
@@ -156,7 +160,7 @@ captureTerm typed = case typed of
   To{} -> return typed
 
   VectorTerm items loc -> VectorTerm
-    <$> mapM captureTerm items
+    <$> T.mapM captureTerm items
     <*> pure loc
 
 closeLocal :: Name -> Capture (Maybe Name)
@@ -177,7 +181,7 @@ captureValue value = case value of
   Choice{} -> return value
   Closed{} -> return value
   Closure names term -> Closure
-    <$> mapM close names
+    <$> T.mapM close names
     <*> pure term
     where
     close :: ClosedName -> Capture ClosedName
@@ -204,5 +208,5 @@ captureValue value = case value of
   Option{} -> return value
   Pair a b -> Pair <$> captureValue a <*> captureValue b
   Unit{} -> return value
-  Vector values -> Vector <$> mapM captureValue values
+  Vector values -> Vector <$> T.mapM captureValue values
   Wrapped name inner -> Wrapped name <$> captureValue inner

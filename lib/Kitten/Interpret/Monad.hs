@@ -17,6 +17,7 @@ module Kitten.Interpret.Monad
 
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
+import Data.Vector (Vector, (!))
 import System.Exit
 import System.IO
 
@@ -32,15 +33,15 @@ type InterpretM a = StateT Env IO a
 data Env = Env
   { envData :: [Value]
   , envLocals :: [Value]
-  , envDefs :: [Def Value]
-  , envClosure :: [Value]
+  , envDefs :: !(Vector (Def Value))
+  , envClosure :: !(Vector Value)
   , envLocations :: [Location]
   }
 
 getClosed :: Name -> InterpretM Value
 getClosed (Name index) = do
   closure <- gets envClosure
-  return $ closure !! index
+  return $ closure ! index
 
 getLocal :: Name -> InterpretM Value
 getLocal (Name index) = do
@@ -86,7 +87,7 @@ pushLocal :: Value -> Interpret
 pushLocal value = modify $ \ env@Env{..}
   -> env { envLocals = value : envLocals }
 
-withClosure :: [Value] -> InterpretM a -> InterpretM a
+withClosure :: Vector Value -> InterpretM a -> InterpretM a
 withClosure values action = do
   closure <- gets envClosure
   modify $ \ env -> env { envClosure = values }

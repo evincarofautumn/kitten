@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Kitten.Parse.Type
   ( signature
   , typeDefType
@@ -9,6 +11,7 @@ import Kitten.Anno (Anno(..), Type)
 import Kitten.Parse.Monad
 import Kitten.Parsec
 import Kitten.Parse.Primitive
+import Kitten.Util.Parsec
 
 import qualified Kitten.Anno as Anno
 import qualified Kitten.Token as Token
@@ -24,8 +27,8 @@ type_ = try functionType <|> baseType
 
 functionType :: Parser Type
 functionType = do
-  left <- many baseType
-  right <- match Token.Arrow *> many baseType
+  left <- manyV baseType
+  right <- match Token.Arrow *> manyV baseType
   effect <- choice
     [ match (Token.Operator "+") *> effectType
     , pure Anno.NoEffect

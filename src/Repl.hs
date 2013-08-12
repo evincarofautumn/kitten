@@ -4,13 +4,17 @@ module Repl
   ( runRepl
   ) where
 
+import Control.Applicative
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State.Strict
-import Data.List
 import Data.Maybe
 import Data.Monoid
+import Data.Vector (Vector)
 import System.Console.Haskeline
+
+import qualified Data.Text as T
+import qualified Data.Vector as V
 
 import Kitten.Compile (compile)
 import Kitten.Def
@@ -25,11 +29,11 @@ import qualified Kitten.Compile as Compile
 
 data Repl = Repl
   { replStack :: [Value]
-  , replDefs :: [Def Value]
-  , replTypeDefs :: [TypeDef]
+  , replDefs :: !(Vector (Def Value))
+  , replTypeDefs :: !(Vector TypeDef)
   }
 
-type ReplReader = ReaderT [Def Value] IO
+type ReplReader = ReaderT (Vector (Def Value)) IO
 type ReplState = StateT Repl ReplReader
 type ReplInput = InputT ReplState
 
@@ -40,15 +44,15 @@ runRepl :: Fragment Value Resolved -> IO ()
 runRepl prelude = do
   welcome
   flip runReaderT preludeDefs
-    . flip evalStateT empty
+    . flip evalStateT emptyRepl
     $ runInputT settings repl
 
   where
-  empty :: Repl
-  empty = Repl
+  emptyRepl :: Repl
+  emptyRepl = Repl
     { replStack = []
     , replDefs = preludeDefs
-    , replTypeDefs = []
+    , replTypeDefs = V.empty
     }
 
   welcome :: IO ()
@@ -74,7 +78,7 @@ repl = do
       | line `elem` [":reset"] -> reset
       | otherwise -> eval line
 
-askPreludeDefs :: ReplInput [Def Value]
+askPreludeDefs :: ReplInput (Vector (Def Value))
 askPreludeDefs = lift (lift ask)
 
 matched :: String -> Bool
@@ -119,8 +123,8 @@ eval line = do
         } compileResult
       lift . modify $ \ s -> s
         { replStack = stack'
-        , replDefs = replDefs ++ fragmentDefs compileResult
-        , replTypeDefs = replTypeDefs ++ fragmentTypeDefs compileResult
+        , replDefs = replDefs <> fragmentDefs compileResult
+        , replTypeDefs = replTypeDefs <> fragmentTypeDefs compileResult
         }
   repl
 
@@ -181,7 +185,7 @@ reset = do
   lift $ put Repl
     { replStack = []
     , replDefs = preludeDefs
-    , replTypeDefs = []
+    , replTypeDefs = V.empty
     }
   repl
 
@@ -190,17 +194,16 @@ completer = completeWord Nothing "\t \"{}[]()\\:" completePrefix
 
 completePrefix
   :: String
-  -> StateT Repl (ReaderT [Def Value] IO) [Completion]
+  -> StateT Repl (ReaderT (Vector (Def Value)) IO) [Completion]
 completePrefix prefix = do
   defs <- gets replDefs
   let
-    names = map defName defs ++ Builtin.names
-    matching = filter (prefix `isPrefixOf`) names
-    finished = case matching of
-      [] -> True
-      [_] -> True
-      _ -> False
-    completions = map (toCompletion finished) matching
+    prefix' = T.pack prefix
+    matching
+      = V.filter (prefix' `T.isPrefixOf`) (defName <$> defs)
+      <> V.filter (prefix' `T.isPrefixOf`) Builtin.names
+    finished = V.length matching <= 1
+    completions = map (toCompletion finished . T.unpack) (V.toList matching)
   return completions
 
 toCompletion :: Bool -> String -> Completion

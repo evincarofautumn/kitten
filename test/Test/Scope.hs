@@ -4,7 +4,7 @@ import Control.Monad
 import Data.Monoid
 import Test.Hspec
 
-import Test.Util
+import qualified Data.Vector as V
 
 import Kitten.ClosedName
 import Kitten.Fragment
@@ -12,6 +12,7 @@ import Kitten.Location
 import Kitten.Name
 import Kitten.Resolved
 import Kitten.Scope
+import Test.Util
 
 import qualified Kitten.Builtin as Builtin
 
@@ -19,18 +20,18 @@ spec :: Spec
 spec = do
   describe "no change" $ do
     testScope
-      mempty { fragmentTerms = [function [scoped [push $ local 0]]] }
-      mempty { fragmentTerms = [closure [] [scoped [push $ local 0]]] }
+      mempty { fragmentTerms = V.fromList [function [scoped [push $ local 0]]] }
+      mempty { fragmentTerms = V.fromList [closure [] [scoped [push $ local 0]]] }
 
   describe "non-nested closure" $ do
     testScope
-      mempty { fragmentTerms = [scoped [function [push $ local 0]]] }
-      mempty { fragmentTerms = [scoped [closure [closedName 0] [push $ closed 0]]] }
+      mempty { fragmentTerms = V.fromList [scoped [function [push $ local 0]]] }
+      mempty { fragmentTerms = V.fromList [scoped [closure [closedName 0] [push $ closed 0]]] }
 
   describe "nested closure" $ do
     testScope
-      mempty { fragmentTerms = [scoped [function [scoped [function [push $ local 1, push $ local 0, biAdd]]]]] }
-      mempty { fragmentTerms =
+      mempty { fragmentTerms = V.fromList [scoped [function [scoped [function [push $ local 1, push $ local 0, biAdd]]]]] }
+      mempty { fragmentTerms = V.fromList
         [scoped
           [ closure [closedName 0]
             [ scoped
@@ -41,11 +42,10 @@ spec = do
 
 testScope
   :: Fragment Value Resolved -> Fragment Value Resolved -> Spec
-testScope source expected = let
-    actual = scope source
-  in
-    it (show source) . unless (actual == expected)
-      $ expectedButGot (show expected) (show actual)
+testScope source expected
+  = let actual = scope source
+  in it (show source) . unless (actual == expected)
+    $ expectedButGot (show expected) (show actual)
 
 biAdd :: Resolved
 biAdd = Builtin Builtin.AddInt TestLocation
@@ -57,10 +57,10 @@ closedName :: Int -> ClosedName
 closedName = ClosedName . Name
 
 closure :: [ClosedName] -> [Resolved] -> Resolved
-closure names terms = push $ Closure names (compose terms)
+closure names terms = push $ Closure (V.fromList names) (compose terms)
 
 compose :: [Resolved] -> Resolved
-compose terms = Compose terms TestLocation
+compose terms = Compose (V.fromList terms) TestLocation
 
 function :: [Resolved] -> Resolved
 function terms = push $ Function (compose terms)

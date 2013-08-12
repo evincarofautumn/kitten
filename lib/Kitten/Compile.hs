@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Kitten.Compile
@@ -13,11 +14,15 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.Either
 import Data.List
 import Data.Monoid
+import Data.Text (Text)
 import System.Directory
 import System.FilePath
 import System.IO
 import System.IO.Error
 import Text.Parsec.Error
+
+import qualified Data.Text as T
+import qualified Data.Vector as V
 
 import Kitten.Error
 import Kitten.Fragment
@@ -74,7 +79,7 @@ compile Config{..} = liftM (mapLeft sort) . runEitherT $ do
 
 locateImport
   :: [FilePath]
-  -> String
+  -> Text
   -> IO [FilePath]
 locateImport libraryDirectories importName = do
   currentDirectory <- getCurrentDirectory
@@ -93,7 +98,7 @@ locateImport libraryDirectories importName = do
   where
   canonicalImport :: FilePath -> IO FilePath
   canonicalImport path = catchIOError
-    (canonicalizePath $ path </> importName <.> "ktn")
+    (canonicalizePath $ path </> T.unpack importName <.> "ktn")
     $ \ e -> if isDoesNotExistError e
       then return "" else ioError e
 
@@ -105,7 +110,7 @@ substituteImports
 substituteImports libraryDirectories fragment inScope
   = runEitherT $ do
 
-    let inScope' = fragmentImports fragment \\ inScope
+    let inScope' = V.toList (fragmentImports fragment) \\ inScope
 
     imports <- lift . forM inScope'
       $ \ import_ -> do
@@ -121,8 +126,16 @@ substituteImports libraryDirectories fragment inScope
 
       -- FIXME fail with "hoistEither . Left . CompileError" or something
       -- FIXME better error messages
-      [] -> fail $ concat ["unable to find import '", importName import_, "'"]
-      _ -> fail $ concat ["ambiguous import '", importName import_, "'"]
+      [] -> (fail . T.unpack . T.concat)
+        [ "unable to find import '"
+        , importName import_
+        , "'"
+        ]
+      _ -> (fail . T.unpack . T.concat)
+        [ "ambiguous import '"
+        , importName import_
+        , "'"
+        ]
 
     return $ foldr (<>) fragment
       $ for imported

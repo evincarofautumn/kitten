@@ -1,7 +1,9 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PostfixOperators #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Kitten.Infer
   ( infer
@@ -13,10 +15,13 @@ import Control.Applicative hiding (some)
 import Control.Monad
 import Data.Function
 import Data.Monoid
-import Data.Map ((!))
+import Data.Vector (Vector)
 
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import qualified Data.Foldable as F
+import qualified Data.Map as M
+import qualified Data.Set as S
+import qualified Data.Text as T
+import qualified Data.Vector as V
 
 import Kitten.ClosedName
 import Kitten.Def
@@ -33,9 +38,10 @@ import Kitten.Type (Type((:&), (:.), (:?), (:|)))
 import Kitten.Type hiding (Type(..))
 import Kitten.TypeDef
 import Kitten.Util.FailWriter
-import Kitten.Util.Function
+import Kitten.Util.Text (toText)
 
 import qualified Kitten.Builtin as Builtin
+import qualified Kitten.NameMap as N
 import qualified Kitten.Resolved as Resolved
 import qualified Kitten.Type as Type
 
@@ -48,9 +54,8 @@ typeFragment stack prelude fragment
   = fst . runInference emptyEnv
   $ inferFragment prelude fragment
     { fragmentTerms
-      = for (reverse stack)
-        (`Push` UnknownLocation)
-      ++ fragmentTerms fragment
+      = V.map (`Push` UnknownLocation) (V.reverse (V.fromList stack))
+      <> fragmentTerms fragment
     }
 
 inferFragment
@@ -59,25 +64,25 @@ inferFragment
   -> Inferred ()
 inferFragment prelude fragment = do
 
-  forM_ allTypeDefs $ \ typeDef -> do
+  F.forM_ allTypeDefs $ \ typeDef -> do
     let name = typeDefName typeDef
     scheme <- fromAnno (typeDefAnno typeDef)
-    mExisting <- getsEnv (Map.lookup name . envTypeDefs)
+    mExisting <- getsEnv (M.lookup name . envTypeDefs)
     case mExisting of
       Nothing -> modifyEnv $ \ env -> env
-        { envTypeDefs = Map.insert name scheme (envTypeDefs env) }
+        { envTypeDefs = M.insert name scheme (envTypeDefs env) }
       Just existing
         -> Inferred . throwMany . (:[])
-        . CompileError (typeDefLocation typeDef) $ unwords
+        . CompileError (typeDefLocation typeDef) $ T.unwords
           [ "multiple definitions of type"
           , name
           , "as both"
-          , show existing
+          , toText existing
           , "and"
-          , show scheme
+          , toText scheme
           ]
 
-  forM_ (zip [0..] allDefs) $ \ (index, def)
+  forM_ (zip [0..] (V.toList allDefs)) $ \ (index, def)
     -> case manifestType (defTerm def) of
       Just scheme -> saveDef index scheme
       Nothing -> case defAnno def of
@@ -87,10 +92,10 @@ inferFragment prelude fragment = do
           saveDef index . mono
             =<< forAll (\ r s e -> Type.Function r s e loc)
 
-  forM_ (zip [(0 :: Int)..] allDefs) $ \ (index, def)
+  forM_ (zip [(0 :: Int)..] (V.toList allDefs)) $ \ (index, def)
     -> withLocation (defLocation def) $ do
       scheme <- generalize (inferValue (defTerm def))
-      declaredScheme <- getsEnv ((! Name index) . envDefs)
+      declaredScheme <- getsEnv ((N.! Name index) . envDefs)
       declared <- instantiateM declaredScheme
       inferred <- instantiateM scheme
       declared === inferred
@@ -102,12 +107,12 @@ inferFragment prelude fragment = do
 
   where
 
-  allTypeDefs = ((++) `on` fragmentTypeDefs) prelude fragment
-  allDefs = ((++) `on` fragmentDefs) prelude fragment
+  allTypeDefs = ((<>) `on` fragmentTypeDefs) prelude fragment
+  allDefs = ((<>) `on` fragmentDefs) prelude fragment
 
   saveDef :: Int -> Scheme -> Inferred ()
   saveDef index scheme = modifyEnv $ \ env -> env
-    { envDefs = Map.insert (Name index) scheme (envDefs env) }
+    { envDefs = N.insert (Name index) scheme (envDefs env) }
 
 class ForAll a b where
   forAll :: a -> Inferred (Type b)
@@ -270,7 +275,7 @@ infer resolved = case resolved of
     Builtin.XorInt -> binary (Type.Int loc)
 
   Call name loc -> withLocation loc
-    $ instantiateM =<< getsEnv ((! name) . envDefs)
+    $ instantiateM =<< getsEnv ((N.! name) . envDefs)
 
   ChoiceTerm left right loc -> withLocation loc $ do
     Type.Function a b e1 _ <- infer left
@@ -284,16 +289,16 @@ infer resolved = case resolved of
     return $ Type.Function (r :. x :| y) b (e1 +: e2) loc
 
   Compose terms loc -> withLocation loc $ do
-    types <- mapM infer terms
+    types <- V.mapM infer terms
     r <- freshVarM
     foldM
       (\ (Type.Function a b e1 _) (Type.Function c d e2 _)
         -> inferCompose a b c d e1 e2)
       (r --> r)
-      types
+      (V.toList types)
 
   From name loc -> withLocation loc $ do
-    underlying <- instantiateM =<< getsEnv ((! name) . envTypeDefs)
+    underlying <- instantiateM =<< getsEnv ((M.! name) . envTypeDefs)
     forAll $ \r -> r :. Type.Named name loc --> r :. underlying
 
   Group terms loc -> infer (Compose terms loc)
@@ -330,11 +335,11 @@ infer resolved = case resolved of
     return $ Type.Function (b :. a) c e loc
 
   To name loc -> withLocation loc $ do
-    underlying <- instantiateM =<< getsEnv ((! name) . envTypeDefs)
+    underlying <- instantiateM =<< getsEnv ((M.! name) . envTypeDefs)
     forAll $ \r -> r :. underlying --> r :. Type.Named name loc
 
   VectorTerm values loc -> withLocation loc $ do
-    values' <- mapM infer values
+    values' <- mapM infer (V.toList values)
     values'' <- fromConstant =<< unifyEach values'
     forAll $ \ r -> r --> r :. Type.Vector values'' loc
 
@@ -364,7 +369,7 @@ local type_ action = do
   modifyEnv $ \ env -> env { envLocals = tail $ envLocals env }
   return result
 
-withClosure :: [Type Scalar] -> Inferred a -> Inferred a
+withClosure :: Vector (Type Scalar) -> Inferred a -> Inferred a
 withClosure types action = do
   original <- getsEnv envClosure
   modifyEnv $ \ env -> env { envClosure = types }
@@ -375,7 +380,7 @@ withClosure types action = do
 getClosedName :: ClosedName -> Inferred (Type Scalar)
 getClosedName name = case name of
   ClosedName (Name index) -> getsEnv $ (!! index) . envLocals
-  ReclosedName (Name index) -> getsEnv $ (!! index) . envClosure
+  ReclosedName (Name index) -> getsEnv $ (V.! index) . envClosure
 
 manifestType :: Value -> Maybe Scheme
 manifestType value = case value of
@@ -384,11 +389,11 @@ manifestType value = case value of
   Char{} -> Just $ mono (Type.Char UnknownLocation)
   Choice{} -> Nothing
   Closed{} -> Nothing
-  Closure _ (Compose [Push constant _] _)
+  Closure _ (Compose (V.toList -> [Push constant _]) _)
     -> manifestConstant constant
   Closure{} -> Nothing
   Float{} -> Just $ mono (Type.Float UnknownLocation)
-  Function (Compose [Push constant _] _)
+  Function (Compose (V.toList -> [Push constant _]) _)
     -> manifestConstant constant
   Function{} -> Nothing
   Handle{} -> Just $ mono (Type.Handle UnknownLocation)
@@ -411,7 +416,7 @@ manifestType value = case value of
   manifestConstant constant = do
     Forall rows scalars effects type_ <- manifestType constant
     return $ Forall
-      (Set.insert (row (Name 0)) rows)
+      (S.insert (row (Name 0)) rows)
       scalars
       effects
       (Type.Var (Name 0) UnknownLocation
@@ -420,15 +425,15 @@ manifestType value = case value of
 inferValue :: Value -> Inferred (Type Scalar)
 inferValue value = getsEnv envLocation >>= \ loc -> case value of
   Activation values term -> do
-    closed <- mapM inferValue values
+    closed <- V.mapM inferValue values
     withClosure closed (infer term)
   Bool{} -> return (Type.Bool loc)
   Char{} -> return (Type.Char loc)
   Choice True a -> (:|) <$> freshVarM <*> inferValue a
   Choice False a -> (:|) <$> inferValue a <*> freshVarM
-  Closed (Name index) -> getsEnv ((!! index) . envClosure)
+  Closed (Name index) -> getsEnv ((V.! index) . envClosure)
   Closure names term -> do
-    closed <- mapM getClosedName names
+    closed <- V.mapM getClosedName names
     withClosure closed (infer term)
   Float{} -> return (Type.Float loc)
   Function term -> infer term
@@ -440,7 +445,7 @@ inferValue value = getsEnv envLocation >>= \ loc -> case value of
   Pair a b -> (:&) <$> inferValue a <*> inferValue b
   Unit -> return (Type.Unit loc)
   Vector values -> do
-    valueTypes <- mapM inferValue values
+    valueTypes <- mapM inferValue (V.toList values)
     valueType <- unifyEach valueTypes
     return $ Type.Vector valueType loc
   Wrapped name _ -> return (Type.Named name loc)

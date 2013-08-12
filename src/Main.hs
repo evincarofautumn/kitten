@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Main where
@@ -7,6 +8,8 @@ import Data.Monoid
 import System.Console.CmdArgs.Explicit
 import System.Exit
 import System.IO
+
+import qualified Data.Vector as V
 
 import Kitten.Compile (compile, locateImport)
 import Kitten.Error
@@ -68,7 +71,7 @@ main = do
           exitFailure
         Right prelude -> return prelude
 
-      unless (null fragmentTerms) $ do
+      unless (V.null fragmentTerms) $ do
         hPutStrLn stderr "Prelude includes executable code."
         exitFailure
 
@@ -110,7 +113,7 @@ interpretAll entryPoints compileMode prelude config
     case mResult of
       Left compileErrors -> printCompileErrors compileErrors
       Right result -> case compileMode of
-        CompileMode -> mapM_ print $ yarn (prelude <> result)
+        CompileMode -> V.mapM_ print $ yarn (prelude <> result)
         InterpretMode -> void $ interpret [] prelude result
 
 parseArguments :: IO Arguments

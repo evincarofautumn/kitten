@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Test.Token where
 
 import Test.HUnit.Lang (Assertion, assertFailure)

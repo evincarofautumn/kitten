@@ -1,3 +1,6 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns #-}
+
 module Kitten.Tokenize
   ( tokenize
   ) where
@@ -6,7 +9,9 @@ import Control.Applicative
 import Control.Monad
 import Data.Char
 import Data.Functor.Identity
+import Data.Text (Text)
 
+import qualified Data.Text as T
 import qualified Text.Parsec as Parsec
 
 import Kitten.Parsec
@@ -51,7 +56,7 @@ token = (<?> "token") . located $ choice
   , Layout <$ char ':'
   , VectorBegin <$ char '['
   , VectorEnd <$ char ']'
-  , Text <$> (char '"' *> text <* char '"')
+  , Text . T.pack <$> (char '"' *> text <* char '"')
   , try number
   , try $ Arrow <$ string "->" <* notFollowedBy symbolCharacter
   , word
@@ -108,23 +113,23 @@ token = (<?> "token") . located $ choice
       "to" -> To
       "true" -> Bool True
       "type" -> Type
-      (first : _) | isUpper first -> BigWord name
-      _ -> case Builtin.fromString name of
+      (T.unpack -> first : _) | isUpper first -> BigWord name
+      _ -> case Builtin.fromText name of
         Just builtin -> Builtin builtin
         _ -> LittleWord name
-    , ffor symbolic $ \ name -> case Builtin.fromString name of
+    , ffor symbolic $ \ name -> case Builtin.fromText name of
       Just builtin -> Builtin builtin
       _ -> Operator name
     ]
     where
 
-    alphanumeric :: Parser String
-    alphanumeric = (:)
+    alphanumeric :: Parser Text
+    alphanumeric = (T.pack .) . (:)
       <$> (letter <|> char '_')
       <*> many (letter <|> digit <|> char '_')
 
-    symbolic :: Parser String
-    symbolic = many1 symbolCharacter
+    symbolic :: Parser Text
+    symbolic = T.pack <$> many1 symbolCharacter
 
   symbolCharacter :: Parser Char
   symbolCharacter = oneOf "!#$%&*+-./;<=>?@\\^|~"

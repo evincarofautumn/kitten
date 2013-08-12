@@ -5,6 +5,11 @@ module Kitten.Resolve
   ) where
 
 import Control.Applicative hiding (some)
+import Data.Text (Text)
+import Data.Vector (Vector)
+
+import qualified Data.Text as T
+import qualified Data.Vector as V
 
 import Kitten.Def
 import Kitten.Error
@@ -36,7 +41,7 @@ resolve prelude fragment
     (fragmentDefs fragment)
     []
 
-resolveDefs :: [Def Term.Value] -> Resolution [Def Value]
+resolveDefs :: Vector (Def Term.Value) -> Resolution (Vector (Def Value))
 resolveDefs = guardMapM resolveDef
   where
   resolveDef :: Def Term.Value -> Resolution (Def Value)
@@ -63,8 +68,7 @@ resolveTerm unresolved = case unresolved of
     <$> resolveTerm true
     <*> resolveTerm false
     <*> pure loc
-  Term.Lambda name term loc -> withLocal name
-    $ Scoped
+  Term.Lambda name term loc -> withLocal name $ Scoped
     <$> resolveTerm term
     <*> pure loc
   Term.OptionTerm some none loc -> OptionTerm
@@ -103,7 +107,7 @@ resolveValue unresolved = case unresolved of
   resolveVector = guardMapM resolveValue
 
 resolveName
-  :: String
+  :: Text
   -> Location
   -> Resolution Resolved
 resolveName name loc = do
@@ -112,10 +116,10 @@ resolveName name loc = do
     Just index -> return $ Push (Local $ Name index) loc
     Nothing -> do
       indices <- getsEnv $ defIndices name
-      index <- case indices of
+      index <- case V.toList indices of
         [index] -> return index
-        [] -> compileError . CompileError loc $ unwords
+        [] -> compileError . CompileError loc $ T.unwords
           ["undefined word:", name]
-        _ -> compileError . CompileError loc $ unwords
+        _ -> compileError . CompileError loc $ T.unwords
           ["ambiguous word:", name]
       return $ Call (Name index) loc

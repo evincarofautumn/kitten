@@ -6,26 +6,29 @@ module Kitten.Anno
   , Type(..)
   ) where
 
+import Data.Text (Text)
+import Data.Vector (Vector)
+
 import Kitten.Location
 
 data Anno = Anno Type Location
   deriving (Eq, Show)
 
 data Type
-  = Function [Type] [Type] Type
+  = Function !(Vector Type) !(Vector Type) !Type
   | Bool
   | Char
-  | Choice Type Type
+  | Choice !Type !Type
   | Float
   | Handle
   | Int
-  | Named String
-  | Option Type
-  | Pair Type Type
+  | Named !Text
+  | Option !Type
+  | Pair !Type !Type
   | Unit
-  | Var String
-  | Vector Type
+  | Var !Text
+  | Vector !Type
   | NoEffect
   | IOEffect
-  | Join Type Type
+  | Join !Type !Type
   deriving (Eq, Show)

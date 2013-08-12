@@ -2,15 +2,18 @@
 
 module Kitten.Builtin
   ( Builtin(..)
-  , fromString
+  , fromText
   , names
-  , toString
+  , toText
   ) where
 
 import Data.Map (Map)
-import Data.Maybe
+import Data.Text (Text)
+import Data.Vector (Vector)
 
-import qualified Data.Map as Map
+import qualified Data.Map as M
+import qualified Data.Text as T
+import qualified Data.Vector as V
 
 import Kitten.Util.Tuple
 
@@ -81,25 +84,25 @@ data Builtin
   deriving (Eq, Ord)
 
 instance Show Builtin where
-  show = fromMaybe "<unknown builtin>" . toString
+  show = maybe "<unknown builtin>" T.unpack . toText
 
-toString :: Builtin -> Maybe String
-toString = (`Map.lookup` toStringMap)
+toText :: Builtin -> Maybe Text
+toText = (`M.lookup` toTextMap)
 
-fromString :: String -> Maybe Builtin
-fromString = (`Map.lookup` fromStringMap)
+fromText :: Text -> Maybe Builtin
+fromText = (`M.lookup` fromTextMap)
 
-toStringMap :: Map Builtin String
-toStringMap = Map.fromList toStringTable
+toTextMap :: Map Builtin Text
+toTextMap = M.fromList (V.toList toTextTable)
 
-fromStringMap :: Map String Builtin
-fromStringMap = Map.fromList fromStringTable
+fromTextMap :: Map Text Builtin
+fromTextMap = M.fromList (V.toList fromTextTable)
 
-names :: [String]
-names = map fst fromStringTable
+names :: Vector Text
+names = V.map fst fromTextTable
 
-fromStringTable :: [(String, Builtin)]
-fromStringTable =
+fromTextTable :: Vector (Text, Builtin)
+fromTextTable = V.fromList
   [ (,) "@"                 Apply
   , (,) "__add_float"       AddFloat
   , (,) "__add_int"         AddInt
@@ -165,5 +168,5 @@ fromStringTable =
   , (,) "__xor_int"         XorInt
   ]
 
-toStringTable :: [(Builtin, String)]
-toStringTable = map swap fromStringTable
+toTextTable :: Vector (Builtin, Text)
+toTextTable = V.map swap fromTextTable

@@ -3,11 +3,12 @@ module Kitten.Import
   ) where
 
 import Data.Function
+import Data.Text (Text)
 
 import Kitten.Location
 
 data Import = Import
-  { importName :: String
+  { importName :: Text
   , importLocation :: Location
   } deriving (Show)
 

@@ -1,15 +1,14 @@
 {-# LANGUAGE GADTs #-}
 
 module Kitten.Infer.Locations
-  ( Showable(..)
-  , locations
+  ( locations
   ) where
 
 import Kitten.Location
 import Kitten.Type
-import Kitten.Util.Show
+import Kitten.Util.Text (Textable(..))
 
-locations :: Type a -> [(Location, Showable)]
+locations :: Type a -> [(Location, Textable)]
 locations type_ = case type_ of
   a :& b -> locations a ++ locations b
   a :. b -> locations a ++ locations b
@@ -37,5 +36,5 @@ locations type_ = case type_ of
   IOEffect loc -> yield loc
 
   where
-  yield :: Location -> [(Location, Showable)]
-  yield loc = [(loc, Showable type_)]
+  yield :: Location -> [(Location, Textable)]
+  yield loc = [(loc, Textable type_)]
