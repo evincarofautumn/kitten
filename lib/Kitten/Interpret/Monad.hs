@@ -50,10 +50,10 @@ getLocal (Name index) = do
 
 here :: InterpretM Location
 here = do
-  locations <- gets envLocations
-  return $ case locations of
+  locs <- gets envLocations
+  return $ case locs of
     [] -> UnknownLocation
-    (location : _) -> location
+    (loc : _) -> loc
 
 popData :: InterpretM Value
 popData = do
@@ -96,9 +96,9 @@ withClosure values action = do
   return result
 
 withLocation :: Location -> InterpretM a -> InterpretM a
-withLocation location action = do
+withLocation loc action = do
   modify $ \ env@Env{..} -> env
-    { envLocations = location : envLocations }
+    { envLocations = loc : envLocations }
   result <- action
   modify $ \ env@Env{..} -> env
     { envLocations = tail envLocations }
