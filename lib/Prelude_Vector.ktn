@@ -24,6 +24,13 @@ def cat ([a] [a] -> [a]):
 def concat ([[a]] -> [a]):
   [] {cat} foldl
 
+// Lifts an impure function on values to one on vectors.
+def each ([a] (a -> +e) -> +e):
+  -> { xs f }
+  if (xs isEmpty not):
+    xs head f@
+    xs tail f each
+
 // Whether an element is present in a vector according to
 // the given equality predicate.
 def elem ([a] a (a a -> Bool) -> Bool):
