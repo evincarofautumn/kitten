@@ -72,11 +72,11 @@ infixl 5 :.
 infix 4 -->
 infix 4 ==>
 
-(-->) :: Type Row -> Type Row -> Type Scalar
-a --> b = Function a b (NoEffect UnknownLocation) UnknownLocation
+(-->) :: Type Row -> Type Row -> Location -> Type Scalar
+(a --> b) loc = Function a b (NoEffect loc) loc
 
-(==>) :: Type Row -> Type Row -> Type Scalar
-a ==> b = Function a b (IOEffect UnknownLocation) UnknownLocation
+(==>) :: Type Row -> Type Row -> Location -> Type Scalar
+(a ==> b) loc = Function a b (IOEffect loc) loc
 
 (+:) :: Type Effect -> Type Effect -> Type Effect
 a +: b | a == b = a
