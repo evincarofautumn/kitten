@@ -19,7 +19,6 @@ import Data.Vector (Vector)
 
 import qualified Data.Foldable as F
 import qualified Data.Map as M
-import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
@@ -83,14 +82,12 @@ inferFragment prelude fragment = do
           ]
 
   forM_ (zip [0..] (V.toList allDefs)) $ \ (index, def)
-    -> case manifestType (defTerm def) of
-      Just scheme -> saveDef index scheme
-      Nothing -> case defAnno def of
-        Just anno -> saveDef index =<< fromAnno anno
-        Nothing -> do
-          loc <- getsEnv envLocation
-          saveDef index . mono
-            =<< forAll (\ r s e -> Type.Function r s e loc)
+    -> case defAnno def of
+      Just anno -> saveDef index =<< fromAnno anno
+      Nothing -> do
+        loc <- getsEnv envLocation
+        saveDef index . mono
+          =<< forAll (\ r s e -> Type.Function r s e loc)
 
   forM_ (zip [(0 :: Int)..] (V.toList allDefs)) $ \ (index, def)
     -> withLocation (defLocation def) $ do
@@ -381,46 +378,6 @@ getClosedName :: ClosedName -> Inferred (Type Scalar)
 getClosedName name = case name of
   ClosedName (Name index) -> getsEnv $ (!! index) . envLocals
   ReclosedName (Name index) -> getsEnv $ (V.! index) . envClosure
-
-manifestType :: Value -> Maybe Scheme
-manifestType value = case value of
-  Activation{} -> Nothing
-  Bool{} -> Just $ mono (Type.Bool UnknownLocation)
-  Char{} -> Just $ mono (Type.Char UnknownLocation)
-  Choice{} -> Nothing
-  Closed{} -> Nothing
-  Closure _ (Compose (V.toList -> [Push constant _]) _)
-    -> manifestConstant constant
-  Closure{} -> Nothing
-  Float{} -> Just $ mono (Type.Float UnknownLocation)
-  Function (Compose (V.toList -> [Push constant _]) _)
-    -> manifestConstant constant
-  Function{} -> Nothing
-  Handle{} -> Just $ mono (Type.Handle UnknownLocation)
-  Int{} -> Just $ mono (Type.Int UnknownLocation)
-  Local{} -> Nothing
-  Option{} -> Nothing
-  Pair a b -> do
-    Forall rows1 scalars1 effects1 type1 <- manifestType a
-    Forall rows2 scalars2 effects2 type2 <- manifestType b
-    return $ Forall
-      (rows1 <> rows2)
-      (scalars1 <> scalars2)
-      (effects1 <> effects2)
-      (type1 :& type2)
-  Unit -> Just $ mono (Type.Unit UnknownLocation)
-  Vector{} -> Nothing
-  Wrapped name _ -> Just $ mono (Type.Named name UnknownLocation)
-
-  where
-  manifestConstant constant = do
-    Forall rows scalars effects type_ <- manifestType constant
-    return $ Forall
-      (S.insert (row (Name 0)) rows)
-      scalars
-      effects
-      (Type.Var (Name 0) UnknownLocation
-        --> Type.Var (Name 0) UnknownLocation :. type_)
 
 inferValue :: Value -> Inferred (Type Scalar)
 inferValue value = getsEnv envLocation >>= \ loc -> case value of
