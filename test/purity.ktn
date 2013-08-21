@@ -1,10 +1,10 @@
-def procedure (Int -> Int +IO):
+def proc (Int -> Int +IO):
   dup sayInt --
 
-def function (Int -> Int):
+def func (Int -> Int):
   ++
 
 [2, 4, 6, 8, 10] -> xs
 
-xs {function} map sayInts
-xs {{procedure} unsafeCall11} map sayInts
+xs {func} map sayInts
+xs {{proc} unsafeCall11} map sayInts

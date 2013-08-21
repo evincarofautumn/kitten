@@ -4,6 +4,11 @@ def compose ((a -> b +e1) (b -> c +e2) -> (a -> c +(e1 + e2))):
   { f@ g@ }
 
 // Wraps a value in a function.
+def function (a -> (-> a)):
+  -> x
+  { x }
+
+// Wraps a value in a unary function.
 def const (a -> (b -> a)):
   -> x
   { drop x }
