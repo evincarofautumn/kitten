@@ -163,6 +163,15 @@ def keep ([a] Int -> [a]):
     xs tail n-- keep
     xs head prepend
 
+// Keeps elements of a vector while a predicate holds.
+def keepWhile ([a] (a -> Bool) -> [a]):
+  -> { xs f }
+  if ((xs isEmpty not) (xs head f@) &&):
+    xs tail f keepWhile
+    xs head prepend
+  else:
+    []
+
 // Gets the last element of a vector.
 def last ([a] -> a):
   dup (length 1 -) #
@@ -278,6 +287,11 @@ def sort ([a] (a a -> Bool) -> [a]):
   -> lt
   [] {lt insert} foldl
 
+def span ([a] (a -> Bool) -> [a] [a]):
+  -> { xs f }
+  xs f keepWhile
+  xs f tossWhile
+
 // Splits a vector into two parts at the given index.
 def splitAt ([a] Int -> [a] [a]):
   -> { xs n }
@@ -295,6 +309,13 @@ def toss ([a] Int -> [a]):
     xs
   else:
     xs tail n-- toss
+
+// Tosses elements of a vector while a predicate holds.
+def tossWhile ([a] (a -> Bool) -> [a]):
+  -> { xs f }
+  xs
+  if ((xs isEmpty not) (xs head f@) &&):
+    tail f tossWhile
 
 // Transposes the rows and columns of a 2D vector.
 def transpose ([[a]] -> [[a]]):
