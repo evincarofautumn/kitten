@@ -114,6 +114,19 @@ def headTail ([a] -> a [a]):
 def init ([a] -> [a]):
   __init
 
+// Inserts a value at each possible index in a vector; given
+// a value x and a vector xs, generates a matrix with x on
+// the main diagonal and xs wrapped to the remainder.
+def insertEverywhere ([a] a -> [[a]]):
+  -> { xs x }
+  if (xs isEmpty):
+    [[x]]
+  else:
+    (xs tail) x insertEverywhere
+    {(xs head) prepend} map
+    (xs x prepend)
+    prepend
+
 // Intersperses a value between the values of a vector.
 def intersperse ([a] a -> [a]):
   -> { xs sep }
@@ -179,6 +192,10 @@ def mapRange (a (a Int -> a) Int Int -> a):
     function start++ end mapRange
   else:
     value
+
+// Generates all permutations of a vector.
+def permutations ([a] -> [[a]]):
+  [[]] { -> x {x insertEverywhere} mapConcat } foldl
 
 // Prepends a value to the head of a vector.
 def prepend ([a] a -> [a]):
