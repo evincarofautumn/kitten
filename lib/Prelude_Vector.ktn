@@ -127,6 +127,16 @@ def insertEverywhere ([a] a -> [[a]]):
     (xs x prepend)
     prepend
 
+def insert ([a] a (a a -> Bool) -> [a]):
+  -> { xs x lt }
+  if (xs isEmpty):
+    [x]
+  else if ((xs head) x lt@):
+    (xs tail) x lt insert
+    (xs head) prepend
+  else:
+    xs x prepend
+
 // Intersperses a value between the values of a vector.
 def intersperse ([a] a -> [a]):
   -> { xs sep }
@@ -264,6 +274,10 @@ def scanr1 ([a] (a a -> a) -> [a]):
   -> { xs k }
   xs init xs last k scanr
 
+def sort ([a] (a a -> Bool) -> [a]):
+  -> lt
+  [] {lt insert} foldl
+
 // Splits a vector into two parts at the given index.
 def splitAt ([a] Int -> [a] [a]):
   -> { xs n }
@@ -295,6 +309,17 @@ def transpose ([[a]] -> [[a]]):
     ((xss {tail} map) xs prepend) transpose
     (xss {head} map) x prepend
     prepend
+
+// Strips duplicate elements from a vector according the
+// given equality predicate.
+def unique ([a] (a a -> Bool) -> [a]):
+  -> { xs eq }
+  if (xs isEmpty):
+    []
+  else:
+    xs head -> x
+    (xs tail {x eq@ not} filter) eq unique
+    x prepend
 
 // Wraps a value in a vector.
 def vector (a -> [a]):
