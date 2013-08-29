@@ -41,11 +41,11 @@ import Kitten.Util.Function
 import qualified Kitten.Term as Term
 
 data Config = Config
-  { dumpResolved :: Bool
-  , dumpScoped :: Bool
+  { dumpResolved :: !Bool
+  , dumpScoped :: !Bool
   , libraryDirectories :: [FilePath]
   , name :: String
-  , prelude :: Fragment Value Resolved
+  , prelude :: !(Fragment Value Resolved)
   , source :: !Text
   , stack :: [Value]
   }
