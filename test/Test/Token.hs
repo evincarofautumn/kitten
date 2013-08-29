@@ -96,8 +96,8 @@ spec = do
     testTokens "thisThat123" [LittleWord "thisThat123"]
     testTokens "+-" [Operator "+-"]
     testTokens "<=>" [Operator "<=>"]
-    testTokens "!#$%&*+-./;<=>?@^|~"
-      [Operator "!#$%&*+-./;<=>?@^|~"]
+    testTokens "!#$%&*+-./<=>?@^|~"
+      [Operator "!#$%&*+-./<=>?@^|~"]
 
 testComment :: Text -> Assertion
 testComment source = case tokenize "test" source of

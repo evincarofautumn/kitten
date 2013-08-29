@@ -64,6 +64,9 @@ def negInt (Int -> Int):
 def not (Bool -> Bool):
   __not_bool
 
+def ¬ (Bool -> Bool):
+  __not_bool
+
 // Whether a floating-point number is odd.
 def oddFloat (Float -> Bool):
   evenFloat not
@@ -102,8 +105,14 @@ def tau 6.283185307179586
 def != (Int Int -> Bool):
   __ne_int
 
+def ≠ (Int Int -> Bool):
+  __ne_int
+
 // Floating-point inequality.
 def !=. (Float Float -> Bool):
+  __ne_float
+
+def ≠. (Float Float -> Bool):
   __ne_float
 
 // Integer modulus.
@@ -122,12 +131,21 @@ def & (Int Int -> Int):
 def && (Bool Bool -> Bool):
   __and_bool
 
+def ∧ (Bool Bool -> Bool):
+  __and_bool
+
 // Integer multiplication.
 def * (Int Int -> Int):
   __mul_int
 
+def × (Int Int -> Int):
+  __mul_int
+
 // Floating-point multiplication.
 def *. (Float Float -> Float):
+  __mul_float
+
+def ×. (Float Float -> Float):
   __mul_float
 
 // Integer addition.
@@ -150,8 +168,14 @@ def ++. (Float -> Float):
 def - (Int Int -> Int):
   __sub_int
 
+def − (Int Int -> Int):
+  __sub_int
+
 // Floating-point subtraction.
 def -. (Float Float -> Float):
+  __sub_float
+
+def −. (Float Float -> Float):
   __sub_float
 
 // Integer decrement.
@@ -166,8 +190,14 @@ def --. (Float -> Float):
 def / (Int Int -> Int):
   __div_int
 
+def ÷ (Int Int -> Int):
+  __div_int
+
 // Floating-point division.
 def /. (Float Float -> Float):
+  __div_float
+
+def ÷. (Float Float -> Float):
   __div_float
 
 // Integer less than.
@@ -182,8 +212,14 @@ def <. (Float Float -> Bool):
 def <= (Int Int -> Bool):
   __le_int
 
+def ≤ (Int Int -> Bool):
+  __le_int
+
 // Floating-point less than or equal.
 def <=. (Float Float -> Bool):
+  __le_float
+
+def ≤. (Float Float -> Bool):
   __le_float
 
 // Integer equality.
@@ -206,8 +242,14 @@ def >. (Float Float -> Bool):
 def >= (Int Int -> Bool):
   __ge_int
 
+def ≥ (Int Int -> Bool):
+  __ge_int
+
 // Floating-point greater than or equal.
 def >=. (Float Float -> Bool):
+  __ge_float
+
+def ≥. (Float Float -> Bool):
   __ge_float
 
 // Bitwise XOR.
@@ -224,6 +266,9 @@ def | (Int Int -> Int):
 
 // Logical OR.
 def || (Bool Bool -> Bool):
+  __or_bool
+
+def ∨ (Bool Bool -> Bool):
   __or_bool
 
 // Bitwise NOT.

@@ -9,6 +9,7 @@ import Control.Applicative
 import Control.Monad
 import Data.Char
 import Data.Functor.Identity
+import Data.Maybe
 import Data.Text (Text)
 import Text.Parsec.Text ()
 
@@ -57,9 +58,10 @@ token = (<?> "token") . located $ choice
   , Layout <$ char ':'
   , VectorBegin <$ char '['
   , VectorEnd <$ char ']'
-  , Text <$> (char '"' *> text <* char '"')
+  , Text <$> between (char '"') (char '"') text
   , try number
-  , try $ Arrow <$ string "->" <* notFollowedBy symbolCharacter
+  , try $ Arrow <$ (string "->" <|> string "\x2192")
+    <* notFollowedBy symbolCharacter
   , word
   ]
   where
@@ -125,15 +127,25 @@ token = (<?> "token") . located $ choice
     where
 
     alphanumeric :: Parser Text
-    alphanumeric = (T.pack .) . (:)
-      <$> (letter <|> char '_')
-      <*> many (letter <|> digit <|> char '_')
+    alphanumeric
+      = (\ x y z -> T.pack $ x : y ++ maybeToList z)
+      <$> (Parsec.satisfy isLetter <|> char '_')
+      <*> (many . choice)
+        [ Parsec.satisfy isLetter
+        , Parsec.satisfy isDigit
+        , char '_'
+        ]
+      <*> optionMaybe (oneOf "'\x2032\x2033\x2034\x2057")
 
     symbolic :: Parser Text
     symbolic = T.pack <$> many1 symbolCharacter
 
   symbolCharacter :: Parser Char
-  symbolCharacter = oneOf "!#$%&*+-./;<=>?@\\^|~"
+  symbolCharacter = notFollowedBy special
+    *> (Parsec.satisfy isSymbol <|> Parsec.satisfy isPunctuation)
+
+  special :: Parser Char
+  special = oneOf "\"'(),:[]_{}"
 
 silence :: Parser ()
 silence = skipMany $ comment <|> whitespace
