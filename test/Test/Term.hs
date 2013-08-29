@@ -132,6 +132,15 @@ spec = do
           [ push $ function [word "one"]
           , push $ function [word "two"]]] }
 
+    testTerm
+      "option (0 some):\n\
+      \  drop // This comment is necessary.\n\
+      \else:\n\
+      \  noop\n"
+      $ mempty { fragmentTerms = V.fromList
+        [ compose [group [pushi 0, call "some"]
+        , option [call "drop"] [call "noop"]]] }
+
     testTermFailure ":"
 
     testTermFailure
@@ -201,8 +210,19 @@ def name value = Def
   , defLocation = TestLocation
   }
 
+call :: Text -> Term
+call name = Call name TestLocation
+
+compose :: [Term] -> Term
+compose terms = Compose (V.fromList terms) TestLocation
+
 function :: [Term] -> Value
 function terms = Function (V.fromList terms) TestLocation
+
+group :: [Term] -> Term
+group terms = Group
+  (V.fromList terms)
+  TestLocation
 
 int :: Int -> Value
 int value = Int value TestLocation
@@ -212,7 +232,10 @@ pushi value = push $ int value
 
 lambda :: Text -> [Term] -> Term
 lambda name terms
-  = Lambda name (Compose (V.fromList terms) TestLocation) TestLocation
+  = Lambda name (compose terms) TestLocation
+
+option :: [Term] -> [Term] -> Term
+option true false = OptionTerm (compose true) (compose false) TestLocation
 
 push :: Value -> Term
 push value = Push value TestLocation

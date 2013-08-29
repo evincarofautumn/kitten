@@ -164,7 +164,7 @@ silence = skipMany $ comment <|> whitespace
   comment = single <|> multi <?> "comment"
 
   single = try (string "//")
-    *> (anyChar `skipManyTill` (void (char '\n') <|> eof))
+    *> (anyChar `skipManyTill` (newline <|> eof))
 
   multi = void $ start *> contents <* end
     where
