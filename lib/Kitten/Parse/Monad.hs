@@ -4,6 +4,7 @@ module Kitten.Parse.Monad
   ( Parser
   , advance
   , locate
+  , location
   , locatedMatch
   , locatedSatisfy
   , mapOne
@@ -30,7 +31,15 @@ locate parser = do
   result <- parser
   return $ result Location
     { locationStart = start
-    , locationIndent = -1  -- FIXME
+    , locationIndent = -1  -- FIXME?
+    }
+
+location :: Parser Location
+location = do
+  start <- getPosition
+  return $ Location
+    { locationStart = start
+    , locationIndent = -1  -- FIXME?
     }
 
 locatedMatch :: Token -> Parser Located
