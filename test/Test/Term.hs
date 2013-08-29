@@ -173,7 +173,7 @@ spec = do
         [ def "inc" $ function [pushi 1, word "+"]
         , def "dec" $ function [pushi 1, word "-"]] }
 
-testTerm :: String -> Fragment Value Term -> Spec
+testTerm :: Text -> Fragment Value Term -> Spec
 testTerm source expected = it (show source)
   $ case parsed source of
     Left message -> assertFailure $ show message
@@ -182,13 +182,13 @@ testTerm source expected = it (show source)
       | otherwise -> expectedButGot
         (show expected) (show actual)
 
-testTermFailure :: String -> Spec
+testTermFailure :: Text -> Spec
 testTermFailure source = it ("should fail: " ++ show source)
   $ case parsed source of
     Left _ -> return ()
     Right actual -> assertFailure $ show actual
 
-parsed :: String -> Either CompileError (Fragment Value Term)
+parsed :: Text -> Either CompileError (Fragment Value Term)
 parsed
   = mapLeft parseError . tokenize "test"
   >=> mapLeft parseError . parse "test"

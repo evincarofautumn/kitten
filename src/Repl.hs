@@ -10,6 +10,7 @@ import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State.Strict
 import Data.Maybe
 import Data.Monoid
+import Data.Text (Text)
 import Data.Vector (Vector)
 import System.Console.Haskeline
 
@@ -70,13 +71,13 @@ repl = do
   case mLine of
     Nothing -> quit
     Just line
-      | not (matched line) -> continue line
+      | not (matched line) -> continue (T.pack line)
       | null line -> repl
       | line `elem` [":c", ":clear"] -> clear
       | line `elem` [":h", ":help"] -> help
       | line `elem` [":q", ":quit"] -> quit
       | line `elem` [":reset"] -> reset
-      | otherwise -> eval line
+      | otherwise -> eval (T.pack line)
 
 askPreludeDefs :: ReplInput (Vector (Def Value))
 askPreludeDefs = lift (lift ask)
@@ -98,7 +99,7 @@ matched = go False (0::Int)
   isOpen = (`elem` "([{")
   isClose = (`elem` "}])")
 
-eval :: String -> ReplInput ()
+eval :: Text -> ReplInput ()
 eval line = do
   Repl{..} <- lift get
   mCompiled <- liftIO $ compile Compile.Config
@@ -128,13 +129,14 @@ eval line = do
         }
   repl
 
-continue :: String -> ReplInput ()
+continue :: Text -> ReplInput ()
 continue prefix = do
   mLine <- getInputLine "... "
   case mLine of
     Nothing -> quit
-    Just line -> let whole = unlines [prefix, line]
-      in if matched whole then eval whole else continue whole
+    Just line -> let whole = T.unlines [prefix, T.pack line]
+      in (if matched (T.unpack whole)
+        then eval else continue) whole
 
 showStack :: ReplInput ()
 showStack = do

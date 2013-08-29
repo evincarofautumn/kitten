@@ -22,6 +22,7 @@ import System.IO.Error
 import Text.Parsec.Error
 
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import qualified Data.Vector as V
 
 import Kitten.Error
@@ -45,7 +46,7 @@ data Config = Config
   , libraryDirectories :: [FilePath]
   , name :: String
   , prelude :: Fragment Value Resolved
-  , source :: String
+  , source :: !Text
   , stack :: [Value]
   }
 
@@ -54,7 +55,7 @@ liftParseError = mapLeft ((:[]) . parseError)
 
 parseSource
   :: String
-  -> String
+  -> Text
   -> Either [CompileError] (Fragment Term.Value Term)
 parseSource name source = do
   tokenized <- liftParseError $ tokenize name source
@@ -119,7 +120,7 @@ substituteImports libraryDirectories fragment inScope
 
     imported <- forM imports $ \ (import_, possible) -> case possible of
       [filename] -> do
-        source <- lift $ readFile filename
+        source <- lift $ T.readFile filename
         parsed <- hoistEither $ parseSource filename source
         hoistEither =<< lift
           (substituteImports libraryDirectories parsed inScope')

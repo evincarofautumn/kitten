@@ -2,6 +2,7 @@
 
 module Test.Token where
 
+import Data.Text (Text)
 import Test.HUnit.Lang (Assertion, assertFailure)
 import Test.Hspec
 
@@ -98,13 +99,13 @@ spec = do
     testTokens "!#$%&*+-./;<=>?@^|~"
       [Operator "!#$%&*+-./;<=>?@^|~"]
 
-testComment :: String -> Assertion
+testComment :: Text -> Assertion
 testComment source = case tokenize "test" source of
   Left message -> assertFailure $ show message
   Right [] -> return ()
   Right actual -> expectedButGot "[]" (showLocated actual)
 
-testInt :: String -> Int -> Spec
+testInt :: Text -> Int -> Spec
 testInt source expected = it ("int " ++ show source)
   $ case tokenize "test" source of
     Left message -> assertFailure $ show message
@@ -113,7 +114,7 @@ testInt source expected = it ("int " ++ show source)
     Right actual -> expectedButGot
       (show expected) (showLocated actual)
 
-testTokens :: String -> [Token] -> Spec
+testTokens :: Text -> [Token] -> Spec
 testTokens source expected = it (show source)
   $ case tokenize "test" source of
     Left message -> assertFailure $ show message

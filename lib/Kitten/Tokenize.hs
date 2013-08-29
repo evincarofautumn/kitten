@@ -10,6 +10,7 @@ import Control.Monad
 import Data.Char
 import Data.Functor.Identity
 import Data.Text (Text)
+import Text.Parsec.Text ()
 
 import qualified Data.Text as T
 import qualified Text.Parsec as Parsec
@@ -22,9 +23,9 @@ import Kitten.Util.Parsec
 
 import qualified Kitten.Builtin as Builtin
 
-type Parser a = ParsecT String Column Identity a
+type Parser a = ParsecT Text Column Identity a
 
-tokenize :: String -> String -> Either ParseError [Located]
+tokenize :: String -> Text -> Either ParseError [Located]
 tokenize = runParser file 1
 
 located
@@ -56,7 +57,7 @@ token = (<?> "token") . located $ choice
   , Layout <$ char ':'
   , VectorBegin <$ char '['
   , VectorEnd <$ char ']'
-  , Text . T.pack <$> (char '"' *> text <* char '"')
+  , Text <$> (char '"' *> text <* char '"')
   , try number
   , try $ Arrow <$ string "->" <* notFollowedBy symbolCharacter
   , word
@@ -75,8 +76,8 @@ token = (<?> "token") . located $ choice
       Just fraction -> Float . applySign . read $ integer ++ fraction
       Nothing -> Int . applySign $ read integer
 
-  text :: Parser String
-  text = many $ character '"'
+  text :: Parser Text
+  text = T.pack <$> many (character '"')
 
   character :: Char -> Parser Char
   character quote = noneOf ('\\' : [quote]) <|> escape

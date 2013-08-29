@@ -5,10 +5,12 @@ module Main where
 
 import Control.Monad
 import Data.Monoid
+import Data.Text (Text)
 import System.Console.CmdArgs.Explicit
 import System.Exit
 import System.IO
 
+import qualified Data.Text.IO as T
 import qualified Data.Vector as V
 
 import Kitten.Compile (compile, locateImport)
@@ -53,7 +55,7 @@ main = do
       exitFailure
 
     [filename] -> do
-      source <- readFile filename
+      source <- T.readFile filename
       mPrelude <- compile Compile.Config
         { Compile.dumpResolved = argsDumpResolved arguments
         , Compile.dumpScoped = argsDumpScoped arguments
@@ -101,14 +103,14 @@ interpretAll
   :: [FilePath]
   -> CompileMode
   -> Fragment Value Resolved
-  -> (FilePath -> String -> Compile.Config)
+  -> (FilePath -> Text -> Compile.Config)
   -> IO ()
 interpretAll entryPoints compileMode prelude config
   = mapM_ interpretOne entryPoints
   where
   interpretOne :: FilePath -> IO ()
   interpretOne filename = do
-    program <- readFile filename
+    program <- T.readFile filename
     mResult <- compile (config filename program)
     case mResult of
       Left compileErrors -> printCompileErrors compileErrors
