@@ -10,7 +10,8 @@ import System.Console.CmdArgs.Explicit
 import System.Exit
 import System.IO
 
-import qualified Data.Text.IO as T
+import qualified Data.ByteString as B
+import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
 
 import Kitten.Compile (compile, locateImport)
@@ -55,7 +56,8 @@ main = do
       exitFailure
 
     [filename] -> do
-      source <- T.readFile filename
+      rawSource <- B.readFile filename
+      let source = T.decodeUtf8 rawSource
       mPrelude <- compile Compile.Config
         { Compile.dumpResolved = argsDumpResolved arguments
         , Compile.dumpScoped = argsDumpScoped arguments
@@ -110,7 +112,8 @@ interpretAll entryPoints compileMode prelude config
   where
   interpretOne :: FilePath -> IO ()
   interpretOne filename = do
-    program <- T.readFile filename
+    rawProgram <- B.readFile filename
+    let program = T.decodeUtf8 rawProgram
     mResult <- compile (config filename program)
     case mResult of
       Left compileErrors -> printCompileErrors compileErrors

@@ -21,8 +21,9 @@ import System.IO
 import System.IO.Error
 import Text.Parsec.Error
 
+import qualified Data.ByteString as B
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
+import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
 
 import Kitten.Error
@@ -120,7 +121,8 @@ substituteImports libraryDirectories fragment inScope
 
     imported <- forM imports $ \ (import_, possible) -> case possible of
       [filename] -> do
-        source <- lift $ T.readFile filename
+        rawSource <- lift $ B.readFile filename
+        let source = T.decodeUtf8 rawSource
         parsed <- hoistEither $ parseSource filename source
         hoistEither =<< lift
           (substituteImports libraryDirectories parsed inScope')
