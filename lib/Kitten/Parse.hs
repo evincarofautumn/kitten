@@ -49,14 +49,12 @@ element = choice
 def :: Parser (Def Value)
 def = (<?> "definition") . locate $ do
   void (match Token.Def)
-  name <- functionName
-  anno <- optionMaybe (grouped signature)
-  body <- term
+  name <- functionName <?> "definition name"
+  anno <- optionMaybe (grouped signature <?> "type signature")
+  body <- block <?> "definition body"
   return $ \ loc -> Def
     { defName = name
-    , defTerm = case body of
-      Push function@Function{} _ -> function
-      _ -> Function (V.singleton body) loc
+    , defTerm = Function body loc
     , defAnno = anno
     , defLocation = loc
     }

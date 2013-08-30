@@ -80,7 +80,7 @@ def or ([Bool] -> Bool):
   false {||} foldl
 
 // The ratio of a circle's circumference to its diameter.
-def pi 3.141592653589793
+def pi: 3.141592653589793
 
 // The product of a vector of floating-point numbers.
 def productFloats ([Float] -> Float):
@@ -99,7 +99,7 @@ def sumInts ([Int] -> Int):
   0 {+} foldl
 
 // The ratio of a circle's circumference to its radius.
-def tau 6.283185307179586
+def tau: 6.283185307179586
 
 // Integer inequality.
 def != (Int Int -> Bool):
