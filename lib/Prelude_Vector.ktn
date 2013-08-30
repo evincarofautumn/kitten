@@ -67,6 +67,10 @@ def filter ([a] (a -> Bool) -> [a]):
   else:
     []
 
+// Finds the first element of a vector matching a predicate.
+def find ([a] (a -> Bool +e) -> a? +e):
+  filter head
+
 // Folds elements of a vector right-associatively.
 def foldr ([a] b (a b -> b) -> b):
   -> { xs z k }
