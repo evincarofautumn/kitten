@@ -43,6 +43,7 @@ data Builtin
   | GtInt
   | Impure
   | Init
+  | IntToChar
   | LeFloat
   | LeInt
   | Left
@@ -128,6 +129,7 @@ fromTextTable = V.fromList
   , (,) "__gt_int"          GtInt
   , (,) "__impure"          Impure
   , (,) "__init"            Init
+  , (,) "__int_to_char"     IntToChar
   , (,) "__le_float"        LeFloat
   , (,) "__le_int"          LeInt
   , (,) "__left"            Kitten.Builtin.Left

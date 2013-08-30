@@ -188,6 +188,12 @@ interpretBuiltin builtin = case builtin of
     Vector a <- popData
     pushData $ Vector (V.init a)
 
+  Builtin.IntToChar -> do
+    Int a <- popData
+    pushData . Option $ if a >= 0 && a <= 0x10FFFF
+      then Just $ Char (toEnum a)
+      else Nothing
+
   Builtin.LeFloat -> floatsToBool (<=)
   Builtin.LeInt -> intsToBool (<=)
 

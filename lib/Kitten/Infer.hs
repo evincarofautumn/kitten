@@ -188,6 +188,9 @@ infer resolved = case resolved of
     Builtin.Init -> forAll $ \ r a
       -> (r :. Type.Vector a loc --> r :. Type.Vector a loc) loc
 
+    Builtin.IntToChar -> forAll $ \ r
+      -> (r :. Type.Int loc --> r :. (Type.Char loc :?)) loc
+
     Builtin.LeFloat -> relational (Type.Float loc) loc
     Builtin.LeInt -> relational (Type.Int loc) loc
 
