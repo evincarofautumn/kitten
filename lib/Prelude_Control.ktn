@@ -12,15 +12,15 @@ def cond (
   c +e
 ):
   -> { x ps z }
-  if (ps isEmpty):
-    z@
-  else:
-    ps head -> p
+  option (ps head):
+    -> p
     x (p first)@ -> m
     option m:
       p second @
     else:
       x (ps tail) z cond
+  else:
+    z@
 
 // 'cond' without a default.
 def cond1 (
@@ -30,7 +30,7 @@ def cond1 (
   c +e
 ):
   -> { x ps }
-  ps head -> p
+  ps head fromSome -> p
   x (p first)@ -> m
   option m:
     p second @

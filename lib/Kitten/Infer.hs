@@ -174,7 +174,7 @@ infer resolved = case resolved of
     Builtin.GeInt -> relational (Type.Int loc) loc
 
     Builtin.Get -> forAll $ \ r a
-      -> (r :. Type.Vector a loc :. Type.Int loc --> r :. a) loc
+      -> (r :. Type.Vector a loc :. Type.Int loc --> r :. (a :?)) loc
 
     Builtin.GetLine -> forAll $ \ r
       -> (r :. Type.Handle loc ==> r :. string loc) loc

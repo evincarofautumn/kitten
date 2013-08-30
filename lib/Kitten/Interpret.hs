@@ -172,7 +172,9 @@ interpretBuiltin builtin = case builtin of
   Builtin.Get -> do
     Int b <- popData
     Vector a <- popData
-    pushData $ a ! b
+    pushData . Option $ if b >= 0 && b < V.length a
+      then Just (a ! b)
+      else Nothing
 
   Builtin.GetLine -> do
     Handle a <- popData
@@ -186,7 +188,9 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.Init -> do
     Vector a <- popData
-    pushData $ Vector (V.init a)
+    pushData . Vector $ if V.null a
+      then V.empty
+      else V.init a
 
   Builtin.IntToChar -> do
     Int a <- popData
@@ -287,7 +291,9 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.Tail -> do
     Vector a <- popData
-    pushData $ Vector (V.tail a)
+    pushData . Vector $ if V.null a
+      then V.empty
+      else V.tail a
 
   Builtin.UnsafePurify11 -> return ()
 

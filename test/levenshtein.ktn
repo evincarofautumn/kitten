@@ -12,34 +12,34 @@ def levenshtein ([Char] [Char] -> Int):
 
   // Distance from any first string to empty second string.
   { -> row
-    row  row 0 ##!
+    row  row 0 ##=
   } 0 rows mapRange
 
   // Distance from any second string to empty first string.
   { -> column
-    column  0 column ##!
+    column  0 column ##=
   } 0 columns mapRange
 
   { -> row
     { -> { distances column }
 
-      first row-- # -> firstChar
-      second column-- # -> secondChar
+      first row-- #! -> firstChar
+      second column-- #! -> secondChar
 
       distances
       if (firstChar secondChar eqChar):
-        distances row-- column-- ##
+        distances row-- column-- ##!
       else:
-        distances row-- column   ##  // deletion
-        distances row   column-- ##  // insertion
-        distances row-- column-- ##  // substitution
+        distances row-- column   ##!  // deletion
+        distances row   column-- ##!  // insertion
+        distances row-- column-- ##!  // substitution
         minInt3 ++
-      row column ##!
+      row column ##=
 
     } 1 columns mapRange
   } 1 rows mapRange
 
-  rows columns ##
+  rows columns ##!
  
 "kitten" "sitting" levenshtein sayInt
 "rosettacode" "raisethysword" levenshtein sayInt
