@@ -82,10 +82,11 @@ token = (<?> "token") . located $ choice
   text = T.pack <$> many (character '"')
 
   character :: Char -> Parser Char
-  character quote = noneOf ('\\' : [quote]) <|> escape
+  character quote
+    = (noneOf ('\\' : [quote]) <?> "character") <|> escape
 
   escape :: Parser Char
-  escape = char '\\' *> choice
+  escape = (<?> "escape") $ char '\\' *> choice
     [ oneOf "\\\"'"
     , '\a' <$ char 'a'
     , '\b' <$ char 'b'
