@@ -197,7 +197,7 @@ testTermFailure source = it ("should fail: " ++ show source)
     Left _ -> return ()
     Right actual -> assertFailure $ show actual
 
-parsed :: Text -> Either CompileError (Fragment Value Term)
+parsed :: Text -> Either [CompileError] (Fragment Value Term)
 parsed
   = mapLeft parseError . tokenize "test"
   >=> mapLeft parseError . parse "test"

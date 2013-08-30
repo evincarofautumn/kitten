@@ -51,7 +51,7 @@ data Config = Config
   }
 
 liftParseError :: Either ParseError a -> Either [CompileError] a
-liftParseError = mapLeft ((:[]) . parseError)
+liftParseError = mapLeft parseError
 
 parseSource
   :: String
