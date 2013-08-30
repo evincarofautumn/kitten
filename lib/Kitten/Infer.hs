@@ -301,7 +301,11 @@ infer resolved = case resolved of
     underlying <- instantiateM =<< getsEnv ((M.! name) . envTypeDefs)
     forAll $ \r -> (r :. Type.Named name loc --> r :. underlying) loc
 
-  Group terms loc -> infer (Compose terms loc)
+  Group terms loc -> do
+    Type.Function r s e _ <- infer (Compose terms loc)
+    a <- freshVarM
+    s === r :. a
+    return $ Type.Function r s e loc
 
   If true false loc -> withLocation loc $ do
     Type.Function a b e1 _ <- infer true

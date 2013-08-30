@@ -2,4 +2,4 @@
 (1 2 +) (3 4 +) *
 = sayBool
 
-(((("one") ("two")))) ((cat) say)
+(("one") ("two") cat) say

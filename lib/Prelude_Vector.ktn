@@ -186,7 +186,7 @@ def keepWhile ([a] (a -> Bool) -> [a]):
 
 // Gets the last element of a vector.
 def last ([a] -> a?):
-  dup (length 1 -) #
+  dup length 1 - #
 
 // Gets the length of a vector.
 def length ([a] -> Int):
@@ -331,7 +331,8 @@ def tossWhile ([a] (a -> Bool) -> [a]):
   -> { xs f }
   xs
   option (xs head):
-    if (f@):
+    -> x
+    if (x f@):
       tail f tossWhile
 
 // Transposes the rows and columns of a 2D vector.
