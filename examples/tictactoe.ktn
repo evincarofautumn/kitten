@@ -76,9 +76,9 @@ def checkSets (-> [[Int]]):
 // ' ', 'x', or 'o'
 def getCheckSetWinner ([Char] [Int] -> Char):
   getAll -> players
-  if (players { 'x' eqChar } all):
+  if (players { option id {'x' eqChar} else {false} } all):
     'x'
-  else if (players { 'o' eqChar } all):
+  else if (players { option id {'o' eqChar} else {false} } all):
     'o'
   else:
     ' '
@@ -126,7 +126,7 @@ def newBoard (-> [Char]): ' ' 9 replicate
 
 def editBoard ([Char] Int Char -> [Char]):
   -> { number player }
-  player (number cellNumberToIndex) #!
+  player (number cellNumberToIndex) #=
 
 def printBoard ([Char] -> +IO):
   showBoard print
@@ -152,7 +152,7 @@ def showBoardRow ([Char] Int -> [Char]):
   ]
 
 def showBoardCellAt ([Char] Int -> Char):
-  cellNumberToIndex# showBoardCell
+  cellNumberToIndex#! showBoardCell
 
 def cellNumberToIndex (Int -> Int):
   8 swap -
@@ -165,7 +165,7 @@ def showBoardCell (Char -> Char):
 def readMoveLine ([Char] -> (Int, Int)?):
   -> chars
   if (chars length 2 =):
-    (chars 0#) (chars 1#) readXY
+    (chars 0#!) (chars 1#!) readXY
   else:
     none
 
