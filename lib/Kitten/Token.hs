@@ -1,7 +1,8 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Kitten.Token
-  ( Located(..)
+  ( BlockTypeHint(..)
+  , Located(..)
   , Token(..)
   ) where
 
@@ -12,10 +13,17 @@ import qualified Data.Text as T
 import Kitten.Location
 import Kitten.Builtin (Builtin)
 
+data BlockTypeHint
+  = NormalBlockHint
+  | LayoutBlockHint
+
+instance Eq BlockTypeHint where
+  _ == _ = True
+
 data Token
   = Arrow
   | BigWord Text
-  | BlockBegin
+  | BlockBegin BlockTypeHint
   | BlockEnd
   | Bool Bool
   | BoolType
@@ -52,7 +60,8 @@ instance Show Token where
   show t = case t of
     Arrow -> "->"
     BigWord word -> T.unpack word
-    BlockBegin -> "{"
+    BlockBegin NormalBlockHint -> "{"
+    BlockBegin LayoutBlockHint -> ":"
     BlockEnd -> "}"
     Bool value -> if value then "true" else "false"
     BoolType -> "Bool"

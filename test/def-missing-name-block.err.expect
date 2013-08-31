@@ -1,0 +1,2 @@
+test/def-missing-name-block.ktn:1:5: compile error: unexpected {
+test/def-missing-name-block.ktn:1:5: note: expecting definition name

@@ -49,7 +49,7 @@ tokens = token `sepEndBy` silence
 
 token :: Parser Located
 token = (<?> "token") . located $ choice
-  [ BlockBegin <$ char '{'
+  [ BlockBegin NormalBlockHint <$ char '{'
   , BlockEnd <$ char '}'
   , Char <$> (char '\'' *> character '\'' <* char '\'')
   , Comma <$ char ','

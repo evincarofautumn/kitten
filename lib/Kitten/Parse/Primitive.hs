@@ -17,7 +17,7 @@ import qualified Kitten.Token as Token
 
 blocked :: Parser a -> Parser a
 blocked = between
-  (match Token.BlockBegin)
+  (match (Token.BlockBegin Token.NormalBlockHint))
   (match Token.BlockEnd)
 
 functionName :: Parser Text

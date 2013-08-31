@@ -40,7 +40,7 @@ spec = do
       $ testComment "/* Nested /* multi-line */ comment. */"
 
   describe "single-character token" $ do
-    testTokens "{" [BlockBegin]
+    testTokens "{" [BlockBegin NormalBlockHint]
     testTokens "}" [BlockEnd]
     testTokens "(" [GroupBegin]
     testTokens ")" [GroupEnd]

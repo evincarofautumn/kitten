@@ -45,7 +45,7 @@ insertBraces = (concat <$> many unit) <* eof
   unitWhere :: (Located -> Bool) -> Parser [Located]
   unitWhere predicate
     = try (lookAhead $ locatedSatisfy predicate) *> choice
-    [ bracket Token.BlockBegin Token.BlockEnd
+    [ bracket (Token.BlockBegin Token.NormalBlockHint) Token.BlockEnd
     , bracket Token.GroupBegin Token.GroupEnd
     , bracket Token.VectorBegin Token.VectorEnd
     , ifElse
@@ -57,7 +57,7 @@ insertBraces = (concat <$> many unit) <* eof
 
   isBracket :: Token -> Bool
   isBracket token = token `elem`
-    [ Token.BlockBegin
+    [ Token.BlockBegin Token.NormalBlockHint
     , Token.BlockEnd
     , Token.GroupBegin
     , Token.GroupEnd
@@ -79,5 +79,5 @@ insertBraces = (concat <$> many unit) <* eof
     body <- concat <$> many (unitWhere inside)
     when (null body)
       $ fail "empty layout blocks are not allowed; use {} instead"
-    return $ Located Token.BlockBegin colonLoc
+    return $ Located (Token.BlockBegin Token.LayoutBlockHint) colonLoc
       : body ++ [Located Token.BlockEnd colonLoc]
