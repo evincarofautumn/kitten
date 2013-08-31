@@ -5,12 +5,16 @@ module Kitten.Token
   , Token(..)
   ) where
 
+import Data.Text (Text)
+
+import qualified Data.Text as T
+
 import Kitten.Location
 import Kitten.Builtin (Builtin)
 
 data Token
   = Arrow
-  | BigWord String
+  | BigWord Text
   | BlockBegin
   | BlockEnd
   | Bool Bool
@@ -22,6 +26,7 @@ data Token
   | Comma
   | Def
   | Else
+  | From
   | GroupBegin
   | GroupEnd
   | Float Double
@@ -33,10 +38,12 @@ data Token
   | Int Int
   | IntType
   | Layout
-  | LittleWord String
-  | Operator String
+  | LittleWord Text
+  | Operator Text
   | Option
-  | Text String
+  | Text Text
+  | To
+  | Type
   | VectorBegin
   | VectorEnd
   deriving (Eq)
@@ -44,7 +51,7 @@ data Token
 instance Show Token where
   show t = case t of
     Arrow -> "->"
-    BigWord word -> word
+    BigWord word -> T.unpack word
     BlockBegin -> "{"
     BlockEnd -> "}"
     Bool value -> if value then "true" else "false"
@@ -56,6 +63,7 @@ instance Show Token where
     Comma -> ","
     Def -> "def"
     Else -> "else"
+    From -> "from"
     GroupBegin -> "("
     GroupEnd -> ")"
     Float value -> show value
@@ -67,10 +75,12 @@ instance Show Token where
     Int value -> show value
     IntType -> "Int"
     Layout -> ":"
-    LittleWord word -> word
-    Operator word -> word
+    LittleWord word -> T.unpack word
+    Operator word -> T.unpack word
     Option -> "option"
     Text value -> show value
+    To -> "to"
+    Type -> "type"
     VectorBegin -> "["
     VectorEnd -> "]"
 

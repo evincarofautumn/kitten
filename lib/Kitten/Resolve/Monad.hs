@@ -20,6 +20,12 @@ import Control.Applicative
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.List
+import Data.Monoid
+import Data.Text (Text)
+import Data.Traversable (Traversable)
+import Data.Vector (Vector)
+
+import qualified Data.Vector as V
 
 import Kitten.Def
 import Kitten.Error
@@ -34,21 +40,21 @@ newtype Resolution a = Resolution
   deriving (Functor, Applicative, Monad)
 
 data Env = Env
-  { envPrelude :: [Def Resolved.Value]
-  , envDefs :: [Def Term.Value]
-  , envScope :: [String]
+  { envPrelude :: !(Vector (Def Resolved.Value))
+  , envDefs :: !(Vector (Def Term.Value))
+  , envScope :: [Text]
   }
 
 -- | Halts resolution with a compilation error.
 compileError :: CompileError -> Resolution a
 compileError err = Resolution $ FailWriter.throwMany [err]
 
-defIndices :: String -> Env -> [Int]
+defIndices :: Text -> Env -> Vector Int
 defIndices expected Env{..} = findExpected envPrelude
-  ++ ((length envPrelude +) <$> findExpected envDefs)
+  <> ((V.length envPrelude +) <$> findExpected envDefs)
   where
-  findExpected :: [Def a] -> [Int]
-  findExpected = findIndices $ (== expected) . defName
+  findExpected :: Vector (Def a) -> Vector Int
+  findExpected = V.findIndices $ (== expected) . defName
 
 evalResolution :: Env -> Resolution a -> Either [CompileError] a
 evalResolution env (Resolution m)
@@ -61,7 +67,9 @@ guardLiftM2 :: (a -> b -> c) -> Resolution a -> Resolution b -> Resolution c
 guardLiftM2 f (Resolution a) (Resolution b)
   = Resolution $ FailWriter.guardLiftM2 f a b
 
-guardMapM :: (a -> Resolution b) -> [a] -> Resolution [b]
+guardMapM
+  :: (Traversable t)
+  => (a -> Resolution b) -> t a -> Resolution (t b)
 guardMapM f xs
   = Resolution $ FailWriter.guardMapM (unResolution . f) xs
 
@@ -69,13 +77,13 @@ guardMapM f xs
 guardReturn :: Resolution a -> Resolution (Maybe a)
 guardReturn = Resolution . FailWriter.guardReturn . unResolution
 
-localIndex :: String -> Env -> Maybe Int
+localIndex :: Text -> Env -> Maybe Int
 localIndex name = elemIndex name . envScope
 
 modifyEnv :: (Env -> Env) -> Resolution ()
 modifyEnv = Resolution . lift . modify
 
-withLocal :: String -> Resolution a -> Resolution a
+withLocal :: Text -> Resolution a -> Resolution a
 withLocal name action = do
   modifyEnv $ \ env@Env{..} -> env { envScope = name : envScope }
   result <- action

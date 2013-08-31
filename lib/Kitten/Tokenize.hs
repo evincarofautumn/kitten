@@ -1,3 +1,6 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns #-}
+
 module Kitten.Tokenize
   ( tokenize
   ) where
@@ -6,7 +9,11 @@ import Control.Applicative
 import Control.Monad
 import Data.Char
 import Data.Functor.Identity
+import Data.Maybe
+import Data.Text (Text)
+import Text.Parsec.Text ()
 
+import qualified Data.Text as T
 import qualified Text.Parsec as Parsec
 
 import Kitten.Parsec
@@ -17,9 +24,9 @@ import Kitten.Util.Parsec
 
 import qualified Kitten.Builtin as Builtin
 
-type Parser a = ParsecT String Column Identity a
+type Parser a = ParsecT Text Column Identity a
 
-tokenize :: String -> String -> Either ParseError [Located]
+tokenize :: String -> Text -> Either ParseError [Located]
 tokenize = runParser file 1
 
 located
@@ -51,9 +58,10 @@ token = (<?> "token") . located $ choice
   , Layout <$ char ':'
   , VectorBegin <$ char '['
   , VectorEnd <$ char ']'
-  , Text <$> (char '"' *> text <* char '"')
+  , Text <$> between (char '"') (char '"') text
   , try number
-  , try $ Arrow <$ string "->" <* notFollowedBy symbolCharacter
+  , try $ Arrow <$ (string "->" <|> string "\x2192")
+    <* notFollowedBy symbolCharacter
   , word
   ]
   where
@@ -70,8 +78,8 @@ token = (<?> "token") . located $ choice
       Just fraction -> Float . applySign . read $ integer ++ fraction
       Nothing -> Int . applySign $ read integer
 
-  text :: Parser String
-  text = many $ character '"'
+  text :: Parser Text
+  text = T.pack <$> many (character '"')
 
   character :: Char -> Parser Char
   character quote = noneOf ('\\' : [quote]) <|> escape
@@ -101,30 +109,43 @@ token = (<?> "token") . located $ choice
       "def" -> Def
       "else" -> Else
       "false" -> Bool False
+      "from" -> From
       "if" -> If
       "import" -> Import
       "option" -> Option
+      "to" -> To
       "true" -> Bool True
-      (first : _) | isUpper first -> BigWord name
-      _ -> case Builtin.fromString name of
+      "type" -> Type
+      (T.unpack -> first : _) | isUpper first -> BigWord name
+      _ -> case Builtin.fromText name of
         Just builtin -> Builtin builtin
         _ -> LittleWord name
-    , ffor symbolic $ \ name -> case Builtin.fromString name of
+    , ffor symbolic $ \ name -> case Builtin.fromText name of
       Just builtin -> Builtin builtin
       _ -> Operator name
     ]
     where
 
-    alphanumeric :: Parser String
-    alphanumeric = (:)
-      <$> (letter <|> char '_')
-      <*> many (letter <|> digit <|> char '_')
+    alphanumeric :: Parser Text
+    alphanumeric
+      = (\ x y z -> T.pack $ x : y ++ maybeToList z)
+      <$> (Parsec.satisfy isLetter <|> char '_')
+      <*> (many . choice)
+        [ Parsec.satisfy isLetter
+        , Parsec.satisfy isDigit
+        , char '_'
+        ]
+      <*> optionMaybe (oneOf "'\x2032\x2033\x2034\x2057")
 
-    symbolic :: Parser String
-    symbolic = many1 symbolCharacter
+    symbolic :: Parser Text
+    symbolic = T.pack <$> many1 symbolCharacter
 
   symbolCharacter :: Parser Char
-  symbolCharacter = oneOf "!#$%&*+-./;<=>?@\\^|~"
+  symbolCharacter = notFollowedBy special
+    *> (Parsec.satisfy isSymbol <|> Parsec.satisfy isPunctuation)
+
+  special :: Parser Char
+  special = oneOf "\"'(),:[]_{}"
 
 silence :: Parser ()
 silence = skipMany $ comment <|> whitespace
@@ -143,7 +164,7 @@ silence = skipMany $ comment <|> whitespace
   comment = single <|> multi <?> "comment"
 
   single = try (string "//")
-    *> (anyChar `skipManyTill` (void (char '\n') <|> eof))
+    *> (anyChar `skipManyTill` (newline <|> eof))
 
   multi = void $ start *> contents <* end
     where

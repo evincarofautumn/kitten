@@ -4,13 +4,20 @@ module Kitten.Interpret
   ( interpret
   ) where
 
+import Control.Applicative hiding (some)
 import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.Bits
 import Data.Fixed
+import Data.Monoid
+import Data.Vector ((!))
 import System.Exit
 import System.IO
+
+import qualified Data.Foldable as F
+import qualified Data.Traversable as T
+import qualified Data.Vector as V
 
 import Kitten.Builtin (Builtin)
 import Kitten.ClosedName
@@ -28,11 +35,11 @@ interpret
   -> Fragment Value Resolved
   -> IO [Value]
 interpret stack prelude fragment = liftM envData $ execStateT
-  (mapM_ interpretTerm (fragmentTerms fragment)) Env
+  (F.mapM_ interpretTerm (fragmentTerms fragment)) Env
   { envData = stack
   , envLocals = []
-  , envDefs = fragmentDefs prelude ++ fragmentDefs fragment
-  , envClosure = []
+  , envDefs = fragmentDefs prelude <> fragmentDefs fragment
+  , envClosure = V.empty
   , envLocations = []
   }              
 
@@ -45,9 +52,12 @@ interpretTerm resolved = case resolved of
     pushData value
     interpretTerm $ if which then right else left
   Compose terms loc -> withLocation loc
-    $ mapM_ interpretTerm terms
+    $ F.mapM_ interpretTerm terms
+  From _ loc -> withLocation loc $ do
+    Wrapped _ value <- popData
+    pushData value
   Group terms loc -> withLocation loc
-    $ mapM_ interpretTerm terms
+    $ F.mapM_ interpretTerm terms
   If true false loc -> withLocation loc $ do
     Bool test <- popData
     interpretTerm $ if test then true else false
@@ -67,16 +77,19 @@ interpretTerm resolved = case resolved of
     pushLocal =<< popData
     interpretTerm term
     popLocal
+  To name loc -> withLocation loc $ do
+    a <- popData
+    pushData $ Wrapped name a
   VectorTerm terms loc -> withLocation loc $ do
-    mapM_ interpretTerm terms
-    values <- replicateM (length terms) popData
-    pushData $ Vector (reverse values)
+    F.mapM_ interpretTerm terms
+    values <- V.fromList <$> replicateM (V.length terms) popData
+    pushData $ Vector (V.reverse values)
 
 interpretValue :: Value -> Interpret
 interpretValue value = case value of
   Closed name -> pushData =<< getClosed name
   Closure names term -> do
-    values <- mapM getClosedName names
+    values <- T.mapM getClosedName names
     pushData $ Activation values term
   Local name -> pushData =<< getLocal name
   _ -> pushData value
@@ -93,7 +106,7 @@ interpretFunction function = case function of
 
 interpretOverload :: Name -> Interpret
 interpretOverload (Name index) = do
-  Def{..} <- gets ((!! index) . envDefs)
+  Def{..} <- gets ((! index) . envDefs)
   withLocation defLocation $ do
     interpretValue defTerm
     apply
@@ -109,7 +122,7 @@ interpretBuiltin builtin = case builtin of
   Builtin.AddVector -> do
     Vector b <- popData
     Vector a <- popData
-    pushData $ Vector (a ++ b)
+    pushData $ Vector (a <> b)
 
   Builtin.AndBool -> boolsToBool (&&)
 
@@ -159,7 +172,7 @@ interpretBuiltin builtin = case builtin of
   Builtin.Get -> do
     Int b <- popData
     Vector a <- popData
-    pushData $ a !! b
+    pushData $ a ! b
 
   Builtin.GetLine -> do
     Handle a <- popData
@@ -173,7 +186,7 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.Init -> do
     Vector a <- popData
-    pushData $ Vector (init a)
+    pushData $ Vector (V.init a)
 
   Builtin.LeFloat -> floatsToBool (<=)
   Builtin.LeInt -> intsToBool (<=)
@@ -184,7 +197,7 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.Length -> do
     Vector a <- popData
-    pushData . Int $ length a
+    pushData . Int $ V.length a
 
   Builtin.LtFloat -> floatsToBool (<)
   Builtin.LtInt -> intsToBool (<)
@@ -244,8 +257,8 @@ interpretBuiltin builtin = case builtin of
     b <- popData
     Vector a <- popData
     pushData . Vector
-      $ let (before, after) = splitAt c a
-      in before ++ b : drop 1 after
+      $ let (before, after) = V.splitAt c a
+      in before <> V.singleton b <> V.drop 1 after
 
   Builtin.ShowFloat -> do
     Float value <- popData
@@ -268,13 +281,9 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.Tail -> do
     Vector a <- popData
-    pushData $ Vector (tail a)
+    pushData $ Vector (V.tail a)
 
   Builtin.UnsafePurify11 -> return ()
-
-  Builtin.Vector -> do
-    a <- popData
-    pushData $ Vector [a]
 
   Builtin.XorBool -> boolsToBool (/=)
 

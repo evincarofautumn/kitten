@@ -8,6 +8,7 @@ module Kitten.Parse.Primitive
   ) where
 
 import Control.Applicative
+import Data.Text (Text)
 
 import Kitten.Parse.Monad
 import Kitten.Parsec
@@ -19,20 +20,20 @@ blocked = between
   (match Token.BlockBegin)
   (match Token.BlockEnd)
 
-functionName :: Parser String
+functionName :: Parser Text
 functionName = littleWord <|> operator
 
-littleWord :: Parser String
+littleWord :: Parser Text
 littleWord = mapOne $ \ token -> case token of
   Token.LittleWord name -> Just name
   _ -> Nothing
 
-operator :: Parser String
+operator :: Parser Text
 operator = mapOne $ \ token -> case token of
   Token.Operator name -> Just name
   _ -> Nothing
 
-bigWord :: Parser String
+bigWord :: Parser Text
 bigWord = mapOne $ \ token -> case token of
   Token.BigWord name -> Just name
   _ -> Nothing

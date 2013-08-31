@@ -5,11 +5,12 @@ module Kitten.Infer.Type
 import Control.Applicative
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
-import Data.List
 import Data.Map (Map)
+import Data.Text (Text)
 
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import qualified Data.Map as M
+import qualified Data.Set as S
+import qualified Data.Vector as V
 
 import Kitten.Anno (Anno(Anno))
 import Kitten.Infer.Monad (Inferred, freshVarM)
@@ -20,70 +21,72 @@ import qualified Kitten.Anno as Anno
 
 data Env = Env
   { envRows :: [Name]
-  , envScalars :: Map String Name
-  , envEffects :: Map String Name
+  , envScalars :: !(Map Text Name)
+  , envEffects :: !(Map Text Name)
   }
 
 type Converted a = StateT Env Inferred a
 
 fromAnno :: Anno -> Inferred Scheme
-fromAnno (Anno annoType _) = do
+fromAnno (Anno annoType loc) = do
   (type_, env) <- flip runStateT Env
     { envRows = []
-    , envScalars = Map.empty
-    , envEffects = Map.empty
+    , envScalars = M.empty
+    , envEffects = M.empty
     } $ fromAnnoType' annoType
   return $ Forall
-    (Set.fromList (map row (envRows env)))
-    (Set.fromList . map scalar . Map.elems $ envScalars env)
-    (Set.fromList . map effect . Map.elems $ envEffects env)
+    (S.fromList (map row (envRows env)))
+    (S.fromList . map scalar . M.elems $ envScalars env)
+    (S.fromList . map effect . M.elems $ envEffects env)
     type_
   where
 
   fromAnnoType' :: Anno.Type -> Converted (Type Scalar)
   fromAnnoType' type_ = case type_ of
-    Anno.Bool -> return Bool
-    Anno.Char -> return Char
+    Anno.Bool -> return (Bool loc)
+    Anno.Char -> return (Char loc)
     Anno.Choice a b -> (:|) <$> fromAnnoType' a <*> fromAnnoType' b
     Anno.Function a b e -> do
-      Var r <- lift freshVarM
+      Var r _ <- lift freshVarM
       modify $ \ env -> env { envRows = r : envRows env }
       Function
-        <$> (foldl' (:.) (Var r) <$> mapM fromAnnoType' a)
-        <*> (foldl' (:.) (Var r) <$> mapM fromAnnoType' b)
+        <$> (V.foldl' (:.) (Var r loc) <$> V.mapM fromAnnoType' a)
+        <*> (V.foldl' (:.) (Var r loc) <$> V.mapM fromAnnoType' b)
         <*> fromAnnoEffect e
-    Anno.Float -> return Float
-    Anno.Handle -> return Handle
-    Anno.Int -> return Int
+        <*> pure loc
+    Anno.Float -> return (Float loc)
+    Anno.Handle -> return (Handle loc)
+    Anno.Int -> return (Int loc)
+    Anno.Named name -> return (Named name loc)
     Anno.Option a -> (:?) <$> fromAnnoType' a
     Anno.Pair a b -> (:&) <$> fromAnnoType' a <*> fromAnnoType' b
-    Anno.Unit -> return Unit
+    Anno.Unit -> return (Unit loc)
     Anno.Var name -> do
       mExisting <- gets
-        $ \ env -> Map.lookup name (envScalars env)
+        $ \ env -> M.lookup name (envScalars env)
       case mExisting of
-        Just existing -> return (Var existing)
+        Just existing -> return (Var existing loc)
         Nothing -> do
-          Var var <- lift freshVarM
+          Var var _ <- lift freshVarM
           modify $ \ env -> env
-            { envScalars = Map.insert name var (envScalars env) }
-          return (Var var)
-    Anno.Vector a -> Vector <$> fromAnnoType' a
+            { envScalars = M.insert name var (envScalars env) }
+          return (Var var loc)
+    Anno.Vector a -> Vector <$> fromAnnoType' a <*> pure loc
     _ -> error "converting effect annotation to non-effect type"
 
   fromAnnoEffect :: Anno.Type -> Converted (Type Effect)
   fromAnnoEffect e = case e of
-    Anno.NoEffect -> return NoEffect
-    Anno.IOEffect -> return IOEffect
+    Anno.NoEffect -> return (NoEffect loc)
+    Anno.IOEffect -> return (IOEffect loc)
     Anno.Var name -> do
       mExisting <- gets
-        $ \ env -> Map.lookup name (envEffects env)
+        $ \ env -> M.lookup name (envEffects env)
       case mExisting of
-        Just existing -> return (Var existing)
+        Just existing -> return (Var existing loc)
         Nothing -> do
-          Var var <- lift freshVarM
+          Var var _ <- lift freshVarM
           modify $ \ env -> env
-            { envEffects = Map.insert name var (envEffects env) }
-          return (Var var)
+            { envEffects = M.insert name var (envEffects env) }
+          return (Var var loc)
     Anno.Join a b -> (+:) <$> fromAnnoEffect a <*> fromAnnoEffect b
     _ -> error "converting non-effect annotation to effect type"

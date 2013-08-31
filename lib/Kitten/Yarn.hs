@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Kitten.Yarn
@@ -7,11 +8,17 @@ module Kitten.Yarn
   , yarn
   ) where
 
-import Control.Applicative
+import Control.Applicative hiding (some)
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
+import Data.Monoid
+import Data.Text (Text)
+import Data.Vector (Vector)
 import System.IO
+
+import qualified Data.Text as T
+import qualified Data.Vector as V
 
 import Kitten.Builtin (Builtin)
 import Kitten.ClosedName
@@ -20,6 +27,7 @@ import Kitten.Fragment
 import Kitten.Name
 import Kitten.Resolved (Resolved)
 import Kitten.Util.Monad
+import Kitten.Util.Text (ToText(..), showText)
 
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.Resolved as Resolved
@@ -29,93 +37,110 @@ type Offset = Int
 type Index = Int
 
 data Instruction
-  = Act Label [ClosedName]
-  | Builtin Builtin
-  | Call Label
-  | Closure Index
+  = Act !Label !(Vector ClosedName)
+  | Builtin !Builtin
+  | Call !Label
+  | Closure !Index
+  | Comment !Text
   | Enter
-  | Jump Label
-  | JumpIfFalse Offset
+  | EntryLabel
+  | Jump !Offset
+  | JumpIfFalse !Offset
+  | JumpIfNone !Offset
+  | JumpIfRight !Offset
   | Leave
-  | Label Label
-  | Local Index
-  | MakeVector Int
-  | Push Value
+  | Label !Label
+  | Local !Index
+  | MakeVector !Int
+  | Push !Value
   | Return
 
 instance Show Instruction where
-  show instruction = case instruction of
-    Act label names -> unwords
-      [ "act"
-      , show label
-      , concatMap showClosedName names
-      ]
+  show instruction = T.unpack . T.unwords $ case instruction of
+    Act label names
+      -> "act" : showText label : map showClosedName (V.toList names)
       where
-      showClosedName :: ClosedName -> String
-      showClosedName (ClosedName (Name index)) = "Local:" ++ show index
-      showClosedName (ReclosedName (Name index)) = "Closure:" ++ show index
+      showClosedName :: ClosedName -> Text
+      showClosedName (ClosedName (Name index)) = "local:" <> showText index
+      showClosedName (ReclosedName (Name index)) = "closure:" <> showText index
 
-    Builtin builtin -> show builtin
-    Call label -> unwords ["call", show label]
-    Closure index -> unwords ["closure", show index]
-    Enter -> "enter"
-    Jump label -> unwords ["jmp", show label]
-    JumpIfFalse offset -> unwords ["jf", show offset]
-    Leave -> "leave"
-    Label label -> unwords ["label", show label]
-    Local index -> unwords ["local", show index]
-    MakeVector size -> unwords ["vector", show size]
-    Push value -> unwords ["push", show value]
-    Return -> "ret"
+    Builtin builtin -> ["builtin", showText builtin]
+    Call label -> ["call", showText label]
+    Closure index -> ["closure", showText index]
+    Comment comment -> ["\n;", comment]
+    Enter -> ["enter"]
+    EntryLabel -> ["\nentry"]
+    Jump offset -> ["jmp", showText offset]
+    JumpIfFalse offset -> ["jf", showText offset]
+    JumpIfNone offset -> ["jn", showText offset]
+    JumpIfRight offset -> ["jr", showText offset]
+    Leave -> ["leave"]
+    Label label -> ["\nlabel", showText label]
+    Local index -> ["local", showText index]
+    MakeVector size -> ["vector", showText size]
+    Push value -> ["push", showText value]
+    Return -> ["ret"]
 
 data Value
-  = Bool Bool
-  | Char Char
-  | Float Double
-  | Handle Handle
-  | Int Int
-  | Vector [Value]
-  | Word Label                 
-  | Pair Value Value
+  = Bool !Bool
+  | Char !Char
+  | Choice !Bool !Value
+  | Float !Double
+  | Handle !Handle
+  | Int !Int
+  | Option !(Maybe Value)
+  | Pair !Value !Value
   | Unit
+  | Vector !(Vector Value)
+  | Word !Label                 
 
 instance Show Value where
-  show value = case value of
-    Bool bool -> unwords ["bool", if bool then "1" else "0"]
-    Char char -> unwords ["char", show (fromEnum char :: Int)]
-    Float float -> unwords ["float", show float]
+  show = T.unpack . toText
+
+instance ToText Value where
+  toText value = T.unwords $ case value of
+    Bool bool -> ["bool", if bool then "1" else "0"]
+    Char char -> ["char", showText (fromEnum char :: Int)]
+    Choice which choice
+      -> [if which then "right" else "left", toText choice]
+    Float float -> ["float", showText float]
 
     -- FIXME Unnecessary?
-    Handle handle -> case () of
+    Handle handle -> (:[]) $ case () of
       _ | handle == stderr -> "handle 2"
         | handle == stdin -> "handle 0"
         | handle == stdout -> "handle 1"
         | otherwise -> "handle 0"
 
-    Int int -> unwords ["int", show int]
-    Vector values -> unwords
-      $ "vector" : show (length values) : map show values
-    Word label -> unwords ["word", show label]
-    Pair a b -> unwords ["pair", show a, show b]
-    Unit -> "unit 0"
+    Int int -> ["int", showText int]
+    Option Nothing -> ["none"]
+    Option (Just option) -> ["some", toText option]
+    Pair a b -> ["pair", toText a, toText b]
+    Vector values
+      -> "vector"
+      : showText (V.length values)
+      : map toText (V.toList values)
+    Word label -> ["word", showText label]
+    Unit -> ["unit"]
 
 data Env = Env
-  { envClosures :: [[Instruction]]
+  { envClosures :: [Vector Instruction]
   }
 
 type Yarn a = ReaderT Int (State Env) a
 
 yarn
   :: Fragment Resolved.Value Resolved
-  -> [Instruction]
+  -> Vector Instruction
 yarn Fragment{..}
-  = collectClosures . withClosureOffset $ (++)
-    <$> concatMapM (uncurry yarnDef) (zip fragmentDefs [0..])
-    <*> concatMapM yarnTerm fragmentTerms
+  = collectClosures . withClosureOffset $ (<>)
+    <$> concatMapM (uncurry yarnDef)
+      (V.zip fragmentDefs (V.fromList [0..V.length fragmentDefs]))
+    <*> yarnEntry fragmentTerms
 
   where
   closureOffset :: Int
-  closureOffset = length fragmentDefs
+  closureOffset = V.length fragmentDefs
 
   withClosureOffset
     :: Yarn a
@@ -123,93 +148,131 @@ yarn Fragment{..}
   withClosureOffset = flip runReaderT closureOffset
 
   collectClosures
-    :: State Env [Instruction]
-    -> [Instruction]
+    :: State Env (Vector Instruction)
+    -> Vector Instruction
   collectClosures action = let
     (instructions, Env{..}) = runState action Env { envClosures = [] }
-    in concatMap (uncurry collectClosure)
-        (zip [closureOffset..] envClosures)
-      ++ instructions
+    in V.concatMap (uncurry collectClosure)
+        (V.fromList (zip [closureOffset..] envClosures))
+      <> instructions
 
   collectClosure
     :: Int
-    -> [Instruction]
-    -> [Instruction]
+    -> Vector Instruction
+    -> Vector Instruction
   collectClosure index instructions
-    = Label index : instructions ++ [Return]
+    = V.singleton (Label index) <> instructions <> V.singleton Return
 
 yarnDef
   :: Def Resolved.Value
   -> Int
-  -> Yarn [Instruction]
+  -> Yarn (Vector Instruction)
 yarnDef Def{..} index = do
   instructions <- case defTerm of
-    Resolved.Closure [] term -> yarnTerm term
+    Resolved.Closure _ term -> yarnTerm term
     _ -> error "Kitten.Yarn.yarnDef: TODO yarn non-function definition"
-  return $ Label index : instructions ++ [Return]
+  return
+    $ V.fromList [Comment defName, Label index]
+    <> instructions
+    <> V.singleton Return
 
-yarnTerm :: Resolved -> Yarn [Instruction]
+yarnEntry :: Vector Resolved -> Yarn (Vector Instruction)
+yarnEntry terms = do
+  instructions <- concatMapM yarnTerm terms
+  return
+    $ V.singleton EntryLabel
+    <> instructions
+    <> V.singleton Return
+
+yarnTerm :: Resolved -> Yarn (Vector Instruction)
 yarnTerm term = case term of
-  Resolved.Call (Name index) _ -> return [Call index]
-  Resolved.ChoiceTerm{} -> error
-    "Kitten.Yarn.yarnTerm: TODO yarn choice term"
+  Resolved.Builtin builtin _ -> return $ V.singleton (Builtin builtin)
+  Resolved.Call (Name index) _ -> return $ V.singleton (Call index)
+  Resolved.ChoiceTerm left right _ -> do
+    left' <- yarnTerm left
+    right' <- yarnTerm right
+    return $ V.concat
+      [ V.singleton . JumpIfRight $ V.length left' + 1
+      , left'
+      , V.singleton . Jump $ V.length right'
+      , right'
+      ]
   Resolved.Compose terms _ -> concatMapM yarnTerm terms
-  Resolved.Builtin builtin _ -> return [Builtin builtin]
+  Resolved.From{} -> return V.empty
   Resolved.Group terms _ -> concatMapM yarnTerm terms
   Resolved.If true false _ -> do
     true' <- yarnTerm true
     false' <- yarnTerm false
-    return $ concat
-      [ [JumpIfFalse $ length true']
+    return $ V.concat
+      [ V.singleton . JumpIfFalse $ V.length true' + 1
       , true'
+      , V.singleton . Jump $ V.length false'
       , false'
       ]
-  Resolved.OptionTerm{} -> error
-    "Kitten.Yarn.yarnTerm: TODO yarn option term"
+  Resolved.OptionTerm some none _ -> do
+    some' <- yarnTerm some
+    none' <- yarnTerm none
+    return $ V.concat
+      [ V.singleton . JumpIfNone $ V.length some' + 1
+      , some'
+      , V.singleton . Jump $ V.length none'
+      , none'
+      ]
   Resolved.PairTerm a b _ -> do
     a' <- yarnTerm a
     b' <- yarnTerm b
-    return $ a' ++ b' ++ [Builtin Builtin.Pair]
+    return $ a' <> b' <> V.singleton (Builtin Builtin.Pair)
   Resolved.Push value _ -> yarnValueInstruction value
   Resolved.Scoped terms _ -> do
     instructions <- yarnTerm terms
-    return $ Enter : instructions ++ [Leave]
+    return $ V.singleton Enter <> instructions <> V.singleton Leave
+  Resolved.To{} -> return V.empty
   Resolved.VectorTerm values _ -> do
     values' <- concatMapM yarnTerm values
-    return $ values' ++ [MakeVector (length values)]
+    return $ values' <> (V.singleton . MakeVector $ V.length values)
 
 yarnValueInstruction
   :: Resolved.Value
-  -> Yarn [Instruction]
+  -> Yarn (Vector Instruction)
 yarnValueInstruction resolved = case resolved of
   Resolved.Activation{} -> error
     "Kitten.Yarn.yarnValueInstruction: unexpected activation"
-  Resolved.Closed (Name index) -> return [Closure index]
+  Resolved.Closed (Name index) -> return $ V.singleton (Closure index)
   Resolved.Closure names terms -> do
     instructions <- yarnTerm terms
     index <- yarnClosure instructions
-    return [Act index names]
+    return $ V.singleton (Act index names)
   Resolved.Function{} -> error
     "Kitten.Yarn.yarnValueInstruction: unresolved closure"
-  Resolved.Local (Name index) -> return [Local index]
-  _ -> return [Push $ yarnValue resolved]
+  Resolved.Local (Name index) -> return $ V.singleton (Local index)
+  _ -> return $ V.singleton (Push $ yarnValue resolved)
 
-yarnClosure :: [Instruction] -> Yarn Label
+yarnClosure :: Vector Instruction -> Yarn Label
 yarnClosure terms = do
   closureOffset <- ask
   label <- lift . gets $ length . envClosures
   lift . modify $ \ env@Env{..} -> env
-    { envClosures = envClosures ++ [terms] }
+    { envClosures = terms : envClosures }
   return $ label + closureOffset
 
 yarnValue :: Resolved.Value -> Value
 yarnValue resolved = case resolved of
+  Resolved.Activation{} -> unexpectedInstruction
   Resolved.Bool value -> Bool value
   Resolved.Char value -> Char value
+  Resolved.Choice which value -> Choice which (yarnValue value)
+  Resolved.Closed{} -> unexpectedInstruction
+  Resolved.Closure{} -> unexpectedInstruction
   Resolved.Float value -> Float value
+  Resolved.Function{} -> unexpectedInstruction
   Resolved.Handle value -> Handle value
   Resolved.Int value -> Int value
+  Resolved.Local{} -> unexpectedInstruction
+  Resolved.Option value -> Option (yarnValue <$> value)
   Resolved.Pair a b -> Pair (yarnValue a) (yarnValue b)
   Resolved.Unit -> Unit
-  Resolved.Vector values -> Vector (map yarnValue values)
-  _ -> error "Kitten.Yarn.yarnValue: instruction where value expected"
+  Resolved.Vector values -> Vector (yarnValue <$> values)
+  Resolved.Wrapped _ inner -> yarnValue inner
+  where
+  unexpectedInstruction = error
+    "Kitten.Yarn.yarnValue: instruction where value expected"

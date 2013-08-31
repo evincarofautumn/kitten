@@ -24,6 +24,13 @@ def cat ([a] [a] -> [a]):
 def concat ([[a]] -> [a]):
   [] {cat} foldl
 
+// Lifts an impure function on values to one on vectors.
+def each ([a] (a -> +e) -> +e):
+  -> { xs f }
+  if (xs isEmpty not):
+    xs head f@
+    xs tail f each
+
 // Whether an element is present in a vector according to
 // the given equality predicate.
 def elem ([a] a (a a -> Bool) -> Bool):
@@ -107,6 +114,29 @@ def headTail ([a] -> a [a]):
 def init ([a] -> [a]):
   __init
 
+// Inserts a value at each possible index in a vector; given
+// a value x and a vector xs, generates a matrix with x on
+// the main diagonal and xs wrapped to the remainder.
+def insertEverywhere ([a] a -> [[a]]):
+  -> { xs x }
+  if (xs isEmpty):
+    [[x]]
+  else:
+    (xs tail) x insertEverywhere
+    {(xs head) prepend} map
+    (xs x prepend)
+    prepend
+
+def insert ([a] a (a a -> Bool) -> [a]):
+  -> { xs x lt }
+  if (xs isEmpty):
+    [x]
+  else if ((xs head) x lt@):
+    (xs tail) x lt insert
+    (xs head) prepend
+  else:
+    xs x prepend
+
 // Intersperses a value between the values of a vector.
 def intersperse ([a] a -> [a]):
   -> { xs sep }
@@ -132,6 +162,15 @@ def keep ([a] Int -> [a]):
   else:
     xs tail n-- keep
     xs head prepend
+
+// Keeps elements of a vector while a predicate holds.
+def keepWhile ([a] (a -> Bool) -> [a]):
+  -> { xs f }
+  if ((xs isEmpty not) (xs head f@) &&):
+    xs tail f keepWhile
+    xs head prepend
+  else:
+    []
 
 // Gets the last element of a vector.
 def last ([a] -> a):
@@ -172,6 +211,10 @@ def mapRange (a (a Int -> a) Int Int -> a):
     function start++ end mapRange
   else:
     value
+
+// Generates all permutations of a vector.
+def permutations ([a] -> [[a]]):
+  [[]] { -> x {x insertEverywhere} mapConcat } foldl
 
 // Prepends a value to the head of a vector.
 def prepend ([a] a -> [a]):
@@ -240,6 +283,15 @@ def scanr1 ([a] (a a -> a) -> [a]):
   -> { xs k }
   xs init xs last k scanr
 
+def sort ([a] (a a -> Bool) -> [a]):
+  -> lt
+  [] {lt insert} foldl
+
+def span ([a] (a -> Bool) -> [a] [a]):
+  -> { xs f }
+  xs f keepWhile
+  xs f tossWhile
+
 // Splits a vector into two parts at the given index.
 def splitAt ([a] Int -> [a] [a]):
   -> { xs n }
@@ -258,6 +310,13 @@ def toss ([a] Int -> [a]):
   else:
     xs tail n-- toss
 
+// Tosses elements of a vector while a predicate holds.
+def tossWhile ([a] (a -> Bool) -> [a]):
+  -> { xs f }
+  xs
+  if ((xs isEmpty not) (xs head f@) &&):
+    tail f tossWhile
+
 // Transposes the rows and columns of a 2D vector.
 def transpose ([[a]] -> [[a]]):
   -> xss
@@ -272,9 +331,21 @@ def transpose ([[a]] -> [[a]]):
     (xss {head} map) x prepend
     prepend
 
+// Strips duplicate elements from a vector according the
+// given equality predicate.
+def unique ([a] (a a -> Bool) -> [a]):
+  -> { xs eq }
+  if (xs isEmpty):
+    []
+  else:
+    xs head -> x
+    (xs tail {x eq@ not} filter) eq unique
+    x prepend
+
 // Wraps a value in a vector.
 def vector (a -> [a]):
-  __vector
+  -> x
+  [x]
 
 // Zips two lists together as pairs.
 def zip ([a] [b] -> [(a, b)]):

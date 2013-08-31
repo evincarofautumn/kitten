@@ -18,6 +18,9 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Writer
 import Data.Monoid
+import Data.Traversable (Traversable)
+
+import qualified Data.Traversable as T
 
 newtype FailWriterT w m a = FailWriterT
   (MaybeT (WriterT w m) a)
@@ -39,11 +42,11 @@ guardLiftM2 f ma mb = liftM2 (,)
     _ -> halt
 
 guardMapM
-  :: (Monad m, Monoid w)
+  :: (Monad m, Monoid w, Traversable t)
   => (a -> FailWriterT w m b)
-  -> [a]
-  -> FailWriterT w m [b]
-guardMapM f xs = guardSequence (map f xs)
+  -> t a
+  -> FailWriterT w m (t b)
+guardMapM f xs = guardSequence (fmap f xs)
 
 -- | Accumulates errors and continues.
 guardReturn
@@ -54,11 +57,11 @@ guardReturn (FailWriterT m)
   = FailWriterT . lift $ runMaybeT m
 
 guardSequence
-  :: (Monad m, Monoid w)
-  => [FailWriterT w m a]
-  -> FailWriterT w m [a]
+  :: (Monad m, Monoid w, Traversable t)
+  => t (FailWriterT w m a)
+  -> FailWriterT w m (t a)
 guardSequence xs
-  = liftM sequence (mapM guardReturn xs)
+  = liftM T.sequence (T.mapM guardReturn xs)
   >>= maybe halt return
 
 halt

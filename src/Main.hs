@@ -1,12 +1,18 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Main where
 
 import Control.Monad
 import Data.Monoid
+import Data.Text (Text)
 import System.Console.CmdArgs.Explicit
 import System.Exit
 import System.IO
+
+import qualified Data.ByteString as B
+import qualified Data.Text.Encoding as T
+import qualified Data.Vector as V
 
 import Kitten.Compile (compile, locateImport)
 import Kitten.Error
@@ -50,7 +56,8 @@ main = do
       exitFailure
 
     [filename] -> do
-      source <- readFile filename
+      rawSource <- B.readFile filename
+      let source = T.decodeUtf8 rawSource
       mPrelude <- compile Compile.Config
         { Compile.dumpResolved = argsDumpResolved arguments
         , Compile.dumpScoped = argsDumpScoped arguments
@@ -68,7 +75,7 @@ main = do
           exitFailure
         Right prelude -> return prelude
 
-      unless (null fragmentTerms) $ do
+      unless (V.null fragmentTerms) $ do
         hPutStrLn stderr "Prelude includes executable code."
         exitFailure
 
@@ -98,19 +105,20 @@ interpretAll
   :: [FilePath]
   -> CompileMode
   -> Fragment Value Resolved
-  -> (FilePath -> String -> Compile.Config)
+  -> (FilePath -> Text -> Compile.Config)
   -> IO ()
 interpretAll entryPoints compileMode prelude config
   = mapM_ interpretOne entryPoints
   where
   interpretOne :: FilePath -> IO ()
   interpretOne filename = do
-    program <- readFile filename
+    rawProgram <- B.readFile filename
+    let program = T.decodeUtf8 rawProgram
     mResult <- compile (config filename program)
     case mResult of
       Left compileErrors -> printCompileErrors compileErrors
       Right result -> case compileMode of
-        CompileMode -> mapM_ print $ yarn result
+        CompileMode -> V.mapM_ print $ yarn (prelude <> result)
         InterpretMode -> void $ interpret [] prelude result
 
 parseArguments :: IO Arguments

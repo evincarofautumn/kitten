@@ -4,7 +4,10 @@ module Kitten.Parse
 
 import Control.Applicative hiding (some)
 import Control.Monad
+import Data.Vector (Vector)
 
+import qualified Data.Text as T
+import qualified Data.Vector as V
 import qualified Text.Parsec as Parsec
 
 import Kitten.Def
@@ -18,8 +21,9 @@ import Kitten.Parse.Monad
 import Kitten.Parse.Primitive
 import Kitten.Parse.Type
 import Kitten.Term
+import Kitten.TypeDef
 import Kitten.Token (Located(..), Token)
-import Kitten.Util.List
+import Kitten.Util.Parsec
 
 import qualified Kitten.Token as Token
 
@@ -39,6 +43,7 @@ element = choice
   [ DefElement <$> def
   , ImportElement <$> import_
   , TermElement <$> term
+  , TypeElement <$> type_
   ]
 
 def :: Parser (Def Value)
@@ -51,7 +56,7 @@ def = (<?> "definition") . locate $ do
     { defName = name
     , defTerm = case body of
       Push function@Function{} _ -> function
-      _ -> Function [body] loc
+      _ -> Function (V.singleton body) loc
     , defAnno = anno
     , defLocation = loc
     }
@@ -77,21 +82,23 @@ term = locate $ choice
   , if_
   , choiceTerm
   , optionTerm
+  , to
+  , from
   ]
   where
 
   group :: Parser (Location -> Term)
-  group = (<?> "group") $ Group <$> grouped (many1 term)
+  group = (<?> "group") $ Group <$> grouped (many1V term)
 
-  branchList :: Parser [Term]
-  branchList = block <|> list <$> term
+  branchList :: Parser (Vector Term)
+  branchList = block <|> V.singleton <$> term
 
   branch :: Parser Term
   branch = locate $ Compose <$> branchList
 
   elseBranch :: Parser Term
   elseBranch = locate $ Compose
-    <$> (option [] (match Token.Else *> branchList))
+    <$> option V.empty (match Token.Else *> branchList)
 
   if_ :: Parser (Location -> Term)
   if_ = (<?> "if") $ do
@@ -99,7 +106,9 @@ term = locate $ choice
     condition <- term
     then_ <- branch
     else_ <- elseBranch
-    return $ \ loc -> Compose [condition, If then_ else_ loc] loc
+    return $ \ loc -> Compose
+      (V.fromList [condition, If then_ else_ loc])
+      loc
 
   choiceTerm :: Parser (Location -> Term)
   choiceTerm = (<?> "choice") $ do
@@ -108,7 +117,7 @@ term = locate $ choice
     left <- branch
     right <- elseBranch
     return $ \ loc -> Compose
-      [condition, ChoiceTerm left right loc]
+      (V.fromList [condition, ChoiceTerm left right loc])
       loc
 
   optionTerm :: Parser (Location -> Term)
@@ -118,40 +127,57 @@ term = locate $ choice
     some <- branch
     none <- elseBranch
     return $ \ loc -> Compose
-      [condition, OptionTerm some none loc]
+      (V.fromList [condition, OptionTerm some none loc])
       loc
 
   lambda :: Parser (Location -> Term)
   lambda = (<?> "lambda") $ match Token.Arrow *> choice
-    [ Lambda <$> littleWord <*> locate (Compose <$> many term)
+    [ Lambda <$> littleWord <*> locate (Compose <$> manyV term)
     , do
       names <- blocked (many littleWord)
-      terms <- many term
+      terms <- manyV term
       return $ \ loc -> foldr
         (\ lambdaName lambdaTerms -> Lambda lambdaName lambdaTerms loc)
         (Compose terms loc)
         (reverse names)
     ]
 
-  pair :: [Term] -> Location -> Term
-  pair values loc
-    = foldr (\ x y -> PairTerm x y loc) (Push (Unit loc) loc) values
+  pair :: Vector Term -> Location -> Term
+  pair values loc = V.foldr (\ x y -> PairTerm x y loc)
+    (Push (Unit loc) loc) values
+
+  to :: Parser (Location -> Term)
+  to = To <$> (match Token.To *> bigWord)
+
+  from :: Parser (Location -> Term)
+  from = From <$> (match Token.From *> bigWord)
 
   toBuiltin :: Token -> Maybe (Location -> Term)
   toBuiltin (Token.Builtin name) = Just $ Builtin name
   toBuiltin _ = Nothing
 
-  tuple :: Parser [Term]
+  tuple :: Parser (Vector Term)
   tuple = grouped
-    (locate (Compose <$> many1 term) `sepEndBy1` match Token.Comma)
+    (locate (Compose <$> many1V term) `sepEndBy1V` match Token.Comma)
     <?> "tuple"
 
-  vector :: Parser [Term]
+  vector :: Parser (Vector Term)
   vector = between
     (match Token.VectorBegin)
     (match Token.VectorEnd)
-    (locate (Compose <$> many1 term) `sepEndBy` match Token.Comma)
+    (locate (Compose <$> many1V term) `sepEndByV` match Token.Comma)
     <?> "vector"
+
+type_ :: Parser TypeDef
+type_ = (<?> "type definition") . locate $ do
+  void (match Token.Type)
+  name <- bigWord
+  anno <- typeDefType
+  return $ \ loc -> TypeDef
+    { typeDefName = name
+    , typeDefAnno = anno
+    , typeDefLocation = loc
+    }
 
 value :: Parser Value
 value = locate $ choice
@@ -167,11 +193,11 @@ value = locate $ choice
   toLiteral (Token.Float x) = Just $ Float x
   toLiteral (Token.Int x) = Just $ Int x
   toLiteral (Token.Text x) = Just $ \ loc
-    -> Vector (map (`Char` loc) x) loc
+    -> Vector (V.fromList (map (`Char` loc) (T.unpack x))) loc
   toLiteral _ = Nothing
 
   unit :: Parser (Location -> Value)
   unit = Unit <$ (match Token.GroupBegin >> match Token.GroupEnd)
 
-block :: Parser [Term]
-block = blocked (many term) <?> "block"
+block :: Parser (Vector Term)
+block = blocked (manyV term) <?> "block"

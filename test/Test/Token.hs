@@ -1,5 +1,8 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Test.Token where
 
+import Data.Text (Text)
 import Test.HUnit.Lang (Assertion, assertFailure)
 import Test.Hspec
 
@@ -83,7 +86,7 @@ spec = do
     testTokens "def" [Def]
 
   describe "tokenize builtin" $ do
-    testTokens "__vector" [Builtin Builtin.Vector]
+    testTokens "__add_int" [Builtin Builtin.AddInt]
     testTokens "__add_vector" [Builtin Builtin.AddVector]
     testTokens "@" [Builtin Builtin.Apply]
 
@@ -93,16 +96,16 @@ spec = do
     testTokens "thisThat123" [LittleWord "thisThat123"]
     testTokens "+-" [Operator "+-"]
     testTokens "<=>" [Operator "<=>"]
-    testTokens "!#$%&*+-./;<=>?@^|~"
-      [Operator "!#$%&*+-./;<=>?@^|~"]
+    testTokens "!#$%&*+-./<=>?@^|~"
+      [Operator "!#$%&*+-./<=>?@^|~"]
 
-testComment :: String -> Assertion
+testComment :: Text -> Assertion
 testComment source = case tokenize "test" source of
   Left message -> assertFailure $ show message
   Right [] -> return ()
   Right actual -> expectedButGot "[]" (showLocated actual)
 
-testInt :: String -> Int -> Spec
+testInt :: Text -> Int -> Spec
 testInt source expected = it ("int " ++ show source)
   $ case tokenize "test" source of
     Left message -> assertFailure $ show message
@@ -111,7 +114,7 @@ testInt source expected = it ("int " ++ show source)
     Right actual -> expectedButGot
       (show expected) (showLocated actual)
 
-testTokens :: String -> [Token] -> Spec
+testTokens :: Text -> [Token] -> Spec
 testTokens source expected = it (show source)
   $ case tokenize "test" source of
     Left message -> assertFailure $ show message

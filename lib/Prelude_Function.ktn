@@ -1,0 +1,40 @@
+// Composes two unary functions with one result.
+def compose ((a -> b +e1) (b -> c +e2) -> (a -> c +(e1 + e2))):
+  -> { f g }
+  { f@ g@ }
+
+// Wraps a value in a function.
+def function (a -> (-> a)):
+  -> x
+  { x }
+
+// Wraps a value in a unary function.
+def const (a -> (b -> a)):
+  -> x
+  { drop x }
+
+// Identity function.
+def id (a -> a):
+  -> x
+  x
+
+// Applies a unary function to two values.
+def toBoth (a a (a -> b +e) -> b b +e):
+  -> { x y f }
+  x f@ -> a
+  y f@ -> b
+  a b
+
+// Applies two unary functions to one value.
+def bothTo (a (a -> b +e1) (a -> c +e2) -> b c +(e1 + e2)):
+  -> { x f g }
+  x f@ -> a
+  x g@ -> b
+  a b
+
+// Applies two unary functions to two values.
+def both (a b (a -> c +e1) (b -> d +e2) -> c d +(e1 + e2)):
+  -> { x y f g }
+  x f@ -> a
+  y g@ -> b
+  a b
