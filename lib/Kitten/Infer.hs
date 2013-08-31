@@ -83,16 +83,23 @@ inferFragment prelude fragment = do
 
   forM_ (zip [0..] (V.toList allDefs)) $ \ (index, def)
     -> case defAnno def of
-      Just anno -> saveDef index =<< fromAnno anno
-      Nothing -> do
-        loc <- getsEnv envLocation
-        saveDef index . mono
-          =<< forAll (\ r s e -> Type.Function r s e loc)
+      Just anno -> do
+        scheme <- fromAnno anno
+        saveDecl index scheme
+        saveDefWith const index scheme
+      Nothing -> return ()
 
   forM_ (zip [(0 :: Int)..] (V.toList allDefs)) $ \ (index, def)
     -> withLocation (defLocation def) $ do
       scheme <- generalize (inferValue (defTerm def))
-      declaredScheme <- getsEnv ((N.! Name index) . envDefs)
+      declaredScheme <- do
+        decls <- getsEnv envDecls
+        case N.lookup (Name index) decls of
+          Just decl -> return decl
+          Nothing -> do
+            loc <- getsEnv envLocation
+            mono <$> forAll (\ r s e -> Type.Function r s e loc)
+      saveDefWith (flip const) index scheme
       declared <- instantiateM declaredScheme
       inferred <- instantiateM scheme
       declared === inferred
@@ -107,9 +114,14 @@ inferFragment prelude fragment = do
   allTypeDefs = ((<>) `on` fragmentTypeDefs) prelude fragment
   allDefs = ((<>) `on` fragmentDefs) prelude fragment
 
-  saveDef :: Int -> Scheme -> Inferred ()
-  saveDef index scheme = modifyEnv $ \ env -> env
-    { envDefs = N.insert (Name index) scheme (envDefs env) }
+  saveDecl :: Int -> Scheme -> Inferred ()
+  saveDecl index scheme = modifyEnv $ \ env -> env
+    { envDecls = N.insert (Name index) scheme (envDecls env) }
+
+  saveDefWith :: (Scheme -> Scheme -> Scheme) -> Int -> Scheme -> Inferred ()
+  saveDefWith f index scheme = modifyEnv $ \ env -> env
+    { envDefs = N.insertWith f
+      (Name index) scheme (envDefs env) }
 
 class ForAll a b where
   forAll :: a -> Inferred (Type b)
@@ -275,7 +287,13 @@ infer resolved = case resolved of
     Builtin.XorInt -> binary (Type.Int loc) loc
 
   Call name loc -> withLocation loc
-    $ instantiateM =<< getsEnv ((N.! name) . envDefs)
+    $ instantiateM =<< declOrDef
+    where
+    declOrDef = do
+      decls <- getsEnv envDecls
+      case N.lookup name decls of
+        Just decl -> return decl
+        Nothing -> getsEnv ((N.! name) . envDefs)
 
   ChoiceTerm left right loc -> withLocation loc $ do
     Type.Function a b e1 _ <- infer left

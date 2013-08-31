@@ -70,7 +70,6 @@ instantiate loc (Forall rows scalars effects type_) env
 
 generalize :: Inferred (Type Scalar) -> Inferred Scheme
 generalize action = do
-  before <- getEnv
   type_ <- action
   after <- getEnv
 
@@ -78,15 +77,10 @@ generalize action = do
     substituted :: Type Scalar
     substituted = sub after type_
 
-    dependent :: (Occurrences a) => TypeName a -> Bool
-    dependent = dependentBetween before after
-
     rows :: [TypeName Row]
     scalars :: [TypeName Scalar]
     effects :: [TypeName Effect]
-    (rows, scalars, effects)
-      = let (r, s, e) = freeVars substituted
-      in (filter dependent r, filter dependent s, filter dependent e)
+    (rows, scalars, effects) = freeVars substituted
 
   return $ Forall
     (S.fromList rows)
@@ -202,27 +196,6 @@ instance Occurrences Scalar where
       Right type' -> occurrences name env type'
     Unit{} -> 0
     Vector a _ -> occurrences name env a
-
--- | Tests whether a variable is dependent between two type
--- environment states.
-dependentBetween
-  :: forall a. Occurrences a
-  => Env
-  -> Env
-  -> TypeName a
-  -> Bool
-dependentBetween before after name
-  = any (bound after) (unbound before)
-  where
-  bound env name'= occurs (typeName name) env
-    (Var name' UnknownLocation :: Type a)
-
--- | Enumerates those type variables in an environment which
--- are allocated but not yet bound to a type.
-unbound :: Env -> [Name]
-unbound Env{..} = filter
-  (not . (`N.member` envScalars))
-  [Name 0 .. pred envNext]
 
 class Simplify a where
   simplify :: Env -> Type a -> Type a

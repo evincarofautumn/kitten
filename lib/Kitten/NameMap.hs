@@ -4,6 +4,7 @@ module Kitten.NameMap
   , empty
   , fromList
   , insert
+  , insertWith
   , lookup
   , member
   ) where
@@ -31,6 +32,10 @@ fromList = NameMap . foldr
 insert :: Name -> a -> NameMap a -> NameMap a
 insert (Name index) value (NameMap names)
   = NameMap $ I.insert index value names
+
+insertWith :: (a -> a -> a) -> Name -> a -> NameMap a -> NameMap a
+insertWith f (Name index) value (NameMap names)
+  = NameMap $ I.insertWith f index value names
 
 lookup :: Name -> NameMap a -> Maybe a
 lookup (Name index) (NameMap names)

@@ -1,0 +1,11 @@
+def myId (a -> a):
+  ->x
+  x
+
+def myIdAlias: myId
+
+10 myId sayInt
+"x" myId say
+
+10 myIdAlias sayInt
+"x" myIdAlias say

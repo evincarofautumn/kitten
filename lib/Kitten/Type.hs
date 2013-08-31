@@ -55,7 +55,10 @@ newtype TypeName a = TypeName { typeName :: Name }
   deriving (Eq, Ord)
 
 instance ToText (TypeName a) where
-  toText = showText . typeName
+  toText = toText . typeName
+
+instance Show (TypeName a) where
+  show = T.unpack . toText
 
 effect :: Name -> TypeName Effect
 effect = TypeName
@@ -100,11 +103,15 @@ instance ToText Scheme where
     , wordSetText rows
     , wordSetText scalars
     , wordSetText effects
+    , "."
     , toText type_
     ]
     where
     wordSetText :: Set (TypeName a) -> Text
     wordSetText = T.unwords . map toText . S.toList
+
+instance Show Scheme where
+  show = T.unpack . toText
 
 instance Eq (Type a) where
   Test == _ = True

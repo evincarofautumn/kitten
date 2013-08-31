@@ -44,6 +44,7 @@ import qualified Kitten.NameMap as N
 data Env = Env
   { envClosure :: !(Vector (Type Scalar))
   , envDefs :: !(NameMap Scheme)
+  , envDecls :: !(NameMap Scheme)
   , envEffects :: !(NameMap (Type Effect))
   , envLocals :: [Type Scalar]
   , envLocation :: !Location
@@ -76,6 +77,7 @@ emptyEnv :: Env
 emptyEnv = Env
   { envClosure = V.empty
   , envDefs = N.empty
+  , envDecls = N.empty
   , envEffects = N.empty
   , envLocals = []
   , envLocation = UnknownLocation
