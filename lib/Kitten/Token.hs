@@ -17,9 +17,6 @@ data BlockTypeHint
   = NormalBlockHint
   | LayoutBlockHint
 
-instance Eq BlockTypeHint where
-  _ == _ = True
-
 data Token
   = Arrow
   | BigWord Text
@@ -54,7 +51,43 @@ data Token
   | Type
   | VectorBegin
   | VectorEnd
-  deriving (Eq)
+
+instance Eq Token where
+  Arrow        == Arrow        = True
+  BigWord a    == BigWord b    = a == b
+  -- BlockBegins are equal regardless of BlockTypeHint.
+  BlockBegin{} == BlockBegin{} = True
+  BlockEnd     == BlockEnd     = True
+  Bool a       == Bool b       = a == b
+  BoolType     == BoolType     = True
+  Builtin a    == Builtin b    = a == b
+  Char a       == Char b       = a == b
+  CharType     == CharType     = True
+  Choice       == Choice       = True
+  Comma        == Comma        = True
+  Def          == Def          = True
+  Else         == Else         = True
+  From         == From         = True
+  GroupBegin   == GroupBegin   = True
+  GroupEnd     == GroupEnd     = True
+  Float a      == Float b      = a == b
+  FloatType    == FloatType    = True
+  HandleType   == HandleType   = True
+  IOType       == IOType       = True
+  If           == If           = True
+  Import       == Import       = True
+  Int a        == Int b        = a == b
+  IntType      == IntType      = True
+  Layout       == Layout       = True
+  LittleWord a == LittleWord b = a == b
+  Operator a   == Operator b   = a == b
+  Option       == Option       = True
+  Text a       == Text b       = a == b
+  To           == To           = True
+  Type         == Type         = True
+  VectorBegin  == VectorBegin  = True
+  VectorEnd    == VectorEnd    = True
+  _            == _            = False
 
 instance Show Token where
   show t = case t of
