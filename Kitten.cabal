@@ -20,6 +20,7 @@ library
 
   build-depends:
     base == 4.*,
+    bytestring == 0.10.*,
     containers == 0.5.*,
     directory == 1.2.*,
     either == 3.4.*,
@@ -111,6 +112,7 @@ executable kitten
   build-depends:
     Kitten,
     base,
+    bytestring,
     cmdargs == 0.10.*,
     directory,
     filepath,
