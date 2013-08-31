@@ -7,6 +7,8 @@ module Kitten.Parse.Type
 
 import Control.Applicative
 
+import qualified Data.Vector as V
+
 import Kitten.Anno (Anno(..), Type)
 import Kitten.Parse.Monad
 import Kitten.Parsec
@@ -18,7 +20,12 @@ import qualified Kitten.Token as Token
 
 signature :: Parser Anno
 signature = (<?> "type signature") . locate
-  $ Anno <$> grouped functionType
+  $ Anno <$> choice
+  [ try . grouped $ Anno.Function V.empty
+    <$> (V.singleton <$> baseType)
+    <*> pure Anno.NoEffect
+  , grouped functionType
+  ]
 
 typeDefType :: Parser Anno
 typeDefType = locate $ Anno <$> baseType
