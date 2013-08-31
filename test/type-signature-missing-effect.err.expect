@@ -1,0 +1,2 @@
+test/type-signature-missing-effect.ktn:1:20: compile error: unexpected )
+test/type-signature-missing-effect.ktn:1:20: note: expecting effect type

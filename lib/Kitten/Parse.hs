@@ -50,7 +50,7 @@ def :: Parser (Def Value)
 def = (<?> "definition") . locate $ do
   void (match Token.Def)
   name <- functionName <?> "definition name"
-  anno <- optionMaybe (grouped signature <?> "type signature")
+  anno <- optionMaybe signature
   body <- block <?> "definition body"
   return $ \ loc -> Def
     { defName = name

@@ -17,16 +17,17 @@ import qualified Kitten.Anno as Anno
 import qualified Kitten.Token as Token
 
 signature :: Parser Anno
-signature = locate $ Anno <$> functionType
+signature = (<?> "type signature") . locate
+  $ Anno <$> grouped functionType
 
 typeDefType :: Parser Anno
 typeDefType = locate $ Anno <$> baseType
 
 type_ :: Parser Type
-type_ = try functionType <|> baseType
+type_ = (<?> "type") $ try functionType <|> baseType
 
 functionType :: Parser Type
-functionType = do
+functionType = (<?> "function type") $ do
   left <- manyV baseType
   right <- match Token.Arrow *> manyV baseType
   effect <- choice
@@ -36,7 +37,7 @@ functionType = do
   return $ Anno.Function left right effect
 
 effectType :: Parser Type
-effectType = do
+effectType = (<?> "effect type") $ do
   left <- choice
     [ Anno.IOEffect <$ match Token.IOType
     , Anno.Var <$> littleWord
@@ -64,7 +65,7 @@ baseType = (<?> "base type") $ do
     , try $ grouped type_
     , tuple
     ]
-  choice
+  (<?> "") $ choice
     [ Anno.Choice prefix
       <$> (match (Token.Operator "|") *> baseType)
     , Anno.Option prefix <$ match (Token.Operator "?")
