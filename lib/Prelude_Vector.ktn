@@ -3,8 +3,8 @@ def append ([a] a -> [a]):
   vector cat
 
 // The Cartesian product of two vectors.
-def cartesian ([a] [b] -> [(a, b)]):
-  {double} cartesianWith
+def cartesian ([a] [b] -> [a & b]):
+  {pair} cartesianWith
 
 // The Cartesian product of two vectors with a generalized
 // tupling function.
@@ -375,8 +375,8 @@ def vector (a -> [a]):
   [x]
 
 // Zips two lists together as pairs.
-def zip ([a] [b] -> [(a, b)]):
-  {double} zipWith
+def zip ([a] [b] -> [a & b]):
+  {pair} zipWith
 
 // Zips two lists together with a function.
 def zipWith ([a] [b] (a b -> c) -> [c]):

@@ -70,7 +70,6 @@ baseType = (<?> "base type") $ do
     , vector
     , try unit
     , try $ grouped type_
-    , tuple
     ]
   (<?> "") $ choice
     [ Anno.Choice prefix
@@ -86,11 +85,6 @@ vector = Anno.Vector <$> between
   (match Token.VectorBegin)
   (match Token.VectorEnd)
   baseType
-
-tuple :: Parser Type
-tuple = do
-  types <- grouped (type_ `sepEndBy1` match Token.Comma)
-  return $ foldr Anno.Pair Anno.Unit types
 
 unit :: Parser Type
 unit = Anno.Unit

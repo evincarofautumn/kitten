@@ -141,8 +141,7 @@ term = locate $ choice
     ]
 
   pair :: Vector Term -> Location -> Term
-  pair values loc = V.foldr (\ x y -> PairTerm x y loc)
-    (Push (Unit loc) loc) values
+  pair values loc = V.foldr1 (\ x y -> PairTerm x y loc) values
 
   to :: Parser (Location -> Term)
   to = To <$> (match Token.To *> bigWord)

@@ -5,9 +5,9 @@
 // return 'some' value is evaluated. If all of the matches
 // returned 'none', then 'cond' evaluates the default.
 def cond (
-  a                       // Matched value
-  [(a -> b?, b -> c +e)]  // (pattern, function) pairs
-  (-> c +e)               // default function
+  a                          // Matched value
+  [(a -> b?) & (b -> c +e)]  // (pattern, function) pairs
+  (-> c +e)                  // default function
   ->
   c +e
 ):
@@ -16,7 +16,7 @@ def cond (
     -> p
     x (p first)@ -> m
     option m:
-      p second @
+      p rest @
     else:
       x (ps tail) z cond
   else:
@@ -25,7 +25,7 @@ def cond (
 // 'cond' without a default.
 def cond1 (
   a
-  [(a -> b?, b -> c +e)]
+  [(a -> b?) & (b -> c +e)]
   ->
   c +e
 ):
@@ -33,7 +33,7 @@ def cond1 (
   ps head fromSome -> p
   x (p first)@ -> m
   option m:
-    p second @
+    p rest @
   else:
     x (ps tail) cond1
 
