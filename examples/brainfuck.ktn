@@ -1,0 +1,326 @@
+/*
+ * brainfuck.ktn
+ *
+ * Contributed by @strager <https://github.com/strager/>
+ *
+ * Modified by Jon Purdy <https://github.com/evincarofautumn/>
+ *
+ */
+
+type Instruction Char
+type Program [Instruction]
+type Memory [Int]
+
+////////////////////////////////////////////////////////////
+// Configuration
+
+def debug: false
+
+// Some programs want 0; some want -1.
+def eofCell(-> Int): -1
+
+////////////////////////////////////////////////////////////
+// Utilities
+
+// TODO(strager): Make a macro.
+def when(Bool (-> +IO) -> +IO):
+  ->{cond f}
+  if cond: f@
+  else: noop
+
+def lookUp([a & b] a (a a -> Bool +e) -> b? +e):
+  ->{key eq}
+  {first key eq@} find
+  {rest} liftOption
+
+// TODO(strager): Find a better name.  'option' is taken.
+def maybe(a? (a -> b +e) b -> b +e):
+  ->{mx f z}
+  option mx: f@
+  else: z
+
+// FIXME(strager): Can't do this!
+// def apply: @
+
+// FIXME(strager): I can't write a 'switch' function for the
+// same reason I can't write an 'apply' alias.
+
+// FIXME(strager): I don't want to write type annotations.
+// TODO(strager): Wouldn't it be awesome if we had lenses?
+def get([a] Int -> a): #!
+def set([a] a Int -> [a]): #=
+def update([a] (a -> a) Int -> [a]): #@
+
+// FIXME(strager): Bad approximation.
+def getCharApprox(-> Char? +IO):
+  getLine ->line
+  line head
+
+def error([Char] -> +IO):
+  ->message
+  ["Error: ", message, "\n"] concat stderr handlePrint
+  1 exit
+
+// TODO(strager): Make this a compiler intrinsic.
+def unfoldN(a (a -> b a +e) Int -> [b] +e):
+  ->{z f size}
+  if (size 0 >):
+    z f@ ->{b a}
+    (a f size-- unfoldN)
+    b prepend
+  else:
+    []
+
+def generateN((Int -> a +e) Int -> [a] +e):
+  ->{f size}
+  0 {->index
+    index f@
+    index++
+  } size unfoldN
+
+// TODO(strager): Make this more efficient.
+def loopN((Int -> +e) Int -> +e):
+  ->{f size}
+  {f@ ()} size generateN drop
+
+////////////////////////////////////////////////////////////
+// Type routines
+
+def eqInstruction(Instruction Instruction -> Bool):
+  from Instruction swap
+  from Instruction eqChar
+
+def createMemory(Int -> Memory):
+  0 swap replicate to Memory
+
+def updateMemory(Memory (Int -> Int) Int -> Memory):
+  ->{memory f index}
+  (memory from Memory) f index update to Memory
+
+def getMemory(Memory Int -> Int):
+  ->{memory index}
+  memory from Memory index get
+
+def setMemory(Memory Int Int -> Memory):
+  ->{memory value index}
+  memory {drop value} index updateMemory
+
+////////////////////////////////////////////////////////////
+// Interpreter
+
+def parseProgram([Char] -> Program):
+  {to Instruction} map
+  to Program
+
+def runProgram(Program -> +IO):
+  ->program
+  1024 createMemory ->ram
+
+  program 0 ram 0
+  loopProgram
+
+def loopProgram(Program Int Memory Int -> +IO):
+  stepProgram
+  ->running
+  if running:
+    loopProgram
+  else:
+    drop drop drop drop
+
+def stepProgram(Program Int Memory Int -> Program Int Memory Int Bool +IO):
+  ->{program pc ram ramc}
+
+  debug {
+    ram ramc dumpMemory
+    program pc dumpProgram
+  } when
+
+  program from Program ->instructions
+
+  [ ('<' to Instruction, {
+      program pc++ ram ramc--
+      noop // FIXME(strager): Dumb compiler.
+    })
+
+  , ('>' to Instruction, {
+      program pc++ ram ramc++
+      noop // FIXME(strager): Dumb compiler.
+    })
+
+  , ('+' to Instruction, {
+      program pc++
+      (ram {++} ramc updateMemory) ramc
+      noop // FIXME(strager): Dumb compiler.
+    })
+
+  , ('-' to Instruction, {
+      program pc++
+      (ram {--} ramc updateMemory) ramc
+      noop // FIXME(strager): Dumb compiler.
+    })
+
+  , ('[' to Instruction, {
+      if (ram ramc getMemory 0 =):
+        option (program pc findMatchingRBracket):
+          ->rbracket
+          program rbracket++ ram ramc
+        else:
+          ["No matching ] at position ", pc showInt] concat error
+          // FIXME(strager): Compiler can't infer non-termination.
+          program pc ram ramc
+      else:
+        program pc++ ram ramc
+      noop // FIXME(strager): Dumb compiler.
+    })
+
+  , (']' to Instruction, {
+      option (program pc findMatchingLBracket):
+        ->lbracket
+        program lbracket ram ramc
+      else:
+        ["No matching [ at position ", pc showInt] concat error
+        // FIXME(strager): Compiler can't infer non-termination.
+        program pc ram ramc
+      noop // FIXME(strager): Dumb compiler.
+    })
+
+  , ('.' to Instruction, {
+      ram ramc getMemory ->cell
+      option (cell intToChar):
+        vector print
+      else:
+        ["Tried to print ", cell showInt, ", which is out of range"] concat error
+      program pc++ ram ramc
+    })
+
+  , (',' to Instruction, {
+      program pc++
+      getCharApprox {charToInt} eofCell maybe ->cell
+      (ram cell ramc setMemory) ramc
+    })
+  ] ->instructionTable
+
+  option (instructions pc#):
+    ->instruction
+    option (instructionTable instruction {eqInstruction} lookUp):
+      @ /*apply*/
+    else:
+      program pc++ ram ramc
+    true // Keep running.
+  else:
+    program pc ram ramc
+    false // Halt.
+
+def findLBracket(Program Int Int -> Int?):
+  ->{program pc depth}
+  option (program from Program pc#):
+    [ ('[' to Instruction, {
+        if (depth 0 =):
+          pc some
+        else:
+          program pc-- depth-- findLBracket
+      })
+    , (']' to Instruction, {
+        program pc-- depth++ findLBracket
+      })
+    ] swap {eqInstruction} lookUp option id:
+      @ /*apply*/
+    else:
+      program pc-- depth findLBracket
+  else:
+    none
+
+def findMatchingLBracket(Program Int -> Int?):
+  --
+  0 findLBracket
+
+// TODO(strager): Remove duplication with findLBracket.
+def findRBracket(Program Int Int -> Int?):
+  ->{program pc depth}
+  option (program from Program pc#):
+    [ ('[' to Instruction, {
+        program pc++ depth++ findRBracket
+      })
+    , (']' to Instruction, {
+        if (depth 0 =):
+          pc some
+        else:
+          program pc++ depth-- findRBracket
+      })
+    ] swap {eqInstruction} lookUp option id:
+      @ /*apply*/
+    else:
+      program pc++ depth findRBracket
+  else:
+    none
+
+def findMatchingRBracket(Program Int -> Int?):
+  ++
+  0 findRBracket
+
+////////////////////////////////////////////////////////////
+// Programs
+
+def progHelloWorld:
+  "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>."
+
+def progRot13:
+  [ "-,+[                         Read first character and start outer character reading loop"
+  , "    -[                       Skip forward if character is 0"
+  , "        >>++++[>++++++++<-]  Set up divisor (32) for division loop"
+  , "                               (MEMORY LAYOUT: dividend copy remainder divisor quotient zero zero)"
+  , "        <+<-[                Set up dividend (x minus 1) and enter division loop"
+  , "            >+>+>-[>>>]      Increase copy and remainder / reduce divisor / Normal case: skip forward"
+  , "            <[[>+<-]>>+>]    Special case: move remainder back to divisor and increase quotient"
+  , "            <<<<<-           Decrement dividend"
+  , "        ]                    End division loop"
+  , "    ]>>>[-]+                 End skip loop; zero former divisor and reuse space for a flag"
+  , "    >--[-[<->+++[-]]]<[         Zero that flag unless quotient was 2 or 3; zero quotient; check flag"
+  , "        ++++++++++++<[       If flag then set up divisor (13) for second division loop"
+  , "                               (MEMORY LAYOUT: zero copy dividend divisor remainder quotient zero zero)"
+  , "            >-[>+>>]         Reduce divisor; Normal case: increase remainder"
+  , "            >[+[<+>-]>+>>]   Special case: increase remainder / move it back to divisor / increase quotient"
+  , "            <<<<<-           Decrease dividend"
+  , "        ]                    End division loop"
+  , "        >>[<+>-]             Add remainder back to divisor to get a useful 13"
+  , "        >[                   Skip forward if quotient was 0"
+  , "            -[               Decrement quotient and skip forward if quotient was 1"
+  , "                -<<[-]>>     Zero quotient and divisor if quotient was 2"
+  , "            ]<<[<<->>-]>>    Zero divisor and subtract 13 from copy if quotient was 1"
+  , "        ]<<[<<+>>-]          Zero divisor and add 13 to copy if quotient was 0"
+  , "    ]                        End outer skip loop (jump to here if ((character minus 1)/32) was not 2 or 3)"
+  , "    <[-]                     Clear remainder from first division if second division was skipped"
+  , "    <.[-]                    Output ROT13ed character from copy and clear it"
+  , "    <-,+                     Read next character"
+  , "]                            End character reading loop"
+  ] concat
+
+def progCat:
+  ",+[-.,+]"
+
+def progSort:
+  ">,+[>,+]<[[[->>+>>-[<]<<<]>[<]<[->>>>+<<<<]>>[>+>+<<-]<<<]>>>>-.[-]>[>]<]"
+
+////////////////////////////////////////////////////////////
+// Debugging
+
+def dumpMemory(Memory Int -> +IO):
+  ->{ram ramc}
+
+  "Memory:" say
+  {->index
+    ram index getMemory ->cell
+    ["[", index showInt, "] ", cell showInt] concat print
+    (index ramc =) {" <" print} when
+    newline
+  } 32 loopN
+
+def dumpProgram(Program Int -> +IO):
+  ->{_ pc}
+  ["Program counter: ", pc showInt] concat say
+
+////////////////////////////////////////////////////////////
+// Main
+
+progCat
+parseProgram runProgram
