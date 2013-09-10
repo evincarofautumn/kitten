@@ -53,7 +53,7 @@ def askTurn ([Char] Char -> [Char] +IO):
   option mxy:
     -> xy
     board
-    xy first xy second xyToCellNumber
+    xy first xy rest xyToCellNumber
     player editBoard
   else if (input "q" eqString):
     0 exit board
@@ -64,7 +64,8 @@ def askTurn ([Char] Char -> [Char] +IO):
     board player askTurn
 
 def nextPlayer (Char -> Char):
-  if ('x' eqChar): 'o' else: 'x'
+  -> p
+  if (p 'x' eqChar): 'o' else: 'x'
 
 def checkSets (-> [[Int]]):
   [
@@ -162,14 +163,14 @@ def showBoardCell (Char -> Char):
 
 // Input
 
-def readMoveLine ([Char] -> (Int, Int)?):
+def readMoveLine ([Char] -> (Int & Int)?):
   -> chars
   if (chars length 2 =):
     (chars 0#!) (chars 1#!) readXY
   else:
     none
 
-def readXY (Char Char -> (Int, Int)?):
+def readXY (Char Char -> (Int & Int)?):
   -> { x y }
   x y readXY_ -> mxy
   option mxy:
@@ -177,10 +178,10 @@ def readXY (Char Char -> (Int, Int)?):
   else:
     y x readXY_
 
-def readXY_ (Char Char -> (Int, Int)?):
+def readXY_ (Char Char -> (Int & Int)?):
   readX -> mx
   readY -> my
-  mx my {double} liftOption2
+  mx my {pair} liftOption2
 
 def readX (Char -> Int?):
   -> c
