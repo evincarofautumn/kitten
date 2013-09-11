@@ -2,11 +2,13 @@
 
 module Kitten.Token
   ( BlockTypeHint(..)
+  , BaseHint(..)
   , Located(..)
   , Token(..)
   ) where
 
 import Data.Text (Text)
+import Numeric
 
 import qualified Data.Text as T
 
@@ -16,6 +18,12 @@ import Kitten.Builtin (Builtin)
 data BlockTypeHint
   = NormalBlockHint
   | LayoutBlockHint
+
+data BaseHint
+  = BinaryHint
+  | OctalHint
+  | DecimalHint
+  | HexadecimalHint
 
 data Token
   = Arrow
@@ -40,7 +48,7 @@ data Token
   | IOType
   | If
   | Import
-  | Int Int
+  | Int Int BaseHint
   | IntType
   | Layout
   | LittleWord Text
@@ -76,7 +84,8 @@ instance Eq Token where
   IOType       == IOType       = True
   If           == If           = True
   Import       == Import       = True
-  Int a        == Int b        = a == b
+  -- Ints are equal regardless of BaseHint.
+  Int a _      == Int b _      = a == b
   IntType      == IntType      = True
   Layout       == Layout       = True
   LittleWord a == LittleWord b = a == b
@@ -114,7 +123,14 @@ instance Show Token where
     IOType -> "IO"
     If -> "if"
     Import -> "import"
-    Int value -> show value
+    Int value hint -> if value < 0 then '-' : shown else shown
+      where
+      shown = prefix ++ showIntAtBase base (digits !!) (abs value) ""
+      (base, prefix, digits) = case hint of
+        BinaryHint -> (2, "0b", "01")
+        OctalHint -> (8, "0o", ['0'..'7'])
+        DecimalHint -> (10, "", ['0'..'9'])
+        HexadecimalHint -> (16, "0x", ['0'..'9'] ++ ['A'..'F'])
     IntType -> "Int"
     Layout -> ":"
     LittleWord word -> T.unpack word

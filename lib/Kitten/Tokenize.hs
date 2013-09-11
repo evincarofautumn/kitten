@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -11,6 +12,7 @@ import Data.Char
 import Data.Functor.Identity
 import Data.Maybe
 import Data.Text (Text)
+import Numeric
 import Text.Parsec.Text ()
 
 import qualified Data.Text as T
@@ -72,11 +74,25 @@ token = (<?> "token") . located $ choice
     let
       applySign :: (Num a) => a -> a
       applySign = if sign == Just '-' then negate else id
-    integer <- many1 digit
-    mFraction <- optionMaybe $ (:) <$> char '.' <*> many1 digit
-    return $ case mFraction of
-      Just fraction -> Float . applySign . read $ integer ++ fraction
-      Nothing -> Int . applySign $ read integer
+
+    choice
+      [ try . fmap (\ (hint, value) -> Int (applySign value) hint)
+        $ char '0' *> choice
+        [ base 'b' "01" readBin BinaryHint "binary"
+        , base 'o' ['0'..'7'] readOct' OctalHint "octal"
+        , base 'x' (['0'..'9'] ++ ['A'..'F']) readHex'
+          HexadecimalHint "hexadecimal"
+        ]
+      , do
+        integer <- many1 digit
+        mFraction <- optionMaybe $ (:) <$> char '.' <*> many1 digit
+        return $ case mFraction of
+          Just fraction -> Float . applySign . read $ integer ++ fraction
+          Nothing -> Int (applySign $ read integer) DecimalHint
+      ]
+
+  base prefix digits readBase hint desc = fmap ((,) hint . readBase)
+    $ char prefix *> many1 (oneOf digits <?> (desc ++ " digit"))
 
   text :: Parser Text
   text = T.pack <$> many (character '"')
@@ -147,6 +163,18 @@ token = (<?> "token") . located $ choice
 
   special :: Parser Char
   special = oneOf "\"'(),:[]_{}"
+
+readBin :: String -> Int
+readBin = go 0
+  where
+  go !acc ('0':xs) = go (2 * acc + 0) xs
+  go !acc ('1':xs) = go (2 * acc + 1) xs
+  go !acc [] = acc
+  go _ (_:_) = error "Kitten.Tokenize.readBin: non-binary digit"
+
+readHex', readOct' :: String -> Int
+readHex' = fst . head . readHex
+readOct' = fst . head . readOct
 
 silence :: Parser ()
 silence = skipMany $ comment <|> whitespace
