@@ -31,10 +31,8 @@ data Token
   | BlockBegin BlockTypeHint
   | BlockEnd
   | Bool Bool
-  | BoolType
   | Builtin Builtin
   | Char Char
-  | CharType
   | Choice
   | Comma
   | Def
@@ -43,13 +41,9 @@ data Token
   | GroupBegin
   | GroupEnd
   | Float Double
-  | FloatType
-  | HandleType
-  | IOType
   | If
   | Import
   | Int Int BaseHint
-  | IntType
   | Layout
   | LittleWord Text
   | Operator Text
@@ -67,10 +61,8 @@ instance Eq Token where
   BlockBegin{} == BlockBegin{} = True
   BlockEnd     == BlockEnd     = True
   Bool a       == Bool b       = a == b
-  BoolType     == BoolType     = True
   Builtin a    == Builtin b    = a == b
   Char a       == Char b       = a == b
-  CharType     == CharType     = True
   Choice       == Choice       = True
   Comma        == Comma        = True
   Def          == Def          = True
@@ -79,14 +71,10 @@ instance Eq Token where
   GroupBegin   == GroupBegin   = True
   GroupEnd     == GroupEnd     = True
   Float a      == Float b      = a == b
-  FloatType    == FloatType    = True
-  HandleType   == HandleType   = True
-  IOType       == IOType       = True
   If           == If           = True
   Import       == Import       = True
   -- Ints are equal regardless of BaseHint.
   Int a _      == Int b _      = a == b
-  IntType      == IntType      = True
   Layout       == Layout       = True
   LittleWord a == LittleWord b = a == b
   Operator a   == Operator b   = a == b
@@ -106,10 +94,8 @@ instance Show Token where
     BlockBegin LayoutBlockHint -> ":"
     BlockEnd -> "}"
     Bool value -> if value then "true" else "false"
-    BoolType -> "Bool"
     Builtin name -> show name
     Char char -> show char
-    CharType -> "Char"
     Choice -> "choice"
     Comma -> ","
     Def -> "def"
@@ -118,9 +104,6 @@ instance Show Token where
     GroupBegin -> "("
     GroupEnd -> ")"
     Float value -> show value
-    FloatType -> "Float"
-    HandleType -> "Handle"
-    IOType -> "IO"
     If -> "if"
     Import -> "import"
     Int value hint -> if value < 0 then '-' : shown else shown
@@ -131,7 +114,6 @@ instance Show Token where
         OctalHint -> (8, "0o", ['0'..'7'])
         DecimalHint -> (10, "", ['0'..'9'])
         HexadecimalHint -> (16, "0x", ['0'..'9'] ++ ['A'..'F'])
-    IntType -> "Int"
     Layout -> ":"
     LittleWord word -> T.unpack word
     Operator word -> T.unpack word

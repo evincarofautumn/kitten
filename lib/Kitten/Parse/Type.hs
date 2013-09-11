@@ -46,7 +46,7 @@ functionType = (<?> "function type") $ do
 effectType :: Parser Type
 effectType = (<?> "effect type") $ do
   left <- choice
-    [ Anno.IOEffect <$ match Token.IOType
+    [ Anno.IOEffect <$ match (Token.BigWord "IO")
     , Anno.Var <$> littleWord
     , try $ Anno.NoEffect <$ unit
     , grouped effectType
@@ -60,11 +60,11 @@ effectType = (<?> "effect type") $ do
 baseType :: Parser Type
 baseType = (<?> "base type") $ do
   prefix <- choice
-    [ Anno.Bool <$ match Token.BoolType
-    , Anno.Char <$ match Token.CharType
-    , Anno.Float <$ match Token.FloatType
-    , Anno.Handle <$ match Token.HandleType
-    , Anno.Int <$ match Token.IntType
+    [ Anno.Bool <$ match (Token.BigWord "Bool")
+    , Anno.Char <$ match (Token.BigWord "Char")
+    , Anno.Float <$ match (Token.BigWord "Float")
+    , Anno.Handle <$ match (Token.BigWord "Handle")
+    , Anno.Int <$ match (Token.BigWord "Int")
     , Anno.Var <$> littleWord
     , Anno.Named <$> bigWord
     , vector

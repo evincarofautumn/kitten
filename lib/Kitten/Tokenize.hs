@@ -116,12 +116,6 @@ token = (<?> "token") . located $ choice
   word :: Parser Token
   word = choice
     [ ffor alphanumeric $ \ name -> case name of
-      "Bool" -> BoolType
-      "Char" -> CharType
-      "Float" -> FloatType
-      "Handle" -> HandleType
-      "IO" -> IOType
-      "Int" -> IntType
       "choice" -> Choice
       "def" -> Def
       "else" -> Else

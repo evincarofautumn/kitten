@@ -79,11 +79,11 @@ spec = do
     testTokens "false" [Bool False]
 
   describe "tokenize keyword" $ do
-    testTokens "Bool" [BoolType]
-    testTokens "Char" [CharType]
-    testTokens "Float" [FloatType]
-    testTokens "Int" [IntType]
+    testTokens "choice" [Choice]
     testTokens "def" [Def]
+    testTokens "else" [Else]
+    testTokens "if" [If]
+    testTokens "option" [Option]
 
   describe "tokenize builtin" $ do
     testTokens "__add_int" [Builtin Builtin.AddInt]
