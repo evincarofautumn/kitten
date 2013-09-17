@@ -26,7 +26,7 @@ import qualified Kitten.Term as Term
 resolve
   :: Fragment Resolved.Value Resolved
   -> Fragment Term.Value Term
-  -> Either [CompileError] (Fragment Value Resolved)
+  -> Either [ErrorGroup] (Fragment Value Resolved)
 resolve prelude fragment
   = evalResolution emptyEnv
   $ guardLiftM2 (\ defs terms -> fragment
@@ -118,8 +118,8 @@ resolveName name loc = do
       indices <- getsEnv $ defIndices name
       index <- case V.toList indices of
         [index] -> return index
-        [] -> compileError . CompileError loc $ T.unwords
-          ["undefined word:", name]
-        _ -> compileError . CompileError loc $ T.unwords
-          ["ambiguous word:", name]
+        [] -> err ["undefined word '", name, "'"]
+        _ -> err ["ambiguous word '", name, "'"]
       return $ Call (Name index) loc
+  where
+  err = compileError . oneError . CompileError loc Error . T.concat

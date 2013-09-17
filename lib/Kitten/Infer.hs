@@ -48,7 +48,7 @@ typeFragment
   :: [Value]
   -> Fragment Value Resolved
   -> Fragment Resolved.Value Resolved
-  -> Either [CompileError] ()
+  -> Either [ErrorGroup] ()
 typeFragment stack prelude fragment
   = fst . runInference emptyEnv
   $ inferFragment prelude fragment
@@ -71,8 +71,8 @@ inferFragment prelude fragment = do
       Nothing -> modifyEnv $ \ env -> env
         { envTypeDefs = M.insert name scheme (envTypeDefs env) }
       Just existing
-        -> Inferred . throwMany . (:[])
-        . CompileError (typeDefLocation typeDef) $ T.unwords
+        -> Inferred . throwMany . (:[]) . oneError
+        . CompileError (typeDefLocation typeDef) Error $ T.unwords
           [ "multiple definitions of type"
           , name
           , "as both"

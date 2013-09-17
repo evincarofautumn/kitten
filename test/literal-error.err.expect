@@ -1,2 +1,2 @@
-test/literal-error.ktn:1:5: compile error: unexpected 0xFEFF
+test/literal-error.ktn:1:5: error: unexpected 0xFEFF
 test/literal-error.ktn:1:5: note: expecting definition name

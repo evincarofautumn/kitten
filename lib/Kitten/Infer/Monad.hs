@@ -55,7 +55,7 @@ data Env = Env
   }
 
 newtype Inferred a = Inferred
-  { unwrapInferred :: FailWriterT [CompileError] (State Env) a
+  { unwrapInferred :: FailWriterT [ErrorGroup] (State Env) a
   } deriving (Applicative, Functor, Monad)
 
 class Declare a where
@@ -88,31 +88,30 @@ emptyEnv = Env
   }
 
 class Retrieve a where
-  retrieve :: Env -> TypeName a -> Either CompileError (Type a)
+  retrieve :: Env -> TypeName a -> Either ErrorGroup (Type a)
 
 instance Retrieve Effect where
   retrieve Env{..} (TypeName name)
     = flip maybeToEither (N.lookup name envEffects)
-    $ TypeError envLocation $ T.unwords
-    [ "nonexistent effect variable:"
-    , toText name
-    ]
+    $ nonexistent "effect" envLocation name
 
 instance Retrieve Row where
   retrieve Env{..} (TypeName name)
     = flip maybeToEither (N.lookup name envRows)
-    $ TypeError envLocation $ T.unwords
-    [ "nonexistent row type variable:"
-    , toText name
-    ]
+    $ nonexistent "row" envLocation name
 
 instance Retrieve Scalar where
   retrieve Env{..} (TypeName name)
     = flip maybeToEither (N.lookup name envScalars)
-    $ TypeError envLocation $ T.unwords
-    [ "nonexistent scalar type variable:"
-    , toText name
-    ]
+    $ nonexistent "scalar" envLocation name
+
+nonexistent :: Text -> Location -> Name -> ErrorGroup
+nonexistent kind loc name
+  = oneError $ CompileError loc Error $ T.concat
+  [ "nonexistent ", kind, " variable '"
+  , toText name
+  , "'"
+  ]
 
 freshName :: Env -> (Name, Env)
 freshName env
@@ -147,7 +146,7 @@ putEnv = Inferred . lift . put
 runInference
   :: Env
   -> Inferred a
-  -> (Either [CompileError] a, Env)
+  -> (Either [ErrorGroup] a, Env)
 runInference env action = flip runState env
   . runFailWriterT null $ unwrapInferred action
 

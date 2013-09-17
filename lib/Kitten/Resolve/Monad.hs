@@ -36,7 +36,7 @@ import qualified Kitten.Resolved as Resolved
 import qualified Kitten.Util.FailWriter as FailWriter
 
 newtype Resolution a = Resolution
-  { unResolution :: FailWriterT [CompileError] (State Env) a }
+  { unResolution :: FailWriterT [ErrorGroup] (State Env) a }
   deriving (Functor, Applicative, Monad)
 
 data Env = Env
@@ -46,7 +46,7 @@ data Env = Env
   }
 
 -- | Halts resolution with a compilation error.
-compileError :: CompileError -> Resolution a
+compileError :: ErrorGroup -> Resolution a
 compileError err = Resolution $ FailWriter.throwMany [err]
 
 defIndices :: Text -> Env -> Vector Int
@@ -56,7 +56,7 @@ defIndices expected Env{..} = findExpected envPrelude
   findExpected :: Vector (Def a) -> Vector Int
   findExpected = V.findIndices $ (== expected) . defName
 
-evalResolution :: Env -> Resolution a -> Either [CompileError] a
+evalResolution :: Env -> Resolution a -> Either [ErrorGroup] a
 evalResolution env (Resolution m)
   = evalState (runFailWriterT null m) env
 

@@ -1,11 +1,21 @@
-test/many-resolve-errors.ktn:1:1: compile error: undefined word: some_undefined_name
-test/many-resolve-errors.ktn:4:3: compile error: undefined word: some_undefined_name
-test/many-resolve-errors.ktn:7:3: compile error: undefined word: some_other_undefined_name
-test/many-resolve-errors.ktn:9:7: compile error: undefined word: y
-test/many-resolve-errors.ktn:9:9: compile error: undefined word: y
-test/many-resolve-errors.ktn:9:11: compile error: undefined word: z
-test/many-resolve-errors.ktn:10:7: compile error: undefined word: z
-test/many-resolve-errors.ktn:10:9: compile error: undefined word: z
-test/many-resolve-errors.ktn:13:4: compile error: undefined word: bad
-test/many-resolve-errors.ktn:13:9: compile error: undefined word: hi
-test/many-resolve-errors.ktn:13:12: compile error: undefined word: hello
+test/many-resolve-errors.ktn:1:1: error: undefined word 'some_undefined_name'
+
+test/many-resolve-errors.ktn:4:3: error: undefined word 'some_undefined_name'
+
+test/many-resolve-errors.ktn:7:3: error: undefined word 'some_other_undefined_name'
+
+test/many-resolve-errors.ktn:9:7: error: undefined word 'y'
+
+test/many-resolve-errors.ktn:9:9: error: undefined word 'y'
+
+test/many-resolve-errors.ktn:9:11: error: undefined word 'z'
+
+test/many-resolve-errors.ktn:10:7: error: undefined word 'z'
+
+test/many-resolve-errors.ktn:10:9: error: undefined word 'z'
+
+test/many-resolve-errors.ktn:13:4: error: undefined word 'bad'
+
+test/many-resolve-errors.ktn:13:9: error: undefined word 'hi'
+
+test/many-resolve-errors.ktn:13:12: error: undefined word 'hello'

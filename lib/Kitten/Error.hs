@@ -1,33 +1,53 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Error
-  ( CompileError(..)
+  ( Label(..)
+  , CompileError(..)
+  , ErrorGroup(..)
+  , oneError
   , parseError
   , printCompileErrors
   ) where
 
 import Control.Applicative
 import Control.Monad.Trans.State
+import Data.Function
 import Data.List
-import Data.Monoid
-import Data.Ord (comparing)
 import Data.Text (Text)
-import Data.Vector (Vector)
 import Text.Parsec.Error
 import System.IO
 
 import qualified Data.Text as T
-import qualified Data.Vector as V
 
 import Kitten.Location
 import Kitten.Util.Text (ToText(..))
 
-data CompileError
-  = CompileError !Location !Text
-  | DuplicateError !Location !(Vector Location) !Text
-  | InternalError !Text
-  | TypeError !Location !Text
-  | ErrorDetail !Location !Text
+data ErrorGroup = ErrorGroup [CompileError]
+  deriving (Eq)
+
+oneError :: CompileError -> ErrorGroup
+oneError = ErrorGroup . (:[])
+
+instance Ord ErrorGroup where
+  compare (ErrorGroup (a:_)) (ErrorGroup (b:_)) = compare a b
+  compare (ErrorGroup _) (ErrorGroup _) = EQ
+
+instance Show ErrorGroup where
+  show = T.unpack . toText
+
+instance ToText ErrorGroup where
+  toText (ErrorGroup errors) = T.unlines $ map toText (sort errors)
+
+data Label
+  = Error
+  | Note
+  deriving (Eq, Ord)
+
+instance ToText Label where
+  toText Error = "error"
+  toText Note = "note"
+
+data CompileError = CompileError !Location !Label !Text
   deriving (Eq)
 
 instance Show CompileError where
@@ -36,58 +56,25 @@ instance Show CompileError where
 instance ToText CompileError where
   toText compileError = case compileError of
 
-    CompileError location message -> T.concat
+    CompileError location category message -> T.intercalate ": "
       [ toText location
-      , ": compile error: "
-      , message
-      ]
-
-    DuplicateError location locations name -> T.unlines
-      $ T.concat
-        [ toText location
-        , ": duplicate definition of "
-        , name
-        ]
-      : V.toList
-        (V.map ((<> ": also defined here") . toText) locations)
-
-    InternalError message -> "internal error: " <> message
-
-    TypeError location message -> T.concat
-      [ toText location
-      , ": type error: "
-      , message
-      ]
-
-    ErrorDetail location message -> T.concat
-      [ toText location
-      , ": note: "
+      , toText category
       , message
       ]
 
 instance Ord CompileError where
-  compare = comparing errorLocation
+  compare (CompileError loc1 cat1 _) (CompileError loc2 cat2 _)
+    = compare (cat1, loc1) (cat2, loc2)
 
-errorLocation :: CompileError -> Maybe Location
-errorLocation compileError = case compileError of
-  CompileError location _ -> Just location
-  DuplicateError location _ _ -> Just location
-  InternalError _ -> Nothing
-  TypeError location _ -> Just location
-  ErrorDetail location _ -> Just location
-
-parseError :: ParseError -> [CompileError]
-parseError err = concat
-  [ unexpectedMessages sysUnexpected
-  , unexpectedMessages unexpected
-  , if null expected
+parseError :: ParseError -> ErrorGroup
+parseError err = ErrorGroup $ unexpecteds
+  ++ if null expected
     then []
-    else (:[]) . ErrorDetail loc . T.pack $ unwords
+    else (:[]) . CompileError loc Note . T.pack $ unwords
       [ "expecting"
       , oxfordOr . nub . filter (not . null)
         $ map messageString expected
       ]
-  ]
   where
   loc = Location
     { locationStart = errorPos err
@@ -101,10 +88,13 @@ parseError err = concat
       <*> state (span ((UnExpect "") ==))
       <*> state (span ((Expect "") ==))
 
+  unexpecteds :: [CompileError]
+  unexpecteds = ((++) `on` unexpectedMessages) sysUnexpected unexpected
+
   unexpectedMessage :: Message -> CompileError
   unexpectedMessage message = let
     string = messageString message
-    in CompileError loc . T.pack $ unwords
+    in CompileError loc Error . T.pack $ unwords
       [ "unexpected"
       , if null string then "end of input" else string
       ]
@@ -119,6 +109,6 @@ oxfordOr [x, y] = unwords [x, "or", y]
 oxfordOr [x, y, z] = concat [x, ", ", y, ", or ", z]
 oxfordOr (x:xs) = concat [x, ", ", oxfordOr xs]
 
-printCompileErrors :: [CompileError] -> IO ()
-printCompileErrors errors
-  = hPutStr stderr $ unlines (map show errors)
+printCompileErrors :: [ErrorGroup] -> IO ()
+printCompileErrors = hPutStr stderr . T.unpack
+  . T.intercalate "\n" . map toText

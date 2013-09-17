@@ -50,20 +50,20 @@ data Config = Config
   , stack :: [Value]
   }
 
-liftParseError :: Either ParseError a -> Either [CompileError] a
-liftParseError = mapLeft parseError
+liftParseError :: Either ParseError a -> Either [ErrorGroup] a
+liftParseError = mapLeft ((:[]) . parseError)
 
 parseSource
   :: String
   -> Text
-  -> Either [CompileError] (Fragment Term.Value Term)
+  -> Either [ErrorGroup] (Fragment Term.Value Term)
 parseSource name source = do
   tokenized <- liftParseError $ tokenize name source
   liftParseError $ parse name tokenized
 
 compile
   :: Config
-  -> IO (Either [CompileError] (Fragment Value Resolved))
+  -> IO (Either [ErrorGroup] (Fragment Value Resolved))
 compile Config{..} = liftM (mapLeft sort) . runEitherT $ do
   parsed <- hoistEither $ parseSource name source
   substituted <- hoistEither
@@ -107,7 +107,7 @@ substituteImports
   :: [FilePath]
   -> Fragment Term.Value Term
   -> [Import]
-  -> IO (Either [CompileError] (Fragment Term.Value Term))
+  -> IO (Either [ErrorGroup] (Fragment Term.Value Term))
 substituteImports libraryDirectories fragment inScope
   = runEitherT $ do
 
