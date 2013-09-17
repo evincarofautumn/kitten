@@ -55,8 +55,8 @@ $(PRELUDE) : $(KITTEN) lib/Prelude.ktn
 	cp lib/Prelude_*.ktn $(BUILDDIR)
 	$(KITTEN) --no-implicit-prelude $(PRELUDE)
 
-.PHONY: unit
-unit:
+.PHONY : unit
+unit :
 	$(CABAL) test
 
 define EXAMPLE_RULE
@@ -68,14 +68,14 @@ endef
 .PHONY : $(foreach EXAMPLE,$(EXAMPLES),example-$(EXAMPLE))
 $(foreach EXAMPLE,$(EXAMPLES),$(eval $(call EXAMPLE_RULE,$(EXAMPLE))))
 
-define TESTRULE
+define TEST_RULE
 test-$1 : $(KITTEN) $(PRELUDE) $(TESTER)
-	@$(TESTER) $$(realpath $(KITTEN)) $1
+	@$(TESTER) $$(realpath $(KITTEN)) "$1"
 test : test-$1
 endef
 
 .PHONY : $(foreach TEST,$(TESTS),test-$(TEST))
-$(foreach TEST,$(TESTS),$(eval $(call TESTRULE,$(TEST))))
+$(foreach TEST,$(TESTS),$(eval $(call TEST_RULE,$(TEST))))
 
 .PHONY : lint
 lint :
