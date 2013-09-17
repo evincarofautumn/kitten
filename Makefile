@@ -8,6 +8,7 @@ MAKEFLAGS += --warn-undefined-variables
 .SECONDARY :
 
 BUILDDIR = ./dist/build/Kitten
+EXAMPLES = $(wildcard examples/*.ktn)
 KITTEN = $(BUILDDIR)/kitten
 PRELUDE = $(BUILDDIR)/Prelude.ktn
 TESTER = ./test/run.sh
@@ -18,7 +19,7 @@ YARN_HEADERS = $(wildcard yarn/*.h)
 YARN_SOURCES = $(wildcard yarn/*.cpp)
 
 .PHONY : default
-default : build yarn prelude unit test
+default : build yarn prelude unit example test
 
 .PHONY : all
 all : deps configure default lint
@@ -57,6 +58,15 @@ $(PRELUDE) : $(KITTEN) lib/Prelude.ktn
 .PHONY: unit
 unit:
 	$(CABAL) test
+
+define EXAMPLE_RULE
+example-$1 : $(KITTEN) $(PRELUDE)
+	@$(KITTEN) --check "$1"
+example : example-$1
+endef
+
+.PHONY : $(foreach EXAMPLE,$(EXAMPLES),example-$(EXAMPLE))
+$(foreach EXAMPLE,$(EXAMPLES),$(eval $(call EXAMPLE_RULE,$(EXAMPLE))))
 
 define TESTRULE
 test-$1 : $(KITTEN) $(PRELUDE) $(TESTER)

@@ -24,7 +24,8 @@ import qualified Kitten.Compile as Compile
 import qualified Kitten.Util.Text as T
 
 data CompileMode
-  = CompileMode
+  = CheckMode
+  | CompileMode
   | InterpretMode
 
 data Arguments = Arguments
@@ -113,8 +114,11 @@ interpretAll entryPoints compileMode prelude config
     source <- T.readFileUtf8 filename
     mResult <- compile (config filename source)
     case mResult of
-      Left compileErrors -> printCompileErrors compileErrors
+      Left compileErrors -> do
+        printCompileErrors compileErrors
+        exitFailure
       Right result -> case compileMode of
+        CheckMode -> return ()
         CompileMode -> V.mapM_ print $ yarn (prelude <> result)
         InterpretMode -> void $ interpret [] prelude result
 
@@ -179,7 +183,12 @@ argumentsMode = mode "kitten" defaultArguments
     [ flagBool' ["c", "compile"]
       "Compile Yarn assembly."
       $ \ flag acc@Arguments{..} -> acc
-      { argsCompileMode = if flag then CompileMode else InterpretMode }
+      { argsCompileMode = if flag then CompileMode else argsCompileMode }
+
+    , flagBool' ["check"]
+      "Check syntax and types without compiling or running."
+      $ \ flag acc@Arguments{..} -> acc
+      { argsCompileMode = if flag then CheckMode else argsCompileMode }
 
     , flagBool' ["dump-resolved"]
       "Output result of name resolution."
