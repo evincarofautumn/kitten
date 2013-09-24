@@ -47,25 +47,11 @@ interpretTerm :: Resolved -> Interpret
 interpretTerm resolved = case resolved of
   Builtin builtin _ -> interpretBuiltin builtin
   Call name loc -> withLocation loc $ interpretOverload name
-  ChoiceTerm left right loc -> withLocation loc $ do
-    Choice which value <- popData
-    pushData value
-    interpretTerm $ if which then right else left
   Compose terms loc -> withLocation loc
     $ F.mapM_ interpretTerm terms
   From _ loc -> withLocation loc $ do
     Wrapped _ value <- popData
     pushData value
-  Group terms loc -> withLocation loc
-    $ F.mapM_ interpretTerm terms
-  If true false loc -> withLocation loc $ do
-    Bool test <- popData
-    interpretTerm $ if test then true else false
-  OptionTerm some none loc -> withLocation loc $ do
-    Option mValue <- popData
-    case mValue of
-      Just value -> pushData value >> interpretTerm some
-      Nothing -> interpretTerm none
   PairTerm a b loc -> withLocation loc $ do
     interpretTerm a
     a' <- popData
@@ -134,6 +120,18 @@ interpretBuiltin builtin = case builtin of
     Char a <- popData
     pushData $ Int (fromEnum a)
 
+  Builtin.Choice -> do
+    left <- popData
+    Choice which value <- popData
+    unless which $ pushData value >> interpretFunction left
+
+  Builtin.ChoiceElse -> do
+    right <- popData
+    left <- popData
+    Choice which value <- popData
+    pushData value
+    interpretFunction $ if which then right else left
+
   Builtin.Close -> do
     Handle a <- popData
     lift $ hClose a
@@ -183,6 +181,17 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.GtFloat -> floatsToBool (>)
   Builtin.GtInt -> intsToBool (>)
+
+  Builtin.If -> do
+    true <- popData
+    Bool test <- popData
+    when test $ interpretFunction true
+
+  Builtin.IfElse -> do
+    false <- popData
+    true <- popData
+    Bool test <- popData
+    interpretFunction $ if test then true else false
 
   Builtin.Impure -> return ()
 
@@ -243,6 +252,21 @@ interpretBuiltin builtin = case builtin of
     let fileName = stringFromChars a
     handle <- lift $ openFile fileName WriteMode
     pushData $ Handle handle
+
+  Builtin.Option -> do
+    some <- popData
+    Option mValue <- popData
+    case mValue of
+      Just value -> pushData value >> interpretFunction some
+      Nothing -> return ()
+
+  Builtin.OptionElse -> do
+    none <- popData
+    some <- popData
+    Option mValue <- popData
+    case mValue of
+      Just value -> pushData value >> interpretFunction some
+      Nothing -> interpretFunction none
 
   Builtin.Pair -> do
     b <- popData

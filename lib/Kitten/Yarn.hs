@@ -188,36 +188,8 @@ yarnTerm :: Resolved -> Yarn (Vector Instruction)
 yarnTerm term = case term of
   Resolved.Builtin builtin _ -> return $ V.singleton (Builtin builtin)
   Resolved.Call (Name index) _ -> return $ V.singleton (Call index)
-  Resolved.ChoiceTerm left right _ -> do
-    left' <- yarnTerm left
-    right' <- yarnTerm right
-    return $ V.concat
-      [ V.singleton . JumpIfRight $ V.length left' + 1
-      , left'
-      , V.singleton . Jump $ V.length right'
-      , right'
-      ]
   Resolved.Compose terms _ -> concatMapM yarnTerm terms
   Resolved.From{} -> return V.empty
-  Resolved.Group terms _ -> concatMapM yarnTerm terms
-  Resolved.If true false _ -> do
-    true' <- yarnTerm true
-    false' <- yarnTerm false
-    return $ V.concat
-      [ V.singleton . JumpIfFalse $ V.length true' + 1
-      , true'
-      , V.singleton . Jump $ V.length false'
-      , false'
-      ]
-  Resolved.OptionTerm some none _ -> do
-    some' <- yarnTerm some
-    none' <- yarnTerm none
-    return $ V.concat
-      [ V.singleton . JumpIfNone $ V.length some' + 1
-      , some'
-      , V.singleton . Jump $ V.length none'
-      , none'
-      ]
   Resolved.PairTerm a b _ -> do
     a' <- yarnTerm a
     b' <- yarnTerm b

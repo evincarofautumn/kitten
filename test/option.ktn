@@ -1,6 +1,6 @@
 def test (a? (a -> [Char]) -> +IO):
   -> { x show }
-  option x:
+  \option x:
     show@ say
   else:
     "(none)" say
@@ -17,7 +17,7 @@ none or0 sayInt
 
 def /? (Int Int -> Int?):
   -> { x y }
-  if (y 0 =): none else: x y / some
+  \if y 0 =: none else: x y / some
 
 20 10 /? or0 sayInt
 10 0 /? or0 sayInt

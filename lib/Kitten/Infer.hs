@@ -158,6 +158,15 @@ infer resolved = case resolved of
     Builtin.CharToInt -> forAll $ \ r
       -> (r :. Type.Char loc --> r :. Type.Int loc) loc
 
+    Builtin.Choice -> forAll $ \ r a b e -> Type.Function
+      (r :. (a :| b) :. (Type.Function (r :. a) r e loc)) r e loc
+
+    Builtin.ChoiceElse -> forAll $ \ r a b s e1 e2 -> Type.Function
+      (r :. (a :| b)
+        :. (Type.Function (r :. a) s e1 loc)
+        :. (Type.Function (r :. b) s e2 loc))
+      s (e1 +: e2) loc
+
     Builtin.Close -> forAll $ \ r
       -> (r :. Type.Handle loc ==> r) loc
 
@@ -193,6 +202,15 @@ infer resolved = case resolved of
 
     Builtin.GtFloat -> relational (Type.Float loc) loc
     Builtin.GtInt -> relational (Type.Int loc) loc
+
+    Builtin.If -> forAll $ \ r e -> Type.Function
+      (r :. Type.Bool loc :. (Type.Function r r e loc)) r e loc
+
+    Builtin.IfElse -> forAll $ \ r s e1 e2 -> Type.Function
+      (r :. Type.Bool loc
+        :. (Type.Function r s e1 loc)
+        :. (Type.Function r s e2 loc))
+      s (e1 +: e2) loc
 
     Builtin.Impure -> forAll $ \ r
       -> (r ==> r) loc
@@ -238,6 +256,15 @@ infer resolved = case resolved of
 
     Builtin.OpenOut -> forAll $ \ r
       -> (r :. string loc ==> r :. Type.Handle loc) loc
+
+    Builtin.Option -> forAll $ \ r a e -> Type.Function
+      (r :. (a :?) :. (Type.Function (r :. a) r e loc)) r e loc
+
+    Builtin.OptionElse -> forAll $ \ r a s e1 e2 -> Type.Function
+      (r :. (a :?)
+        :. (Type.Function (r :. a) s e1 loc)
+        :. (Type.Function r s e2 loc))
+      s (e1 +: e2) loc
 
     Builtin.OrBool -> binary (Type.Bool loc) loc
     Builtin.OrInt -> binary (Type.Int loc) loc
@@ -295,17 +322,6 @@ infer resolved = case resolved of
         Just decl -> return decl
         Nothing -> getsEnv ((N.! name) . envDefs)
 
-  ChoiceTerm left right loc -> withLocation loc $ do
-    Type.Function a b e1 _ <- infer left
-    Type.Function c d e2 _ <- infer right
-    r <- freshVarM
-    x <- freshVarM
-    y <- freshVarM
-    a === r :. x
-    c === r :. y
-    b === d
-    return $ Type.Function (r :. x :| y) b (e1 +: e2) loc
-
   Compose terms loc -> withLocation loc $ do
     types <- V.mapM infer terms
     r <- freshVarM
@@ -318,29 +334,6 @@ infer resolved = case resolved of
   From name loc -> withLocation loc $ do
     underlying <- instantiateM =<< getsEnv ((M.! name) . envTypeDefs)
     forAll $ \r -> (r :. Type.Named name loc --> r :. underlying) loc
-
-  Group terms loc -> do
-    Type.Function r s e _ <- infer (Compose terms loc)
-    a <- freshVarM
-    s === r :. a
-    return $ Type.Function r s e loc
-
-  If true false loc -> withLocation loc $ do
-    Type.Function a b e1 _ <- infer true
-    Type.Function c d e2 _ <- infer false
-    a === c
-    b === d
-    return $ Type.Function (a :. Type.Bool loc) b (e1 +: e2) loc
-
-  OptionTerm some none loc -> withLocation loc $ do
-    Type.Function a b e1 _ <- infer some
-    Type.Function c d e2 _ <- infer none
-    x <- freshVarM
-    r <- freshVarM
-    a === r :. x
-    r === c
-    b === d
-    return $ Type.Function (r :. (x :?)) b (e1 +: e2) loc
 
   PairTerm a b loc -> withLocation loc $ do
     a' <- fromConstant =<< infer a

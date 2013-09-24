@@ -53,27 +53,12 @@ resolveTerm :: Term -> Resolution Resolved
 resolveTerm unresolved = case unresolved of
   Term.Builtin name loc -> return $ Builtin name loc
   Term.Call name loc -> resolveName name loc
-  Term.ChoiceTerm left right loc -> ChoiceTerm
-    <$> resolveTerm left
-    <*> resolveTerm right
-    <*> pure loc
   Term.Compose terms loc -> Compose
     <$> guardMapM resolveTerm terms
     <*> pure loc
   Term.From name loc -> return $ From name loc
-  Term.Group terms loc -> Group
-    <$> guardMapM resolveTerm terms
-    <*> pure loc
-  Term.If true false loc -> If
-    <$> resolveTerm true
-    <*> resolveTerm false
-    <*> pure loc
   Term.Lambda name term loc -> withLocal name $ Scoped
     <$> resolveTerm term
-    <*> pure loc
-  Term.OptionTerm some none loc -> OptionTerm
-    <$> resolveTerm some
-    <*> resolveTerm none
     <*> pure loc
   Term.PairTerm as bs loc -> PairTerm
     <$> resolveTerm as

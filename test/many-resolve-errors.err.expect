@@ -14,8 +14,18 @@ test/many-resolve-errors.ktn:10:7: error: undefined word 'z'
 
 test/many-resolve-errors.ktn:10:9: error: undefined word 'z'
 
-test/many-resolve-errors.ktn:13:4: error: undefined word 'bad'
+test/many-resolve-errors.ktn:13:5: error: undefined word 'bad'
 
-test/many-resolve-errors.ktn:13:9: error: undefined word 'hi'
+test/many-resolve-errors.ktn:13:10: error: undefined word 'hi'
 
-test/many-resolve-errors.ktn:13:12: error: undefined word 'hello'
+test/many-resolve-errors.ktn:13:13: error: undefined word 'hello'
+
+test/many-resolve-errors.ktn:14:9: error: undefined word 'bad'
+
+test/many-resolve-errors.ktn:14:14: error: undefined word 'hi'
+
+test/many-resolve-errors.ktn:14:17: error: undefined word 'hello'
+
+test/many-resolve-errors.ktn:15:7: error: undefined word 'bad'
+
+test/many-resolve-errors.ktn:15:11: error: undefined word 'hi'

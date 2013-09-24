@@ -25,6 +25,8 @@ data Builtin
   | AndInt
   | Apply
   | CharToInt
+  | Choice
+  | ChoiceElse
   | Close
   | DivFloat
   | DivInt
@@ -41,6 +43,8 @@ data Builtin
   | GetLine
   | GtFloat
   | GtInt
+  | If
+  | IfElse
   | Impure
   | Init
   | IntToChar
@@ -63,6 +67,8 @@ data Builtin
   | NotInt
   | OpenIn
   | OpenOut
+  | Option
+  | OptionElse
   | OrBool
   | OrInt
   | Pair
@@ -168,6 +174,12 @@ fromTextTable = V.fromList
   , (,) "__unsafe_purify11" UnsafePurify11
   , (,) "__xor_bool"        XorBool
   , (,) "__xor_int"         XorInt
+  , (,) "choice"            Choice
+  , (,) "choice_else"       ChoiceElse
+  , (,) "if"                If
+  , (,) "if_else"           IfElse
+  , (,) "option"            Option
+  , (,) "option_else"       OptionElse
   ]
 
 toTextTable :: Vector (Builtin, Text)

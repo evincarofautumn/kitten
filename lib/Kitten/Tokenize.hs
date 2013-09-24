@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Kitten.Tokenize
@@ -116,14 +117,11 @@ token = (<?> "token") . located $ choice
   word :: Parser Token
   word = choice
     [ ffor alphanumeric $ \ name -> case name of
-      "choice" -> Choice
       "def" -> Def
       "else" -> Else
       "false" -> Bool False
       "from" -> From
-      "if" -> If
       "import" -> Import
-      "option" -> Option
       "to" -> To
       "true" -> Bool True
       "type" -> Type
@@ -131,9 +129,10 @@ token = (<?> "token") . located $ choice
       _ -> case Builtin.fromText name of
         Just builtin -> Builtin builtin
         _ -> LittleWord name
-    , ffor symbolic $ \ name -> case Builtin.fromText name of
-      Just builtin -> Builtin builtin
-      _ -> Operator name
+    , ffor symbolic $ \ name -> case name of
+      "\\" -> Do
+      _ | Just builtin <- Builtin.fromText name -> Builtin builtin
+        | otherwise -> Operator name
     ]
     where
 

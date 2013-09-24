@@ -33,21 +33,19 @@ data Token
   | Bool Bool
   | Builtin Builtin
   | Char Char
-  | Choice
   | Comma
   | Def
+  | Do
   | Else
   | From
   | GroupBegin
   | GroupEnd
   | Float Double
-  | If
   | Import
   | Int Int BaseHint
   | Layout
   | LittleWord Text
   | Operator Text
-  | Option
   | Text Text
   | To
   | Type
@@ -63,22 +61,20 @@ instance Eq Token where
   Bool a       == Bool b       = a == b
   Builtin a    == Builtin b    = a == b
   Char a       == Char b       = a == b
-  Choice       == Choice       = True
   Comma        == Comma        = True
   Def          == Def          = True
+  Do           == Do           = True
   Else         == Else         = True
   From         == From         = True
   GroupBegin   == GroupBegin   = True
   GroupEnd     == GroupEnd     = True
   Float a      == Float b      = a == b
-  If           == If           = True
   Import       == Import       = True
   -- Ints are equal regardless of BaseHint.
   Int a _      == Int b _      = a == b
   Layout       == Layout       = True
   LittleWord a == LittleWord b = a == b
   Operator a   == Operator b   = a == b
-  Option       == Option       = True
   Text a       == Text b       = a == b
   To           == To           = True
   Type         == Type         = True
@@ -96,15 +92,14 @@ instance Show Token where
     Bool value -> if value then "true" else "false"
     Builtin name -> show name
     Char char -> show char
-    Choice -> "choice"
     Comma -> ","
     Def -> "def"
+    Do -> "\\"
     Else -> "else"
     From -> "from"
     GroupBegin -> "("
     GroupEnd -> ")"
     Float value -> show value
-    If -> "if"
     Import -> "import"
     Int value hint -> if value < 0 then '-' : shown else shown
       where
@@ -117,7 +112,6 @@ instance Show Token where
     Layout -> ":"
     LittleWord word -> T.unpack word
     Operator word -> T.unpack word
-    Option -> "option"
     Text value -> show value
     To -> "to"
     Type -> "type"

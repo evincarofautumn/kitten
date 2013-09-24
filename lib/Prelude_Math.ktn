@@ -1,10 +1,10 @@
 // Absolute value of an integer.
 def absInt (Int -> Int):
-  if (dup 0 <): negInt
+  \if dup 0 <: negInt
 
 // Absolute value of a floating-point number.
 def absFloat (Float -> Float):
-  if (dup 0.0 <.): negFloat
+  \if dup 0.0 <.: negFloat
 
 // Whether all elements of a vector satisfy a predicate.
 def all ([a] (a -> Bool) -> Bool):
@@ -29,7 +29,7 @@ def evenInt (Int -> Bool):
 // The maximum of two integers.
 def maxInt (Int Int -> Int):
   -> { a b }
-  if (a b >): a else: b
+  \if a b >: a else: b
 
 // The maximum of three integers.
 def maxInt3 (Int Int Int -> Int):
@@ -42,7 +42,7 @@ def maxInts ([Int] -> Int):
 // The minimum of two integers.
 def minInt (Int Int -> Int):
   -> { a b }
-  if (a b <): a else: b
+  \if a b <: a else: b
 
 // The minimum of three integers.
 def minInt3 (Int Int Int -> Int):

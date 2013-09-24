@@ -24,12 +24,8 @@ import Kitten.Util.Text (Text, ToText(..), showText)
 data Resolved
   = Builtin !Builtin !Location
   | Call !Name !Location
-  | ChoiceTerm !Resolved !Resolved !Location
   | Compose !(Vector Resolved) !Location
   | From !Text !Location
-  | Group !(Vector Resolved) !Location
-  | If !Resolved !Resolved !Location
-  | OptionTerm !Resolved !Resolved !Location
   | PairTerm !Resolved !Resolved !Location
   | Push !Value !Location
   | To !Text !Location

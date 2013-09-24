@@ -12,13 +12,9 @@ import Kitten.Location
 data Term
   = Builtin !Builtin !Location
   | Call !Text !Location
-  | ChoiceTerm !Term !Term !Location
   | Compose !(Vector Term) !Location
   | From !Text !Location
-  | Group !(Vector Term) !Location
-  | If !Term !Term !Location
   | Lambda !Text !Term !Location
-  | OptionTerm !Term !Term !Location
   | PairTerm !Term !Term !Location
   | Push !Value !Location
   | To !Text !Location
