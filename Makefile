@@ -19,7 +19,7 @@ YARN_HEADERS = $(wildcard yarn/*.h)
 YARN_SOURCES = $(wildcard yarn/*.cpp)
 
 .PHONY : default
-default : build yarn prelude unit example test
+default : build prelude unit example test
 
 .PHONY : all
 all : deps configure default lint
