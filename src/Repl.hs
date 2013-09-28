@@ -5,6 +5,7 @@ module Repl
   ) where
 
 import Control.Applicative
+import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State.Strict
@@ -66,18 +67,20 @@ runRepl prelude = do
 
 repl :: ReplInput ()
 repl = do
-  showStack
   mLine <- getInputLine ">>> "
   case mLine of
     Nothing -> quit
     Just line
       | not (matched line) -> continue (T.pack line)
-      | null line -> repl
+      | null line -> repl'
       | line `elem` [":c", ":clear"] -> clear
       | line `elem` [":h", ":help"] -> help
       | line `elem` [":q", ":quit"] -> quit
       | line `elem` [":reset"] -> reset
       | otherwise -> eval (T.pack line)
+
+repl' :: ReplInput ()
+repl' = showStack >> repl
 
 askPreludeDefs :: ReplInput (Vector (Def Value))
 askPreludeDefs = lift (lift ask)
@@ -127,7 +130,7 @@ eval line = do
         , replDefs = replDefs <> fragmentDefs compileResult
         , replTypeDefs = replTypeDefs <> fragmentTypeDefs compileResult
         }
-  repl
+  repl'
 
 continue :: Text -> ReplInput ()
 continue prefix = do
@@ -141,8 +144,8 @@ continue prefix = do
 showStack :: ReplInput ()
 showStack = do
   stack <- lift $ gets replStack
-  liftIO $ do
-    putStrLn "----"
+  unless (null stack) . liftIO $ do
+    putStrLn "\n----"
     mapM_ putStrLn . reverse $ map show stack
 
 replName :: String
@@ -161,7 +164,7 @@ help = do
     , Nothing
     , Just ("<TAB>", "Autocomplete a definition name")
     ]
-  repl
+  repl'
   where
   printColumns :: [Maybe (String, String)] -> IO ()
   printColumns columns = mapM_ go columns
@@ -181,7 +184,7 @@ quit = return ()
 clear :: ReplInput ()
 clear = do
   lift . modify $ \ s -> s { replStack = [] }
-  repl
+  repl'
 
 reset :: ReplInput ()
 reset = do
@@ -191,7 +194,7 @@ reset = do
     , replDefs = preludeDefs
     , replTypeDefs = V.empty
     }
-  repl
+  repl'
 
 completer :: CompletionFunc ReplState
 completer = completeWord Nothing "\t \"{}[]()\\:" completePrefix
