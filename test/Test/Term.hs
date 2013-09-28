@@ -10,6 +10,7 @@ import Data.Text (Text)
 
 import qualified Data.Vector as V
 
+import Kitten.Anno (Anno(Anno))
 import Kitten.Def
 import Kitten.Error
 import Kitten.Fragment
@@ -20,6 +21,7 @@ import Kitten.Tokenize
 import Kitten.Util.Either
 import Test.Util
 
+import qualified Kitten.Anno as Anno
 import qualified Kitten.Builtin as Builtin
 
 spec :: Spec
@@ -186,6 +188,28 @@ spec = do
         [ def "inc" $ function [pushi 1, word "+"]
         , def "dec" $ function [pushi 1, word "-"]] }
 
+  describe "type" $ do
+    testTerm
+      "def curriedAdd (Int -> Int -> Int) {\n\
+      \  ->x\n\
+      \  { ->y x y + }\n\
+      \}"
+      $ mempty { fragmentDefs = V.fromList
+        [ defWithAnno "curriedAdd"
+          (Anno.Function
+            (V.fromList [Anno.Int])
+            (V.fromList
+              [Anno.Function
+                (V.fromList [Anno.Int])
+                (V.fromList [Anno.Int])
+                Anno.NoEffect])
+            Anno.NoEffect)
+          $ function
+            [ lambda "x"
+              [ push $ function
+                [ lambda "y"
+                  [word "x", word "y", word "+"]]]]] }
+
 testTerm :: Text -> Fragment Value Term -> Spec
 testTerm source expected = it (show source)
   $ case parsed source of
@@ -213,6 +237,10 @@ def name value = Def
   , defTerm = value
   , defLocation = TestLocation
   }
+
+defWithAnno :: Text -> Anno.Type -> Value -> Def Value
+defWithAnno name anno value = (def name value)
+  { defAnno = Just (Anno anno TestLocation) }
 
 call :: Text -> Term
 call name = Call name TestLocation

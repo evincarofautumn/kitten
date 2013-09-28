@@ -36,7 +36,7 @@ type_ = (<?> "type") $ try functionType <|> baseType
 functionType :: Parser Type
 functionType = (<?> "function type") $ do
   left <- manyV baseType
-  right <- match Token.Arrow *> manyV baseType
+  right <- match Token.Arrow *> manyV type_
   effect <- choice
     [ match (Token.Operator "+") *> effectType
     , pure Anno.NoEffect

@@ -1,0 +1,26 @@
+// Curried function.
+def curriedAdd (Int -> Int -> Int):
+  ->x { ->y x y + }
+
+1 2 curriedAdd @ sayInt
+
+// Multi-in function returning multi-in, multi-out function.
+def curriedAdd2 (Int Int -> Int Int -> Int Int):
+  ->{ a b } { ->{ c d } (a c +) (b d +) }
+
+1 2 3 4 curriedAdd2 @ sayInt sayInt
+
+// Pure function returning impure function.
+def curriedImpure (Int -> Int -> Int +IO):
+  ->x
+  { ->y x y + dup sayInt }
+
+32 42 curriedImpure @ ++ sayInt
+
+// Impure function returning pure function.
+def curriedImpure2 (Int -> (Int -> Int) +IO):
+  ->x
+  { ->y x y + }
+  x sayInt
+
+53 9 curriedImpure2 "----" say @ sayInt
