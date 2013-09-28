@@ -47,6 +47,7 @@ main = do
     defaultConfig prelude filename program = Compile.Config
       { Compile.dumpResolved = argsDumpResolved arguments
       , Compile.dumpScoped = argsDumpScoped arguments
+      , Compile.firstLine = 1
       , Compile.inferConfig = Infer.Config
         { Infer.enforceBottom = True }
       , Compile.libraryDirectories = argsLibraryDirectories arguments

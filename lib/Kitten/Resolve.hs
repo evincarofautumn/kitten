@@ -5,8 +5,12 @@ module Kitten.Resolve
   ) where
 
 import Control.Applicative hiding (some)
+import Control.Arrow
+import Data.Maybe
+import Data.Monoid
 import Data.Text (Text)
 import Data.Vector (Vector)
+import GHC.Exts
 
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -19,6 +23,7 @@ import Kitten.Name
 import Kitten.Resolve.Monad
 import Kitten.Resolved
 import Kitten.Term (Term)
+import Kitten.Util.Function
 
 import qualified Kitten.Term as Term
 
@@ -26,19 +31,37 @@ resolve
   :: Fragment Resolved
   -> Fragment Term
   -> Either [ErrorGroup] (Fragment Resolved)
-resolve prelude fragment
-  = evalResolution emptyEnv
-  $ guardLiftM2 (\defs terms -> fragment
-    { fragmentDefs = defs
-    , fragmentTerms = terms
-    })
+resolve prelude fragment = do
+  case reportDuplicateDefs allNamesAndLocs of
+    [] -> return ()
+    errors -> Left errors
+  evalResolution emptyEnv $ guardLiftM2
+    (\defs terms -> fragment
+      { fragmentDefs = defs
+      , fragmentTerms = terms
+      })
     (resolveDefs (fragmentDefs fragment))
     (guardMapM resolveTerm (fragmentTerms fragment))
   where
+  allNamesAndLocs = namesAndLocs prelude ++ namesAndLocs fragment
+  namesAndLocs = map (defName &&& defLocation) . V.toList . fragmentDefs
   emptyEnv = Env
     (fragmentDefs prelude)
     (fragmentDefs fragment)
     []
+
+reportDuplicateDefs
+  :: [(Text, Location)]
+  -> [ErrorGroup]
+reportDuplicateDefs param = mapMaybe reportDuplicate . groupWith fst $ param
+  where
+  reportDuplicate defs = case defs of
+    [] -> Nothing
+    [_] -> Nothing
+    ((name, loc) : duplicates) -> Just . ErrorGroup
+      $ CompileError loc Error ("duplicate definition of " <> name)
+      : for duplicates
+        (\ (_, here) -> CompileError here Note "also defined here")
 
 resolveDefs :: Vector (Def Term.Value) -> Resolution (Vector (Def Value))
 resolveDefs = guardMapM resolveDef

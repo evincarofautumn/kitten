@@ -227,7 +227,7 @@ testTermFailure source = it ("should fail: " ++ show source)
 
 parsed :: Text -> Either ErrorGroup (Fragment Term)
 parsed
-  = mapLeft parseError . tokenize "test"
+  = mapLeft parseError . tokenize 1 "test"
   >=> mapLeft parseError . parse "test"
 
 def :: Text -> Value -> Def Value

@@ -141,6 +141,7 @@ test-suite test
     containers,
     hspec == 1.4.*,
     HUnit,
+    parsec,
     QuickCheck == 2.6.*,
     text,
     transformers,

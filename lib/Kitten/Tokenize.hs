@@ -14,6 +14,7 @@ import Data.Functor.Identity
 import Data.Maybe
 import Data.Text (Text)
 import Numeric
+import Text.Parsec.Pos
 import Text.Parsec.Text ()
 
 import qualified Data.Text as T
@@ -29,8 +30,9 @@ import qualified Kitten.Builtin as Builtin
 
 type Parser a = ParsecT Text Column Identity a
 
-tokenize :: String -> Text -> Either ParseError [Located]
-tokenize = runParser file 1
+tokenize :: Int -> String -> Text -> Either ParseError [Located]
+tokenize firstLine name source = runParser parser 1 name source
+  where parser = setPosition (newPos name firstLine 1) >> file
 
 located
   :: Parser Token

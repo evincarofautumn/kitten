@@ -45,18 +45,19 @@ liftParseError :: Either ParseError a -> Either [ErrorGroup] a
 liftParseError = mapLeft ((:[]) . parseError)
 
 parseSource
-  :: String
+  :: Int
+  -> String
   -> Text
   -> Either [ErrorGroup] (Fragment Term)
-parseSource name source = do
-  tokenized <- liftParseError $ tokenize name source
+parseSource line name source = do
+  tokenized <- liftParseError $ tokenize line name source
   liftParseError $ parse name tokenized
 
 compile
   :: Compile.Config
   -> IO (Either [ErrorGroup] (Fragment Resolved, Type Scalar))
 compile Compile.Config{..} = liftM (mapLeft sort) . runEitherT $ do
-  parsed <- hoistEither $ parseSource name source
+  parsed <- hoistEither $ parseSource firstLine name source
   substituted <- hoistEither
     =<< lift (substituteImports libraryDirectories parsed [])
   resolved <- hoistEither $ resolve prelude substituted
@@ -112,7 +113,7 @@ substituteImports libraryDirectories fragment inScope
     imported <- forM imports $ \(import_, possible) -> case possible of
       [filename] -> do
         source <- lift $ T.readFileUtf8 filename
-        parsed <- hoistEither $ parseSource filename source
+        parsed <- hoistEither $ parseSource 1 filename source
         hoistEither =<< lift
           (substituteImports libraryDirectories parsed inScope')
 

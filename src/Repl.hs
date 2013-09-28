@@ -35,8 +35,9 @@ import qualified Kitten.Compile as Compile
 import qualified Kitten.Infer.Config as Infer
 
 data Repl = Repl
-  { replStack :: [Value]
-  , replDefs :: !(Vector (Def Value))
+  { replDefs :: !(Vector (Def Value))
+  , replLine :: !Int
+  , replStack :: [Value]
   , replTypeDefs :: !(Vector TypeDef)
   }
 
@@ -57,8 +58,9 @@ runRepl prelude = do
   where
   emptyRepl :: Repl
   emptyRepl = Repl
-    { replStack = []
-    , replDefs = preludeDefs
+    { replDefs = preludeDefs
+    , replLine = 1
+    , replStack = []
     , replTypeDefs = V.empty
     }
 
@@ -115,6 +117,7 @@ compileConfig = do
   return Compile.Config
     { Compile.dumpResolved = False
     , Compile.dumpScoped = False
+    , Compile.firstLine = replLine
     , Compile.inferConfig = Infer.Config { enforceBottom = True }
     , Compile.libraryDirectories = []  -- TODO
     , Compile.name = replName
@@ -157,8 +160,9 @@ eval line = do
       , fragmentTypeDefs = replTypeDefs
       } compiled
     lift . modify $ \s -> s
-      { replStack = stack'
-      , replDefs = replDefs <> fragmentDefs compiled
+      { replDefs = replDefs <> fragmentDefs compiled
+      , replLine = replLine + T.count "\n" line + 1
+      , replStack = stack'
       , replTypeDefs = replTypeDefs <> fragmentTypeDefs compiled
       }
   repl'
@@ -222,8 +226,9 @@ reset :: ReplInput ()
 reset = do
   preludeDefs <- askPreludeDefs
   lift $ put Repl
-    { replStack = []
-    , replDefs = preludeDefs
+    { replDefs = preludeDefs
+    , replLine = 1
+    , replStack = []
     , replTypeDefs = V.empty
     }
   repl'

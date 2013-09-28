@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Kitten.Parse
   ( parse
@@ -9,6 +10,7 @@ import Control.Monad
 import Data.Monoid
 import Data.Text (Text)
 import Data.Vector (Vector)
+import Text.Parsec.Pos
 
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -36,9 +38,16 @@ parse
   :: String
   -> [Located]
   -> Either ParseError (Fragment Term)
-parse name
-  = Parsec.parse insertBraces name
-  >=> Parsec.parse fragment name
+parse name tokens = do
+  inserted <- Parsec.parse insertBraces name tokens
+  Parsec.parse
+    (setInitialPosition name inserted >> fragment)
+    name inserted
+
+setInitialPosition :: String -> [Located] -> Parser ()
+setInitialPosition name [] = setPosition (newPos name 1 1)
+setInitialPosition _ (Located{..} : _)
+  = setPosition (locationStart locatedLocation)
 
 fragment :: Parser (Fragment Term)
 fragment = partitionElements <$> (many element <* eof)
