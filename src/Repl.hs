@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Repl
@@ -24,10 +26,13 @@ import Kitten.Error
 import Kitten.Fragment
 import Kitten.Interpret
 import Kitten.Resolved
+import Kitten.Type
 import Kitten.TypeDef
+import Kitten.Util.Monad
 
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.Compile as Compile
+import qualified Kitten.Infer.Config as Infer
 
 data Repl = Repl
   { replStack :: [Value]
@@ -73,6 +78,8 @@ repl = do
     Just line
       | not (matched line) -> continue (T.pack line)
       | null line -> repl'
+      | Just expr <- T.stripPrefix ":type" (T.pack line) -> typeOf expr
+      | Just expr <- T.stripPrefix ":t" (T.pack line) -> typeOf expr
       | line `elem` [":c", ":clear"] -> clear
       | line `elem` [":h", ":help"] -> help
       | line `elem` [":q", ":quit"] -> quit
@@ -102,34 +109,58 @@ matched = go False (0::Int)
   isOpen = (`elem` "([{")
   isClose = (`elem` "}])")
 
-eval :: Text -> ReplInput ()
-eval line = do
+compileConfig :: ReplInput Compile.Config
+compileConfig = do
   Repl{..} <- lift get
-  mCompiled <- liftIO $ compile Compile.Config
+  return Compile.Config
     { Compile.dumpResolved = False
     , Compile.dumpScoped = False
+    , Compile.inferConfig = Infer.Config { enforceBottom = True }
     , Compile.libraryDirectories = []  -- TODO
     , Compile.name = replName
     , Compile.prelude = mempty
       { fragmentDefs = replDefs
       , fragmentTypeDefs = replTypeDefs
       }
-    , Compile.source = line
+    , Compile.source = ""
+    , Compile.stack = []
+    }
+
+replCompile
+  :: (Compile.Config -> Compile.Config)
+  -> ReplInput (Maybe (Fragment Value Resolved, Type Scalar))
+replCompile update = do
+  mCompiled <- liftIO . compile . update =<< compileConfig
+  case mCompiled of
+    Left errors -> liftIO (printCompileErrors errors) >> return Nothing
+    Right result -> return (Just result)
+
+typeOf :: Text -> ReplInput ()
+typeOf line = do
+  mCompiled <- replCompile $ \ config -> config
+    { Compile.source = line
+    , Compile.inferConfig = Infer.Config { enforceBottom = False }
+    }
+  whenJust mCompiled $ \ (_compiled, type_) -> liftIO $ print type_
+  repl'
+
+eval :: Text -> ReplInput ()
+eval line = do
+  Repl{..} <- lift get
+  mCompiled <- replCompile $ \ config -> config
+    { Compile.source = line
     , Compile.stack = replStack
     }
-  case mCompiled of
-    Left compileErrors -> liftIO
-      $ printCompileErrors compileErrors
-    Right compileResult -> do
-      stack' <- liftIO $ interpret replStack mempty
-        { fragmentDefs = replDefs
-        , fragmentTypeDefs = replTypeDefs
-        } compileResult
-      lift . modify $ \ s -> s
-        { replStack = stack'
-        , replDefs = replDefs <> fragmentDefs compileResult
-        , replTypeDefs = replTypeDefs <> fragmentTypeDefs compileResult
-        }
+  whenJust mCompiled $ \ (compiled, _type) -> do
+    stack' <- liftIO $ interpret replStack mempty
+      { fragmentDefs = replDefs
+      , fragmentTypeDefs = replTypeDefs
+      } compiled
+    lift . modify $ \ s -> s
+      { replStack = stack'
+      , replDefs = replDefs <> fragmentDefs compiled
+      , replTypeDefs = replTypeDefs <> fragmentTypeDefs compiled
+      }
   repl'
 
 continue :: Text -> ReplInput ()
@@ -161,6 +192,7 @@ help = do
     , Just (":h, :help", "Display this help message")
     , Just (":q, :quit", "Quit the Kitten REPL")
     , Just (":reset", "Clear the stack and all definitions")
+    , Just (":t, :type <expression>", "Print the inferred type of <expression>")
     , Nothing
     , Just ("<TAB>", "Autocomplete a definition name")
     ]

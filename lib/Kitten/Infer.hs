@@ -45,12 +45,13 @@ import qualified Kitten.Resolved as Resolved
 import qualified Kitten.Type as Type
 
 typeFragment
-  :: [Value]
+  :: Config
+  -> [Value]
   -> Fragment Value Resolved
   -> Fragment Resolved.Value Resolved
-  -> Either [ErrorGroup] ()
-typeFragment stack prelude fragment
-  = fst . runInference emptyEnv
+  -> Either [ErrorGroup] (Type Scalar)
+typeFragment config stack prelude fragment
+  = fst . runInference config emptyEnv
   $ inferFragment prelude fragment
     { fragmentTerms
       = V.map (`Push` UnknownLocation) (V.reverse (V.fromList stack))
@@ -60,7 +61,7 @@ typeFragment stack prelude fragment
 inferFragment
   :: Fragment Value Resolved
   -> Fragment Value Resolved
-  -> Inferred ()
+  -> Inferred (Type Scalar)
 inferFragment prelude fragment = do
 
   F.forM_ allTypeDefs $ \ typeDef -> do
@@ -71,7 +72,7 @@ inferFragment prelude fragment = do
       Nothing -> modifyEnv $ \ env -> env
         { envTypeDefs = M.insert name scheme (envTypeDefs env) }
       Just existing
-        -> Inferred . throwMany . (:[]) . oneError
+        -> liftFailWriter . throwMany . (:[]) . oneError
         . CompileError (typeDefLocation typeDef) Error $ T.unwords
           [ "multiple definitions of type"
           , name
@@ -104,13 +105,14 @@ inferFragment prelude fragment = do
       inferred <- instantiateM scheme
       declared === inferred
 
-  Type.Function consumption _ _ _ <- infer
+  result@(Type.Function consumption _ _ _) <- infer
     $ Compose (fragmentTerms fragment) UnknownLocation
-
-  consumption === Type.Empty UnknownLocation
+  enforce <- asksConfig enforceBottom
+  when enforce $ consumption === Type.Empty UnknownLocation
+  env <- getEnv
+  return $ sub env result
 
   where
-
   allTypeDefs = ((<>) `on` fragmentTypeDefs) prelude fragment
   allDefs = ((<>) `on` fragmentDefs) prelude fragment
 

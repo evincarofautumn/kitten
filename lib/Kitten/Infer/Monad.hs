@@ -3,15 +3,19 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Kitten.Infer.Monad
-  ( Env(..)
-  , Inferred(..)
+  ( Config(..)
+  , Env(..)
+  , Inferred
   , Declare(..)
+  , asksConfig
   , emptyEnv
   , freshNameM
   , freshVar
   , freshVarM
   , getEnv
   , getsEnv
+  , liftFailWriter
+  , liftState
   , modifyEnv
   , putEnv
   , retrieve
@@ -21,6 +25,7 @@ module Kitten.Infer.Monad
 
 import Control.Applicative
 import Control.Monad.Trans.Class
+import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State.Strict
 import Data.Map (Map)
 import Data.Vector (Vector)
@@ -31,6 +36,7 @@ import qualified Data.Text as T
 import qualified Data.Vector as V
 
 import Kitten.Error
+import Kitten.Infer.Config
 import Kitten.Location
 import Kitten.Name
 import Kitten.NameMap (NameMap)
@@ -55,7 +61,7 @@ data Env = Env
   }
 
 newtype Inferred a = Inferred
-  { unwrapInferred :: FailWriterT [ErrorGroup] (State Env) a
+  { unwrapInferred :: FailWriterT [ErrorGroup] (ReaderT Config (State Env)) a
   } deriving (Applicative, Functor, Monad)
 
 class Declare a where
@@ -113,6 +119,9 @@ nonexistent kind loc name
   , "'"
   ]
 
+asksConfig :: (Config -> a) -> Inferred a
+asksConfig = Inferred . lift . asks
+
 freshName :: Env -> (Name, Env)
 freshName env
   = let current = envNext env
@@ -124,31 +133,43 @@ freshVar loc env
   in (Var name loc, env')
 
 freshNameM :: Inferred Name
-freshNameM = Inferred . lift $ state freshName
+freshNameM = liftState $ state freshName
 
 freshVarM :: Inferred (Type a)
 freshVarM = do
   loc <- getsEnv envLocation
-  Inferred . lift $ state (freshVar loc)
+  liftState $ state (freshVar loc)
 
 getEnv :: Inferred Env
-getEnv = Inferred $ lift get
+getEnv = liftState get
 
 getsEnv :: (Env -> a) -> Inferred a
-getsEnv = Inferred . lift . gets
+getsEnv = liftState . gets
+
+liftFailWriter
+  :: FailWriterT [ErrorGroup] (ReaderT Config (State Env)) a
+  -> Inferred a
+liftFailWriter = Inferred
+
+liftState :: State Env a -> Inferred a
+liftState = Inferred . lift . lift
 
 modifyEnv :: (Env -> Env) -> Inferred ()
-modifyEnv = Inferred . lift . modify
+modifyEnv = liftState . modify
 
 putEnv :: Env -> Inferred ()
-putEnv = Inferred . lift . put
+putEnv = liftState . put
 
 runInference
-  :: Env
+  :: Config
+  -> Env
   -> Inferred a
   -> (Either [ErrorGroup] a, Env)
-runInference env action = flip runState env
-  . runFailWriterT null $ unwrapInferred action
+runInference config env action
+  = flip runState env
+  . flip runReaderT config
+  . runFailWriterT null
+  $ unwrapInferred action
 
 withLocation :: Location -> Inferred a -> Inferred a
 withLocation here action = do

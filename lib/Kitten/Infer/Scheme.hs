@@ -17,7 +17,6 @@ module Kitten.Infer.Scheme
   , occurs
   ) where
 
-import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict
 import Data.Foldable (foldrM)
 import Data.List
@@ -37,7 +36,7 @@ import qualified Kitten.NameMap as N
 instantiateM :: Scheme -> Inferred (Type Scalar)
 instantiateM scheme = do
   loc <- getsEnv envLocation
-  Inferred . lift . state $ instantiate loc scheme
+  liftState $ state (instantiate loc scheme)
 
 instantiate :: Location -> Scheme -> Env -> (Type Scalar, Env)
 instantiate loc (Forall rows scalars effects type_) env

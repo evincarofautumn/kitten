@@ -21,6 +21,7 @@ import Kitten.Yarn (yarn)
 import Repl
 
 import qualified Kitten.Compile as Compile
+import qualified Kitten.Infer.Config as Infer
 import qualified Kitten.Util.Text as T
 
 data CompileMode
@@ -41,8 +42,20 @@ data Arguments = Arguments
 
 main :: IO ()
 main = do
-
   arguments <- parseArguments
+  let
+    defaultConfig prelude filename program = Compile.Config
+      { Compile.dumpResolved = argsDumpResolved arguments
+      , Compile.dumpScoped = argsDumpScoped arguments
+      , Compile.inferConfig = Infer.Config
+        { Infer.enforceBottom = True }
+      , Compile.libraryDirectories = argsLibraryDirectories arguments
+      , Compile.name = filename
+      , Compile.prelude = prelude
+      , Compile.source = program
+      , Compile.stack = []
+      }
+
   preludes <- locateImport
     (argsLibraryDirectories arguments)
     "Prelude"
@@ -57,22 +70,13 @@ main = do
 
     [filename] -> do
       source <- T.readFileUtf8 filename
-      mPrelude <- compile Compile.Config
-        { Compile.dumpResolved = argsDumpResolved arguments
-        , Compile.dumpScoped = argsDumpScoped arguments
-        , Compile.libraryDirectories
-          = argsLibraryDirectories arguments
-        , Compile.name = filename
-        , Compile.prelude = mempty
-        , Compile.source = source
-        , Compile.stack = []
-        }
+      mPrelude <- compile (defaultConfig mempty filename source)
 
       Fragment{..} <- case mPrelude of
         Left compileErrors -> do
           printCompileErrors compileErrors
           exitFailure
-        Right prelude -> return prelude
+        Right (prelude, _type) -> return prelude
 
       unless (V.null fragmentTerms) $ do
         hPutStrLn stderr "Prelude includes executable code."
@@ -90,15 +94,7 @@ main = do
     [] -> runRepl prelude
     entryPoints -> interpretAll entryPoints
       (argsCompileMode arguments) prelude
-      $ \ filename program -> Compile.Config
-      { Compile.dumpResolved = argsDumpResolved arguments
-      , Compile.dumpScoped = argsDumpScoped arguments
-      , Compile.libraryDirectories = argsLibraryDirectories arguments
-      , Compile.name = filename
-      , Compile.prelude = prelude
-      , Compile.source = program
-      , Compile.stack = []
-      }
+      (defaultConfig prelude)
 
 interpretAll
   :: [FilePath]
@@ -117,7 +113,7 @@ interpretAll entryPoints compileMode prelude config
       Left compileErrors -> do
         printCompileErrors compileErrors
         exitFailure
-      Right result -> case compileMode of
+      Right (result, _type) -> case compileMode of
         CheckMode -> return ()
         CompileMode -> V.mapM_ print $ yarn (prelude <> result)
         InterpretMode -> void $ interpret [] prelude result

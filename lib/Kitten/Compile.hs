@@ -2,7 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Kitten.Compile
-  ( Config(..)
+  ( Compile.Config(..)
   , compile
   , locateImport
   , substituteImports
@@ -34,21 +34,13 @@ import Kitten.Resolved (Resolved, Value)
 import Kitten.Scope
 import Kitten.Term (Term)
 import Kitten.Tokenize
+import Kitten.Type
 import Kitten.Util.Either
 import Kitten.Util.Function
 
+import qualified Kitten.Compile.Config as Compile
 import qualified Kitten.Term as Term
 import qualified Kitten.Util.Text as T
-
-data Config = Config
-  { dumpResolved :: !Bool
-  , dumpScoped :: !Bool
-  , libraryDirectories :: [FilePath]
-  , name :: String
-  , prelude :: !(Fragment Value Resolved)
-  , source :: !Text
-  , stack :: [Value]
-  }
 
 liftParseError :: Either ParseError a -> Either [ErrorGroup] a
 liftParseError = mapLeft ((:[]) . parseError)
@@ -62,21 +54,21 @@ parseSource name source = do
   liftParseError $ parse name tokenized
 
 compile
-  :: Config
-  -> IO (Either [ErrorGroup] (Fragment Value Resolved))
-compile Config{..} = liftM (mapLeft sort) . runEitherT $ do
+  :: Compile.Config
+  -> IO (Either [ErrorGroup] (Fragment Value Resolved, Type Scalar))
+compile Compile.Config{..} = liftM (mapLeft sort) . runEitherT $ do
   parsed <- hoistEither $ parseSource name source
   substituted <- hoistEither
     =<< lift (substituteImports libraryDirectories parsed [])
   resolved <- hoistEither $ resolve prelude substituted
 
   when dumpResolved . lift $ hPrint stderr resolved
-  hoistEither $ typeFragment stack prelude resolved
+  type_ <- hoistEither $ typeFragment inferConfig stack prelude resolved
 
   let scoped = scope resolved
   when dumpScoped . lift $ hPrint stderr scoped
 
-  return scoped
+  return (scoped, type_)
 
 locateImport
   :: [FilePath]

@@ -143,6 +143,7 @@ instance Eq (Type a) where
 instance Show (Type a) where
   show = T.unpack . toText
 
+-- TODO showsPrec
 instance ToText (Type a) where
   toText type_ = case type_ of
     t1 :& t2 -> T.concat ["(", toText t1, " & ", toText t2, ")"]
@@ -153,7 +154,8 @@ instance ToText (Type a) where
     Bool{} -> "Bool"
     Char{} -> "Char"
     Float{} -> "Float"
-    Function r1 r2 e _ -> T.unwords [toText r1, "->", toText r2, "+", toText e]
+    Function r1 r2 e _ -> T.concat
+      ["(", T.unwords [toText r1, "->", toText r2, "+", toText e], ")"]
     Handle{} -> "Handle"
     Int{} -> "Int"
     Named name _ -> name

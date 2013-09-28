@@ -144,7 +144,7 @@ unifyM type1 type2 = do
   env <- getsEnv $ unify type1 type2
   case env of
     Right env' -> putEnv env' >> return type2
-    Left errors -> Inferred $ throwMany errors
+    Left errors -> liftFailWriter $ throwMany errors
 
 unifyM_
   :: (Unification a, Simplify a)
