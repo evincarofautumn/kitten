@@ -141,7 +141,9 @@ continue prefix = do
 showStack :: ReplInput ()
 showStack = do
   stack <- lift $ gets replStack
-  liftIO . mapM_ putStrLn . reverse $ map show stack
+  liftIO $ do
+    putStrLn "----"
+    mapM_ putStrLn . reverse $ map show stack
 
 replName :: String
 replName = "REPL"
