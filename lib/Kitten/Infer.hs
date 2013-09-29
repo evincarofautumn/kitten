@@ -3,7 +3,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PostfixOperators #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Kitten.Infer
   ( infer
@@ -161,12 +160,12 @@ infer resolved = case resolved of
       -> (r :. Type.Char loc --> r :. Type.Int loc) loc
 
     Builtin.Choice -> forAll $ \ r a b e -> Type.Function
-      (r :. (a :| b) :. (Type.Function (r :. a) r e loc)) r e loc
+      (r :. (a :| b) :. Type.Function (r :. a) r e loc) r e loc
 
     Builtin.ChoiceElse -> forAll $ \ r a b s e1 e2 -> Type.Function
       (r :. (a :| b)
-        :. (Type.Function (r :. a) s e1 loc)
-        :. (Type.Function (r :. b) s e2 loc))
+        :. Type.Function (r :. a) s e1 loc
+        :. Type.Function (r :. b) s e2 loc)
       s (e1 +: e2) loc
 
     Builtin.Close -> forAll $ \ r
@@ -206,12 +205,12 @@ infer resolved = case resolved of
     Builtin.GtInt -> relational (Type.Int loc) loc
 
     Builtin.If -> forAll $ \ r e -> Type.Function
-      (r :. Type.Bool loc :. (Type.Function r r e loc)) r e loc
+      (r :. Type.Bool loc :. Type.Function r r e loc) r e loc
 
     Builtin.IfElse -> forAll $ \ r s e1 e2 -> Type.Function
       (r :. Type.Bool loc
-        :. (Type.Function r s e1 loc)
-        :. (Type.Function r s e2 loc))
+        :. Type.Function r s e1 loc
+        :. Type.Function r s e2 loc)
       s (e1 +: e2) loc
 
     Builtin.Impure -> forAll $ \ r
@@ -260,12 +259,12 @@ infer resolved = case resolved of
       -> (r :. string loc ==> r :. Type.Handle loc) loc
 
     Builtin.Option -> forAll $ \ r a e -> Type.Function
-      (r :. (a :?) :. (Type.Function (r :. a) r e loc)) r e loc
+      (r :. (a :?) :. Type.Function (r :. a) r e loc) r e loc
 
     Builtin.OptionElse -> forAll $ \ r a s e1 e2 -> Type.Function
       (r :. (a :?)
-        :. (Type.Function (r :. a) s e1 loc)
-        :. (Type.Function r s e2 loc))
+        :. Type.Function (r :. a) s e1 loc
+        :. Type.Function r s e2 loc)
       s (e1 +: e2) loc
 
     Builtin.OrBool -> binary (Type.Bool loc) loc

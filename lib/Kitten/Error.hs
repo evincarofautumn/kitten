@@ -84,9 +84,9 @@ parseError err = ErrorGroup $ unexpecteds
   sysUnexpected, unexpected, expected :: [Message]
   (sysUnexpected, unexpected, expected)
     = flip evalState (errorMessages err) $ (,,)
-      <$> state (span ((SysUnExpect "") ==))
-      <*> state (span ((UnExpect "") ==))
-      <*> state (span ((Expect "") ==))
+      <$> state (span (SysUnExpect "" ==))
+      <*> state (span (UnExpect "" ==))
+      <*> state (span (Expect "" ==))
 
   unexpecteds :: [CompileError]
   unexpecteds = ((++) `on` unexpectedMessages) sysUnexpected unexpected

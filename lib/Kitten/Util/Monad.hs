@@ -17,6 +17,6 @@ concatMapM = (liftM join .) . T.mapM
 composeM :: (Monad m) => [a -> m a] -> a -> m a
 composeM = foldr (>=>) return
 
-whenJust :: (Monad m) => Maybe a -> (a -> m b) -> m ()
-whenJust (Just x) m = m x >> return ()
+whenJust :: (Functor m, Monad m) => Maybe a -> (a -> m b) -> m ()
+whenJust (Just x) m = void (m x)
 whenJust Nothing _ = return ()
