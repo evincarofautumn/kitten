@@ -20,13 +20,12 @@ import Kitten.Resolve.Monad
 import Kitten.Resolved
 import Kitten.Term (Term)
 
-import qualified Kitten.Resolved as Resolved
 import qualified Kitten.Term as Term
 
 resolve
-  :: Fragment Resolved.Value Resolved
-  -> Fragment Term.Value Term
-  -> Either [ErrorGroup] (Fragment Value Resolved)
+  :: Fragment Resolved
+  -> Fragment Term
+  -> Either [ErrorGroup] (Fragment Resolved)
 resolve prelude fragment
   = evalResolution emptyEnv
   $ guardLiftM2 (\ defs terms -> fragment

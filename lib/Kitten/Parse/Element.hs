@@ -26,7 +26,7 @@ data Partitioned = Partitioned
   , partTypeDefs :: [TypeDef]
   }
 
-partitionElements :: [Element] -> Fragment Value Term
+partitionElements :: [Element] -> Fragment Term
 partitionElements
   = fromPartitioned . foldr go (Partitioned [] [] [] [])
   where
@@ -40,7 +40,7 @@ partitionElements
     TypeElement type_ -> acc
       { partTypeDefs = type_ : partTypeDefs acc }
 
-fromPartitioned :: Partitioned -> Fragment Value Term
+fromPartitioned :: Partitioned -> Fragment Term
 fromPartitioned Partitioned{..} = Fragment
   { fragmentDefs = V.fromList partDefs
   , fragmentImports = V.fromList partImports

@@ -47,6 +47,7 @@ library
 
   exposed-modules:
     Kitten.Anno,
+    Kitten.AST,
     Kitten.Builtin,
     Kitten.ClosedName,
     Kitten.Compile,

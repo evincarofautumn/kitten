@@ -21,7 +21,7 @@ import Kitten.Name
 import Kitten.Resolved
 import Kitten.Util.List
 
-scope :: Fragment Value Resolved -> Fragment Value Resolved
+scope :: Fragment Resolved -> Fragment Resolved
 scope fragment@Fragment{..} = fragment
   { fragmentDefs = scopeDef <$> fragmentDefs
   , fragmentTerms = scopeTerm [0] <$> fragmentTerms

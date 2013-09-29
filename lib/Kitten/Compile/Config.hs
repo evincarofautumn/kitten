@@ -15,7 +15,7 @@ data Config = Config
   , inferConfig :: !Infer.Config
   , libraryDirectories :: [FilePath]
   , name :: String
-  , prelude :: !(Fragment Value Resolved)
+  , prelude :: !(Fragment Resolved)
   , source :: !Text
   , stack :: [Value]
   }

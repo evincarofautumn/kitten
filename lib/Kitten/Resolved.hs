@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Kitten.Resolved
@@ -15,6 +16,7 @@ import System.IO
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
+import Kitten.AST
 import Kitten.Builtin (Builtin)
 import Kitten.ClosedName
 import Kitten.Location
@@ -51,6 +53,9 @@ data Value
   | Vector !(Vector Value)
   | Wrapped !Text !Value
   deriving (Eq)
+
+instance AST Resolved where
+  type TermValue Resolved = Value
 
 instance Show Value where
   show = T.unpack . toText

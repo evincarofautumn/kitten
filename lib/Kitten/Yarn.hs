@@ -130,7 +130,7 @@ data Env = Env
 type Yarn a = ReaderT Int (State Env) a
 
 yarn
-  :: Fragment Resolved.Value Resolved
+  :: Fragment Resolved
   -> Vector Instruction
 yarn Fragment{..}
   = collectClosures . withClosureOffset $ (<>)

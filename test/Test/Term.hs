@@ -210,7 +210,7 @@ spec = do
                 [ lambda "y"
                   [word "x", word "y", word "+"]]]]] }
 
-testTerm :: Text -> Fragment Value Term -> Spec
+testTerm :: Text -> Fragment Term -> Spec
 testTerm source expected = it (show source)
   $ case parsed source of
     Left message -> assertFailure $ show message
@@ -225,7 +225,7 @@ testTermFailure source = it ("should fail: " ++ show source)
     Left _ -> return ()
     Right actual -> assertFailure $ show actual
 
-parsed :: Text -> Either ErrorGroup (Fragment Value Term)
+parsed :: Text -> Either ErrorGroup (Fragment Term)
 parsed
   = mapLeft parseError . tokenize "test"
   >=> mapLeft parseError . parse "test"

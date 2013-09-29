@@ -31,8 +31,8 @@ import qualified Kitten.Builtin as Builtin
 
 interpret
   :: [Value]
-  -> Fragment Value Resolved
-  -> Fragment Value Resolved
+  -> Fragment Resolved
+  -> Fragment Resolved
   -> IO [Value]
 interpret stack prelude fragment = liftM envData $ execStateT
   (F.mapM_ interpretTerm (fragmentTerms fragment)) Env

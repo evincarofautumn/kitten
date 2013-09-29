@@ -30,7 +30,7 @@ import Kitten.Import
 import Kitten.Infer
 import Kitten.Parse
 import Kitten.Resolve
-import Kitten.Resolved (Resolved, Value)
+import Kitten.Resolved (Resolved)
 import Kitten.Scope
 import Kitten.Term (Term)
 import Kitten.Tokenize
@@ -39,7 +39,6 @@ import Kitten.Util.Either
 import Kitten.Util.Function
 
 import qualified Kitten.Compile.Config as Compile
-import qualified Kitten.Term as Term
 import qualified Kitten.Util.Text as T
 
 liftParseError :: Either ParseError a -> Either [ErrorGroup] a
@@ -48,14 +47,14 @@ liftParseError = mapLeft ((:[]) . parseError)
 parseSource
   :: String
   -> Text
-  -> Either [ErrorGroup] (Fragment Term.Value Term)
+  -> Either [ErrorGroup] (Fragment Term)
 parseSource name source = do
   tokenized <- liftParseError $ tokenize name source
   liftParseError $ parse name tokenized
 
 compile
   :: Compile.Config
-  -> IO (Either [ErrorGroup] (Fragment Value Resolved, Type Scalar))
+  -> IO (Either [ErrorGroup] (Fragment Resolved, Type Scalar))
 compile Compile.Config{..} = liftM (mapLeft sort) . runEitherT $ do
   parsed <- hoistEither $ parseSource name source
   substituted <- hoistEither
@@ -97,9 +96,9 @@ locateImport libraryDirectories importName = do
 
 substituteImports
   :: [FilePath]
-  -> Fragment Term.Value Term
+  -> Fragment Term
   -> [Import]
-  -> IO (Either [ErrorGroup] (Fragment Term.Value Term))
+  -> IO (Either [ErrorGroup] (Fragment Term))
 substituteImports libraryDirectories fragment inScope
   = runEitherT $ do
 

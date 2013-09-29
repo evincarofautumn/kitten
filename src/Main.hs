@@ -16,7 +16,7 @@ import Kitten.Compile (compile, locateImport)
 import Kitten.Error
 import Kitten.Fragment
 import Kitten.Interpret
-import Kitten.Resolved (Resolved, Value)
+import Kitten.Resolved (Resolved)
 import Kitten.Yarn (yarn)
 import Repl
 
@@ -99,7 +99,7 @@ main = do
 interpretAll
   :: [FilePath]
   -> CompileMode
-  -> Fragment Value Resolved
+  -> Fragment Resolved
   -> (FilePath -> Text -> Compile.Config)
   -> IO ()
 interpretAll entryPoints compileMode prelude config

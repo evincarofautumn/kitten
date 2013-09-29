@@ -40,14 +40,13 @@ import Kitten.Util.Text (toText)
 
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.NameMap as N
-import qualified Kitten.Resolved as Resolved
 import qualified Kitten.Type as Type
 
 typeFragment
   :: Config
   -> [Value]
-  -> Fragment Value Resolved
-  -> Fragment Resolved.Value Resolved
+  -> Fragment Resolved
+  -> Fragment Resolved
   -> Either [ErrorGroup] (Type Scalar)
 typeFragment config stack prelude fragment
   = fst . runInference config emptyEnv
@@ -58,8 +57,8 @@ typeFragment config stack prelude fragment
     }
 
 inferFragment
-  :: Fragment Value Resolved
-  -> Fragment Value Resolved
+  :: Fragment Resolved
+  -> Fragment Resolved
   -> Inferred (Type Scalar)
 inferFragment prelude fragment = do
 

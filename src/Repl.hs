@@ -47,7 +47,7 @@ type ReplInput = InputT ReplState
 liftIO :: IO a -> ReplInput a
 liftIO = lift . lift . lift
 
-runRepl :: Fragment Value Resolved -> IO ()
+runRepl :: Fragment Resolved -> IO ()
 runRepl prelude = do
   welcome
   flip runReaderT preludeDefs
@@ -128,7 +128,7 @@ compileConfig = do
 
 replCompile
   :: (Compile.Config -> Compile.Config)
-  -> ReplInput (Maybe (Fragment Value Resolved, Type Scalar))
+  -> ReplInput (Maybe (Fragment Resolved, Type Scalar))
 replCompile update = do
   mCompiled <- liftIO . compile . update =<< compileConfig
   case mCompiled of

@@ -35,12 +35,12 @@ import qualified Kitten.Token as Token
 parse
   :: String
   -> [Located]
-  -> Either ParseError (Fragment Value Term)
+  -> Either ParseError (Fragment Term)
 parse name
   = Parsec.parse insertBraces name
   >=> Parsec.parse fragment name
 
-fragment :: Parser (Fragment Value Term)
+fragment :: Parser (Fragment Term)
 fragment = partitionElements <$> (many element <* eof)
 
 element :: Parser Element

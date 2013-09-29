@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeFamilies #-}
+
 module Kitten.Term
   ( Term(..)
   , Value(..)
@@ -6,6 +8,7 @@ module Kitten.Term
 import Data.Text (Text)
 import Data.Vector (Vector)
 
+import Kitten.AST
 import Kitten.Builtin (Builtin)
 import Kitten.Location
 
@@ -33,3 +36,6 @@ data Value
   | Unit !Location
   | Vector !(Vector Value) !Location
   deriving (Eq, Show)
+
+instance AST Term where
+  type TermValue Term = Value

@@ -1,3 +1,5 @@
+{-# LANGUAGE StandaloneDeriving #-}
+
 module Kitten.Fragment
   ( Fragment(..)
   ) where
@@ -5,18 +7,22 @@ module Kitten.Fragment
 import Data.Monoid
 import Data.Vector (Vector)
 
+import Kitten.AST
 import Kitten.Def
 import Kitten.Import
 import Kitten.TypeDef
 
-data Fragment a b = Fragment
-  { fragmentDefs :: !(Vector (Def a))
+data Fragment a = Fragment
+  { fragmentDefs :: !(Vector (Def (TermValue a)))
   , fragmentImports :: !(Vector Import)
-  , fragmentTerms :: !(Vector b)
+  , fragmentTerms :: !(Vector a)
   , fragmentTypeDefs :: !(Vector TypeDef)
-  } deriving (Eq, Show)
+  }
 
-instance Monoid (Fragment a b) where
+deriving instance (AST a) => Eq (Fragment a)
+deriving instance (AST a) => Show (Fragment a)
+
+instance Monoid (Fragment a) where
   mempty = Fragment
     { fragmentDefs = mempty
     , fragmentImports = mempty
