@@ -86,7 +86,8 @@ inferFragment prelude fragment = do
         scheme <- fromAnno anno
         saveDecl index scheme
         saveDefWith const index scheme
-      Nothing -> return ()
+      Nothing -> saveDecl index =<< mono
+        <$> forAll (\r s e -> Type.Function r s e (defLocation def))
 
   forM_ (zip [(0 :: Int)..] (V.toList allDefs)) $ \(index, def)
     -> withLocation (defLocation def) $ do
