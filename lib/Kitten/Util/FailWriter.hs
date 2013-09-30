@@ -37,7 +37,7 @@ guardLiftM2
   -> FailWriterT w m c
 guardLiftM2 f ma mb = liftM2 (,)
   (guardReturn ma) (guardReturn mb)
-  >>= \ (mA, mB) -> case (mA, mB) of
+  >>= \(mA, mB) -> case (mA, mB) of
     (Just a, Just b) -> return $ f a b
     _ -> halt
 

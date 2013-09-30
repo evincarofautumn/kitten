@@ -91,7 +91,7 @@ locateImport libraryDirectories importName = do
   canonicalImport :: FilePath -> IO FilePath
   canonicalImport path = catchIOError
     (canonicalizePath $ path </> T.unpack importName <.> "ktn")
-    $ \ e -> if isDoesNotExistError e
+    $ \e -> if isDoesNotExistError e
       then return "" else ioError e
 
 substituteImports
@@ -105,11 +105,11 @@ substituteImports libraryDirectories fragment inScope
     let inScope' = V.toList (fragmentImports fragment) \\ inScope
 
     imports <- lift . forM inScope'
-      $ \ import_ -> do
+      $ \import_ -> do
         located <- locateImport libraryDirectories (importName import_)
         return (import_, located)
 
-    imported <- forM imports $ \ (import_, possible) -> case possible of
+    imported <- forM imports $ \(import_, possible) -> case possible of
       [filename] -> do
         source <- lift $ T.readFileUtf8 filename
         parsed <- hoistEither $ parseSource filename source
@@ -131,4 +131,4 @@ substituteImports libraryDirectories fragment inScope
 
     return $ foldr (<>) fragment
       $ for imported
-      $ (\ defs -> mempty { fragmentDefs = defs }) . fragmentDefs
+      $ (\defs -> mempty { fragmentDefs = defs }) . fragmentDefs

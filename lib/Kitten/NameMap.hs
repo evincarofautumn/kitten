@@ -26,7 +26,7 @@ empty = NameMap I.empty
 
 fromList :: [(Name, a)] -> NameMap a
 fromList = NameMap . foldr
-  (\ (Name index, value) acc -> I.insert index value acc)
+  (\(Name index, value) acc -> I.insert index value acc)
   I.empty
 
 insert :: Name -> a -> NameMap a -> NameMap a

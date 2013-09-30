@@ -77,7 +77,7 @@ token = (<?> "token") . located $ choice
       applySign = if sign == Just '-' then negate else id
 
     choice
-      [ try . fmap (\ (hint, value) -> Int (applySign value) hint)
+      [ try . fmap (\(hint, value) -> Int (applySign value) hint)
         $ char '0' *> choice
         [ base 'b' "01" readBin BinaryHint "binary"
         , base 'o' ['0'..'7'] readOct' OctalHint "octal"
@@ -116,7 +116,7 @@ token = (<?> "token") . located $ choice
 
   word :: Parser Token
   word = choice
-    [ ffor alphanumeric $ \ name -> case name of
+    [ ffor alphanumeric $ \name -> case name of
       "def" -> Def
       "else" -> Else
       "false" -> Bool False
@@ -129,7 +129,7 @@ token = (<?> "token") . located $ choice
       _ -> case Builtin.fromText name of
         Just builtin -> Builtin builtin
         _ -> LittleWord name
-    , ffor symbolic $ \ name -> case name of
+    , ffor symbolic $ \name -> case name of
       "\\" -> Do
       _ | Just builtin <- Builtin.fromText name -> Builtin builtin
         | otherwise -> Operator name
@@ -138,7 +138,7 @@ token = (<?> "token") . located $ choice
 
     alphanumeric :: Parser Text
     alphanumeric
-      = (\ x y z -> T.pack $ x : y ++ maybeToList z)
+      = (\x y z -> T.pack $ x : y ++ maybeToList z)
       <$> (Parsec.satisfy isLetter <|> char '_')
       <*> (many . choice)
         [ Parsec.satisfy isLetter

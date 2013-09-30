@@ -57,7 +57,7 @@ def = (<?> "definition") . locate $ do
   name <- functionName <?> "definition name"
   anno <- optionMaybe signature
   body <- block <?> "definition body"
-  return $ \ loc -> Def
+  return $ \loc -> Def
     { defName = name
     , defTerm = Function body loc
     , defAnno = anno
@@ -68,7 +68,7 @@ import_ :: Parser Import
 import_ = (<?> "import") . locate $ do
   void (match Token.Import)
   name <- bigWord
-  return $ \ loc -> Import
+  return $ \loc -> Import
     { importName = name
     , importLocation = loc
     }
@@ -123,7 +123,7 @@ term = nonblockTerm <|> blockTerm
       name'' = case Builtin.fromText name' of
         Just builtin -> Builtin builtin
         _ -> Call name'
-    return $ \ loc -> flip Compose loc $ V.concat
+    return $ \loc -> flip Compose loc $ V.concat
       [ V.fromList open
       , V.singleton body
       , else'
@@ -136,14 +136,14 @@ term = nonblockTerm <|> blockTerm
     , do
       names <- blocked (many littleWord)
       terms <- manyV term
-      return $ \ loc -> foldr
-        (\ lambdaName lambdaTerms -> Lambda lambdaName lambdaTerms loc)
+      return $ \loc -> foldr
+        (\lambdaName lambdaTerms -> Lambda lambdaName lambdaTerms loc)
         (Compose terms loc)
         (reverse names)
     ]
 
   pair :: Vector Term -> Location -> Term
-  pair values loc = V.foldr1 (\ x y -> PairTerm x y loc) values
+  pair values loc = V.foldr1 (\x y -> PairTerm x y loc) values
 
   to :: Parser (Location -> Term)
   to = To <$> (match Token.To *> bigWord)
@@ -172,7 +172,7 @@ type_ = (<?> "type definition") . locate $ do
   void (match Token.Type)
   name <- bigWord
   anno <- typeDefType
-  return $ \ loc -> TypeDef
+  return $ \loc -> TypeDef
     { typeDefName = name
     , typeDefAnno = anno
     , typeDefLocation = loc
@@ -192,7 +192,7 @@ toLiteral (Token.Bool x) = Just $ Bool x
 toLiteral (Token.Char x) = Just $ Char x
 toLiteral (Token.Float x) = Just $ Float x
 toLiteral (Token.Int x _) = Just $ Int x
-toLiteral (Token.Text x) = Just $ \ loc
+toLiteral (Token.Text x) = Just $ \loc
   -> Vector (V.fromList (map (`Char` loc) (T.unpack x))) loc
 toLiteral _ = Nothing
 

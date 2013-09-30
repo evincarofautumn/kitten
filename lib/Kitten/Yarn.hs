@@ -223,7 +223,7 @@ yarnClosure :: Vector Instruction -> Yarn Label
 yarnClosure terms = do
   closureOffset <- ask
   label <- lift . gets $ length . envClosures
-  lift . modify $ \ env@Env{..} -> env
+  lift . modify $ \env@Env{..} -> env
     { envClosures = terms : envClosures }
   return $ label + closureOffset
 

@@ -28,7 +28,7 @@ resolve
   -> Either [ErrorGroup] (Fragment Resolved)
 resolve prelude fragment
   = evalResolution emptyEnv
-  $ guardLiftM2 (\ defs terms -> fragment
+  $ guardLiftM2 (\defs terms -> fragment
     { fragmentDefs = defs
     , fragmentTerms = terms
     })

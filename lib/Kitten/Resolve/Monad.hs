@@ -85,7 +85,7 @@ modifyEnv = Resolution . lift . modify
 
 withLocal :: Text -> Resolution a -> Resolution a
 withLocal name action = do
-  modifyEnv $ \ env@Env{..} -> env { envScope = name : envScope }
+  modifyEnv $ \env@Env{..} -> env { envScope = name : envScope }
   result <- action
-  modifyEnv $ \ env@Env{..} -> env { envScope = tail envScope }
+  modifyEnv $ \env@Env{..} -> env { envScope = tail envScope }
   return result

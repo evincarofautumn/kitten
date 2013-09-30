@@ -174,7 +174,7 @@ runInference config env action
 withLocation :: Location -> Inferred a -> Inferred a
 withLocation here action = do
   there <- getsEnv envLocation
-  modifyEnv $ \ env -> env { envLocation = here }
+  modifyEnv $ \env -> env { envLocation = here }
   result <- action
-  modifyEnv $ \ env -> env { envLocation = there }
+  modifyEnv $ \env -> env { envLocation = there }
   return result

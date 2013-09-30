@@ -178,34 +178,34 @@ argumentsMode = mode "kitten" defaultArguments
   options =
     [ flagBool' ["c", "compile"]
       "Compile Yarn assembly."
-      $ \ flag acc@Arguments{..} -> acc
+      $ \flag acc@Arguments{..} -> acc
       { argsCompileMode = if flag then CompileMode else argsCompileMode }
 
     , flagBool' ["check"]
       "Check syntax and types without compiling or running."
-      $ \ flag acc@Arguments{..} -> acc
+      $ \flag acc@Arguments{..} -> acc
       { argsCompileMode = if flag then CheckMode else argsCompileMode }
 
     , flagBool' ["dump-resolved"]
       "Output result of name resolution."
-      $ \ flag acc@Arguments{..} -> acc
+      $ \flag acc@Arguments{..} -> acc
       { argsDumpResolved = flag }
 
     , flagBool' ["dump-scoped"]
       "Output result of scope resolution."
-      $ \ flag acc@Arguments{..} -> acc
+      $ \flag acc@Arguments{..} -> acc
       { argsDumpScoped = flag }
 
     , flagReq' ["L", "library"] "DIR"
       "Add library search directory."
-      $ \ path acc@Arguments{..} -> Right $ acc
+      $ \path acc@Arguments{..} -> Right $ acc
       { argsLibraryDirectories = path : argsLibraryDirectories }
 
     , flagBool' ["no-implicit-prelude"]
       "Disable implicit inclusion of prelude."
-      $ \ flag acc@Arguments{..} -> acc
+      $ \flag acc@Arguments{..} -> acc
       { argsEnableImplicitPrelude = not flag }
 
-    , flagHelpSimple $ \ acc -> acc { argsShowHelp = True }
-    , flagVersion $ \ acc -> acc { argsShowVersion = True }
+    , flagHelpSimple $ \acc -> acc { argsShowHelp = True }
+    , flagVersion $ \acc -> acc { argsShowVersion = True }
     ]

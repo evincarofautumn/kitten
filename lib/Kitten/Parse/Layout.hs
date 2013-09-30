@@ -29,7 +29,7 @@ insertBraces = (concat <$> many unit) <* eof
 
   doBody :: Parser [Located]
   doBody = do
-    name <- locatedSatisfy $ \ (Located token _) -> case token of
+    name <- locatedSatisfy $ \(Located token _) -> case token of
       Token.Builtin _ -> True
       Token.LittleWord _ -> True
       Token.Operator _ -> True

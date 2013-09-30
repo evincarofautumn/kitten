@@ -137,26 +137,26 @@ replCompile update = do
 
 typeOf :: Text -> ReplInput ()
 typeOf line = do
-  mCompiled <- replCompile $ \ config -> config
+  mCompiled <- replCompile $ \config -> config
     { Compile.source = line
     , Compile.inferConfig = Infer.Config { enforceBottom = False }
     }
-  whenJust mCompiled $ \ (_compiled, type_) -> liftIO $ print type_
+  whenJust mCompiled $ \(_compiled, type_) -> liftIO $ print type_
   repl'
 
 eval :: Text -> ReplInput ()
 eval line = do
   Repl{..} <- lift get
-  mCompiled <- replCompile $ \ config -> config
+  mCompiled <- replCompile $ \config -> config
     { Compile.source = line
     , Compile.stack = replStack
     }
-  whenJust mCompiled $ \ (compiled, _type) -> do
+  whenJust mCompiled $ \(compiled, _type) -> do
     stack' <- liftIO $ interpret replStack mempty
       { fragmentDefs = replDefs
       , fragmentTypeDefs = replTypeDefs
       } compiled
-    lift . modify $ \ s -> s
+    lift . modify $ \s -> s
       { replStack = stack'
       , replDefs = replDefs <> fragmentDefs compiled
       , replTypeDefs = replTypeDefs <> fragmentTypeDefs compiled
@@ -215,7 +215,7 @@ quit = return ()
 
 clear :: ReplInput ()
 clear = do
-  lift . modify $ \ s -> s { replStack = [] }
+  lift . modify $ \s -> s { replStack = [] }
   repl'
 
 reset :: ReplInput ()

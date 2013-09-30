@@ -65,7 +65,7 @@ popData = do
         hPutStrLn stderr $ show loc ++ ": stack underflow"
         exitFailure
     (top : down) -> do
-      modify $ \ env -> env { envData = down }
+      modify $ \env -> env { envData = down }
       return top
 
 popLocal :: Interpret
@@ -77,29 +77,29 @@ popLocal = do
       lift $ do
         hPutStrLn stderr $ show loc ++ ": local stack underflow"
         exitFailure
-    (_ : down) -> modify $ \ env -> env { envLocals = down }
+    (_ : down) -> modify $ \env -> env { envLocals = down }
 
 pushData :: Value -> Interpret
-pushData value = modify $ \ env@Env{..}
+pushData value = modify $ \env@Env{..}
   -> env { envData = value : envData }
 
 pushLocal :: Value -> Interpret
-pushLocal value = modify $ \ env@Env{..}
+pushLocal value = modify $ \env@Env{..}
   -> env { envLocals = value : envLocals }
 
 withClosure :: Vector Value -> InterpretM a -> InterpretM a
 withClosure values action = do
   closure <- gets envClosure
-  modify $ \ env -> env { envClosure = values }
+  modify $ \env -> env { envClosure = values }
   result <- action
-  modify $ \ env -> env { envClosure = closure }
+  modify $ \env -> env { envClosure = closure }
   return result
 
 withLocation :: Location -> InterpretM a -> InterpretM a
 withLocation loc action = do
-  modify $ \ env@Env{..} -> env
+  modify $ \env@Env{..} -> env
     { envLocations = loc : envLocations }
   result <- action
-  modify $ \ env@Env{..} -> env
+  modify $ \env@Env{..} -> env
     { envLocations = tail envLocations }
   return result
