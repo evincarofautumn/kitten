@@ -105,7 +105,7 @@ matched = go False (0::Int)
   go True _ [] = True
   go False n (x:xs)
     | isOpen x = go False (succ n) xs
-    | isClose x = n < 0 || go False (pred n) xs
+    | isClose x = n <= 0 || go False (pred n) xs
     | otherwise = go False n xs
   go False n [] = n == 0
   isOpen = (`elem` "([{")
