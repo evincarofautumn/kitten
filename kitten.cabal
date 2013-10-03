@@ -1,4 +1,4 @@
-name: Kitten
+name: kitten
 version: 0.1
 cabal-version: >= 1.8
 build-type: Simple
@@ -113,7 +113,7 @@ executable kitten
     ghc-options: -prof -auto-all
 
   build-depends:
-    Kitten,
+    kitten,
     base,
     bytestring,
     cmdargs == 0.10.*,
@@ -136,7 +136,7 @@ test-suite test
     Test.hs
 
   build-depends:
-    Kitten,
+    kitten,
     base,
     containers,
     hspec == 1.4.*,

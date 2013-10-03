@@ -7,7 +7,7 @@ CABALFLAGS += --enable-tests
 MAKEFLAGS += --warn-undefined-variables
 .SECONDARY :
 
-BUILDDIR = ./dist/build/Kitten
+BUILDDIR = ./dist/build/kitten
 EXAMPLES = $(wildcard examples/*.ktn)
 KITTEN = $(BUILDDIR)/kitten
 PRELUDE = $(BUILDDIR)/Prelude.ktn
@@ -79,7 +79,7 @@ $(foreach TEST,$(TESTS),$(eval $(call TEST_RULE,$(TEST))))
 
 .PHONY : lint
 lint :
-	@ if which -s $(HLINT); then \
+	@ if which $(HLINT) 2>&1 >/dev/null; then \
 	  $(HLINT) src lib; \
 	else \
 	  echo "No HLint found."; \
