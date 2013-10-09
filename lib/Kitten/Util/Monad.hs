@@ -1,6 +1,7 @@
 module Kitten.Util.Monad
   ( concatMapM
   , composeM
+  , secondM
   , whenJust
   ) where
 
@@ -16,6 +17,11 @@ concatMapM = (liftM join .) . T.mapM
 
 composeM :: (Monad m) => [a -> m a] -> a -> m a
 composeM = foldr (>=>) return
+
+secondM :: (Monad m) => (a -> m b) -> (c, a) -> m (c, b)
+secondM f (x, y) = do
+  y' <- f y
+  return (x, y')
 
 whenJust :: (Functor m, Monad m) => Maybe a -> (a -> m b) -> m ()
 whenJust (Just x) m = void (m x)

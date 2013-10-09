@@ -80,7 +80,7 @@ main = do
         Left compileErrors -> do
           printCompileErrors compileErrors
           exitFailure
-        Right (nameGen', prelude, _type)
+        Right (nameGen', prelude, _typed, _type)
           -> return (nameGen', prelude)
 
       unless (V.null fragmentTerms) $ do
@@ -120,7 +120,7 @@ interpretAll entryPoints compileMode prelude config nameGen
       Left compileErrors -> do
         printCompileErrors compileErrors
         exitFailure
-      Right (_nameGen', result, _type) -> case compileMode of
+      Right (_nameGen', result, typed, _type) -> case compileMode of
         CheckMode -> return ()
         CompileMode -> V.mapM_ print $ yarn (prelude <> result)
         InterpretMode -> void $ interpret [] prelude result

@@ -66,9 +66,8 @@ instantiate loc (Forall rows scalars effects type_) env
     var <- state (freshVar loc)
     return (declare name var localEnv)
 
-generalize :: Inferred (Type Scalar) -> Inferred Scheme
-generalize action = do
-  type_ <- action
+generalize :: Type Scalar -> Inferred Scheme
+generalize type_ = do
   after <- getEnv
 
   let

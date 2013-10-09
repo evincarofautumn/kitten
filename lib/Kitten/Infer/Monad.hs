@@ -24,6 +24,7 @@ module Kitten.Infer.Monad
   ) where
 
 import Control.Applicative
+import Control.Monad.Fix
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State.Strict
@@ -62,7 +63,7 @@ data Env = Env
 
 newtype Inferred a = Inferred
   { unwrapInferred :: FailWriterT [ErrorGroup] (ReaderT Config (State Env)) a
-  } deriving (Applicative, Functor, Monad)
+  } deriving (Applicative, Functor, Monad, MonadFix)
 
 class Declare a where
   declare :: TypeName a -> Type a -> Env -> Env

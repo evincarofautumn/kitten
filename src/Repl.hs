@@ -140,9 +140,9 @@ replCompile update = do
   mCompiled <- liftIO . flip compile nameGen . update =<< compileConfig
   case mCompiled of
     Left errors -> liftIO (printCompileErrors errors) >> return Nothing
-    Right (nameGen', compiled, type_) -> do
+    Right (nameGen', terms, _typed, type_) -> do
       lift . modify $ \env -> env { replNameGen = nameGen' }
-      return $ Just (compiled, type_)
+      return $ Just (terms, type_)
 
 typeOf :: Text -> ReplInput ()
 typeOf line = do
