@@ -5,7 +5,8 @@ module Kitten.Compile.Config
 import Data.Text (Text)
 
 import Kitten.Fragment
-import Kitten.Resolved
+import Kitten.Type
+import Kitten.Typed (Typed)
 
 import qualified Kitten.Infer.Config as Infer
 
@@ -16,7 +17,7 @@ data Config = Config
   , inferConfig :: !Infer.Config
   , libraryDirectories :: [FilePath]
   , name :: String
-  , prelude :: !(Fragment Resolved)
+  , prelude :: !(Fragment Typed)
   , source :: !Text
-  , stack :: [Value]
+  , stack :: [Type Scalar]
   }

@@ -10,6 +10,7 @@ import Data.Vector (Vector)
 
 import Kitten.AST
 import Kitten.Builtin (Builtin)
+import Kitten.Def (Def)
 import Kitten.Location
 
 data Term
@@ -27,15 +28,13 @@ data Term
 data Value
   = Bool !Bool !Location
   | Char !Char !Location
-  | Choice !Bool !Value !Location
   | Float !Double !Location
   | Function !(Vector Term) !Location
   | Int !Int !Location
-  | Option !(Maybe Value) !Location
-  | Pair !Value !Value !Location
   | Unit !Location
-  | Vector !(Vector Value) !Location
+  | String !Text !Location
   deriving (Eq, Show)
 
 instance AST Term where
   type TermValue Term = Value
+  type TermDef Term = Def Value

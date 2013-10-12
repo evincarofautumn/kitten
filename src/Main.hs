@@ -17,12 +17,13 @@ import Kitten.Error
 import Kitten.Fragment
 import Kitten.Interpret
 import Kitten.Name (NameGen, mkNameGen)
-import Kitten.Resolved (Resolved)
+import Kitten.Typed (Typed)
 import Kitten.Yarn (yarn)
 import Repl
 
 import qualified Kitten.Compile as Compile
 import qualified Kitten.Infer.Config as Infer
+import qualified Kitten.Typed as Typed
 import qualified Kitten.Util.Text as T
 
 data CompileMode
@@ -80,10 +81,11 @@ main = do
         Left compileErrors -> do
           printCompileErrors compileErrors
           exitFailure
-        Right (nameGen', prelude, _typed, _type)
+        Right (nameGen', prelude, _type)
           -> return (nameGen', prelude)
 
-      unless (V.null fragmentTerms) $ do
+      when (V.any containsCode fragmentTerms) $ do
+        print fragmentTerms
         hPutStrLn stderr "Prelude includes executable code."
         exitFailure
 
@@ -102,10 +104,14 @@ main = do
       (defaultConfig prelude)
       nameGen
 
+containsCode :: Typed -> Bool
+containsCode (Typed.Compose terms _ _) = V.any containsCode terms
+containsCode _ = True
+
 interpretAll
   :: [FilePath]
   -> CompileMode
-  -> Fragment Resolved
+  -> Fragment Typed
   -> (FilePath -> Text -> Compile.Config)
   -> NameGen
   -> IO ()
@@ -120,7 +126,7 @@ interpretAll entryPoints compileMode prelude config nameGen
       Left compileErrors -> do
         printCompileErrors compileErrors
         exitFailure
-      Right (_nameGen', result, typed, _type) -> case compileMode of
+      Right (_nameGen', result, _type) -> case compileMode of
         CheckMode -> return ()
         CompileMode -> V.mapM_ print $ yarn (prelude <> result)
         InterpretMode -> void $ interpret [] prelude result

@@ -12,7 +12,6 @@ import Data.Text (Text)
 import Data.Vector (Vector)
 import Text.Parsec.Pos
 
-import qualified Data.Text as T
 import qualified Data.Vector as V
 import qualified Text.Parsec as Parsec
 
@@ -201,8 +200,7 @@ toLiteral (Token.Bool x) = Just $ Bool x
 toLiteral (Token.Char x) = Just $ Char x
 toLiteral (Token.Float x) = Just $ Float x
 toLiteral (Token.Int x _) = Just $ Int x
-toLiteral (Token.Text x) = Just $ \loc
-  -> Vector (V.fromList (map (`Char` loc) (T.unpack x))) loc
+toLiteral (Token.Text x) = Just $ String x
 toLiteral _ = Nothing
 
 unit :: Parser Value

@@ -23,12 +23,13 @@ import Kitten.Name
 import Kitten.Resolve.Monad
 import Kitten.Resolved
 import Kitten.Term (Term)
+import Kitten.Typed (Typed)
 import Kitten.Util.Function
 
 import qualified Kitten.Term as Term
 
 resolve
-  :: Fragment Resolved
+  :: Fragment Typed
   -> Fragment Term
   -> Either [ErrorGroup] (Fragment Resolved)
 resolve prelude fragment = do
@@ -43,12 +44,16 @@ resolve prelude fragment = do
     (resolveDefs (fragmentDefs fragment))
     (guardMapM resolveTerm (fragmentTerms fragment))
   where
-  allNamesAndLocs = namesAndLocs prelude ++ namesAndLocs fragment
-  namesAndLocs = map (defName &&& defLocation) . V.toList . fragmentDefs
+  allNamesAndLocs
+    = namesAndLocs (fragmentDefs prelude)
+    ++ namesAndLocs (fragmentDefs fragment)
   emptyEnv = Env
     (fragmentDefs prelude)
     (fragmentDefs fragment)
     []
+
+namesAndLocs :: Vector (Def a) -> [(Text, Location)]
+namesAndLocs = map (defName &&& defLocation) . V.toList
 
 reportDuplicateDefs
   :: [(Text, Location)]
@@ -96,22 +101,12 @@ resolveValue :: Term.Value -> Resolution Value
 resolveValue unresolved = case unresolved of
   Term.Bool value _ -> return $ Bool value
   Term.Char value _ -> return $ Char value
-  Term.Choice which value _ -> Choice which <$> resolveValue value
   Term.Float value _ -> return $ Float value
   Term.Function term loc -> Function
     <$> (Compose <$> guardMapM resolveTerm term <*> pure loc)
   Term.Int value _ -> return $ Int value
-  Term.Option mValue _ -> case mValue of
-    Just value -> Option . Just <$> resolveValue value
-    Nothing -> pure (Option Nothing)
-  Term.Pair a b _ -> do
-    a' <- resolveValue a
-    b' <- resolveValue b
-    return $ Pair a' b'
   Term.Unit _ -> return Unit
-  Term.Vector values _ -> Vector <$> resolveVector values
-  where
-  resolveVector = guardMapM resolveValue
+  Term.String value _ -> return $ String value
 
 resolveName
   :: Text

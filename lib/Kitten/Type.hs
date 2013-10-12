@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PostfixOperators #-}
@@ -7,13 +8,16 @@ module Kitten.Type
   , Scheme(..)
   , Type(..)
   , TypeName(..)
+  , TypeScheme
   , (-->)
   , (==>)
   , (+:)
   , effect
+  , emptyScheme
   , mono
   , row
   , scalar
+  , unScheme
   ) where
 
 import Data.Monoid
@@ -106,17 +110,26 @@ instance ToText (Type a) where
     NoEffect{} -> "()"
     IOEffect{} -> "IO"
 
-data Scheme = Forall
+newtype TypeName a = TypeName { typeName :: Name }
+  deriving (Eq, Ord)
+
+instance Show (TypeName a) where
+  show = T.unpack . toText
+
+instance ToText (TypeName a) where
+  toText = toText . typeName
+
+data Scheme a = Forall
   (Set (TypeName Row))
   (Set (TypeName Scalar))
   (Set (TypeName Effect))
-  (Type Scalar)
-  deriving (Eq)
+  a
+  deriving (Eq, Functor)
 
-instance Show Scheme where
+instance (ToText a) => Show (Scheme a) where
   show = T.unpack . toText
 
-instance ToText Scheme where
+instance (ToText a) => ToText (Scheme a) where
   toText (Forall rows scalars effects type_) = T.unwords
     [ "forall"
     , wordSetText rows
@@ -129,14 +142,7 @@ instance ToText Scheme where
     wordSetText :: Set (TypeName a) -> Text
     wordSetText = T.unwords . map toText . S.toList
 
-newtype TypeName a = TypeName { typeName :: Name }
-  deriving (Eq, Ord)
-
-instance Show (TypeName a) where
-  show = T.unpack . toText
-
-instance ToText (TypeName a) where
-  toText = toText . typeName
+type TypeScheme = Scheme (Type Scalar)
 
 infix 6 :&
 infix 6 :|
@@ -162,7 +168,10 @@ a +: b = a :+ b
 effect :: Name -> TypeName Effect
 effect = TypeName
 
-mono :: Type Scalar -> Scheme
+emptyScheme :: a -> Scheme a
+emptyScheme = Forall S.empty S.empty S.empty
+
+mono :: a -> Scheme a
 mono = Forall S.empty S.empty S.empty
 
 row :: Name -> TypeName Row
@@ -170,3 +179,6 @@ row = TypeName
 
 scalar :: Name -> TypeName Scalar
 scalar = TypeName
+
+unScheme :: Scheme a -> a
+unScheme (Forall _ _ _ x) = x

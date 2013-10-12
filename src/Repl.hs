@@ -25,32 +25,34 @@ import Kitten.Def
 import Kitten.Error
 import Kitten.Fragment
 import Kitten.Interpret
+import Kitten.Interpret.Monad (InterpreterValue)
 import Kitten.Name (NameGen)
-import Kitten.Resolved
 import Kitten.Type
 import Kitten.TypeDef
+import Kitten.Typed (Typed, TypedDef)
 import Kitten.Util.Monad
 
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.Compile as Compile
 import qualified Kitten.Infer.Config as Infer
+import qualified Kitten.Interpret.Monad as Interpret
 
 data Repl = Repl
-  { replDefs :: !(Vector (Def Value))
+  { replDefs :: !(Vector TypedDef)
   , replLine :: !Int
   , replNameGen :: !NameGen
-  , replStack :: [Value]
+  , replStack :: [InterpreterValue]
   , replTypeDefs :: !(Vector TypeDef)
   }
 
-type ReplReader = ReaderT (Vector (Def Value)) IO
+type ReplReader = ReaderT (Vector TypedDef) IO
 type ReplState = StateT Repl ReplReader
 type ReplInput = InputT ReplState
 
 liftIO :: IO a -> ReplInput a
 liftIO = lift . lift . lift
 
-runRepl :: Fragment Resolved -> NameGen -> IO ()
+runRepl :: Fragment Typed -> NameGen -> IO ()
 runRepl prelude nameGen = do
   welcome
   flip runReaderT preludeDefs
@@ -94,7 +96,7 @@ repl = do
 repl' :: ReplInput ()
 repl' = showStack >> repl
 
-askPreludeDefs :: ReplInput (Vector (Def Value))
+askPreludeDefs :: ReplInput (Vector TypedDef)
 askPreludeDefs = lift (lift ask)
 
 matched :: String -> Bool
@@ -134,15 +136,15 @@ compileConfig = do
 
 replCompile
   :: (Compile.Config -> Compile.Config)
-  -> ReplInput (Maybe (Fragment Resolved, Type Scalar))
+  -> ReplInput (Maybe (Fragment Typed, Type Scalar))
 replCompile update = do
   nameGen <- lift $ gets replNameGen
   mCompiled <- liftIO . flip compile nameGen . update =<< compileConfig
   case mCompiled of
     Left errors -> liftIO (printCompileErrors errors) >> return Nothing
-    Right (nameGen', terms, _typed, type_) -> do
+    Right (nameGen', typed, type_) -> do
       lift . modify $ \env -> env { replNameGen = nameGen' }
-      return $ Just (terms, type_)
+      return $ Just (typed, type_)
 
 typeOf :: Text -> ReplInput ()
 typeOf line = do
@@ -155,12 +157,20 @@ typeOf line = do
 
 eval :: Text -> ReplInput ()
 eval line = do
-  Repl{..} <- lift get
-  mCompiled <- replCompile $ \config -> config
-    { Compile.source = line
-    , Compile.stack = replStack
-    }
+  mCompiled <- do
+    nameGen <- lift $ gets replNameGen
+    stackValues <- lift $ gets replStack
+    let
+      (stackTypes, nameGen') = flip runState nameGen
+        $ mapM (state . Interpret.typeOfValue) stackValues
+    lift . modify $ \env -> env { replNameGen = nameGen' }
+    replCompile $ \config -> config
+      { Compile.source = line
+      , Compile.stack = stackTypes
+      }
+
   whenJust mCompiled $ \(compiled, _type) -> do
+    Repl{..} <- lift get
     stack' <- liftIO $ interpret replStack mempty
       { fragmentDefs = replDefs
       , fragmentTypeDefs = replTypeDefs

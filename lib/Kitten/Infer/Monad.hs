@@ -50,15 +50,15 @@ import qualified Kitten.NameMap as N
 
 data Env = Env
   { envClosure :: !(Vector (Type Scalar))
-  , envDefs :: !(NameMap Scheme)
-  , envDecls :: !(NameMap Scheme)
+  , envDefs :: !(NameMap TypeScheme)
+  , envDecls :: !(NameMap TypeScheme)
   , envEffects :: !(NameMap (Type Effect))
   , envLocals :: [Type Scalar]
   , envLocation :: !Location
   , envNameGen :: !NameGen
   , envRows :: !(NameMap (Type Row))
   , envScalars :: !(NameMap (Type Scalar))
-  , envTypeDefs :: !(Map Text Scheme)
+  , envTypeDefs :: !(Map Text TypeScheme)
   }
 
 newtype Inferred a = Inferred

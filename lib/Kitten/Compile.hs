@@ -31,7 +31,6 @@ import Kitten.Infer
 import Kitten.Name (NameGen)
 import Kitten.Parse
 import Kitten.Resolve
-import Kitten.Resolved (Resolved)
 import Kitten.Scope
 import Kitten.Term (Term)
 import Kitten.Tokenize
@@ -58,7 +57,7 @@ parseSource line name source = do
 compile
   :: Compile.Config
   -> NameGen
-  -> IO (Either [ErrorGroup] (NameGen, Fragment Resolved, Fragment Typed, Type Scalar))
+  -> IO (Either [ErrorGroup] (NameGen, Fragment Typed, Type Scalar))
 compile Compile.Config{..} nameGen = liftM (mapLeft sort) . runEitherT $ do
   parsed <- hoistEither $ parseSource firstLine name source
   substituted <- hoistEither
@@ -73,7 +72,7 @@ compile Compile.Config{..} nameGen = liftM (mapLeft sort) . runEitherT $ do
   (nameGen', typed, type_) <- hoistEither
     $ typeFragment inferConfig stack prelude scoped nameGen
 
-  return (nameGen', scoped, typed, type_)
+  return (nameGen', typed, type_)
 
 locateImport
   :: [FilePath]

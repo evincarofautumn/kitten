@@ -2,9 +2,11 @@ module Kitten.Util.Vector
   ( iforM
   , imapM
   , mapAndUnzipM
+  , safeHead
   ) where
 
 import Control.Monad (liftM, zipWithM)
+import Data.Maybe (listToMaybe)
 import Data.Vector (Vector)
 
 import qualified Data.Vector as V
@@ -18,3 +20,6 @@ iforM = flip imapM
 mapAndUnzipM
   :: (Monad m) => (a -> m (b, c)) -> Vector a -> m (Vector b, Vector c)
 mapAndUnzipM = (liftM V.unzip .) . V.mapM
+
+safeHead :: Vector a -> Maybe a
+safeHead = listToMaybe . V.toList

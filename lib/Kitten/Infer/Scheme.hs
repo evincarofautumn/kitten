@@ -32,12 +32,12 @@ import Kitten.Util.Monad
 
 import qualified Kitten.NameMap as N
 
-instantiateM :: Scheme -> Inferred (Type Scalar)
+instantiateM :: TypeScheme -> Inferred (Type Scalar)
 instantiateM scheme = do
   loc <- getsEnv envLocation
   liftState $ state (instantiate loc scheme)
 
-instantiate :: Location -> Scheme -> Env -> (Type Scalar, Env)
+instantiate :: Location -> TypeScheme -> Env -> (Type Scalar, Env)
 instantiate loc (Forall rows scalars effects type_) env
   = (sub renamed type_, env')
 
@@ -66,7 +66,7 @@ instantiate loc (Forall rows scalars effects type_) env
     var <- state (freshVar loc)
     return (declare name var localEnv)
 
-generalize :: Type Scalar -> Inferred Scheme
+generalize :: Type Scalar -> Inferred TypeScheme
 generalize type_ = do
   after <- getEnv
 
