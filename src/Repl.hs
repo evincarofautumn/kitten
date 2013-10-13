@@ -25,6 +25,7 @@ import Kitten.Def
 import Kitten.Error
 import Kitten.Fragment
 import Kitten.Interpret
+import Kitten.Name (NameGen)
 import Kitten.Resolved
 import Kitten.Type
 import Kitten.TypeDef
@@ -37,6 +38,7 @@ import qualified Kitten.Infer.Config as Infer
 data Repl = Repl
   { replDefs :: !(Vector (Def Value))
   , replLine :: !Int
+  , replNameGen :: !NameGen
   , replStack :: [Value]
   , replTypeDefs :: !(Vector TypeDef)
   }
@@ -48,8 +50,8 @@ type ReplInput = InputT ReplState
 liftIO :: IO a -> ReplInput a
 liftIO = lift . lift . lift
 
-runRepl :: Fragment Resolved -> IO ()
-runRepl prelude = do
+runRepl :: Fragment Resolved -> NameGen -> IO ()
+runRepl prelude nameGen = do
   welcome
   flip runReaderT preludeDefs
     . flip evalStateT emptyRepl
@@ -60,6 +62,7 @@ runRepl prelude = do
   emptyRepl = Repl
     { replDefs = preludeDefs
     , replLine = 1
+    , replNameGen = nameGen
     , replStack = []
     , replTypeDefs = V.empty
     }
@@ -133,10 +136,13 @@ replCompile
   :: (Compile.Config -> Compile.Config)
   -> ReplInput (Maybe (Fragment Resolved, Type Scalar))
 replCompile update = do
-  mCompiled <- liftIO . compile . update =<< compileConfig
+  nameGen <- lift $ gets replNameGen
+  mCompiled <- liftIO . flip compile nameGen . update =<< compileConfig
   case mCompiled of
     Left errors -> liftIO (printCompileErrors errors) >> return Nothing
-    Right result -> return (Just result)
+    Right (nameGen', compiled, type_) -> do
+      lift . modify $ \env -> env { replNameGen = nameGen' }
+      return $ Just (compiled, type_)
 
 typeOf :: Text -> ReplInput ()
 typeOf line = do
@@ -225,9 +231,11 @@ clear = do
 reset :: ReplInput ()
 reset = do
   preludeDefs <- askPreludeDefs
+  nameGen <- lift $ gets replNameGen
   lift $ put Repl
     { replDefs = preludeDefs
     , replLine = 1
+    , replNameGen = nameGen
     , replStack = []
     , replTypeDefs = V.empty
     }

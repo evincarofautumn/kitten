@@ -16,6 +16,7 @@ import Kitten.Compile (compile, locateImport)
 import Kitten.Error
 import Kitten.Fragment
 import Kitten.Interpret
+import Kitten.Name (NameGen, mkNameGen)
 import Kitten.Resolved (Resolved)
 import Kitten.Yarn (yarn)
 import Repl
@@ -61,8 +62,10 @@ main = do
     (argsLibraryDirectories arguments)
     "Prelude"
 
-  prelude <- if not (argsEnableImplicitPrelude arguments)
-    then return mempty
+  let nameGen = mkNameGen
+
+  (nameGen', prelude) <- if not (argsEnableImplicitPrelude arguments)
+    then return (nameGen, mempty)
     else case preludes of
 
     [] -> do
@@ -71,19 +74,20 @@ main = do
 
     [filename] -> do
       source <- T.readFileUtf8 filename
-      mPrelude <- compile (defaultConfig mempty filename source)
+      mPrelude <- compile (defaultConfig mempty filename source) nameGen
 
-      Fragment{..} <- case mPrelude of
+      (nameGen', Fragment{..}) <- case mPrelude of
         Left compileErrors -> do
           printCompileErrors compileErrors
           exitFailure
-        Right (prelude, _type) -> return prelude
+        Right (nameGen', prelude, _type)
+          -> return (nameGen', prelude)
 
       unless (V.null fragmentTerms) $ do
         hPutStrLn stderr "Prelude includes executable code."
         exitFailure
 
-      return mempty { fragmentDefs = fragmentDefs }
+      return (nameGen', mempty { fragmentDefs = fragmentDefs })
 
     _ -> do
       hPutStrLn stderr . unlines
@@ -92,29 +96,31 @@ main = do
       exitFailure
 
   case argsEntryPoints arguments of
-    [] -> runRepl prelude
+    [] -> runRepl prelude nameGen'
     entryPoints -> interpretAll entryPoints
       (argsCompileMode arguments) prelude
       (defaultConfig prelude)
+      nameGen
 
 interpretAll
   :: [FilePath]
   -> CompileMode
   -> Fragment Resolved
   -> (FilePath -> Text -> Compile.Config)
+  -> NameGen
   -> IO ()
-interpretAll entryPoints compileMode prelude config
+interpretAll entryPoints compileMode prelude config nameGen
   = mapM_ interpretOne entryPoints
   where
   interpretOne :: FilePath -> IO ()
   interpretOne filename = do
     source <- T.readFileUtf8 filename
-    mResult <- compile (config filename source)
+    mResult <- compile (config filename source) nameGen
     case mResult of
       Left compileErrors -> do
         printCompileErrors compileErrors
         exitFailure
-      Right (result, _type) -> case compileMode of
+      Right (_nameGen', result, _type) -> case compileMode of
         CheckMode -> return ()
         CompileMode -> V.mapM_ print $ yarn (prelude <> result)
         InterpretMode -> void $ interpret [] prelude result
