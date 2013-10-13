@@ -236,9 +236,7 @@ reset = do
 completer :: CompletionFunc ReplState
 completer = completeWord Nothing "\t \"{}[]()\\:" completePrefix
 
-completePrefix
-  :: String
-  -> StateT Repl (ReaderT (Vector (Def Value)) IO) [Completion]
+completePrefix :: String -> ReplState [Completion]
 completePrefix prefix = do
   defs <- gets replDefs
   let
