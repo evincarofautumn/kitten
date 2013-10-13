@@ -243,17 +243,8 @@ interpretBuiltin builtin = case builtin of
   Builtin.OrBool -> boolsToBool (||)
   Builtin.OrInt -> intsToInt (.|.)
 
-  Builtin.OpenIn -> do
-    Vector a <- popData
-    let fileName = stringFromChars a
-    handle <- lift $ openFile fileName ReadMode
-    pushData $ Handle handle
-
-  Builtin.OpenOut -> do
-    Vector a <- popData
-    let fileName = stringFromChars a
-    handle <- lift $ openFile fileName WriteMode
-    pushData $ Handle handle
+  Builtin.OpenIn -> openFilePushHandle ReadMode
+  Builtin.OpenOut -> openFilePushHandle WriteMode
 
   Builtin.Option -> do
     some <- popData
@@ -373,3 +364,10 @@ interpretBuiltin builtin = case builtin of
     Int b <- popData
     Int a <- popData
     pushData $ Int (f a b)
+
+  openFilePushHandle :: IOMode -> Interpret
+  openFilePushHandle ioMode = do
+    Vector a <- popData
+    let fileName = stringFromChars a
+    handle <- lift $ openFile fileName ioMode
+    pushData $ Handle handle
