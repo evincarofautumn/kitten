@@ -51,68 +51,6 @@ data Type a where
   NoEffect :: !Location -> Type Effect
   IOEffect :: !Location -> Type Effect
 
-newtype TypeName a = TypeName { typeName :: Name }
-  deriving (Eq, Ord)
-
-instance ToText (TypeName a) where
-  toText = toText . typeName
-
-instance Show (TypeName a) where
-  show = T.unpack . toText
-
-effect :: Name -> TypeName Effect
-effect = TypeName
-
-row :: Name -> TypeName Row
-row = TypeName
-
-scalar :: Name -> TypeName Scalar
-scalar = TypeName
-
-infix 6 :&
-infix 6 :|
-infixl 5 :.
-infix 4 -->
-infix 4 ==>
-
-(-->) :: Type Row -> Type Row -> Location -> Type Scalar
-(a --> b) loc = Function a b (NoEffect loc) loc
-
-(==>) :: Type Row -> Type Row -> Location -> Type Scalar
-(a ==> b) loc = Function a b (IOEffect loc) loc
-
-(+:) :: Type Effect -> Type Effect -> Type Effect
-a +: b | a == b = a
-IOEffect loc +: _ = IOEffect loc
-NoEffect _ +: a = a
-_ +: IOEffect loc = IOEffect loc
-a +: NoEffect _ = a
-(a :+ b) +: c = a +: (b +: c)
-a +: b = a :+ b
-
-data Scheme = Forall
-  (Set (TypeName Row))
-  (Set (TypeName Scalar))
-  (Set (TypeName Effect))
-  (Type Scalar)
-  deriving (Eq)
-
-instance ToText Scheme where
-  toText (Forall rows scalars effects type_) = T.unwords
-    [ "forall"
-    , wordSetText rows
-    , wordSetText scalars
-    , wordSetText effects
-    , "."
-    , toText type_
-    ]
-    where
-    wordSetText :: Set (TypeName a) -> Text
-    wordSetText = T.unwords . map toText . S.toList
-
-instance Show Scheme where
-  show = T.unpack . toText
-
 instance Eq (Type a) where
   Test == _ = True
   _ == Test = True
@@ -168,5 +106,67 @@ instance ToText (Type a) where
     NoEffect{} -> "()"
     IOEffect{} -> "IO"
 
+data Scheme = Forall
+  (Set (TypeName Row))
+  (Set (TypeName Scalar))
+  (Set (TypeName Effect))
+  (Type Scalar)
+  deriving (Eq)
+
+instance Show Scheme where
+  show = T.unpack . toText
+
+instance ToText Scheme where
+  toText (Forall rows scalars effects type_) = T.unwords
+    [ "forall"
+    , wordSetText rows
+    , wordSetText scalars
+    , wordSetText effects
+    , "."
+    , toText type_
+    ]
+    where
+    wordSetText :: Set (TypeName a) -> Text
+    wordSetText = T.unwords . map toText . S.toList
+
+newtype TypeName a = TypeName { typeName :: Name }
+  deriving (Eq, Ord)
+
+instance Show (TypeName a) where
+  show = T.unpack . toText
+
+instance ToText (TypeName a) where
+  toText = toText . typeName
+
+infix 6 :&
+infix 6 :|
+infixl 5 :.
+infix 4 -->
+infix 4 ==>
+
+(-->) :: Type Row -> Type Row -> Location -> Type Scalar
+(a --> b) loc = Function a b (NoEffect loc) loc
+
+(==>) :: Type Row -> Type Row -> Location -> Type Scalar
+(a ==> b) loc = Function a b (IOEffect loc) loc
+
+(+:) :: Type Effect -> Type Effect -> Type Effect
+a +: b | a == b = a
+IOEffect loc +: _ = IOEffect loc
+NoEffect _ +: a = a
+_ +: IOEffect loc = IOEffect loc
+a +: NoEffect _ = a
+(a :+ b) +: c = a +: (b +: c)
+a +: b = a :+ b
+
+effect :: Name -> TypeName Effect
+effect = TypeName
+
 mono :: Type Scalar -> Scheme
 mono = Forall S.empty S.empty S.empty
+
+row :: Name -> TypeName Row
+row = TypeName
+
+scalar :: Name -> TypeName Scalar
+scalar = TypeName
