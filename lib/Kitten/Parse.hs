@@ -65,10 +65,10 @@ def = (<?> "definition") . locate $ do
   void (match Token.Def)
   name <- functionName <?> "definition name"
   anno <- optionMaybe signature
-  body <- block <?> "definition body"
+  body <- locate (Function <$> block) <?> "definition body"
   return $ \loc -> Def
     { defName = name
-    , defTerm = Function body loc
+    , defTerm = body
     , defAnno = anno
     , defLocation = loc
     }
