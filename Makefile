@@ -71,11 +71,14 @@ $(foreach EXAMPLE,$(EXAMPLES),$(eval $(call EXAMPLE_RULE,$(EXAMPLE))))
 define TEST_RULE
 test-$1 : $(KITTEN) $(PRELUDE) $(TESTER)
 	@$(TESTER) $$(realpath $(KITTEN)) "$1"
-test : test-$1
 endef
 
 .PHONY : $(foreach TEST,$(TESTS),test-$(TEST))
 $(foreach TEST,$(TESTS),$(eval $(call TEST_RULE,$(TEST))))
+
+.PHONY : test
+test : $(KITTEN) $(PRELUDE) $(TESTER)
+	@$(TESTER) $(realpath $(KITTEN))
 
 .PHONY : lint
 lint :
