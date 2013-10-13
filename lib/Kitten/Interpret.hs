@@ -45,7 +45,7 @@ interpret stack prelude fragment = liftM envData $ execStateT
 
 interpretTerm :: Resolved -> Interpret
 interpretTerm resolved = case resolved of
-  Builtin builtin _ -> interpretBuiltin builtin
+  Builtin builtin loc -> withLocation loc $ interpretBuiltin builtin
   Call name loc -> withLocation loc $ interpretOverload name
   Compose terms loc -> withLocation loc
     $ F.mapM_ interpretTerm terms
