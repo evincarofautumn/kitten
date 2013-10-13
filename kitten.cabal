@@ -110,7 +110,7 @@ executable kitten
     -Wall
 
   if flag(prof)
-    ghc-options: -prof -auto-all
+    ghc-options: -auto-all
 
   build-depends:
     kitten,
