@@ -3,6 +3,7 @@ module Kitten.Compile.Config
   ) where
 
 import Data.Text (Text)
+import Data.Vector (Vector)
 
 import Kitten.Fragment
 import Kitten.Type
@@ -19,5 +20,5 @@ data Config = Config
   , name :: String
   , prelude :: !(Fragment Typed)
   , source :: !Text
-  , stack :: [Type Scalar]
+  , stackTypes :: Vector (Type Scalar)
   }

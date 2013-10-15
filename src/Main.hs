@@ -56,7 +56,7 @@ main = do
       , Compile.name = filename
       , Compile.prelude = prelude
       , Compile.source = program
-      , Compile.stack = []
+      , Compile.stackTypes = V.empty
       }
 
   preludes <- locateImport

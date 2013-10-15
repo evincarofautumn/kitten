@@ -131,7 +131,7 @@ compileConfig = do
       , fragmentTypeDefs = replTypeDefs
       }
     , Compile.source = ""
-    , Compile.stack = []
+    , Compile.stackTypes = V.empty
     }
 
 replCompile
@@ -166,7 +166,7 @@ eval line = do
     lift . modify $ \env -> env { replNameGen = nameGen' }
     replCompile $ \config -> config
       { Compile.source = line
-      , Compile.stack = stackTypes
+      , Compile.stackTypes = V.fromList (reverse stackTypes)
       }
 
   whenJust mCompiled $ \(compiled, _type) -> do
