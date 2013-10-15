@@ -100,7 +100,7 @@ inferFragment prelude fragment stackTypes = mdo
 
   typedDefs <- iforFragmentDefs $ \index def
     -> withLocation (defLocation def) $ do
-      (Typed.Closure _ typedTerm, type_) <- inferValue finalEnv (defTerm def)
+      (typedTerm, type_) <- infer finalEnv (defTerm def)
       typeScheme <- generalize type_
       declaredScheme <- do
         decls <- getsEnv envDecls
@@ -146,7 +146,7 @@ inferFragment prelude fragment stackTypes = mdo
     (V.length (fragmentDefs prelude)) [0..]
 
   iforFragmentDefs
-    :: (Int -> Def Value -> Inferred a)
+    :: (Int -> Def Resolved -> Inferred a)
     -> Inferred (Vector a)
   iforFragmentDefs f = liftM V.fromList $ zipWithM f
     fragmentIndices

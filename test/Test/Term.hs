@@ -168,14 +168,14 @@ spec = do
     testTerm
       "def pi: 3"
       $ mempty { fragmentDefs = V.fromList
-        [def "pi" $ function [pushi 3]] }
+        [def "pi" $ compose [pushi 3]] }
 
     testTerm
       "def inc {\n\
       \  1 +\n\
       \}\n"
       $ mempty { fragmentDefs = V.fromList
-        [def "inc" $ function [pushi 1, word "+"]] }
+        [def "inc" $ compose [pushi 1, word "+"]] }
 
     testTerm
       "def inc:\n\
@@ -185,8 +185,8 @@ spec = do
       \  1 -\n\
       \\n"
       $ mempty { fragmentDefs = V.fromList
-        [ def "inc" $ function [pushi 1, word "+"]
-        , def "dec" $ function [pushi 1, word "-"]] }
+        [ def "inc" $ compose [pushi 1, word "+"]
+        , def "dec" $ compose [pushi 1, word "-"]] }
 
   describe "type" $ do
     testTerm
@@ -204,7 +204,7 @@ spec = do
                 (V.fromList [Anno.Int])
                 Anno.NoEffect])
             Anno.NoEffect)
-          $ function
+          $ compose
             [ lambda "x"
               [ push $ function
                 [ lambda "y"
@@ -230,16 +230,16 @@ parsed
   = mapLeft parseError . tokenize 1 "test"
   >=> mapLeft parseError . parse "test"
 
-def :: Text -> Value -> Def Value
-def name value = Def
+def :: Text -> Term -> Def Term
+def name term = Def
   { defName = name
   , defAnno = Nothing
-  , defTerm = value
+  , defTerm = term
   , defLocation = TestLocation
   }
 
-defWithAnno :: Text -> Anno.Type -> Value -> Def Value
-defWithAnno name anno value = (def name value)
+defWithAnno :: Text -> Anno.Type -> Term -> Def Term
+defWithAnno name anno term = (def name term)
   { defAnno = Just (Anno anno TestLocation) }
 
 call :: Text -> Term
