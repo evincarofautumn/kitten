@@ -54,7 +54,7 @@ data Env = Env
   , envEffects :: !(NameMap (Type Effect))
   , envLocals :: [Type Scalar]
   , envLocation :: !Location
-  , envNext  :: !Name
+  , envNameGen :: !NameGen
   , envRows :: !(NameMap (Type Row))
   , envScalars :: !(NameMap (Type Scalar))
   , envTypeDefs :: !(Map Text Scheme)
@@ -87,7 +87,7 @@ emptyEnv = Env
   , envEffects = N.empty
   , envLocals = []
   , envLocation = UnknownLocation
-  , envNext = Name 0
+  , envNameGen = mkNameGen
   , envRows = N.empty
   , envScalars = N.empty
   , envTypeDefs = M.empty
@@ -124,8 +124,8 @@ asksConfig = Inferred . lift . asks
 
 freshName :: Env -> (Name, Env)
 freshName env
-  = let current = envNext env
-  in (current, env { envNext = succ current })
+  = let (name, gen') = genName (envNameGen env)
+  in (name, env { envNameGen = gen' })
 
 freshVar :: Location -> Env -> (Type a, Env)
 freshVar loc env

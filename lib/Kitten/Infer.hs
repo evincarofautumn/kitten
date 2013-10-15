@@ -47,14 +47,22 @@ typeFragment
   -> [Value]
   -> Fragment Resolved
   -> Fragment Resolved
-  -> Either [ErrorGroup] (Type Scalar)
-typeFragment config stack prelude fragment
-  = fst . runInference config emptyEnv
-  $ inferFragment prelude fragment
-    { fragmentTerms
-      = V.map (`Push` UnknownLocation) (V.reverse (V.fromList stack))
-      <> fragmentTerms fragment
-    }
+  -> NameGen
+  -> Either [ErrorGroup] (NameGen, Type Scalar)
+typeFragment config stack prelude fragment nameGen
+  = case run of
+    (Left err, _) -> Left err
+    (Right type_, env') -> Right (envNameGen env', type_)
+  where
+  run :: (Either [ErrorGroup] (Type Scalar), Env)
+  run = runInference config env
+    $ inferFragment prelude fragment
+      { fragmentTerms
+        = V.map (`Push` UnknownLocation) (V.reverse (V.fromList stack))
+        <> fragmentTerms fragment
+      }
+  env :: Env
+  env = emptyEnv { envNameGen = nameGen }
 
 inferFragment
   :: Fragment Resolved
