@@ -48,7 +48,7 @@ import qualified Kitten.Util.Vector as V
 
 typeFragment
   :: Config
-  -> [Type Scalar]
+  -> Vector (Type Scalar)
   -> Fragment Typed
   -> Fragment Resolved
   -> NameGen
@@ -67,7 +67,7 @@ typeFragment config stackTypes prelude fragment nameGen
 inferFragment
   :: Fragment Typed
   -> Fragment Resolved
-  -> [Type Scalar]
+  -> Vector (Type Scalar)
   -> Inferred (Fragment Typed, Type Scalar)
 inferFragment prelude fragment stackTypes = mdo
 
