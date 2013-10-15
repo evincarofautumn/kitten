@@ -14,13 +14,13 @@ import Kitten.Term
 import Kitten.TypeDef
 
 data Element
-  = DefElement (Def Value)
+  = DefElement (Def Term)
   | ImportElement Import
   | TermElement Term
   | TypeElement TypeDef
 
 data Partitioned = Partitioned
-  { partDefs :: [Def Value]
+  { partDefs :: [Def Term]
   , partImports :: [Import]
   , partTerms :: [Term]
   , partTypeDefs :: [TypeDef]

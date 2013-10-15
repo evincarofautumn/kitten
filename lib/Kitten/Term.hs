@@ -37,4 +37,4 @@ data Value
 
 instance AST Term where
   type TermValue Term = Value
-  type TermDef Term = Def Value
+  type TermDef Term = Def Term
