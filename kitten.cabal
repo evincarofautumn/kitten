@@ -96,6 +96,7 @@ library
     Kitten.Util.Maybe,
     Kitten.Util.Monad,
     Kitten.Util.Parsec,
+    Kitten.Util.Set,
     Kitten.Util.Show,
     Kitten.Util.Text,
     Kitten.Util.Tuple,

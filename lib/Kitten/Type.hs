@@ -50,6 +50,7 @@ data Type (a :: Kind) where
   Handle :: !Location -> Type Scalar
   Int :: !Location -> Type Scalar
   Named :: !Text -> !Location -> Type Scalar
+  Quantified :: !TypeScheme -> !Location -> Type Scalar
   Unit :: !Location -> Type Scalar
   Var :: !(TypeName a) -> !Location -> Type a
   Vector :: !(Type Scalar) -> !Location -> Type Scalar
@@ -105,6 +106,7 @@ instance ToText (Type Scalar) where
     Handle{} -> "Handle"
     Int{} -> "Int"
     Named name _ -> name
+    Quantified scheme _ -> toText scheme
     Var (TypeName (Name index)) _ -> "t" <> showText index
     Unit{} -> "()"
     Vector t _ -> T.concat ["[", toText t, "]"]

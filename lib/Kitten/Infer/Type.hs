@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
 
 module Kitten.Infer.Type
   ( fromAnno
@@ -65,8 +66,12 @@ fromAnno (Anno annoType loc) = do
     Anno.Choice a b -> (:|) <$> fromAnnoType' a <*> fromAnnoType' b
     Anno.Function a b e -> do
       r <- lift freshNameM
-      modify $ \env -> env { envAnonRows = r : envAnonRows env }
-      makeFunction (Var r loc) a (Var r loc) b e
+      a' <- V.foldl' (:.) (Var r loc) <$> V.mapM fromAnnoType' a
+      b' <- V.foldl' (:.) (Var r loc) <$> V.mapM fromAnnoType' b
+      e' <- fromAnnoEffect e
+      return $ Quantified
+        (Forall (S.singleton r) S.empty S.empty
+          (Function a' b' e' loc)) loc
     Anno.Float -> return (Float loc)
     Anno.Handle -> return (Handle loc)
     Anno.Int -> return (Int loc)
