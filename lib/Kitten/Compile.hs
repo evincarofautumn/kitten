@@ -70,7 +70,7 @@ compile Compile.Config{..} nameGen = liftM (mapLeft sort) . runEitherT $ do
   when dumpScoped . lift $ hPrint stderr scoped
 
   (nameGen', typed, type_) <- hoistEither
-    $ typeFragment inferConfig stack prelude scoped nameGen
+    $ typeFragment inferConfig stackTypes prelude scoped nameGen
 
   return (nameGen', typed, type_)
 
