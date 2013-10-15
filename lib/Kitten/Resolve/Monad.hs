@@ -29,10 +29,10 @@ import qualified Data.Vector as V
 
 import Kitten.Def
 import Kitten.Error
+import Kitten.Typed (TypedDef)
 import Kitten.Util.FailWriter (FailWriterT, runFailWriterT)
 
 import qualified Kitten.Term as Term
-import qualified Kitten.Resolved as Resolved
 import qualified Kitten.Util.FailWriter as FailWriter
 
 newtype Resolution a = Resolution
@@ -40,7 +40,7 @@ newtype Resolution a = Resolution
   deriving (Functor, Applicative, Monad)
 
 data Env = Env
-  { envPrelude :: !(Vector (Def Resolved.Value))
+  { envPrelude :: !(Vector TypedDef)
   , envDefs :: !(Vector (Def Term.Value))
   , envScope :: [Text]
   }

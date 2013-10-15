@@ -46,8 +46,8 @@ library
     lib
 
   exposed-modules:
-    Kitten.Anno,
     Kitten.AST,
+    Kitten.Anno,
     Kitten.Builtin,
     Kitten.ClosedName,
     Kitten.Compile,
@@ -81,10 +81,11 @@ library
     Kitten.Resolved,
     Kitten.Scope,
     Kitten.Term,
-    Kitten.TypeDef,
     Kitten.Token,
     Kitten.Tokenize,
     Kitten.Type,
+    Kitten.TypeDef,
+    Kitten.Typed,
     Kitten.Util.Applicative,
     Kitten.Util.Either,
     Kitten.Util.FailWriter,
@@ -96,6 +97,7 @@ library
     Kitten.Util.Show,
     Kitten.Util.Text,
     Kitten.Util.Tuple,
+    Kitten.Util.Vector,
     Kitten.Yarn
 
 executable kitten

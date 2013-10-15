@@ -28,13 +28,14 @@ import Kitten.Error
 import Kitten.Fragment
 import Kitten.Import
 import Kitten.Infer
+import Kitten.Name (NameGen)
 import Kitten.Parse
 import Kitten.Resolve
-import Kitten.Resolved (Resolved)
 import Kitten.Scope
 import Kitten.Term (Term)
 import Kitten.Tokenize
 import Kitten.Type
+import Kitten.Typed (Typed)
 import Kitten.Util.Either
 import Kitten.Util.Function
 
@@ -55,20 +56,23 @@ parseSource line name source = do
 
 compile
   :: Compile.Config
-  -> IO (Either [ErrorGroup] (Fragment Resolved, Type Scalar))
-compile Compile.Config{..} = liftM (mapLeft sort) . runEitherT $ do
+  -> NameGen
+  -> IO (Either [ErrorGroup] (NameGen, Fragment Typed, Type Scalar))
+compile Compile.Config{..} nameGen = liftM (mapLeft sort) . runEitherT $ do
   parsed <- hoistEither $ parseSource firstLine name source
   substituted <- hoistEither
     =<< lift (substituteImports libraryDirectories parsed [])
   resolved <- hoistEither $ resolve prelude substituted
 
   when dumpResolved . lift $ hPrint stderr resolved
-  type_ <- hoistEither $ typeFragment inferConfig stack prelude resolved
 
   let scoped = scope resolved
   when dumpScoped . lift $ hPrint stderr scoped
 
-  return (scoped, type_)
+  (nameGen', typed, type_) <- hoistEither
+    $ typeFragment inferConfig stack prelude scoped nameGen
+
+  return (nameGen', typed, type_)
 
 locateImport
   :: [FilePath]

@@ -51,10 +51,8 @@ scopeTerm stack typed = case typed of
 
 scopeValue :: [Int] -> Value -> Value
 scopeValue stack value = case value of
-  Activation{} -> value
   Bool{} -> value
   Char{} -> value
-  Choice{} -> value
   Closed{} -> value
   Closure{} -> value
   Float{} -> value
@@ -75,14 +73,10 @@ scopeValue stack value = case value of
     stack' :: [Int]
     stack' = 0 : stack
 
-  Handle{} -> value
   Int{} -> value
   Local{} -> value
-  Option{} -> value
-  Pair a b -> Pair (scopeValue stack a) (scopeValue stack b)
   Unit -> Unit
-  Vector values -> Vector (scopeValue stack <$> values)
-  Wrapped name inner -> Wrapped name (scopeValue stack inner)
+  String{} -> value
 
 data Env = Env
   { envStack :: [Int]
@@ -150,10 +144,8 @@ closeLocal (Name index) = do
 
 captureValue :: Value -> Capture Value
 captureValue value = case value of
-  Activation{} -> return value
   Bool{} -> return value
   Char{} -> return value
-  Choice{} -> return value
   Closed{} -> return value
   Closure names term -> Closure
     <$> T.mapM close names
@@ -171,7 +163,6 @@ captureValue value = case value of
   Function terms -> let
     inside env@Env{..} = env { envStack = 0 : envStack }
     in Function <$> local inside (captureTerm terms)
-  Handle{} -> return value
   Int{} -> return value
 
   Local name -> do
@@ -180,8 +171,5 @@ captureValue value = case value of
       Nothing -> value
       Just closedName -> Closed closedName
 
-  Option{} -> return value
-  Pair a b -> Pair <$> captureValue a <*> captureValue b
   Unit{} -> return value
-  Vector values -> Vector <$> T.mapM captureValue values
-  Wrapped name inner -> Wrapped name <$> captureValue inner
+  String{} -> return value

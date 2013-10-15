@@ -16,12 +16,14 @@ import Kitten.Compile (compile, locateImport)
 import Kitten.Error
 import Kitten.Fragment
 import Kitten.Interpret
-import Kitten.Resolved (Resolved)
+import Kitten.Name (NameGen, mkNameGen)
+import Kitten.Typed (Typed)
 import Kitten.Yarn (yarn)
 import Repl
 
 import qualified Kitten.Compile as Compile
 import qualified Kitten.Infer.Config as Infer
+import qualified Kitten.Typed as Typed
 import qualified Kitten.Util.Text as T
 
 data CompileMode
@@ -61,8 +63,10 @@ main = do
     (argsLibraryDirectories arguments)
     "Prelude"
 
-  prelude <- if not (argsEnableImplicitPrelude arguments)
-    then return mempty
+  let nameGen = mkNameGen  -- TODO(strager): Use StateT NameGen.
+
+  (nameGen', prelude) <- if not (argsEnableImplicitPrelude arguments)
+    then return (nameGen, mempty)
     else case preludes of
 
     [] -> do
@@ -71,19 +75,21 @@ main = do
 
     [filename] -> do
       source <- T.readFileUtf8 filename
-      mPrelude <- compile (defaultConfig mempty filename source)
+      mPrelude <- compile (defaultConfig mempty filename source) nameGen
 
-      Fragment{..} <- case mPrelude of
+      (nameGen', Fragment{..}) <- case mPrelude of
         Left compileErrors -> do
           printCompileErrors compileErrors
           exitFailure
-        Right (prelude, _type) -> return prelude
+        Right (nameGen', prelude, _type)
+          -> return (nameGen', prelude)
 
-      unless (V.null fragmentTerms) $ do
+      when (V.any containsCode fragmentTerms) $ do
+        print fragmentTerms
         hPutStrLn stderr "Prelude includes executable code."
         exitFailure
 
-      return mempty { fragmentDefs = fragmentDefs }
+      return (nameGen', mempty { fragmentDefs = fragmentDefs })
 
     _ -> do
       hPutStrLn stderr . unlines
@@ -92,29 +98,35 @@ main = do
       exitFailure
 
   case argsEntryPoints arguments of
-    [] -> runRepl prelude
+    [] -> runRepl prelude nameGen'
     entryPoints -> interpretAll entryPoints
       (argsCompileMode arguments) prelude
       (defaultConfig prelude)
+      nameGen
+
+containsCode :: Typed -> Bool
+containsCode (Typed.Compose terms _ _) = V.any containsCode terms
+containsCode _ = True
 
 interpretAll
   :: [FilePath]
   -> CompileMode
-  -> Fragment Resolved
+  -> Fragment Typed
   -> (FilePath -> Text -> Compile.Config)
+  -> NameGen
   -> IO ()
-interpretAll entryPoints compileMode prelude config
+interpretAll entryPoints compileMode prelude config nameGen
   = mapM_ interpretOne entryPoints
   where
   interpretOne :: FilePath -> IO ()
   interpretOne filename = do
     source <- T.readFileUtf8 filename
-    mResult <- compile (config filename source)
+    mResult <- compile (config filename source) nameGen
     case mResult of
       Left compileErrors -> do
         printCompileErrors compileErrors
         exitFailure
-      Right (result, _type) -> case compileMode of
+      Right (_nameGen', result, _type) -> case compileMode of
         CheckMode -> return ()
         CompileMode -> V.mapM_ print $ yarn (prelude <> result)
         InterpretMode -> void $ interpret [] prelude result

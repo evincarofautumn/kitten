@@ -24,6 +24,7 @@ module Kitten.Infer.Monad
   ) where
 
 import Control.Applicative
+import Control.Monad.Fix
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State.Strict
@@ -49,20 +50,20 @@ import qualified Kitten.NameMap as N
 
 data Env = Env
   { envClosure :: !(Vector (Type Scalar))
-  , envDefs :: !(NameMap Scheme)
-  , envDecls :: !(NameMap Scheme)
+  , envDefs :: !(NameMap TypeScheme)
+  , envDecls :: !(NameMap TypeScheme)
   , envEffects :: !(NameMap (Type Effect))
   , envLocals :: [Type Scalar]
   , envLocation :: !Location
-  , envNext  :: !Name
+  , envNameGen :: !NameGen
   , envRows :: !(NameMap (Type Row))
   , envScalars :: !(NameMap (Type Scalar))
-  , envTypeDefs :: !(Map Text Scheme)
+  , envTypeDefs :: !(Map Text TypeScheme)
   }
 
 newtype Inferred a = Inferred
   { unwrapInferred :: FailWriterT [ErrorGroup] (ReaderT Config (State Env)) a
-  } deriving (Applicative, Functor, Monad)
+  } deriving (Applicative, Functor, Monad, MonadFix)
 
 class Declare a where
   declare :: TypeName a -> Type a -> Env -> Env
@@ -87,7 +88,7 @@ emptyEnv = Env
   , envEffects = N.empty
   , envLocals = []
   , envLocation = UnknownLocation
-  , envNext = Name 0
+  , envNameGen = mkNameGen
   , envRows = N.empty
   , envScalars = N.empty
   , envTypeDefs = M.empty
@@ -124,8 +125,8 @@ asksConfig = Inferred . lift . asks
 
 freshName :: Env -> (Name, Env)
 freshName env
-  = let current = envNext env
-  in (current, env { envNext = succ current })
+  = let (name, gen') = genName (envNameGen env)
+  in (name, env { envNameGen = gen' })
 
 freshVar :: Location -> Env -> (Type a, Env)
 freshVar loc env

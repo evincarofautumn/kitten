@@ -8,12 +8,11 @@ import Data.Monoid
 import Data.Vector (Vector)
 
 import Kitten.AST
-import Kitten.Def
 import Kitten.Import
 import Kitten.TypeDef
 
 data Fragment a = Fragment
-  { fragmentDefs :: !(Vector (Def (TermValue a)))
+  { fragmentDefs :: !(Vector (TermDef a))
   , fragmentImports :: !(Vector Import)
   , fragmentTerms :: !(Vector a)
   , fragmentTypeDefs :: !(Vector TypeDef)

@@ -3,6 +3,10 @@
 
 module Kitten.Name
   ( Name(..)
+  , NameGen
+  , genName
+  , mkNameGen
+  , mkNameGenFrom
   , nameIndex
   ) where
 
@@ -20,6 +24,17 @@ instance Show Name where
 
 instance ToText Name where
   toText (Name name) = "_" <> showText name
+
+newtype NameGen = NameGen Name
+
+genName :: NameGen -> (Name, NameGen)
+genName (NameGen name) = (name, NameGen (succ name))
+
+mkNameGen :: NameGen
+mkNameGen = mkNameGenFrom (Name 0)
+
+mkNameGenFrom :: Name -> NameGen
+mkNameGenFrom = NameGen
 
 nameIndex :: Name -> Int
 nameIndex (Name index) = index

@@ -27,7 +27,7 @@ data Env = Env
 
 type Converted a = StateT Env Inferred a
 
-fromAnno :: Anno -> Inferred Scheme
+fromAnno :: Anno -> Inferred (Scheme (Type Scalar))
 fromAnno (Anno annoType loc) = do
   (type_, env) <- flip runStateT Env
     { envRows = []
