@@ -21,6 +21,7 @@ import Kitten.NameMap (NameMap)
 import Kitten.Type
 
 import qualified Kitten.NameMap as NameMap
+import qualified Kitten.Util.Set as Set
 
 data TidyKindState a = TidyKindState
   { names :: !(NameMap (TypeName a))
@@ -107,6 +108,12 @@ tidyScalarType type_ = case type_ of
   Handle{} -> pure type_
   Int{} -> pure type_
   Named{} -> pure type_
+  Quantified (Forall r s t) loc -> Quantified
+    <$> (Forall
+      <$> Set.mapM tidyRow r
+      <*> Set.mapM tidyScalar s
+      <*> tidyScalarType t)
+    <*> pure loc
   Var name loc -> Var <$> tidyScalar name <*> pure loc
   Unit{} -> pure type_
   Vector t loc -> Vector <$> tidyScalarType t <*> pure loc

@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE GADTs #-}
 
 module Kitten.Infer.Type
   ( fromAnno
@@ -41,9 +42,6 @@ data Env = Env
 
 type Converted a = ReaderT (Type Row) (StateT Env Inferred) a
 
-getDefaultRow :: (Monad m) => ReaderT (Type Row) m (Type Row)
-getDefaultRow = ask
-
 fromAnno :: Annotated -> Anno -> Inferred (Scheme (Type Scalar))
 fromAnno annotated (Anno annoType annoLoc) = do
   r <- freshNameM
@@ -74,8 +72,12 @@ fromAnno annotated (Anno annoType annoLoc) = do
       <$> fromAnnoType' NoHint a
       <*> fromAnnoType' NoHint b
     Anno.Function a b -> do
-      r <- getDefaultRow
-      makeFunction origin r a r b
+      r <- lift $ lift freshNameM
+      let rVar = Var r origin
+      Quantified
+        <$> (Forall (S.singleton r) S.empty
+          <$> makeFunction origin rVar a rVar b)
+        <*> pure origin
     Anno.Float -> return (Float origin)
     Anno.Handle -> return (Handle origin)
     Anno.Int -> return (Int origin)

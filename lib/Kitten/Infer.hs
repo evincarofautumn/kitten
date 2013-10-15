@@ -409,11 +409,16 @@ infer finalEnv resolved = case resolved of
     r <- freshVarM
     origin <- getsEnv envOrigin
     type_ <- foldM
-      (\(Type.Function a b _) (Type.Function c d _)
-        -> inferCompose a b c d)
+      (\x y -> do
+        Type.Function a b _ <- unquantify x
+        Type.Function c d _ <- unquantify y
+        inferCompose a b c d)
       ((r --> r) origin)
       (V.toList types)
     return (Typed.Compose typedTerms loc (sub finalEnv type_), type_)
+    where
+    unquantify (Type.Quantified scheme _) = instantiateM scheme
+    unquantify type_ = return type_
 
   From name loc -> asTyped (Typed.From name) loc $ do
     underlying <- instantiateM =<< getsEnv ((M.! name) . envTypeDefs)

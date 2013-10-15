@@ -52,6 +52,7 @@ data Type (a :: Kind) where
   Handle :: !Origin -> Type Scalar
   Int :: !Origin -> Type Scalar
   Named :: !Text -> !Origin -> Type Scalar
+  Quantified :: !TypeScheme -> !Origin -> Type Scalar
   Unit :: !Origin -> Type Scalar
   Var :: !(TypeName a) -> !Origin -> Type a
   Vector :: !(Type Scalar) -> !Origin -> Type Scalar
@@ -99,9 +100,10 @@ instance ToText (Type Scalar) where
     Handle o -> "Handle" <> suffix o
     Int o -> "Int" <> suffix o
     Named name o -> name <> suffix o
+    Quantified scheme _ -> toText scheme
+    Unit o -> "()" <> suffix o
     Var (TypeName (Name index)) o
       -> "t" <> showText index <> suffix o
-    Unit o -> "()" <> suffix o
     Vector t o -> T.concat ["[", toText t, "]", suffix o]
 
 instance ToText (Type Row) where
@@ -244,8 +246,9 @@ addHint type_ hint = case type_ of
   Handle o -> Handle (f o)
   Int o -> Int (f o)
   Named name o -> Named name (f o)
-  Var name o -> Var name (f o)
+  Quantified scheme o -> Quantified scheme o
   Unit o -> Unit (f o)
+  Var name o -> Var name (f o)
   Vector t o -> Vector t (f o)
   where
   f :: Origin -> Origin
