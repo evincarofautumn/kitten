@@ -153,7 +153,7 @@ stringFromChars = V.toList . V.map fromChar
   fromChar _ = error "stringFromChars: non-character"
 
 typeOfValue :: InterpreterValue -> NameGen -> (Type Type.Scalar, NameGen)
-typeOfValue value nameGen = runState (typeOfValueM value) nameGen
+typeOfValue = runState . typeOfValueM
 
 typeOfValueM :: InterpreterValue -> State NameGen (Type Type.Scalar)
 typeOfValueM value = case value of

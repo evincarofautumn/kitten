@@ -218,7 +218,7 @@ yarnValue resolved = case resolved of
   Typed.Float x -> value $ Float x
   Typed.Int x -> value $ Int x
   Typed.Local (Name index) -> return $ V.singleton (Local index)
-  Typed.Unit -> value $ Unit
+  Typed.Unit -> value Unit
   Typed.String x -> value $ String x
   where
   value :: Value -> Yarn (Vector Instruction)

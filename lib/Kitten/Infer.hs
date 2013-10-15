@@ -95,21 +95,8 @@ inferFragment prelude fragment stackTypes = mdo
   -- Typed.defTypeScheme def).  We cannot right now because
   -- effects are not inferred properly (e.g. for the effects
   -- of the 'map' prelude function).
-  _ <- iforPreludeDefs $ \index def -> case defAnno def of
-    Just anno -> do
-      scheme <- fromAnno anno
-      saveDecl index scheme
-      saveDefWith const index scheme
-    Nothing -> saveDecl index =<< mono
-      <$> forAll (\r s e -> Type.Function r s e (defLocation def))
-
-  _ <- iforFragmentDefs $ \index def -> case defAnno def of
-    Just anno -> do
-      scheme <- fromAnno anno
-      saveDecl index scheme
-      saveDefWith const index scheme
-    Nothing -> saveDecl index =<< mono
-      <$> forAll (\r s e -> Type.Function r s e (defLocation def))
+  _ <- iforPreludeDefs save
+  _ <- iforFragmentDefs save
 
   typedDefs <- iforFragmentDefs $ \index def
     -> withLocation (defLocation def) $ do
@@ -184,6 +171,15 @@ inferFragment prelude fragment stackTypes = mdo
   saveDefWith f index scheme = modifyEnv $ \env -> env
     { envDefs = N.insertWith f
       (Name index) scheme (envDefs env) }
+
+  save :: Int -> Def a -> Inferred ()
+  save index def = case defAnno def of
+    Just anno -> do
+      scheme <- fromAnno anno
+      saveDecl index scheme
+      saveDefWith const index scheme
+    Nothing -> saveDecl index =<< mono
+      <$> forAll (\r s e -> Type.Function r s e (defLocation def))
 
 class ForAll a b where
   forAll :: a -> Inferred (Type b)
