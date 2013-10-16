@@ -17,7 +17,10 @@ module Kitten.Infer.Scheme
   , occurs
   ) where
 
+import Control.Applicative
+import Control.Monad
 import Control.Monad.Trans.State.Strict
+import Control.Monad.Trans.Writer
 import Data.Foldable (foldrM)
 import Data.List
 import Data.Monoid
@@ -69,22 +72,66 @@ instantiate loc (Forall rows scalars effects type_) env
 
 generalize :: Type Scalar -> Inferred TypeScheme
 generalize type_ = do
-  after <- getEnv
+  env <- getEnv
 
   let
     substituted :: Type Scalar
-    substituted = sub after type_
+    substituted = sub env type_
 
     rows :: [TypeName Row]
     scalars :: [TypeName Scalar]
     effects :: [TypeName Effect]
     (rows, scalars, effects) = freeVars substituted
 
-  return $ Forall
+  return . regeneralize env $ Forall
     (S.fromList rows)
     (S.fromList scalars)
     (S.fromList effects)
     substituted
+
+data TypeLevel = TopLevel | NonTopLevel
+  deriving (Eq)
+
+regeneralize :: Env -> TypeScheme -> TypeScheme
+regeneralize env (Forall rows scalars effects wholeType) = let
+  (type_, vars) = runWriter $ regeneralize' TopLevel wholeType
+  in Forall (foldr S.delete rows vars) scalars effects type_
+  where
+  regeneralize' :: TypeLevel -> Type a -> Writer [TypeName Row] (Type a)
+  regeneralize' level type_ = case type_ of
+    (Function a b _ loc)
+      | level == NonTopLevel
+      , Var c _ <- bottommost a
+      , Var d _ <- bottommost b
+      , c == d
+      -> do
+        -- If this is the only mention of this type variable, then it
+        -- can simply be removed from the outer quantifier. Otherwise,
+        -- it should be renamed in the inner quantifier.
+        when (occurrences (unTypeName c) env wholeType == 2)
+          $ tell [c]
+        return $ Quantified
+          (Forall (S.singleton c) S.empty S.empty type_)
+          loc
+    (Function a b e loc) -> Function
+      <$> regeneralize' NonTopLevel a
+      <*> regeneralize' NonTopLevel b
+      <*> pure e
+      <*> pure loc
+    (a :. b) -> (:.)
+      <$> regeneralize' NonTopLevel a
+      <*> regeneralize' NonTopLevel b
+    (:?) a -> (:?)
+      <$> regeneralize' NonTopLevel a
+    (a :| b) -> (:|)
+      <$> regeneralize' NonTopLevel a
+      <*> regeneralize' NonTopLevel b
+    _ -> return type_
+
+  bottommost :: Type Row -> Type Row
+  bottommost type_ = case type_ of
+    (a :. _) -> bottommost a
+    _ -> type_
 
 freeVars
   :: (Free a)
