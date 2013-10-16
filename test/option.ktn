@@ -6,8 +6,8 @@ def test (a? (a -> [Char]) ->):
     "(none)" say
 
 5 some {showInt} test
-"meow" some {id} test
-none {id} test
+"meow" some {} test
+none {} test
 
 def or0 (Int? -> Int):
   0 fromOption

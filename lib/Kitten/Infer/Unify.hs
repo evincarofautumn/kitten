@@ -96,9 +96,9 @@ unificationError prefix location type1 type2 = runTidy $ do
       $ "cannot solve"
       : prefix `consMaybe` toText kind
       : "type constraint"
-      : toText type1
+      : toText type1'
       : "="
-      : toText type2
+      : toText type2'
       : []
     secondaryErrors = map errorDetail
       $ diagnosticLocations type1' ++ diagnosticLocations type2'

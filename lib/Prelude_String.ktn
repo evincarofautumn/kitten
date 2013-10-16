@@ -36,7 +36,7 @@ def showBools ([Bool] -> [Char]):
 
 // Shows a string vector as a string.
 def showStrings ([[Char]] -> [Char]):
-  {id} showVector
+  {} showVector
 
 // Shows a floating-point number as a string.
 def showFloat (Float -> [Char]):

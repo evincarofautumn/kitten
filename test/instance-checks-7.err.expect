@@ -1,1 +1,4 @@
-some error
+test/instance-checks-7.ktn:1:1: error: cannot solve row type constraint .r1 (type of example) = .r2 t1 (type of x)
+test/instance-checks-7.ktn:1:1: note: .r1 (type of example) is from here
+test/instance-checks-7.ktn:1:1: note: .r2 is from here
+test/instance-checks-7.ktn:1:1: note: t1 (type of x) is from here

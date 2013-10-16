@@ -9,7 +9,7 @@ def sayIntOrString (Int | [Char] ->):
 "purr" right sayIntOrString
 
 def showNum (Int | Float -> [Char]):
-  \choice id:
+  \choice:
     showInt
   else:
     showFloat
