@@ -8,7 +8,7 @@ def cartesian ([a] [b] -> [a & b]):
 
 // The Cartesian product of two vectors with a generalized
 // tupling function.
-def cartesianWith ([a] [b] (a b -> c) -> [c]):
+def cartesianWith ([a] [b] (a b -> c +e) -> [c] +e):
   -> { xs ys function }
   \mapConcat xs: -> x
     \map ys: -> y
@@ -53,7 +53,7 @@ def eqVector ([a] [a] (a a -> Bool) -> Bool):
     xs ys eq zipWith and
 
 // Filters a vector by a predicate.
-def filter ([a] (a -> Bool) -> [a]):
+def filter ([a] (a -> Bool +e) -> [a] +e):
   -> { v f }
   \option v head:
     -> x
@@ -70,29 +70,48 @@ def find ([a] (a -> Bool +e) -> a? +e):
   filter head
 
 // Folds elements of a vector right-associatively.
-def foldr ([a] b (a b -> b) -> b):
+def foldr ([a] b (a b -> b +e) -> b +e):
   -> { xs z k }
-  \option xs head:
-    xs tail z k foldr k@
+  \option xs last:
+    -> x
+    (xs init) (x z k@) k foldr
   else:
     z
 
-// Right-leaning vector fold starting from last element
-def foldr1 ([a] (a a -> a) -> a):
+// Right-associative non-empty vector fold.
+def foldr1 ([a] (a a -> a +e) -> a? +e):
+  -> { xs fn }
+  \option xs last:
+    -> x
+    (xs init) x fn foldr some
+  else:
+    none
+
+// Unsafe right-associative non-empty vector fold.
+def unsafeFoldr1 ([a] (a a -> a +e) -> a +e):
   -> { xs fn }
   xs init (xs unsafeLast) fn foldr
 
 // Folds elements of a vector left-associatively.
-def foldl ([b] a (a b -> a) -> a):
+def foldl ([b] a (a b -> a +e) -> a +e):
   -> { xs z k }
   \option xs head:
     -> x
-    (xs tail) (z x k@) k foldl
+    xs tail (z x k@) k foldl
   else:
     z
 
-// Left-leaning vector fold starting from first element
-def foldl1 ([a] (a a -> a) -> a):
+// Left-associative non-empty vector fold.
+def foldl1 ([a] (a a -> a +e) -> a? +e):
+  -> { xs fn }
+  \option xs head:
+    -> x
+    xs tail x fn foldl some
+  else:
+    none
+
+// Unsafe left-associative non-empty vector fold.
+def unsafeFoldl1 ([a] (a a -> a +e) -> a +e):
   -> { xs fn }
   xs tail (xs unsafeHead) fn foldl
 
@@ -172,7 +191,7 @@ def keep ([a] Int -> [a]):
     []
 
 // Keeps elements of a vector while a predicate holds.
-def keepWhile ([a] (a -> Bool) -> [a]):
+def keepWhile ([a] (a -> Bool +e) -> [a] +e):
   -> { xs f }
   []
   \option xs head:
@@ -201,11 +220,11 @@ def map ([a] (a -> b +e) -> [b] +e):
     []
 
 // Maps a function over a vector and concatenates the results.
-def mapConcat ([a] (a -> [b]) -> [b]):
+def mapConcat ([a] (a -> [b] +e) -> [b] +e):
   map concat
 
 // Maps a function over part of a vector.
-def mapFrom ([a] (a -> a) Int -> [a]):
+def mapFrom ([a] (a -> a +e) Int -> [a] +e):
   -> { vec function offset }
   \if (vec isEmpty) (offset vec length >=) ||:
     vec
@@ -214,7 +233,7 @@ def mapFrom ([a] (a -> a) Int -> [a]):
     function offset++ mapFrom
 
 // Maps a function over a value for each integer in a range.
-def mapRange (a Int Int (a Int -> a) -> a):
+def mapRange (a Int Int (a Int -> a +e) -> a +e):
   -> { value start end function }
   \if start end <=:
     value start function@
@@ -261,17 +280,17 @@ def reverse ([a] -> [a]):
     []
 
 // Produce a list of fold-left results
-def scanl ([b] a (a b -> a) -> [a]):
+def scanl ([b] a (a b -> a +e) -> [a] +e):
   -> { xs z k }
   xs z k scanlRest z prepend
 
 // Scan left with vector head as accumulator
-def scanl1 ([a] (a a -> a) -> [a]):
+def scanl1 ([a] (a a -> a +e) -> [a] +e):
   -> { xs k }
   xs tail (xs unsafeHead) k scanl
 
 // Scan fold of remaining elements
-def scanlRest ([b] a (a b -> a) -> [a]):
+def scanlRest ([b] a (a b -> a +e) -> [a] +e):
   -> { xs z k }
   \option xs head:
     -> x
@@ -282,7 +301,7 @@ def scanlRest ([b] a (a b -> a) -> [a]):
     []
 
 // Produce a list of fold-right results
-def scanr ([a] b (a b -> b) -> [b]):
+def scanr ([a] b (a b -> b +e) -> [b] +e):
   -> { xs z k }
   \option xs head:
     -> x
@@ -293,7 +312,7 @@ def scanr ([a] b (a b -> b) -> [b]):
     [z]
 
 // Scan right with vector last as accumulator
-def scanr1 ([a] (a a -> a) -> [a]):
+def scanr1 ([a] (a a -> a +e) -> [a] +e):
   -> { xs k }
   xs init (xs unsafeLast) k scanr
 
@@ -301,7 +320,7 @@ def sort ([a] (a a -> Bool) -> [a]):
   -> lt
   [] {lt insert} foldl
 
-def span ([a] (a -> Bool) -> [a] [a]):
+def span ([a] (a -> Bool +e) -> [a] [a] +e):
   -> { xs f }
   xs f keepWhile
   xs f tossWhile
@@ -325,7 +344,7 @@ def toss ([a] Int -> [a]):
     xs tail n-- toss
 
 // Tosses elements of a vector while a predicate holds.
-def tossWhile ([a] (a -> Bool) -> [a]):
+def tossWhile ([a] (a -> Bool +e) -> [a] +e):
   -> { xs f }
   xs
   \option xs head:
@@ -377,7 +396,7 @@ def zip ([a] [b] -> [a & b]):
   {pair} zipWith
 
 // Zips two lists together with a function.
-def zipWith ([a] [b] (a b -> c) -> [c]):
+def zipWith ([a] [b] (a b -> c +e) -> [c] +e):
   -> { as bs f }
   []
   \option as head:
@@ -401,7 +420,7 @@ def #= ([a] a Int -> [a]):
   __set
 
 // Maps a function over an element of a vector.
-def #@ ([a] (a -> a) Int -> [a]):
+def #@ ([a] (a -> a +e) Int -> [a] +e):
   -> { vec function offset }
   \option vec offset#:
     function@ -> value

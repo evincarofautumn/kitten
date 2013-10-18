@@ -39,7 +39,7 @@ def left (a -> a | b):
   __left
 
 // Maps a function over the left branch of a choice.
-def liftLeft ((a | b) (a -> c) -> c | b):
+def liftLeft ((a | b) (a -> c +e) -> c | b +e):
   -> f
   \choice id:
     f@ left
@@ -47,7 +47,7 @@ def liftLeft ((a | b) (a -> c) -> c | b):
     right
 
 // Maps a function over the right branch of a choice.
-def liftRight ((a | b) (b -> c) -> a | c):
+def liftRight ((a | b) (b -> c +e) -> a | c +e):
   -> f
   \choice id:
     left
