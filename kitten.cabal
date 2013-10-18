@@ -55,6 +55,7 @@ library
     Kitten.Def,
     Kitten.Error,
     Kitten.Fragment,
+    Kitten.HTML,
     Kitten.Import,
     Kitten.Infer,
     Kitten.Infer.Config,
