@@ -10,6 +10,7 @@ import System.Console.CmdArgs.Explicit
 import System.Exit
 import System.IO
 
+import qualified Data.Text.IO as T
 import qualified Data.Vector as V
 
 import Kitten.Compile (compile, locateImport)
@@ -22,6 +23,7 @@ import Kitten.Yarn (yarn)
 import Repl
 
 import qualified Kitten.Compile as Compile
+import qualified Kitten.HTML as HTML
 import qualified Kitten.Infer.Config as Infer
 import qualified Kitten.Typed as Typed
 import qualified Kitten.Util.Text as T
@@ -30,6 +32,7 @@ data CompileMode
   = CheckMode
   | CompileMode
   | InterpretMode
+  | HTMLMode
 
 data Arguments = Arguments
   { argsCompileMode :: CompileMode
@@ -130,6 +133,9 @@ interpretAll entryPoints compileMode prelude config nameGen
         CheckMode -> return ()
         CompileMode -> V.mapM_ print $ yarn (prelude <> result)
         InterpretMode -> void $ interpret [] prelude result
+        HTMLMode -> do
+          html <- HTML.fromFragmentsM T.readFileUtf8 [prelude, result]
+          T.putStrLn html
 
 parseArguments :: IO Arguments
 parseArguments = do
@@ -208,6 +214,11 @@ argumentsMode = mode "kitten" defaultArguments
       "Output result of scope resolution."
       $ \flag acc@Arguments{..} -> acc
       { argsDumpScoped = flag }
+
+    , flagBool' ["html"]
+      "Output an HTML document for viewing the type-checked source code."
+      $ \flag acc@Arguments{..} -> acc
+      { argsCompileMode = if flag then HTMLMode else argsCompileMode }
 
     , flagReq' ["L", "library"] "DIR"
       "Add library search directory."
