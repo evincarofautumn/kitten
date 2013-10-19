@@ -27,9 +27,9 @@ scope fragment@Fragment{..} = fragment
   , fragmentTerms = scopeTerm [0] <$> fragmentTerms
   }
 
-scopeDef :: Def Value -> Def Value
+scopeDef :: Def Resolved -> Def Resolved
 scopeDef def@Def{..} = def
-  { defTerm = scopeValue [0] defTerm }
+  { defTerm = scopeTerm [0] defTerm }
 
 scopeTerm :: [Int] -> Resolved -> Resolved
 scopeTerm stack typed = case typed of

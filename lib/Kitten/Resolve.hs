@@ -68,12 +68,12 @@ reportDuplicateDefs param = mapMaybe reportDuplicate . groupWith fst $ param
       : for duplicates
         (\ (_, here) -> CompileError here Note "also defined here")
 
-resolveDefs :: Vector (Def Term.Value) -> Resolution (Vector (Def Value))
+resolveDefs :: Vector (Def Term) -> Resolution (Vector (Def Resolved))
 resolveDefs = guardMapM resolveDef
   where
-  resolveDef :: Def Term.Value -> Resolution (Def Value)
+  resolveDef :: Def Term -> Resolution (Def Resolved)
   resolveDef def = do
-    defTerm' <- resolveValue (defTerm def)
+    defTerm' <- resolveTerm (defTerm def)
     return def { defTerm = defTerm' }
 
 resolveTerm :: Term -> Resolution Resolved

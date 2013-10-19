@@ -59,15 +59,15 @@ element = choice
   , TypeElement <$> type_
   ]
 
-def :: Parser (Def Value)
+def :: Parser (Def Term)
 def = (<?> "definition") . locate $ do
   void (match Token.Def)
   name <- functionName <?> "definition name"
   anno <- optionMaybe signature
-  body <- locate (Function <$> block) <?> "definition body"
+  bodyTerm <- locate (Compose <$> block) <?> "definition body"
   return $ \loc -> Def
     { defName = name
-    , defTerm = body
+    , defTerm = bodyTerm
     , defAnno = anno
     , defLocation = loc
     }

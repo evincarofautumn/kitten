@@ -45,7 +45,7 @@ data Value
 
 instance AST Resolved where
   type TermValue Resolved = Value
-  type TermDef Resolved = Def Value
+  type TermDef Resolved = Def Resolved
 
 instance Show Value where
   show = T.unpack . toText
