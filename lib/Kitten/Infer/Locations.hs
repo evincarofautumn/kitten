@@ -37,5 +37,5 @@ locations type_ = case type_ of
   IOEffect loc -> yield loc
 
   where
-  yield :: Location -> [(Location, Textable)]
-  yield loc = [(loc, Textable type_)]
+  yield :: Origin -> [(Location, Textable)]
+  yield (Origin _ loc) = [(loc, Textable type_)]

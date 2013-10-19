@@ -9,6 +9,9 @@
 
 module Kitten.Type
   ( module Kitten.Kind
+  , Annotated(..)
+  , Hint(..)
+  , Origin(..)
   , Scheme(..)
   , Type(..)
   , TypeName(..)
@@ -16,6 +19,7 @@ module Kitten.Type
   , (-->)
   , (==>)
   , (+:)
+  , addHint
   , effect
   , emptyScheme
   , mono
@@ -30,6 +34,7 @@ import Data.Text (Text)
 
 import qualified Data.Set as S
 
+import Kitten.Builtin (Builtin)
 import Kitten.Kind
 import Kitten.Location
 import Kitten.Name
@@ -42,21 +47,21 @@ data Type (a :: Kind) where
   (:.) :: !(Type Row) -> !(Type Scalar) -> Type Row
   (:?) :: !(Type Scalar) -> Type Scalar
   (:|) :: !(Type Scalar) -> !(Type Scalar) -> Type Scalar
-  Bool :: !Location -> Type Scalar
-  Char :: !Location -> Type Scalar
-  Empty :: !Location -> Type Row
-  Float :: !Location -> Type Scalar
-  Function :: !(Type Row) -> !(Type Row) -> !(Type Effect) -> !Location -> Type Scalar
-  Handle :: !Location -> Type Scalar
-  Int :: !Location -> Type Scalar
-  Named :: !Text -> !Location -> Type Scalar
-  Unit :: !Location -> Type Scalar
-  Var :: !(TypeName a) -> !Location -> Type a
-  Vector :: !(Type Scalar) -> !Location -> Type Scalar
+  Bool :: !Origin -> Type Scalar
+  Char :: !Origin -> Type Scalar
+  Empty :: !Origin -> Type Row
+  Float :: !Origin -> Type Scalar
+  Function :: !(Type Row) -> !(Type Row) -> !(Type Effect) -> !Origin -> Type Scalar
+  Handle :: !Origin -> Type Scalar
+  Int :: !Origin -> Type Scalar
+  Named :: !Text -> !Origin -> Type Scalar
+  Unit :: !Origin -> Type Scalar
+  Var :: !(TypeName a) -> !Origin -> Type a
+  Vector :: !(Type Scalar) -> !Origin -> Type Scalar
 
   (:+) :: !(Type Effect) -> !(Type Effect) -> Type Effect
-  NoEffect :: !Location -> Type Effect
-  IOEffect :: !Location -> Type Effect
+  NoEffect :: !Origin -> Type Effect
+  IOEffect :: !Origin -> Type Effect
 
 instance Eq (Type a) where
   (a :& b) == (c :& d) = (a, b) == (c, d)
@@ -97,30 +102,48 @@ instance ToText (Type Scalar) where
     t1 :& t2 -> T.concat ["(", toText t1, " & ", toText t2, ")"]
     (:?) t -> toText t <> "?"
     t1 :| t2 -> T.concat ["(", toText t1, " | ", toText t2, ")"]
-    Bool{} -> "Bool"
-    Char{} -> "Char"
-    Float{} -> "Float"
-    Function r1 r2 e _ -> T.concat
-      ["(", T.unwords [toText r1, "->", toText r2, "+", toText e], ")"]
-    Handle{} -> "Handle"
-    Int{} -> "Int"
-    Named name _ -> name
-    Var (TypeName (Name index)) _ -> "t" <> showText index
-    Unit{} -> "()"
-    Vector t _ -> T.concat ["[", toText t, "]"]
+    Bool o -> "Bool" <> suffix o
+    Char o -> "Char" <> suffix o
+    Float o -> "Float" <> suffix o
+    Function r1 r2 e o -> T.concat
+      [ "(", T.unwords [toText r1, "->", toText r2, "+", toText e], ")"
+      , suffix o
+      ]
+    Handle o -> "Handle" <> suffix o
+    Int o -> "Int" <> suffix o
+    Named name o -> name <> suffix o
+    Var (TypeName (Name index)) o
+      -> "t" <> showText index <> suffix o
+    Unit o -> "()" <> suffix o
+    Vector t o -> T.concat ["[", toText t, "]", suffix o]
 
 instance ToText (Type Row) where
   toText = \case
     t1 :. t2 -> T.unwords [toText t1, toText t2]
-    Empty{} -> "<empty>"
-    Var (TypeName (Name index)) _ -> ".r" <> showText index
+    Empty o -> "<empty>" <> suffix o
+    Var (TypeName (Name index)) o
+      -> ".r" <> showText index <> suffix o
 
 instance ToText (Type Effect) where
   toText = \case
     t1 :+ t2 -> T.concat ["(", toText t1, " + ", toText t2, ")"]
-    Var (TypeName (Name index)) _ -> "e" <> showText index
-    NoEffect{} -> "()"
-    IOEffect{} -> "IO"
+    Var (TypeName (Name index)) o
+      -> "e" <> showText index <> suffix o
+    NoEffect o -> "()" <> suffix o
+    IOEffect o -> "IO" <> suffix o
+
+suffix :: Origin -> Text
+suffix (Origin hint _) = case hint of
+  Local name -> " (type of " <> name <> ")"
+  AnnoType annotated
+    -> " (type of " <> toText annotated <> ")"
+  AnnoVar name annotated
+    -> " (type var " <> name <> " of " <> toText annotated <> ")"
+  AnnoFunctionInput annotated
+    -> " (input to " <> toText annotated <> ")"
+  AnnoFunctionOutput annotated
+    -> " (output of " <> toText annotated <> ")"
+  NoHint -> ""
 
 newtype TypeName (a :: Kind) = TypeName { unTypeName :: Name }
   deriving (Eq, Ord)
@@ -130,6 +153,54 @@ instance Show (TypeName a) where
 
 instance ToText (TypeName a) where
   toText = toText . unTypeName
+
+data Annotated
+  = AnnotatedDef !Text
+  -- FIXME(strager): We can't use 'TypedDef', as that causes
+  -- a circular dependency between Kitten.Type and
+  -- Kitten.Typed.
+  | Builtin !Builtin
+
+instance Show Annotated where
+  show = T.unpack . toText
+
+instance ToText Annotated where
+  toText (AnnotatedDef defName) = defName
+  toText (Builtin builtin) = showText builtin
+
+data Origin = Origin !Hint !Location
+
+data Hint
+  = Local !Text
+  -- ^ Name introduced by a 'Scoped' term.
+
+  | AnnoType !Annotated
+  -- ^ Explicit type annotation.
+
+  | AnnoVar !Text !Annotated
+  -- ^ Type variable in a type annotation.
+
+  | AnnoFunctionInput !Annotated
+  | AnnoFunctionOutput !Annotated
+
+  | NoHint
+
+-- | Picks the most helpful hint.  'mappend' is commutative.
+instance Monoid Hint where
+  mempty = NoHint
+
+  -- Note: patterns are ordered by preference.
+  x@Local{} `mappend` _ = x
+  _ `mappend` x@Local{} = x
+  x@AnnoType{} `mappend` _ = x
+  _ `mappend` x@AnnoType{} = x
+  x@AnnoVar{} `mappend` _ = x
+  _ `mappend` x@AnnoVar{} = x
+  x@AnnoFunctionInput{} `mappend` _ = x
+  _ `mappend` x@AnnoFunctionInput{} = x
+  x@AnnoFunctionOutput{} `mappend` _ = x
+  _ `mappend` x@AnnoFunctionOutput{} = x
+  x@NoHint `mappend` _ = x
 
 data Scheme a = Forall
   (Set (TypeName Row))
@@ -162,11 +233,27 @@ infixl 5 :.
 infix 4 -->
 infix 4 ==>
 
-(-->) :: Type Row -> Type Row -> Location -> Type Scalar
-(a --> b) loc = Function a b (NoEffect loc) loc
+-- | Creates a 'Function' scalar type, inferring hints from
+-- the given 'Origin'.
+hintedFunction
+  :: Type Row -> Type Row -> Type Effect -> Origin -> Type Scalar
+hintedFunction inputs outputs e origin
+  = Function inputs' outputs' e origin
+  where
+  inputs', outputs' :: Type Row
+  (inputs', outputs') = case origin of
+    Origin (AnnoType anno) _
+      ->
+        ( inputs `addRowHint` AnnoFunctionInput anno
+        , outputs `addRowHint` AnnoFunctionOutput anno
+        )
+    _ -> (inputs, outputs)
 
-(==>) :: Type Row -> Type Row -> Location -> Type Scalar
-(a ==> b) loc = Function a b (IOEffect loc) loc
+(-->) :: Type Row -> Type Row -> Origin -> Type Scalar
+(a --> b) origin = hintedFunction a b (NoEffect origin) origin
+
+(==>) :: Type Row -> Type Row -> Origin -> Type Scalar
+(a ==> b) origin = hintedFunction a b (IOEffect origin) origin
 
 (+:) :: Type Effect -> Type Effect -> Type Effect
 a +: b | a == b = a
@@ -176,6 +263,40 @@ _ +: IOEffect loc = IOEffect loc
 a +: NoEffect _ = a
 (a :+ b) +: c = a +: (b +: c)
 a +: b = a :+ b
+
+addHint :: Type a -> Hint -> Type a
+addHint type_ hint = case type_ of
+  _ :& _ -> type_
+  _ :. _ -> type_
+  (:?) _ -> type_
+  _ :| _ -> type_
+  Empty o -> Empty (f o)
+  Bool o -> Bool (f o)
+  Char o -> Char (f o)
+  Float o -> Float (f o)
+  Function r1 r2 e o -> Function r1 r2 e (f o)
+  Handle o -> Handle (f o)
+  Int o -> Int (f o)
+  Named name o -> Named name (f o)
+  Var name o -> Var name (f o)
+  Unit o -> Unit (f o)
+  Vector t o -> Vector t (f o)
+
+  _ :+ _ -> type_
+  NoEffect o -> NoEffect (f o)
+  IOEffect o -> IOEffect (f o)
+  where
+  f :: Origin -> Origin
+  f (Origin _hint loc) = Origin hint loc
+
+-- | Adds a 'Hint' to each 'Type Scalar' along a 'Type Row'.
+-- Shallow in scalars, deep in rows.
+--
+-- TODO(strager): mapRow
+addRowHint :: Type Row -> Hint -> Type Row
+addRowHint type_ hint = case type_ of
+  r :. t -> addRowHint r hint :. (t `addHint` hint)
+  _ -> type_
 
 effect :: Name -> TypeName Effect
 effect = TypeName

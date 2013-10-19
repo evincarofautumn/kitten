@@ -26,7 +26,7 @@ data Resolved
   | PairTerm !Resolved !Resolved !Location
   | Push !Value !Location
   | To !Text !Location
-  | Scoped !Resolved !Location
+  | Scoped !Text !Resolved !Location
   | VectorTerm !(Vector Resolved) !Location
   deriving (Eq, Show)
 

@@ -1,0 +1,4 @@
+test/type-error-4.ktn:1:1: error: cannot solve scalar type constraint [t1 (type var a of foo)] (input to foo) = t2?
+test/type-error-4.ktn:1:1: note: t1 (type var a of foo) is from here
+test/type-error-4.ktn:1:1: note: t2 is from here
+test/type-error-4.ktn:1:9: note: [t1 (type var a of foo)] (input to foo) is from here

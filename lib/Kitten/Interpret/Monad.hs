@@ -159,28 +159,31 @@ typeOfValue = runState . typeOfValueM
 typeOfValueM :: InterpreterValue -> State NameGen (Type Type.Scalar)
 typeOfValueM value = case value of
   Activation _closed typed -> return $ Typed.typedType typed
-  Bool _ -> return $ Type.Bool loc
-  Char _ -> return $ Type.Char loc
+  Bool _ -> return $ Type.Bool origin
+  Char _ -> return $ Type.Char origin
   Choice False x -> liftM2 (:|) (typeOfValueM x) freshVarM
   Choice True y -> liftM2 (:|) freshVarM (typeOfValueM y)
-  Float _ -> return $ Type.Float loc
-  Handle _ -> return $ Type.Handle loc
-  Int _ -> return $ Type.Int loc
+  Float _ -> return $ Type.Float origin
+  Handle _ -> return $ Type.Handle origin
+  Int _ -> return $ Type.Int origin
   Option (Just x) -> liftM (:?) (typeOfValueM x)
   Option Nothing -> liftM (:?) freshVarM
   Pair x y -> liftM2 (:&) (typeOfValueM x) (typeOfValueM y)
-  Unit -> return $ Type.Unit loc
+  Unit -> return $ Type.Unit origin
   Vector xs -> case V.safeHead xs of
-    Nothing -> liftM2 Type.Vector freshVarM (return loc)
-    Just x -> liftM2 Type.Vector (typeOfValueM x) (return loc)
-  Wrapped name _ -> return $ Type.Named name loc
+    Nothing -> liftM2 Type.Vector freshVarM (return origin)
+    Just x -> liftM2 Type.Vector (typeOfValueM x) (return origin)
+  Wrapped name _ -> return $ Type.Named name origin
+
   where
   freshVarM :: State NameGen (Type a)
   freshVarM = do
     name <- state genName
-    return $ Type.Var (Type.TypeName name) loc
-  loc :: Location
-  loc = UnknownLocation
+    return $ Type.Var (Type.TypeName name) origin
+
+  -- TODO(strager): Type hint for stack elements.
+  origin :: Type.Origin
+  origin = Type.Origin Type.NoHint UnknownLocation
 
 withClosure :: Vector InterpreterValue -> InterpretM a -> InterpretM a
 withClosure values action = do

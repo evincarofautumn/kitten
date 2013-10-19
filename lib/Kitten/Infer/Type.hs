@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Kitten.Infer.Type
   ( fromAnno
@@ -43,14 +44,14 @@ data Env = Env
 
 type Converted a = StateT Env Inferred a
 
-fromAnno :: Anno -> Inferred (Scheme (Type Scalar))
-fromAnno (Anno annoType loc) = do
+fromAnno :: Annotated -> Anno -> Inferred (Scheme (Type Scalar))
+fromAnno annotated (Anno annoType annoLoc) = do
   (type_, env) <- flip runStateT Env
     { envAnonRows = []
     , envEffects = M.empty
     , envRows = M.empty
     , envScalars = M.empty
-    } $ fromAnnoType' annoType
+    } $ fromAnnoType' (AnnoType annotated) annoType
   return $ Forall
     (S.fromList (envAnonRows env <> M.elems (envRows env)))
     (S.fromList . M.elems $ envScalars env)
@@ -58,67 +59,90 @@ fromAnno (Anno annoType loc) = do
     type_
   where
 
-  fromAnnoType' :: Anno.Type -> Converted (Type Scalar)
-  fromAnnoType' type_ = case type_ of
-    Anno.Bool -> return (Bool loc)
-    Anno.Char -> return (Char loc)
-    Anno.Choice a b -> (:|) <$> fromAnnoType' a <*> fromAnnoType' b
+  fromInput, fromOutput :: Anno.Type -> Converted (Type Scalar)
+  fromInput = fromAnnoType' (AnnoFunctionInput annotated)
+  fromOutput = fromAnnoType' (AnnoFunctionOutput annotated)
+
+  fromAnnoType' :: Hint -> Anno.Type -> Converted (Type Scalar)
+  fromAnnoType' hint = \case
+    Anno.Bool -> return (Bool origin)
+    Anno.Char -> return (Char origin)
+    Anno.Choice a b -> (:|)
+      <$> fromAnnoType' NoHint a
+      <*> fromAnnoType' NoHint b
     Anno.Function a b e -> do
       r <- lift freshNameM
+      let rVar = Var r origin
       modify $ \env -> env { envAnonRows = r : envAnonRows env }
-      makeFunction (Var r loc) a (Var r loc) b e
-    Anno.Float -> return (Float loc)
-    Anno.Handle -> return (Handle loc)
-    Anno.Int -> return (Int loc)
-    Anno.Named name -> return (Named name loc)
-    Anno.Option a -> (:?) <$> fromAnnoType' a
-    Anno.Pair a b -> (:&) <$> fromAnnoType' a <*> fromAnnoType' b
+      makeFunction origin rVar a rVar b e
+    Anno.Float -> return (Float origin)
+    Anno.Handle -> return (Handle origin)
+    Anno.Int -> return (Int origin)
+    Anno.Named name -> return (Named name origin)
+    Anno.Option a -> (:?)
+      <$> fromAnnoType' NoHint a
+    Anno.Pair a b -> (:&)
+      <$> fromAnnoType' NoHint a
+      <*> fromAnnoType' NoHint b
     Anno.RowFunction leftRow leftScalars rightRow rightScalars effectAnno -> do
-      leftRowVar <- rowVar leftRow loc
-      rightRowVar <- rowVar rightRow loc
-      makeFunction leftRowVar leftScalars rightRowVar rightScalars effectAnno
-    Anno.Unit -> return (Unit loc)
-    Anno.Var name -> scalarVar name loc
-    Anno.Vector a -> Vector <$> fromAnnoType' a <*> pure loc
+      leftRowVar <- rowVar leftRow loc annotated
+      rightRowVar <- rowVar rightRow loc annotated
+      makeFunction origin leftRowVar leftScalars rightRowVar rightScalars effectAnno
+    Anno.Unit -> return (Unit origin)
+    Anno.Var name -> scalarVar name loc annotated
+    Anno.Vector a -> Vector <$> fromAnnoType' NoHint a <*> pure origin
     _ -> error "converting effect annotation to non-effect type"
+    where
+    origin :: Origin
+    origin = Origin hint loc
+    loc :: Location
+    loc = annoLoc  -- FIXME(strager)
 
   makeFunction
-    :: Type Row
+    :: Origin
+    -> Type Row
     -> Vector Anno.Type
     -> Type Row
     -> Vector Anno.Type
     -> Anno.Type
     -> Converted (Type Scalar)
-  makeFunction leftRow leftScalars rightRow rightScalars effectAnno = Function
-    <$> (V.foldl' (:.) leftRow <$> V.mapM fromAnnoType' leftScalars)
-    <*> (V.foldl' (:.) rightRow <$> V.mapM fromAnnoType' rightScalars)
-    <*> fromAnnoEffect effectAnno
-    <*> pure loc
+  makeFunction origin leftRow leftScalars rightRow rightScalars effectAnno = Function
+    <$> (V.foldl' (:.) leftRow <$> V.mapM fromInput leftScalars)
+    <*> (V.foldl' (:.) rightRow <$> V.mapM fromOutput rightScalars)
+    <*> fromAnnoEffect NoHint effectAnno  -- FIXME(strager): Hint.
+    <*> pure origin
 
-  fromAnnoEffect :: Anno.Type -> Converted (Type Effect)
-  fromAnnoEffect e = case e of
-    Anno.NoEffect -> return (NoEffect loc)
-    Anno.IOEffect -> return (IOEffect loc)
-    Anno.Var name -> effectVar name loc
-    Anno.Join a b -> (+:) <$> fromAnnoEffect a <*> fromAnnoEffect b
+  fromAnnoEffect :: Hint -> Anno.Type -> Converted (Type Effect)
+  fromAnnoEffect hint = \case
+    Anno.NoEffect -> return (NoEffect origin)
+    Anno.IOEffect -> return (IOEffect origin)
+    Anno.Var name -> effectVar name loc annotated
+    Anno.Join a b -> (+:)
+      <$> fromAnnoEffect NoHint a
+      <*> fromAnnoEffect NoHint b
     _ -> error "converting non-effect annotation to effect type"
+    where
+    origin :: Origin
+    origin = Origin hint loc
+    loc :: Location
+    loc = annoLoc  -- FIXME(strager)
 
 -- | Gets a scalar variable by name from the environment.
-scalarVar :: Text -> Location -> Converted (Type Scalar)
+scalarVar :: Text -> Location -> Annotated -> Converted (Type Scalar)
 scalarVar = annoVar
   (\name -> M.lookup name . envScalars)
   (\name var env -> env
     { envScalars = M.insert name var (envScalars env) })
 
 -- | Gets a row variable by name from the environment.
-rowVar :: Text -> Location -> Converted (Type Row)
+rowVar :: Text -> Location -> Annotated -> Converted (Type Row)
 rowVar = annoVar
   (\name -> M.lookup name . envRows)
   (\name var env -> env
     { envRows = M.insert name var (envRows env) })
 
 -- | Gets an effect variable by name from the environment.
-effectVar :: Text -> Location -> Converted (Type Effect)
+effectVar :: Text -> Location -> Annotated -> Converted (Type Effect)
 effectVar = annoVar
   (\name -> M.lookup name . envEffects)
   (\name var env -> env
@@ -131,12 +155,16 @@ annoVar
   -> (Text -> TypeName a -> Env -> Env)
   -> Text
   -> Location
+  -> Annotated
   -> Converted (Type a)
-annoVar retrieve save name loc = do
+annoVar retrieve save name loc annotated = do
   mExisting <- gets $ retrieve name
   case mExisting of
-    Just existing -> return (Var existing loc)
+    Just existing -> return (Var existing origin)
     Nothing -> do
       var <- lift freshNameM
       modify $ save name var
-      return (Var var loc)
+      return (Var var origin)
+  where
+  origin :: Origin
+  origin = Origin (AnnoVar name annotated) loc

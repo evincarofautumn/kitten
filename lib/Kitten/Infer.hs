@@ -34,7 +34,7 @@ import Kitten.Location
 import Kitten.Name
 import Kitten.Resolved
 import Kitten.Type (Type((:&), (:.), (:?), (:|)))
-import Kitten.Type hiding (Type(..))
+import Kitten.Type hiding (Type(..), Local)
 import Kitten.Typed (Typed)
 import Kitten.TypeDef
 import Kitten.Util.FailWriter
@@ -75,7 +75,7 @@ inferFragment prelude fragment stackTypes = mdo
   -- Aggregate type definitions ('type Foo Bar').
   F.forM_ allTypeDefs $ \typeDef -> do
     let name = typeDefName typeDef
-    scheme <- fromAnno (typeDefAnno typeDef)
+    scheme <- fromAnno (AnnotatedDef name) (typeDefAnno typeDef)
     mExisting <- getsEnv (M.lookup name . envTypeDefs)
     case mExisting of
       Nothing -> modifyEnv $ \env -> env
@@ -100,7 +100,7 @@ inferFragment prelude fragment stackTypes = mdo
   _ <- iforFragmentDefs save
 
   typedDefs <- iforFragmentDefs $ \index def
-    -> withLocation (defLocation def) $ do
+    -> withOrigin (defOrigin def) $ do
       (typedTerm, type_) <- infer finalEnv (defTerm def)
       typeScheme <- generalize type_
       declaredScheme <- do
@@ -108,8 +108,9 @@ inferFragment prelude fragment stackTypes = mdo
         case N.lookup (Name index) decls of
           Just decl -> return decl
           Nothing -> do
-            loc <- getsEnv envLocation
-            mono <$> forAll (\r s e -> Type.Function r s e loc)
+            origin <- getsEnv envOrigin
+            fmap mono . forAll $ \r s e
+              -> Type.Function r s e origin
       saveDefWith (flip const) index typeScheme
       declared <- instantiateM declaredScheme
       inferred <- instantiateM typeScheme
@@ -124,7 +125,7 @@ inferFragment prelude fragment stackTypes = mdo
     let Type.Function consumption _ _ _ = fragmentType
     bottom <- freshVarM
     enforce <- asksConfig enforceBottom
-    when enforce $ bottom === Type.Empty UnknownLocation
+    when enforce $ bottom === Type.Empty (Origin NoHint UnknownLocation)
     let stackType = F.foldl (:.) bottom stackTypes
     stackType === consumption
 
@@ -141,6 +142,11 @@ inferFragment prelude fragment stackTypes = mdo
 
   where
   allTypeDefs = fragmentTypeDefs prelude <> fragmentTypeDefs fragment
+
+  defOrigin :: Def a -> Origin
+  defOrigin def = Origin
+    (AnnoType (AnnotatedDef (defName def)))
+    (defLocation def)
 
   preludeIndices, fragmentIndices :: [Int]
   (preludeIndices, fragmentIndices) = splitAt
@@ -176,11 +182,17 @@ inferFragment prelude fragment stackTypes = mdo
   save :: Int -> Def a -> Inferred ()
   save index def = case defAnno def of
     Just anno -> do
-      scheme <- fromAnno anno
+      scheme <- fromAnno annotated anno
       saveDecl index scheme
       saveDefWith const index scheme
-    Nothing -> saveDecl index =<< mono
-      <$> forAll (\r s e -> Type.Function r s e (defLocation def))
+    Nothing -> do
+      scheme <- fmap mono . forAll $ \r s e
+        -> Type.Function r s e
+          (Origin (AnnoType annotated) (defLocation def))
+      saveDecl index scheme
+    where
+    annotated :: Annotated
+    annotated = AnnotatedDef (defName def)
 
 class ForAll a b where
   forAll :: a -> Inferred (Type b)
@@ -197,180 +209,184 @@ instance ForAll (Type a) a where
 infer :: Env -> Resolved -> Inferred (Typed, Type Scalar)
 infer finalEnv resolved = case resolved of
 
-  Builtin name loc -> asTyped (Typed.Builtin name) loc $ case name of
+  Kitten.Resolved.Builtin name loc -> asTyped (Typed.Builtin name) loc $ case name of
 
     Builtin.AddVector -> forAll $ \r a
-      -> (r :. Type.Vector a loc :. Type.Vector a loc
-      --> r :. Type.Vector a loc) loc
+      -> (r :. Type.Vector a o :. Type.Vector a o
+      --> r :. Type.Vector a o) o
 
-    Builtin.AddFloat -> binary (Type.Float loc) loc
+    Builtin.AddFloat -> binary (Type.Float o) o
 
-    Builtin.AddInt -> binary (Type.Int loc) loc
+    Builtin.AddInt -> binary (Type.Int o) o
 
-    Builtin.AndBool -> binary (Type.Bool loc) loc
+    Builtin.AndBool -> binary (Type.Bool o) o
 
-    Builtin.AndInt -> binary (Type.Int loc) loc
+    Builtin.AndInt -> binary (Type.Int o) o
 
     Builtin.Apply -> forAll $ \r s e
-      -> Type.Function (r :. Type.Function r s e loc) s e loc
+      -> Type.Function (r :. Type.Function r s e o) s e o
 
     Builtin.CharToInt -> forAll $ \r
-      -> (r :. Type.Char loc --> r :. Type.Int loc) loc
+      -> (r :. Type.Char o --> r :. Type.Int o) o
 
     Builtin.Choice -> forAll $ \r a b e -> Type.Function
-      (r :. (a :| b) :. Type.Function (r :. a) r e loc) r e loc
+      (r :. (a :| b) :. Type.Function (r :. a) r e o) r e o
 
     Builtin.ChoiceElse -> forAll $ \r a b s e1 e2 -> Type.Function
       (r :. (a :| b)
-        :. Type.Function (r :. a) s e1 loc
-        :. Type.Function (r :. b) s e2 loc)
-      s (e1 +: e2) loc
+        :. Type.Function (r :. a) s e1 o
+        :. Type.Function (r :. b) s e2 o)
+      s (e1 +: e2) o
 
     Builtin.Close -> forAll $ \r
-      -> (r :. Type.Handle loc ==> r) loc
+      -> (r :. Type.Handle o ==> r) o
 
-    Builtin.DivFloat -> binary (Type.Float loc) loc
-    Builtin.DivInt -> binary (Type.Int loc) loc
+    Builtin.DivFloat -> binary (Type.Float o) o
+    Builtin.DivInt -> binary (Type.Int o) o
 
-    Builtin.EqFloat -> relational (Type.Float loc) loc
-    Builtin.EqInt -> relational (Type.Int loc) loc
+    Builtin.EqFloat -> relational (Type.Float o) o
+    Builtin.EqInt -> relational (Type.Int o) o
 
     Builtin.Exit -> forAll $ \r
-      -> (r :. Type.Int loc ==> r) loc
+      -> (r :. Type.Int o ==> r) o
 
     Builtin.First -> forAll $ \r a b
-      -> (r :. a :& b --> r :. a) loc
+      -> (r :. a :& b --> r :. a) o
 
     Builtin.FromLeft -> forAll $ \r a b
-      -> (r :. a :| b --> r :. a) loc
+      -> (r :. a :| b --> r :. a) o
 
     Builtin.FromRight -> forAll $ \r a b
-      -> (r :. a :| b --> r :. b) loc
+      -> (r :. a :| b --> r :. b) o
 
     Builtin.FromSome -> forAll $ \r a
-      -> (r :. (a :?) --> r :. a) loc
+      -> (r :. (a :?) --> r :. a) o
 
-    Builtin.GeFloat -> relational (Type.Float loc) loc
-    Builtin.GeInt -> relational (Type.Int loc) loc
+    Builtin.GeFloat -> relational (Type.Float o) o
+    Builtin.GeInt -> relational (Type.Int o) o
 
     Builtin.Get -> forAll $ \r a
-      -> (r :. Type.Vector a loc :. Type.Int loc --> r :. (a :?)) loc
+      -> (r :. Type.Vector a o :. Type.Int o --> r :. (a :?)) o
 
     Builtin.GetLine -> forAll $ \r
-      -> (r :. Type.Handle loc ==> r :. string loc) loc
+      -> (r :. Type.Handle o ==> r :. string o) o
 
-    Builtin.GtFloat -> relational (Type.Float loc) loc
-    Builtin.GtInt -> relational (Type.Int loc) loc
+    Builtin.GtFloat -> relational (Type.Float o) o
+    Builtin.GtInt -> relational (Type.Int o) o
 
     Builtin.If -> forAll $ \r e -> Type.Function
-      (r :. Type.Bool loc :. Type.Function r r e loc) r e loc
+      (r :. Type.Bool o :. Type.Function r r e o) r e o
 
     Builtin.IfElse -> forAll $ \r s e1 e2 -> Type.Function
-      (r :. Type.Bool loc
-        :. Type.Function r s e1 loc
-        :. Type.Function r s e2 loc)
-      s (e1 +: e2) loc
+      (r :. Type.Bool o
+        :. Type.Function r s e1 o
+        :. Type.Function r s e2 o)
+      s (e1 +: e2) o
 
     Builtin.Impure -> forAll $ \r
-      -> (r ==> r) loc
+      -> (r ==> r) o
 
     Builtin.Init -> forAll $ \r a
-      -> (r :. Type.Vector a loc --> r :. Type.Vector a loc) loc
+      -> (r :. Type.Vector a o --> r :. Type.Vector a o) o
 
     Builtin.IntToChar -> forAll $ \r
-      -> (r :. Type.Int loc --> r :. (Type.Char loc :?)) loc
+      -> (r :. Type.Int o --> r :. (Type.Char o :?)) o
 
-    Builtin.LeFloat -> relational (Type.Float loc) loc
-    Builtin.LeInt -> relational (Type.Int loc) loc
+    Builtin.LeFloat -> relational (Type.Float o) o
+    Builtin.LeInt -> relational (Type.Int o) o
 
     Builtin.Left -> forAll $ \r a b
-      -> (r :. a --> r :. a :| b) loc
+      -> (r :. a --> r :. a :| b) o
 
     Builtin.Length -> forAll $ \r a
-      -> (r :. Type.Vector a loc --> r :. Type.Int loc) loc
+      -> (r :. Type.Vector a o --> r :. Type.Int o) o
 
-    Builtin.LtFloat -> relational (Type.Float loc) loc
-    Builtin.LtInt -> relational (Type.Int loc) loc
+    Builtin.LtFloat -> relational (Type.Float o) o
+    Builtin.LtInt -> relational (Type.Int o) o
 
-    Builtin.ModFloat -> binary (Type.Float loc) loc
-    Builtin.ModInt -> binary (Type.Int loc) loc
+    Builtin.ModFloat -> binary (Type.Float o) o
+    Builtin.ModInt -> binary (Type.Int o) o
 
-    Builtin.MulFloat -> binary (Type.Float loc) loc
-    Builtin.MulInt -> binary (Type.Int loc) loc
+    Builtin.MulFloat -> binary (Type.Float o) o
+    Builtin.MulInt -> binary (Type.Int o) o
 
-    Builtin.NeFloat -> relational (Type.Float loc) loc
-    Builtin.NeInt -> relational (Type.Int loc) loc
+    Builtin.NeFloat -> relational (Type.Float o) o
+    Builtin.NeInt -> relational (Type.Int o) o
 
-    Builtin.NegFloat -> unary (Type.Float loc) loc
-    Builtin.NegInt -> unary (Type.Int loc) loc
+    Builtin.NegFloat -> unary (Type.Float o) o
+    Builtin.NegInt -> unary (Type.Int o) o
 
     Builtin.None -> forAll $ \r a
-      -> (r --> r :. (a :?)) loc
+      -> (r --> r :. (a :?)) o
 
-    Builtin.NotBool -> unary (Type.Bool loc) loc
-    Builtin.NotInt -> unary (Type.Int loc) loc
+    Builtin.NotBool -> unary (Type.Bool o) o
+    Builtin.NotInt -> unary (Type.Int o) o
 
     Builtin.OpenIn -> forAll $ \r
-      -> (r :. string loc ==> r :. Type.Handle loc) loc
+      -> (r :. string o ==> r :. Type.Handle o) o
 
     Builtin.OpenOut -> forAll $ \r
-      -> (r :. string loc ==> r :. Type.Handle loc) loc
+      -> (r :. string o ==> r :. Type.Handle o) o
 
     Builtin.Option -> forAll $ \r a e -> Type.Function
-      (r :. (a :?) :. Type.Function (r :. a) r e loc) r e loc
+      (r :. (a :?) :. Type.Function (r :. a) r e o) r e o
 
     Builtin.OptionElse -> forAll $ \r a s e1 e2 -> Type.Function
       (r :. (a :?)
-        :. Type.Function (r :. a) s e1 loc
-        :. Type.Function r s e2 loc)
-      s (e1 +: e2) loc
+        :. Type.Function (r :. a) s e1 o
+        :. Type.Function r s e2 o)
+      s (e1 +: e2) o
 
-    Builtin.OrBool -> binary (Type.Bool loc) loc
-    Builtin.OrInt -> binary (Type.Int loc) loc
+    Builtin.OrBool -> binary (Type.Bool o) o
+    Builtin.OrInt -> binary (Type.Int o) o
 
     Builtin.Rest -> forAll $ \r a b
-      -> (r :. a :& b --> r :. b) loc
+      -> (r :. a :& b --> r :. b) o
 
     Builtin.Right -> forAll $ \r a b
-      -> (r :. b --> r :. a :| b) loc
+      -> (r :. b --> r :. a :| b) o
 
     Builtin.Set -> forAll $ \r a
-      -> (r :. Type.Vector a loc :. a :. Type.Int loc
-      --> r :. Type.Vector a loc) loc
+      -> (r :. Type.Vector a o :. a :. Type.Int o
+      --> r :. Type.Vector a o) o
 
     Builtin.ShowFloat -> forAll $ \r
-      -> (r :. Type.Float loc --> r :. string loc) loc
+      -> (r :. Type.Float o --> r :. string o) o
 
     Builtin.ShowInt -> forAll $ \r
-      -> (r :. Type.Int loc --> r :. string loc) loc
+      -> (r :. Type.Int o --> r :. string o) o
 
     Builtin.Some -> forAll $ \r a
-      -> (r :. a --> r :. (a :?)) loc
+      -> (r :. a --> r :. (a :?)) o
 
     Builtin.Stderr -> forAll $ \r
-      -> (r --> r :. Type.Handle loc) loc
+      -> (r --> r :. Type.Handle o) o
     Builtin.Stdin -> forAll $ \r
-      -> (r --> r :. Type.Handle loc) loc
+      -> (r --> r :. Type.Handle o) o
     Builtin.Stdout -> forAll $ \r
-      -> (r --> r :. Type.Handle loc) loc
+      -> (r --> r :. Type.Handle o) o
 
-    Builtin.SubFloat -> binary (Type.Float loc) loc
-    Builtin.SubInt -> binary (Type.Int loc) loc
+    Builtin.SubFloat -> binary (Type.Float o) o
+    Builtin.SubInt -> binary (Type.Int o) o
 
     Builtin.Pair -> forAll $ \r a b
-      -> (r :. a :. b --> r :. a :& b) loc
+      -> (r :. a :. b --> r :. a :& b) o
 
     Builtin.Print -> forAll $ \r
-      -> (r :. string loc :. Type.Handle loc ==> r) loc
+      -> (r :. string o :. Type.Handle o ==> r) o
 
     Builtin.Tail -> forAll $ \r a
-      -> (r :. Type.Vector a loc --> r :. Type.Vector a loc) loc
+      -> (r :. Type.Vector a o --> r :. Type.Vector a o) o
 
     Builtin.UnsafePurify11 -> forAll $ \r s a b
-      -> (r :. (s :. a ==> s :. b) loc --> r :. (s :. a --> s :. b) loc) loc
+      -> (r :. (s :. a ==> s :. b) o --> r :. (s :. a --> s :. b) o) o
 
-    Builtin.XorBool -> binary (Type.Bool loc) loc
-    Builtin.XorInt -> binary (Type.Int loc) loc
+    Builtin.XorBool -> binary (Type.Bool o) o
+    Builtin.XorInt -> binary (Type.Int o) o
+
+    where
+    o :: Origin
+    o = Origin (AnnoType (Kitten.Type.Builtin name)) loc
 
   Call name loc -> asTyped (Typed.Call name) loc
     $ instantiateM =<< declOrDef
@@ -384,42 +400,49 @@ infer finalEnv resolved = case resolved of
   Compose terms loc -> withLocation loc $ do
     (typedTerms, types) <- V.mapAndUnzipM recur terms
     r <- freshVarM
+    origin <- getsEnv envOrigin
     type_ <- foldM
       (\(Type.Function a b e1 _) (Type.Function c d e2 _)
         -> inferCompose a b c d e1 e2)
-      ((r --> r) loc)
+      ((r --> r) origin)
       (V.toList types)
     return (Typed.Compose typedTerms loc (sub finalEnv type_), type_)
 
   From name loc -> asTyped (Typed.From name) loc $ do
     underlying <- instantiateM =<< getsEnv ((M.! name) . envTypeDefs)
-    forAll $ \r -> (r :. Type.Named name loc --> r :. underlying) loc
+    origin <- getsEnv envOrigin
+    forAll $ \r -> (r :. Type.Named name origin --> r :. underlying) origin
 
   PairTerm x y loc -> withLocation loc $ do
     (x', a) <- secondM fromConstant =<< recur x
     (y', b) <- secondM fromConstant =<< recur y
-    type_ <- forAll $ \r -> (r --> r :. a :& b) loc
+    origin <- getsEnv envOrigin
+    type_ <- forAll $ \r -> (r --> r :. a :& b) origin
     return (Typed.PairTerm x' y' loc (sub finalEnv type_), type_)
 
   Push value loc -> withLocation loc $ do
     (value', a) <- inferValue finalEnv value
-    type_ <- forAll $ \r -> (r --> r :. a) loc
+    origin <- getsEnv envOrigin
+    type_ <- forAll $ \r -> (r --> r :. a) origin
     return (Typed.Push value' loc (sub finalEnv type_), type_)
 
-  Scoped term loc -> withLocation loc $ do
+  Scoped name term loc -> withOrigin (Origin (Type.Local name) loc) $ do
     a <- freshVarM
     (term', Type.Function b c e _) <- local a $ recur term
-    let type_ = Type.Function (b :. a) c e loc
+    origin <- getsEnv envOrigin
+    let type_ = Type.Function (b :. a) c e origin
     return (Typed.Scoped term' loc (sub finalEnv type_), type_)
 
   To name loc -> asTyped (Typed.To name) loc $ do
     underlying <- instantiateM =<< getsEnv ((M.! name) . envTypeDefs)
-    forAll $ \r -> (r :. underlying --> r :. Type.Named name loc) loc
+    origin <- getsEnv envOrigin
+    forAll $ \r -> (r :. underlying --> r :. Type.Named name origin) origin
 
   VectorTerm values loc -> withLocation loc $ do
     (typedValues, types) <- mapAndUnzipM recur (V.toList values)
     elementType <- fromConstant =<< unifyEach types
-    type_ <- forAll $ \r -> (r --> r :. Type.Vector elementType loc) loc
+    origin <- getsEnv envOrigin
+    type_ <- forAll $ \r -> (r --> r :. Type.Vector elementType origin) origin
     return (Typed.VectorTerm (V.fromList typedValues) loc (sub finalEnv type_), type_)
 
   where
@@ -438,21 +461,24 @@ fromConstant :: Type Scalar -> Inferred (Type Scalar)
 fromConstant type_ = do
   a <- freshVarM
   r <- freshVarM
-  loc <- getsEnv envLocation
-  type_ === (r --> r :. a) loc
+  origin <- getsEnv envOrigin
+  type_ === (r --> r :. a) origin
   return a
 
-binary :: Type Scalar -> Location -> Inferred (Type Scalar)
-binary a loc = forAll $ \r -> (r :. a :. a --> r :. a) loc
+binary :: Type Scalar -> Origin -> Inferred (Type Scalar)
+binary a origin = forAll
+  $ \r -> (r :. a :. a --> r :. a) origin
 
-relational :: Type Scalar -> Location -> Inferred (Type Scalar)
-relational a loc = forAll $ \r -> (r :. a :. a --> r :. Type.Bool loc) loc
+relational :: Type Scalar -> Origin -> Inferred (Type Scalar)
+relational a origin = forAll
+  $ \r -> (r :. a :. a --> r :. Type.Bool origin) origin
 
-unary :: Type Scalar -> Location -> Inferred (Type Scalar)
-unary a loc = forAll $ \r -> (r :. a --> r :. a) loc
+unary :: Type Scalar -> Origin -> Inferred (Type Scalar)
+unary a origin = forAll
+  $ \r -> (r :. a --> r :. a) origin
 
-string :: Location -> Type Scalar
-string loc = Type.Vector (Type.Char loc) loc
+string :: Origin -> Type Scalar
+string origin = Type.Vector (Type.Char origin) origin
 
 local :: Type Scalar -> Inferred a -> Inferred a
 local type_ action = do
@@ -475,9 +501,9 @@ getClosedName name = case name of
   ReclosedName (Name index) -> getsEnv $ (V.! index) . envClosure
 
 inferValue :: Env -> Value -> Inferred (Typed.Value, Type Scalar)
-inferValue finalEnv value = getsEnv envLocation >>= \loc -> case value of
-  Bool val -> return (Typed.Bool val, Type.Bool loc)
-  Char val -> return (Typed.Char val, Type.Char loc)
+inferValue finalEnv value = getsEnv envOrigin >>= \origin -> case value of
+  Bool val -> return (Typed.Bool val, Type.Bool origin)
+  Char val -> return (Typed.Char val, Type.Char origin)
   Closed name@(Name index) -> do
     type_ <- getsEnv ((V.! index) . envClosure)
     return (Typed.Closed name, type_)
@@ -485,15 +511,15 @@ inferValue finalEnv value = getsEnv envLocation >>= \loc -> case value of
     closedTypes <- V.mapM getClosedName names
     (term', type_) <- withClosure closedTypes (infer finalEnv term)
     return (Typed.Closure names term', type_)
-  Float val -> return (Typed.Float val, Type.Float loc)
+  Float val -> return (Typed.Float val, Type.Float origin)
   Function _ -> error "function appeared during type inference"
-  Int val -> return (Typed.Int val, Type.Int loc)
+  Int val -> return (Typed.Int val, Type.Int origin)
   Local name@(Name index) -> do
     type_ <- getsEnv ((!! index) . envLocals)
     return (Typed.Local name, type_)
-  Unit -> return (Typed.Unit, Type.Unit loc)
+  Unit -> return (Typed.Unit, Type.Unit origin)
   String val -> return
-    (Typed.String val, Type.Vector (Type.Char loc) loc)
+    (Typed.String val, Type.Vector (Type.Char origin) origin)
 
 unifyEach :: [Type Scalar] -> Inferred (Type Scalar)
 unifyEach (x : y : zs) = x === y >> unifyEach (y : zs)
@@ -507,4 +533,4 @@ inferCompose
   -> Inferred (Type Scalar)
 inferCompose in1 out1 in2 out2 e1 e2 = do
   out1 === in2
-  Type.Function in1 out2 (e1 +: e2) <$> getsEnv envLocation
+  Type.Function in1 out2 (e1 +: e2) <$> getsEnv envOrigin

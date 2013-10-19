@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Test.Scope where
 
 import Control.Monad
@@ -75,7 +77,7 @@ reclosedName :: Int -> ClosedName
 reclosedName = ReclosedName . Name
 
 scoped :: [Resolved] -> Resolved
-scoped terms = Scoped (compose terms) TestLocation
+scoped terms = Scoped "testvar" (compose terms) TestLocation
 
 word :: Int -> Resolved
 word index = Call (Name index) TestLocation
