@@ -10,23 +10,29 @@ import System.Console.CmdArgs.Explicit
 import System.Exit
 import System.IO
 
-import qualified Data.ByteString as B
-import qualified Data.Text.Encoding as T
+import qualified Data.Text.IO as T
 import qualified Data.Vector as V
 
 import Kitten.Compile (compile, locateImport)
 import Kitten.Error
 import Kitten.Fragment
 import Kitten.Interpret
-import Kitten.Resolved (Resolved, Value)
+import Kitten.Name (NameGen, mkNameGen)
+import Kitten.Typed (Typed)
 import Kitten.Yarn (yarn)
 import Repl
 
 import qualified Kitten.Compile as Compile
+import qualified Kitten.HTML as HTML
+import qualified Kitten.Infer.Config as Infer
+import qualified Kitten.Typed as Typed
+import qualified Kitten.Util.Text as T
 
 data CompileMode
-  = CompileMode
+  = CheckMode
+  | CompileMode
   | InterpretMode
+  | HTMLMode
 
 data Arguments = Arguments
   { argsCompileMode :: CompileMode
@@ -41,14 +47,29 @@ data Arguments = Arguments
 
 main :: IO ()
 main = do
-
   arguments <- parseArguments
+  let
+    defaultConfig prelude filename program = Compile.Config
+      { Compile.dumpResolved = argsDumpResolved arguments
+      , Compile.dumpScoped = argsDumpScoped arguments
+      , Compile.firstLine = 1
+      , Compile.inferConfig = Infer.Config
+        { Infer.enforceBottom = True }
+      , Compile.libraryDirectories = argsLibraryDirectories arguments
+      , Compile.name = filename
+      , Compile.prelude = prelude
+      , Compile.source = program
+      , Compile.stackTypes = V.empty
+      }
+
   preludes <- locateImport
     (argsLibraryDirectories arguments)
     "Prelude"
 
-  prelude <- if not (argsEnableImplicitPrelude arguments)
-    then return mempty
+  let nameGen = mkNameGen  -- TODO(strager): Use StateT NameGen.
+
+  (nameGen', prelude) <- if not (argsEnableImplicitPrelude arguments)
+    then return (nameGen, mempty)
     else case preludes of
 
     [] -> do
@@ -56,30 +77,22 @@ main = do
       exitFailure
 
     [filename] -> do
-      rawSource <- B.readFile filename
-      let source = T.decodeUtf8 rawSource
-      mPrelude <- compile Compile.Config
-        { Compile.dumpResolved = argsDumpResolved arguments
-        , Compile.dumpScoped = argsDumpScoped arguments
-        , Compile.libraryDirectories
-          = argsLibraryDirectories arguments
-        , Compile.name = filename
-        , Compile.prelude = mempty
-        , Compile.source = source
-        , Compile.stack = []
-        }
+      source <- T.readFileUtf8 filename
+      mPrelude <- compile (defaultConfig mempty filename source) nameGen
 
-      Fragment{..} <- case mPrelude of
+      (nameGen', Fragment{..}) <- case mPrelude of
         Left compileErrors -> do
           printCompileErrors compileErrors
           exitFailure
-        Right prelude -> return prelude
+        Right (nameGen', prelude, _type)
+          -> return (nameGen', prelude)
 
-      unless (V.null fragmentTerms) $ do
+      when (V.any containsCode fragmentTerms) $ do
+        print fragmentTerms
         hPutStrLn stderr "Prelude includes executable code."
         exitFailure
 
-      return mempty { fragmentDefs = fragmentDefs }
+      return (nameGen', mempty { fragmentDefs = fragmentDefs })
 
     _ -> do
       hPutStrLn stderr . unlines
@@ -88,38 +101,41 @@ main = do
       exitFailure
 
   case argsEntryPoints arguments of
-    [] -> runRepl prelude
+    [] -> runRepl prelude nameGen'
     entryPoints -> interpretAll entryPoints
       (argsCompileMode arguments) prelude
-      $ \ filename program -> Compile.Config
-      { Compile.dumpResolved = argsDumpResolved arguments
-      , Compile.dumpScoped = argsDumpScoped arguments
-      , Compile.libraryDirectories = argsLibraryDirectories arguments
-      , Compile.name = filename
-      , Compile.prelude = prelude
-      , Compile.source = program
-      , Compile.stack = []
-      }
+      (defaultConfig prelude)
+      nameGen
+
+containsCode :: Typed -> Bool
+containsCode (Typed.Compose terms _ _) = V.any containsCode terms
+containsCode _ = True
 
 interpretAll
   :: [FilePath]
   -> CompileMode
-  -> Fragment Value Resolved
+  -> Fragment Typed
   -> (FilePath -> Text -> Compile.Config)
+  -> NameGen
   -> IO ()
-interpretAll entryPoints compileMode prelude config
+interpretAll entryPoints compileMode prelude config nameGen
   = mapM_ interpretOne entryPoints
   where
   interpretOne :: FilePath -> IO ()
   interpretOne filename = do
-    rawProgram <- B.readFile filename
-    let program = T.decodeUtf8 rawProgram
-    mResult <- compile (config filename program)
+    source <- T.readFileUtf8 filename
+    mResult <- compile (config filename source) nameGen
     case mResult of
-      Left compileErrors -> printCompileErrors compileErrors
-      Right result -> case compileMode of
+      Left compileErrors -> do
+        printCompileErrors compileErrors
+        exitFailure
+      Right (_nameGen', result, _type) -> case compileMode of
+        CheckMode -> return ()
         CompileMode -> V.mapM_ print $ yarn (prelude <> result)
         InterpretMode -> void $ interpret [] prelude result
+        HTMLMode -> do
+          html <- HTML.fromFragmentsM T.readFileUtf8 [prelude, result]
+          T.putStrLn html
 
 parseArguments :: IO Arguments
 parseArguments = do
@@ -181,29 +197,39 @@ argumentsMode = mode "kitten" defaultArguments
   options =
     [ flagBool' ["c", "compile"]
       "Compile Yarn assembly."
-      $ \ flag acc@Arguments{..} -> acc
-      { argsCompileMode = if flag then CompileMode else InterpretMode }
+      $ \flag acc@Arguments{..} -> acc
+      { argsCompileMode = if flag then CompileMode else argsCompileMode }
+
+    , flagBool' ["check"]
+      "Check syntax and types without compiling or running."
+      $ \flag acc@Arguments{..} -> acc
+      { argsCompileMode = if flag then CheckMode else argsCompileMode }
 
     , flagBool' ["dump-resolved"]
       "Output result of name resolution."
-      $ \ flag acc@Arguments{..} -> acc
+      $ \flag acc@Arguments{..} -> acc
       { argsDumpResolved = flag }
 
     , flagBool' ["dump-scoped"]
       "Output result of scope resolution."
-      $ \ flag acc@Arguments{..} -> acc
+      $ \flag acc@Arguments{..} -> acc
       { argsDumpScoped = flag }
+
+    , flagBool' ["html"]
+      "Output an HTML document for viewing the type-checked source code."
+      $ \flag acc@Arguments{..} -> acc
+      { argsCompileMode = if flag then HTMLMode else argsCompileMode }
 
     , flagReq' ["L", "library"] "DIR"
       "Add library search directory."
-      $ \ path acc@Arguments{..} -> Right $ acc
+      $ \path acc@Arguments{..} -> Right $ acc
       { argsLibraryDirectories = path : argsLibraryDirectories }
 
     , flagBool' ["no-implicit-prelude"]
       "Disable implicit inclusion of prelude."
-      $ \ flag acc@Arguments{..} -> acc
+      $ \flag acc@Arguments{..} -> acc
       { argsEnableImplicitPrelude = not flag }
 
-    , flagHelpSimple $ \ acc -> acc { argsShowHelp = True }
-    , flagVersion $ \ acc -> acc { argsShowVersion = True }
+    , flagHelpSimple $ \acc -> acc { argsShowHelp = True }
+    , flagVersion $ \acc -> acc { argsShowVersion = True }
     ]

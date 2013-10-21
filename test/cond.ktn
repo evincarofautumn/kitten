@@ -1,5 +1,5 @@
 def test (Int? -> +IO):
-  { (2 *) (5 +) } liftOption
+  { 2 * 5 + } liftOption
   {dup sayInt} liftOption drop
 
 0 some test

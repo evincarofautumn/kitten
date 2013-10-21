@@ -27,7 +27,7 @@ data Env = Env
 
 type Converted a = StateT Env Inferred a
 
-fromAnno :: Anno -> Inferred Scheme
+fromAnno :: Anno -> Inferred (Scheme (Type Scalar))
 fromAnno (Anno annoType loc) = do
   (type_, env) <- flip runStateT Env
     { envRows = []
@@ -48,7 +48,7 @@ fromAnno (Anno annoType loc) = do
     Anno.Choice a b -> (:|) <$> fromAnnoType' a <*> fromAnnoType' b
     Anno.Function a b e -> do
       Var r _ <- lift freshVarM
-      modify $ \ env -> env { envRows = r : envRows env }
+      modify $ \env -> env { envRows = r : envRows env }
       Function
         <$> (V.foldl' (:.) (Var r loc) <$> V.mapM fromAnnoType' a)
         <*> (V.foldl' (:.) (Var r loc) <$> V.mapM fromAnnoType' b)
@@ -63,12 +63,12 @@ fromAnno (Anno annoType loc) = do
     Anno.Unit -> return (Unit loc)
     Anno.Var name -> do
       mExisting <- gets
-        $ \ env -> M.lookup name (envScalars env)
+        $ \env -> M.lookup name (envScalars env)
       case mExisting of
         Just existing -> return (Var existing loc)
         Nothing -> do
           Var var _ <- lift freshVarM
-          modify $ \ env -> env
+          modify $ \env -> env
             { envScalars = M.insert name var (envScalars env) }
           return (Var var loc)
     Anno.Vector a -> Vector <$> fromAnnoType' a <*> pure loc
@@ -80,12 +80,12 @@ fromAnno (Anno annoType loc) = do
     Anno.IOEffect -> return (IOEffect loc)
     Anno.Var name -> do
       mExisting <- gets
-        $ \ env -> M.lookup name (envEffects env)
+        $ \env -> M.lookup name (envEffects env)
       case mExisting of
         Just existing -> return (Var existing loc)
         Nothing -> do
           Var var _ <- lift freshVarM
-          modify $ \ env -> env
+          modify $ \env -> env
             { envEffects = M.insert name var (envEffects env) }
           return (Var var loc)
     Anno.Join a b -> (+:) <$> fromAnnoEffect a <*> fromAnnoEffect b

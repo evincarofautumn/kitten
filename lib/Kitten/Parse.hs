@@ -1,12 +1,17 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+
 module Kitten.Parse
   ( parse
   ) where
 
 import Control.Applicative hiding (some)
 import Control.Monad
+import Data.Monoid
+import Data.Text (Text)
 import Data.Vector (Vector)
+import Text.Parsec.Pos
 
-import qualified Data.Text as T
 import qualified Data.Vector as V
 import qualified Text.Parsec as Parsec
 
@@ -25,17 +30,25 @@ import Kitten.TypeDef
 import Kitten.Token (Located(..), Token)
 import Kitten.Util.Parsec
 
+import qualified Kitten.Builtin as Builtin
 import qualified Kitten.Token as Token
 
 parse
   :: String
   -> [Located]
-  -> Either ParseError (Fragment Value Term)
-parse name
-  = Parsec.parse insertBraces name
-  >=> Parsec.parse fragment name
+  -> Either ParseError (Fragment Term)
+parse name tokens = do
+  inserted <- Parsec.parse insertBraces name tokens
+  Parsec.parse
+    (setInitialPosition name inserted >> fragment)
+    name inserted
 
-fragment :: Parser (Fragment Value Term)
+setInitialPosition :: String -> [Located] -> Parser ()
+setInitialPosition name [] = setPosition (newPos name 1 1)
+setInitialPosition _ (Located{..} : _)
+  = setPosition (locationStart locatedLocation)
+
+fragment :: Parser (Fragment Term)
 fragment = partitionElements <$> (many element <* eof)
 
 element :: Parser Element
@@ -46,17 +59,15 @@ element = choice
   , TypeElement <$> type_
   ]
 
-def :: Parser (Def Value)
+def :: Parser (Def Term)
 def = (<?> "definition") . locate $ do
   void (match Token.Def)
-  name <- functionName
-  anno <- optionMaybe (grouped signature)
-  body <- term
-  return $ \ loc -> Def
+  name <- functionName <?> "definition name"
+  anno <- optionMaybe signature
+  bodyTerm <- locate (Compose <$> block) <?> "definition body"
+  return $ \loc -> Def
     { defName = name
-    , defTerm = case body of
-      Push function@Function{} _ -> function
-      _ -> Function (V.singleton body) loc
+    , defTerm = bodyTerm
     , defAnno = anno
     , defLocation = loc
     }
@@ -65,70 +76,67 @@ import_ :: Parser Import
 import_ = (<?> "import") . locate $ do
   void (match Token.Import)
   name <- bigWord
-  return $ \ loc -> Import
+  return $ \loc -> Import
     { importName = name
     , importLocation = loc
     }
 
 term :: Parser Term
-term = locate $ choice
-  [ try $ Push <$> value
-  , Call <$> functionName
-  , VectorTerm <$> vector
-  , try group
-  , pair <$> tuple
-  , mapOne toBuiltin <?> "builtin"
-  , lambda
-  , if_
-  , choiceTerm
-  , optionTerm
-  , to
-  , from
-  ]
+term = nonblockTerm <|> blockTerm
   where
+  nonblockTerm :: Parser Term
+  nonblockTerm = locate $ choice
+    [ try $ Push <$> nonblockValue
+    , Call <$> functionName
+    , VectorTerm <$> vector
+    , try group
+    , pair <$> tuple
+    , mapOne toBuiltin <?> "builtin"
+    , lambda
+    , doElse
+    , to
+    , from
+    ]
+
+  blockTerm :: Parser Term
+  blockTerm = locate $ Push <$> blockValue
 
   group :: Parser (Location -> Term)
-  group = (<?> "group") $ Group <$> grouped (many1V term)
+  group = (<?> "group") $ Compose <$> grouped (many1V term)
 
-  branchList :: Parser (Vector Term)
-  branchList = block <|> V.singleton <$> term
+  doElse :: Parser (Location -> Term)
+  doElse = (<?> "do block") $ match Token.Do *> doBody
 
-  branch :: Parser Term
-  branch = locate $ Compose <$> branchList
+  toFunctionOrBuiltin :: Token -> Maybe Text
+  toFunctionOrBuiltin token = case token of
+    Token.Builtin name -> Builtin.toText name
+    Token.LittleWord name -> Just name
+    Token.Operator name -> Just name
+    _ -> Nothing
 
-  elseBranch :: Parser Term
-  elseBranch = locate $ Compose
-    <$> option V.empty (match Token.Else *> branchList)
-
-  if_ :: Parser (Location -> Term)
-  if_ = (<?> "if") $ do
-    void (match Token.If)
-    condition <- term
-    then_ <- branch
-    else_ <- elseBranch
-    return $ \ loc -> Compose
-      (V.fromList [condition, If then_ else_ loc])
-      loc
-
-  choiceTerm :: Parser (Location -> Term)
-  choiceTerm = (<?> "choice") $ do
-    void (match Token.Choice)
-    condition <- term
-    left <- branch
-    right <- elseBranch
-    return $ \ loc -> Compose
-      (V.fromList [condition, ChoiceTerm left right loc])
-      loc
-
-  optionTerm :: Parser (Location -> Term)
-  optionTerm = (<?> "option") $ do
-    void (match Token.Option)
-    condition <- term
-    some <- branch
-    none <- elseBranch
-    return $ \ loc -> Compose
-      (V.fromList [condition, OptionTerm some none loc])
-      loc
+  doBody :: Parser (Location -> Term)
+  doBody = (<?> "do body") $ do
+    name <- mapOne toFunctionOrBuiltin
+    open <- many nonblockTerm
+    body <- blockTerm
+    else_ <- optionMaybe $ match Token.Else *> choice
+      [ try . locate $ Push
+        <$> locate (Function . V.singleton <$> locate doBody)
+      , blockTerm
+      ]
+    let
+      (name', else') = case else_ of
+        Nothing -> (name, V.empty)
+        Just elseBody -> (name <> "_else", V.singleton elseBody)
+      name'' = case Builtin.fromText name' of
+        Just builtin -> Builtin builtin
+        _ -> Call name'
+    return $ \loc -> flip Compose loc $ V.concat
+      [ V.fromList open
+      , V.singleton body
+      , else'
+      , V.singleton (name'' loc)
+      ]
 
   lambda :: Parser (Location -> Term)
   lambda = (<?> "lambda") $ match Token.Arrow *> choice
@@ -136,15 +144,14 @@ term = locate $ choice
     , do
       names <- blocked (many littleWord)
       terms <- manyV term
-      return $ \ loc -> foldr
-        (\ lambdaName lambdaTerms -> Lambda lambdaName lambdaTerms loc)
+      return $ \loc -> foldr
+        (\lambdaName lambdaTerms -> Lambda lambdaName lambdaTerms loc)
         (Compose terms loc)
         (reverse names)
     ]
 
   pair :: Vector Term -> Location -> Term
-  pair values loc = V.foldr (\ x y -> PairTerm x y loc)
-    (Push (Unit loc) loc) values
+  pair values loc = V.foldr1 (\x y -> PairTerm x y loc) values
 
   to :: Parser (Location -> Term)
   to = To <$> (match Token.To *> bigWord)
@@ -173,31 +180,31 @@ type_ = (<?> "type definition") . locate $ do
   void (match Token.Type)
   name <- bigWord
   anno <- typeDefType
-  return $ \ loc -> TypeDef
+  return $ \loc -> TypeDef
     { typeDefName = name
     , typeDefAnno = anno
     , typeDefLocation = loc
     }
 
-value :: Parser Value
-value = locate $ choice
-  [ mapOne toLiteral <?> "literal"
-  , Function <$> block <?> "function"
+blockValue :: Parser Value
+blockValue = (<?> "function") . locate $ Function <$> block
+
+nonblockValue :: Parser Value
+nonblockValue = choice
+  [ locate (mapOne toLiteral <?> "literal")
   , unit
   ]
-  where
 
-  toLiteral :: Token -> Maybe (Location -> Value)
-  toLiteral (Token.Bool x) = Just $ Bool x
-  toLiteral (Token.Char x) = Just $ Char x
-  toLiteral (Token.Float x) = Just $ Float x
-  toLiteral (Token.Int x) = Just $ Int x
-  toLiteral (Token.Text x) = Just $ \ loc
-    -> Vector (V.fromList (map (`Char` loc) (T.unpack x))) loc
-  toLiteral _ = Nothing
+toLiteral :: Token -> Maybe (Location -> Value)
+toLiteral (Token.Bool x) = Just $ Bool x
+toLiteral (Token.Char x) = Just $ Char x
+toLiteral (Token.Float x) = Just $ Float x
+toLiteral (Token.Int x _) = Just $ Int x
+toLiteral (Token.Text x) = Just $ String x
+toLiteral _ = Nothing
 
-  unit :: Parser (Location -> Value)
-  unit = Unit <$ (match Token.GroupBegin >> match Token.GroupEnd)
+unit :: Parser Value
+unit = locate $ Unit <$ (match Token.GroupBegin >> match Token.GroupEnd)
 
 block :: Parser (Vector Term)
 block = blocked (manyV term) <?> "block"

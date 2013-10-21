@@ -14,19 +14,19 @@ import Kitten.Term
 import Kitten.TypeDef
 
 data Element
-  = DefElement (Def Value)
+  = DefElement (Def Term)
   | ImportElement Import
   | TermElement Term
   | TypeElement TypeDef
 
 data Partitioned = Partitioned
-  { partDefs :: [Def Value]
+  { partDefs :: [Def Term]
   , partImports :: [Import]
   , partTerms :: [Term]
   , partTypeDefs :: [TypeDef]
   }
 
-partitionElements :: [Element] -> Fragment Value Term
+partitionElements :: [Element] -> Fragment Term
 partitionElements
   = fromPartitioned . foldr go (Partitioned [] [] [] [])
   where
@@ -40,7 +40,7 @@ partitionElements
     TypeElement type_ -> acc
       { partTypeDefs = type_ : partTypeDefs acc }
 
-fromPartitioned :: Partitioned -> Fragment Value Term
+fromPartitioned :: Partitioned -> Fragment Term
 fromPartitioned Partitioned{..} = Fragment
   { fragmentDefs = V.fromList partDefs
   , fragmentImports = V.fromList partImports

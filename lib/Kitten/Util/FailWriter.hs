@@ -13,6 +13,7 @@ module Kitten.Util.FailWriter
 
 import Control.Applicative (Applicative)
 import Control.Monad
+import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Maybe
@@ -24,7 +25,7 @@ import qualified Data.Traversable as T
 
 newtype FailWriterT w m a = FailWriterT
   (MaybeT (WriterT w m) a)
-  deriving (Functor, Applicative, Monad, MonadIO)
+  deriving (Functor, Applicative, Monad, MonadFix, MonadIO)
 
 instance (Monoid w) => MonadTrans (FailWriterT w) where
   lift = FailWriterT . lift . lift
@@ -37,7 +38,7 @@ guardLiftM2
   -> FailWriterT w m c
 guardLiftM2 f ma mb = liftM2 (,)
   (guardReturn ma) (guardReturn mb)
-  >>= \ (mA, mB) -> case (mA, mB) of
+  >>= \(mA, mB) -> case (mA, mB) of
     (Just a, Just b) -> return $ f a b
     _ -> halt
 

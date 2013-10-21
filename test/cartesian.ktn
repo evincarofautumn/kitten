@@ -1,9 +1,9 @@
-def showPoint ((Int, Int) -> [Char]):
+def showPoint (Int & Int -> [Char]):
   -> p
   "("
   p first showInt cat
   ", " cat
-  p second showInt cat
+  p rest showInt cat
   ")" cat
 
 [1, 2, 3] -> xs

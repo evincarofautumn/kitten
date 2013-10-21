@@ -24,20 +24,21 @@ insertBraces = (concat <$> many unit) <* eof
     end <- locatedMatch close
     return $ begin : inner ++ [end]
 
-  flow :: Token -> Parser [Located]
-  flow prefix = do
-    if_ <- (:) <$> locatedMatch prefix <*> unit
-    then_ <- unit
-    else_ <- elseBranch
-    return $ concat [if_, then_, else_]
+  doElse :: Parser [Located]
+  doElse = (:) <$> locatedMatch Token.Do <*> doBody
 
-  ifElse = flow Token.If
-  choiceElse = flow Token.Choice
-  optionElse = flow Token.Option
-
-  elseBranch :: Parser [Located]
-  elseBranch = option []
-    ((:) <$> locatedMatch Token.Else <*> unit)
+  doBody :: Parser [Located]
+  doBody = do
+    name <- locatedSatisfy $ \(Located token _) -> case token of
+      Token.Builtin _ -> True
+      Token.LittleWord _ -> True
+      Token.Operator _ -> True
+      _ -> False
+    open <- many (unitWhere nonblock)
+    body <- unit
+    else_ <- option []
+      ((:) <$> locatedMatch Token.Else <*> (try doBody <|> unit))
+    return $ name : concat [concat open, body, else_]
 
   unit :: Parser [Located]
   unit = unitWhere $ const True
@@ -45,26 +46,34 @@ insertBraces = (concat <$> many unit) <* eof
   unitWhere :: (Located -> Bool) -> Parser [Located]
   unitWhere predicate
     = try (lookAhead $ locatedSatisfy predicate) *> choice
-    [ bracket Token.BlockBegin Token.BlockEnd
+    [ bracket (Token.BlockBegin Token.NormalBlockHint) Token.BlockEnd
     , bracket Token.GroupBegin Token.GroupEnd
     , bracket Token.VectorBegin Token.VectorEnd
-    , ifElse
-    , choiceElse
-    , optionElse
+    , doElse
     , layout
-    , list <$> locatedSatisfy (not . isBracket . locatedToken)
+    , list <$> locatedSatisfy nonbracket
     ]
 
-  isBracket :: Token -> Bool
-  isBracket token = token `elem`
-    [ Token.BlockBegin
-    , Token.BlockEnd
-    , Token.GroupBegin
+  nonblock :: Located -> Bool
+  nonblock = not . (`elem` blockBrackets) . locatedToken
+
+  nonbracket :: Located -> Bool
+  nonbracket = not . (`elem` brackets) . locatedToken
+
+  brackets :: [Token]
+  brackets = blockBrackets ++
+    [ Token.GroupBegin
     , Token.GroupEnd
-    , Token.Layout
     , Token.VectorBegin
     , Token.VectorEnd
     , Token.Else
+    ]
+
+  blockBrackets :: [Token]
+  blockBrackets =
+    [ Token.BlockBegin Token.NormalBlockHint
+    , Token.BlockEnd
+    , Token.Layout
     ]
 
   layout :: Parser [Located]
@@ -79,5 +88,5 @@ insertBraces = (concat <$> many unit) <* eof
     body <- concat <$> many (unitWhere inside)
     when (null body)
       $ fail "empty layout blocks are not allowed; use {} instead"
-    return $ Located Token.BlockBegin colonLoc
+    return $ Located (Token.BlockBegin Token.LayoutBlockHint) colonLoc
       : body ++ [Located Token.BlockEnd colonLoc]

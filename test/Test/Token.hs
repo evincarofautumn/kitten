@@ -5,9 +5,11 @@ module Test.Token where
 import Data.Text (Text)
 import Test.HUnit.Lang (Assertion, assertFailure)
 import Test.Hspec
+import Text.Parsec.Pos
 
 import Test.Util
 
+import Kitten.Location
 import Kitten.Token
 import Kitten.Tokenize
 
@@ -40,7 +42,7 @@ spec = do
       $ testComment "/* Nested /* multi-line */ comment. */"
 
   describe "single-character token" $ do
-    testTokens "{" [BlockBegin]
+    testTokens "{" [BlockBegin NormalBlockHint]
     testTokens "}" [BlockEnd]
     testTokens "(" [GroupBegin]
     testTokens ")" [GroupEnd]
@@ -79,11 +81,10 @@ spec = do
     testTokens "false" [Bool False]
 
   describe "tokenize keyword" $ do
-    testTokens "Bool" [BoolType]
-    testTokens "Char" [CharType]
-    testTokens "Float" [FloatType]
-    testTokens "Int" [IntType]
+    testTokens "\\" [Do]
     testTokens "def" [Def]
+    testTokens "else" [Else]
+    testTokens "import" [Import]
 
   describe "tokenize builtin" $ do
     testTokens "__add_int" [Builtin Builtin.AddInt]
@@ -99,32 +100,63 @@ spec = do
     testTokens "!#$%&*+-./<=>?@^|~"
       [Operator "!#$%&*+-./<=>?@^|~"]
 
+  describe "locations" $ do
+    testLocations 1 "1 2 3" [loc 1 1, loc 1 3, loc 1 5]
+    testLocations 1 "def f {1} def f {2}" $ locs
+      [ (1, 1), (1, 5), (1, 7), (1, 8), (1, 9), (1, 11), (1, 15), (1, 17)
+      , (1, 18), (1, 19)
+      ]
+    testLocations 2 "def f {1}" $ locs
+      [(2, 1), (2, 5), (2, 7), (2, 8), (2, 9)]
+    testLocations 1 "  def f {1}" $ locs
+      [(1, 3), (1, 7), (1, 9), (1, 10), (1, 11)]
+
+locs :: [(Line, Column)] -> [Location]
+locs = map (uncurry loc)
+
+loc :: Line -> Column -> Location
+loc line column = Location
+  { locationStart = newPos "test" line column
+  , locationIndent = -1
+  }
+
 testComment :: Text -> Assertion
-testComment source = case tokenize "test" source of
+testComment source = case tokenize 1 "test" source of
   Left message -> assertFailure $ show message
   Right [] -> return ()
   Right actual -> expectedButGot "[]" (showLocated actual)
 
 testInt :: Text -> Int -> Spec
 testInt source expected = it ("int " ++ show source)
-  $ case tokenize "test" source of
+  $ case tokenize 1 "test" source of
     Left message -> assertFailure $ show message
-    Right [Located (Int actual) _]
+    Right [Located (Int actual _) _]
       | actual == expected -> return ()
     Right actual -> expectedButGot
       (show expected) (showLocated actual)
 
 testTokens :: Text -> [Token] -> Spec
-testTokens source expected = it (show source)
-  $ case tokenize "test" source of
+testTokens = testLocated locatedToken 1
+
+testLocations :: Line -> Text -> [Location] -> Spec
+testLocations = testLocated locatedLocation
+
+testLocated
+  :: (Eq a, Show a) => (Located -> a) -> Line -> Text -> [a] -> Spec
+testLocated extract firstLine source expected = it (show source)
+  $ case tokenize firstLine "test" source of
     Left message -> assertFailure $ show message
     Right actual
-      | map locatedToken actual == expected -> return ()
+      | map extract actual == expected -> return ()
       | otherwise -> expectedButGot
-        (showTokens expected) (showLocated actual)
+        (showLines expected) (showLines actual')
+      where actual' = map extract actual
 
 showLocated :: [Located] -> String
 showLocated = unwords . map (show . locatedToken)
 
-showTokens :: [Token] -> String
-showTokens = unwords . map show
+showWords :: (Show a) => [a] -> String
+showWords = unwords . map show
+
+showLines :: (Show a) => [a] -> String
+showLines = unlines . map show

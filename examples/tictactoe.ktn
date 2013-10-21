@@ -16,7 +16,7 @@ def game (-> +IO):
   newBoard 'x' gameLoop -> { finalBoard winner }
 
   newline
-  if (winner '*' eqChar):
+  \if winner '*' eqChar:
     "It's a tie!\n"
   else:
     [winner] " wins!\n" cat
@@ -29,7 +29,7 @@ def gameLoop ([Char] Char -> [Char] Char +IO):
   -> board
 
   board getWinner -> winner
-  if ("xo*" winner elemChar):
+  \if "xo*" winner elemChar:
     board winner
   else:
     board player askTurn
@@ -50,12 +50,12 @@ def askTurn ([Char] Char -> [Char] +IO):
   getLine -> input
   input readMoveLine -> mxy
 
-  option mxy:
+  \option mxy:
     -> xy
     board
-    xy first xy second xyToCellNumber
+    xy first xy rest xyToCellNumber
     player editBoard
-  else if (input "q" eqString):
+  else if input "q" eqString:
     0 exit board
   else:
     "I didn't understand that. Type e.g. \"a3\" to "
@@ -64,7 +64,8 @@ def askTurn ([Char] Char -> [Char] +IO):
     board player askTurn
 
 def nextPlayer (Char -> Char):
-  if ('x' eqChar): 'o' else: 'x'
+  -> p
+  \if p 'x' eqChar: 'o' else: 'x'
 
 def checkSets (-> [[Int]]):
   [
@@ -76,9 +77,9 @@ def checkSets (-> [[Int]]):
 // ' ', 'x', or 'o'
 def getCheckSetWinner ([Char] [Int] -> Char):
   getAll -> players
-  if (players { 'x' eqChar } all):
+  \if (players { {'x' eqChar} {false} option_else } all):
     'x'
-  else if (players { 'o' eqChar } all):
+  else if (players { {'o' eqChar} {false} option_else } all):
     'o'
   else:
     ' '
@@ -92,14 +93,14 @@ def getWinner ([Char] -> Char):
     isEmpty
     -> filled
 
-  if filled: '*'
+  \if filled: '*'
   else:
     checkSets
     { board swap getCheckSetWinner } map
     { ' ' neChar } filter
     -> winners
 
-    if (winners isEmpty):
+    \if winners isEmpty:
       ' '
     else if (winners { 'x' eqChar } all):
       'x'
@@ -110,9 +111,9 @@ def getWinner ([Char] -> Char):
 
 def playAgain (-> Bool +IO):
   "Play another game? [yN] " prompt -> input
-  if (input isYes):
+  \if input isYes:
     newline true
-  else if ((input isNo) (input isEmpty) ||):
+  else if (input isNo) (input isEmpty) ||:
     newline false
   else:
     playAgain
@@ -126,7 +127,7 @@ def newBoard (-> [Char]): ' ' 9 replicate
 
 def editBoard ([Char] Int Char -> [Char]):
   -> { number player }
-  player (number cellNumberToIndex) #!
+  player (number cellNumberToIndex) #=
 
 def printBoard ([Char] -> +IO):
   showBoard print
@@ -152,7 +153,7 @@ def showBoardRow ([Char] Int -> [Char]):
   ]
 
 def showBoardCellAt ([Char] Int -> Char):
-  cellNumberToIndex# showBoardCell
+  cellNumberToIndex#! showBoardCell
 
 def cellNumberToIndex (Int -> Int):
   8 swap -
@@ -162,36 +163,36 @@ def showBoardCell (Char -> Char):
 
 // Input
 
-def readMoveLine ([Char] -> (Int, Int)?):
+def readMoveLine ([Char] -> (Int & Int)?):
   -> chars
-  if (chars length 2 =):
-    (chars 0#) (chars 1#) readXY
+  \if chars length 2 =:
+    (chars 0#!) (chars 1#!) readXY
   else:
     none
 
-def readXY (Char Char -> (Int, Int)?):
+def readXY (Char Char -> (Int & Int)?):
   -> { x y }
   x y readXY_ -> mxy
-  option mxy:
+  \option mxy:
     some
   else:
     y x readXY_
 
-def readXY_ (Char Char -> (Int, Int)?):
+def readXY_ (Char Char -> (Int & Int)?):
   readX -> mx
   readY -> my
-  mx my {double} liftOption2
+  mx my {pair} liftOption2
 
 def readX (Char -> Int?):
   -> c
-  if ("aA" c elemChar): 0 some
-  else if ("bB" c elemChar): 1 some
-  else if ("cC" c elemChar): 2 some
+  \if "aA" c elemChar: 0 some
+  else if "bB" c elemChar: 1 some
+  else if "cC" c elemChar: 2 some
   else: none
 
 def readY (Char -> Int?):
   -> c
-  if ("1!" c elemChar): 0 some
+  \if ("1!" c elemChar): 0 some
   else if ("2@" c elemChar): 1 some
   else if ("3#" c elemChar): 2 some
   else: none

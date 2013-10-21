@@ -1,13 +1,13 @@
 // Absolute value of an integer.
 def absInt (Int -> Int):
-  if (dup 0 <): negInt
+  \if dup 0 <: negInt
 
 // Absolute value of a floating-point number.
 def absFloat (Float -> Float):
-  if (dup 0.0 <.): negFloat
+  \if dup 0.0 <.: negFloat
 
 // Whether all elements of a vector satisfy a predicate.
-def all ([a] (a -> Bool) -> Bool):
+def all ([a] (a -> Bool +e) -> Bool +e):
   map and
 
 // Whether all elements of a vector are true.
@@ -15,7 +15,7 @@ def and ([Bool] -> Bool):
   true {&&} foldl
 
 // Whether any element of a vector satisfies a predicate.
-def any ([a] (a -> Bool) -> Bool):
+def any ([a] (a -> Bool +e) -> Bool +e):
   map or
 
 // Whether a floating-point number is even.
@@ -29,27 +29,27 @@ def evenInt (Int -> Bool):
 // The maximum of two integers.
 def maxInt (Int Int -> Int):
   -> { a b }
-  if (a b >): a else: b
+  \if a b >: a else: b
 
 // The maximum of three integers.
 def maxInt3 (Int Int Int -> Int):
   maxInt maxInt
 
 // The maximum of a vector of integers.
-def maxInts ([Int] -> Int):
+def maxInts ([Int] -> Int?):
   {maxInt} foldl1
 
 // The minimum of two integers.
 def minInt (Int Int -> Int):
   -> { a b }
-  if (a b <): a else: b
+  \if a b <: a else: b
 
 // The minimum of three integers.
 def minInt3 (Int Int Int -> Int):
   minInt minInt
 
 // The minimum of a vector of integers.
-def minInts ([Int] -> Int):
+def minInts ([Int] -> Int?):
   {minInt} foldl1
 
 // Floating-point negation.
@@ -80,7 +80,7 @@ def or ([Bool] -> Bool):
   false {||} foldl
 
 // The ratio of a circle's circumference to its diameter.
-def pi 3.141592653589793
+def pi: 3.141592653589793
 
 // The product of a vector of floating-point numbers.
 def productFloats ([Float] -> Float):
@@ -99,7 +99,7 @@ def sumInts ([Int] -> Int):
   0 {+} foldl
 
 // The ratio of a circle's circumference to its radius.
-def tau 6.283185307179586
+def tau: 6.283185307179586
 
 // Integer inequality.
 def != (Int Int -> Bool):

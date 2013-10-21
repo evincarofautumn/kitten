@@ -1,7 +1,7 @@
 [1, 2] -> vec
-vec head sayInt
+vec unsafeHead sayInt
 vec tail sayInts
-vec last sayInt
+vec unsafeLast sayInt
 vec init sayInts
 
 1 vector sayInts

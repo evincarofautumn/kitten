@@ -1,0 +1,2 @@
+test/def-missing-block.ktn:1:9: error: unexpected 1
+test/def-missing-block.ktn:1:9: note: expecting type signature or definition body

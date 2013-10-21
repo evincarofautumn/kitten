@@ -3,15 +3,19 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Kitten.Infer.Monad
-  ( Env(..)
-  , Inferred(..)
+  ( Config(..)
+  , Env(..)
+  , Inferred
   , Declare(..)
+  , asksConfig
   , emptyEnv
   , freshNameM
   , freshVar
   , freshVarM
   , getEnv
   , getsEnv
+  , liftFailWriter
+  , liftState
   , modifyEnv
   , putEnv
   , retrieve
@@ -20,7 +24,9 @@ module Kitten.Infer.Monad
   ) where
 
 import Control.Applicative
+import Control.Monad.Fix
 import Control.Monad.Trans.Class
+import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State.Strict
 import Data.Map (Map)
 import Data.Vector (Vector)
@@ -31,6 +37,7 @@ import qualified Data.Text as T
 import qualified Data.Vector as V
 
 import Kitten.Error
+import Kitten.Infer.Config
 import Kitten.Location
 import Kitten.Name
 import Kitten.NameMap (NameMap)
@@ -43,19 +50,20 @@ import qualified Kitten.NameMap as N
 
 data Env = Env
   { envClosure :: !(Vector (Type Scalar))
-  , envDefs :: !(NameMap Scheme)
+  , envDefs :: !(NameMap TypeScheme)
+  , envDecls :: !(NameMap TypeScheme)
   , envEffects :: !(NameMap (Type Effect))
   , envLocals :: [Type Scalar]
   , envLocation :: !Location
-  , envNext  :: !Name
+  , envNameGen :: !NameGen
   , envRows :: !(NameMap (Type Row))
   , envScalars :: !(NameMap (Type Scalar))
-  , envTypeDefs :: !(Map Text Scheme)
+  , envTypeDefs :: !(Map Text TypeScheme)
   }
 
 newtype Inferred a = Inferred
-  { unwrapInferred :: FailWriterT [CompileError] (State Env) a
-  } deriving (Applicative, Functor, Monad)
+  { unwrapInferred :: FailWriterT [ErrorGroup] (ReaderT Config (State Env)) a
+  } deriving (Applicative, Functor, Monad, MonadFix)
 
 class Declare a where
   declare :: TypeName a -> Type a -> Env -> Env
@@ -76,46 +84,49 @@ emptyEnv :: Env
 emptyEnv = Env
   { envClosure = V.empty
   , envDefs = N.empty
+  , envDecls = N.empty
   , envEffects = N.empty
   , envLocals = []
   , envLocation = UnknownLocation
-  , envNext = Name 0
+  , envNameGen = mkNameGen
   , envRows = N.empty
   , envScalars = N.empty
   , envTypeDefs = M.empty
   }
 
 class Retrieve a where
-  retrieve :: Env -> TypeName a -> Either CompileError (Type a)
+  retrieve :: Env -> TypeName a -> Either ErrorGroup (Type a)
 
 instance Retrieve Effect where
   retrieve Env{..} (TypeName name)
     = flip maybeToEither (N.lookup name envEffects)
-    $ TypeError envLocation $ T.unwords
-    [ "nonexistent effect variable:"
-    , toText name
-    ]
+    $ nonexistent "effect" envLocation name
 
 instance Retrieve Row where
   retrieve Env{..} (TypeName name)
     = flip maybeToEither (N.lookup name envRows)
-    $ TypeError envLocation $ T.unwords
-    [ "nonexistent row type variable:"
-    , toText name
-    ]
+    $ nonexistent "row" envLocation name
 
 instance Retrieve Scalar where
   retrieve Env{..} (TypeName name)
     = flip maybeToEither (N.lookup name envScalars)
-    $ TypeError envLocation $ T.unwords
-    [ "nonexistent scalar type variable:"
-    , toText name
-    ]
+    $ nonexistent "scalar" envLocation name
+
+nonexistent :: Text -> Location -> Name -> ErrorGroup
+nonexistent kind loc name
+  = oneError $ CompileError loc Error $ T.concat
+  [ "nonexistent ", kind, " variable '"
+  , toText name
+  , "'"
+  ]
+
+asksConfig :: (Config -> a) -> Inferred a
+asksConfig = Inferred . lift . asks
 
 freshName :: Env -> (Name, Env)
 freshName env
-  = let current = envNext env
-  in (current, env { envNext = succ current })
+  = let (name, gen') = genName (envNameGen env)
+  in (name, env { envNameGen = gen' })
 
 freshVar :: Location -> Env -> (Type a, Env)
 freshVar loc env
@@ -123,36 +134,48 @@ freshVar loc env
   in (Var name loc, env')
 
 freshNameM :: Inferred Name
-freshNameM = Inferred . lift $ state freshName
+freshNameM = liftState $ state freshName
 
 freshVarM :: Inferred (Type a)
 freshVarM = do
   loc <- getsEnv envLocation
-  Inferred . lift $ state (freshVar loc)
+  liftState $ state (freshVar loc)
 
 getEnv :: Inferred Env
-getEnv = Inferred $ lift get
+getEnv = liftState get
 
 getsEnv :: (Env -> a) -> Inferred a
-getsEnv = Inferred . lift . gets
+getsEnv = liftState . gets
+
+liftFailWriter
+  :: FailWriterT [ErrorGroup] (ReaderT Config (State Env)) a
+  -> Inferred a
+liftFailWriter = Inferred
+
+liftState :: State Env a -> Inferred a
+liftState = Inferred . lift . lift
 
 modifyEnv :: (Env -> Env) -> Inferred ()
-modifyEnv = Inferred . lift . modify
+modifyEnv = liftState . modify
 
 putEnv :: Env -> Inferred ()
-putEnv = Inferred . lift . put
+putEnv = liftState . put
 
 runInference
-  :: Env
+  :: Config
+  -> Env
   -> Inferred a
-  -> (Either [CompileError] a, Env)
-runInference env action = flip runState env
-  . runFailWriterT null $ unwrapInferred action
+  -> (Either [ErrorGroup] a, Env)
+runInference config env action
+  = flip runState env
+  . flip runReaderT config
+  . runFailWriterT null
+  $ unwrapInferred action
 
 withLocation :: Location -> Inferred a -> Inferred a
 withLocation here action = do
   there <- getsEnv envLocation
-  modifyEnv $ \ env -> env { envLocation = here }
+  modifyEnv $ \env -> env { envLocation = here }
   result <- action
-  modifyEnv $ \ env -> env { envLocation = there }
+  modifyEnv $ \env -> env { envLocation = there }
   return result

@@ -1,22 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Kitten.Resolved
   ( Resolved(..)
   , Value(..)
-  , charsFromString
-  , stringFromChars
   ) where
 
-import Data.Monoid
 import Data.Vector (Vector)
-import System.IO
 
 import qualified Data.Text as T
-import qualified Data.Vector as V
 
+import Kitten.AST
 import Kitten.Builtin (Builtin)
 import Kitten.ClosedName
+import Kitten.Def (Def)
 import Kitten.Location
 import Kitten.Name
 import Kitten.Util.Text (Text, ToText(..), showText)
@@ -24,12 +21,8 @@ import Kitten.Util.Text (Text, ToText(..), showText)
 data Resolved
   = Builtin !Builtin !Location
   | Call !Name !Location
-  | ChoiceTerm !Resolved !Resolved !Location
   | Compose !(Vector Resolved) !Location
   | From !Text !Location
-  | Group !(Vector Resolved) !Location
-  | If !Resolved !Resolved !Location
-  | OptionTerm !Resolved !Resolved !Location
   | PairTerm !Resolved !Resolved !Location
   | Push !Value !Location
   | To !Text !Location
@@ -38,58 +31,34 @@ data Resolved
   deriving (Eq, Show)
 
 data Value
-  = Activation !(Vector Value) !Resolved
-  | Bool !Bool
+  = Bool !Bool
   | Char !Char
-  | Choice !Bool !Value
   | Closed !Name
   | Closure !(Vector ClosedName) !Resolved
   | Float !Double
   | Function !Resolved
-  | Handle !Handle
   | Int !Int
   | Local !Name
-  | Option !(Maybe Value)
-  | Pair !Value !Value
+  | String !Text
   | Unit
-  | Vector !(Vector Value)
-  | Wrapped !Text !Value
   deriving (Eq)
+
+instance AST Resolved where
+  type TermValue Resolved = Value
+  type TermDef Resolved = Def Resolved
 
 instance Show Value where
   show = T.unpack . toText
 
 instance ToText Value where
   toText value = case value of
-    Activation{} -> "<function>"
     Bool b -> if b then "true" else "false"
     Char c -> showText c
-    Choice which v -> T.unwords
-      [toText v, if which then "right" else "left"]
     Closed{} -> "<closed>"
     Closure{} -> "<function>"
     Float f -> showText f
     Function{} -> "<function>"
-    Handle{} -> "<handle>"
     Int i -> showText i
     Local{} -> "<local>"
-    Option m -> maybe "none" ((<> " some") . toText) m
-    Pair a b -> T.unwords [toText a, toText b, "pair"]
+    String s -> s
     Unit -> "()"
-    Vector v@(V.toList -> (Char _ : _)) -> showText (stringFromChars v)
-    Vector v -> T.concat
-      [ "["
-      , T.intercalate ", " (V.toList (V.map toText v))
-      , "]"
-      ]
-    Wrapped name v -> T.unwords [toText v, "to", name]
-
-stringFromChars :: Vector Value -> String
-stringFromChars = V.toList . V.map fromChar
-  where
-  fromChar :: Value -> Char
-  fromChar (Char c) = c
-  fromChar _ = error "stringFromChars: non-character"
-
-charsFromString :: String -> Vector Value
-charsFromString = V.fromList . map Char

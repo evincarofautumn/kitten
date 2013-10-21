@@ -41,7 +41,7 @@ spec = do
                 , biAdd]]]]] }
 
 testScope
-  :: Fragment Value Resolved -> Fragment Value Resolved -> Spec
+  :: Fragment Resolved -> Fragment Resolved -> Spec
 testScope source expected
   = let actual = scope source
   in it (show source) . unless (actual == expected)

@@ -21,28 +21,22 @@ import Kitten.Name
 import Kitten.Resolved
 import Kitten.Util.List
 
-scope :: Fragment Value Resolved -> Fragment Value Resolved
+scope :: Fragment Resolved -> Fragment Resolved
 scope fragment@Fragment{..} = fragment
   { fragmentDefs = scopeDef <$> fragmentDefs
   , fragmentTerms = scopeTerm [0] <$> fragmentTerms
   }
 
-scopeDef :: Def Value -> Def Value
+scopeDef :: Def Resolved -> Def Resolved
 scopeDef def@Def{..} = def
-  { defTerm = scopeValue [0] defTerm }
+  { defTerm = scopeTerm [0] defTerm }
 
 scopeTerm :: [Int] -> Resolved -> Resolved
 scopeTerm stack typed = case typed of
   Builtin{} -> typed
   Call{} -> typed
-  ChoiceTerm left right loc
-    -> ChoiceTerm (recur left) (recur right) loc
   Compose terms loc -> Compose (recur <$> terms) loc
   From{} -> typed
-  Group terms loc -> Group (recur <$> terms) loc
-  If true false loc -> If (recur true) (recur false) loc
-  OptionTerm some none loc
-    -> OptionTerm (recur some) (recur none) loc
   PairTerm as bs loc -> PairTerm (recur as) (recur bs) loc
   Push value loc -> Push (scopeValue stack value) loc
   Scoped term loc -> Scoped
@@ -57,10 +51,8 @@ scopeTerm stack typed = case typed of
 
 scopeValue :: [Int] -> Value -> Value
 scopeValue stack value = case value of
-  Activation{} -> value
   Bool{} -> value
   Char{} -> value
-  Choice{} -> value
   Closed{} -> value
   Closure{} -> value
   Float{} -> value
@@ -81,14 +73,10 @@ scopeValue stack value = case value of
     stack' :: [Int]
     stack' = 0 : stack
 
-  Handle{} -> value
   Int{} -> value
   Local{} -> value
-  Option{} -> value
-  Pair a b -> Pair (scopeValue stack a) (scopeValue stack b)
   Unit -> Unit
-  Vector values -> Vector (scopeValue stack <$> values)
-  Wrapped name inner -> Wrapped name (scopeValue stack inner)
+  String{} -> value
 
 data Env = Env
   { envStack :: [Int]
@@ -116,30 +104,11 @@ captureTerm typed = case typed of
   Builtin{} -> return typed
   Call{} -> return typed
 
-  ChoiceTerm left right loc -> ChoiceTerm
-    <$> captureTerm left
-    <*> captureTerm right
-    <*> pure loc
-
   Compose terms loc -> Compose
     <$> T.mapM captureTerm terms
     <*> pure loc
 
   From{} -> return typed
-
-  Group terms loc -> Group
-    <$> T.mapM captureTerm terms
-    <*> pure loc
-
-  If true false loc -> If
-    <$> captureTerm true
-    <*> captureTerm false
-    <*> pure loc
-
-  OptionTerm some none loc -> OptionTerm
-    <$> captureTerm some
-    <*> captureTerm none
-    <*> pure loc
 
   PairTerm a b loc -> PairTerm
     <$> captureTerm a
@@ -175,10 +144,8 @@ closeLocal (Name index) = do
 
 captureValue :: Value -> Capture Value
 captureValue value = case value of
-  Activation{} -> return value
   Bool{} -> return value
   Char{} -> return value
-  Choice{} -> return value
   Closed{} -> return value
   Closure names term -> Closure
     <$> T.mapM close names
@@ -196,7 +163,6 @@ captureValue value = case value of
   Function terms -> let
     inside env@Env{..} = env { envStack = 0 : envStack }
     in Function <$> local inside (captureTerm terms)
-  Handle{} -> return value
   Int{} -> return value
 
   Local name -> do
@@ -205,8 +171,5 @@ captureValue value = case value of
       Nothing -> value
       Just closedName -> Closed closedName
 
-  Option{} -> return value
-  Pair a b -> Pair <$> captureValue a <*> captureValue b
   Unit{} -> return value
-  Vector values -> Vector <$> T.mapM captureValue values
-  Wrapped name inner -> Wrapped name <$> captureValue inner
+  String{} -> return value

@@ -7,7 +7,8 @@ CABALFLAGS += --enable-tests
 MAKEFLAGS += --warn-undefined-variables
 .SECONDARY :
 
-BUILDDIR = ./dist/build/Kitten
+BUILDDIR = ./dist/build/kitten
+EXAMPLES = $(wildcard examples/*.ktn)
 KITTEN = $(BUILDDIR)/kitten
 PRELUDE = $(BUILDDIR)/Prelude.ktn
 TESTER = ./test/run.sh
@@ -18,7 +19,7 @@ YARN_HEADERS = $(wildcard yarn/*.h)
 YARN_SOURCES = $(wildcard yarn/*.cpp)
 
 .PHONY : default
-default : build yarn prelude unit test
+default : build prelude unit example test
 
 .PHONY : all
 all : deps configure default lint
@@ -54,22 +55,31 @@ $(PRELUDE) : $(KITTEN) lib/Prelude.ktn
 	cp lib/Prelude_*.ktn $(BUILDDIR)
 	$(KITTEN) --no-implicit-prelude $(PRELUDE)
 
-.PHONY: unit
-unit:
+.PHONY : unit
+unit :
 	$(CABAL) test
 
-define TESTRULE
+define EXAMPLE_RULE
+example-$1 : $(KITTEN) $(PRELUDE)
+	@$(KITTEN) --check "$1"
+example : example-$1
+endef
+
+.PHONY : $(foreach EXAMPLE,$(EXAMPLES),example-$(EXAMPLE))
+$(foreach EXAMPLE,$(EXAMPLES),$(eval $(call EXAMPLE_RULE,$(EXAMPLE))))
+
+define TEST_RULE
 test-$1 : $(KITTEN) $(PRELUDE) $(TESTER)
-	@$(TESTER) $$(realpath $(KITTEN)) $1
+	@$(TESTER) $$(realpath $(KITTEN)) "$1"
 test : test-$1
 endef
 
 .PHONY : $(foreach TEST,$(TESTS),test-$(TEST))
-$(foreach TEST,$(TESTS),$(eval $(call TESTRULE,$(TEST))))
+$(foreach TEST,$(TESTS),$(eval $(call TEST_RULE,$(TEST))))
 
 .PHONY : lint
 lint :
-	@ if which -s $(HLINT); then \
+	@ if which $(HLINT) 2>&1 >/dev/null; then \
 	  $(HLINT) src lib; \
 	else \
 	  echo "No HLint found."; \

@@ -39,15 +39,15 @@ locatedMatch token
 
 locatedSatisfy :: (Located -> Bool) -> Parser Located
 locatedSatisfy predicate = tokenPrim show advance
-  $ \ located -> justIf (predicate located) located
+  $ \located -> justIf (predicate located) located
 
 mapOne :: (Token -> Maybe a) -> Parser a
 mapOne extract = tokenPrim show advance
-  $ \ (Located locatedToken _) -> extract locatedToken
+  $ \(Located locatedToken _) -> extract locatedToken
 
 match :: Token -> Parser Token
 match token = satisfy (== token) <?> show token
 
 satisfy :: (Token -> Bool) -> Parser Token
-satisfy predicate = tokenPrim show advance $ \ Located{..}
+satisfy predicate = tokenPrim show advance $ \Located{..}
   -> justIf (predicate locatedToken) locatedToken

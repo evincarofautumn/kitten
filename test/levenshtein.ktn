@@ -11,35 +11,30 @@ def levenshtein ([Char] [Char] -> Int):
   0 columns++ replicate rows++ replicate
 
   // Distance from any first string to empty second string.
-  { -> row
-    row  row 0 ##!
-  } 0 rows mapRange
+  \mapRange 0 rows: -> row
+    row  row 0 ##=
 
   // Distance from any second string to empty first string.
-  { -> column
-    column  0 column ##!
-  } 0 columns mapRange
+  \mapRange 0 columns: -> column
+    column  0 column ##=
 
-  { -> row
-    { -> { distances column }
+  \mapRange 1 rows: -> row
+    \mapRange 1 columns: -> { distances column }
 
-      first row-- # -> firstChar
-      second column-- # -> secondChar
+      first row-- #! -> firstChar
+      second column-- #! -> secondChar
 
       distances
-      if (firstChar secondChar eqChar):
-        distances row-- column-- ##
+      \if firstChar secondChar eqChar:
+        distances row-- column-- ##!
       else:
-        distances row-- column   ##  // deletion
-        distances row   column-- ##  // insertion
-        distances row-- column-- ##  // substitution
+        distances row-- column   ##!  // deletion
+        distances row   column-- ##!  // insertion
+        distances row-- column-- ##!  // substitution
         minInt3 ++
-      row column ##!
+      row column ##=
 
-    } 1 columns mapRange
-  } 1 rows mapRange
-
-  rows columns ##
+  rows columns ##!
  
 "kitten" "sitting" levenshtein sayInt
 "rosettacode" "raisethysword" levenshtein sayInt

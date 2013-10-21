@@ -17,24 +17,24 @@ import qualified Kitten.Token as Token
 
 blocked :: Parser a -> Parser a
 blocked = between
-  (match Token.BlockBegin)
+  (match (Token.BlockBegin Token.NormalBlockHint))
   (match Token.BlockEnd)
 
 functionName :: Parser Text
 functionName = littleWord <|> operator
 
 littleWord :: Parser Text
-littleWord = mapOne $ \ token -> case token of
+littleWord = mapOne $ \token -> case token of
   Token.LittleWord name -> Just name
   _ -> Nothing
 
 operator :: Parser Text
-operator = mapOne $ \ token -> case token of
+operator = mapOne $ \token -> case token of
   Token.Operator name -> Just name
   _ -> Nothing
 
 bigWord :: Parser Text
-bigWord = mapOne $ \ token -> case token of
+bigWord = mapOne $ \token -> case token of
   Token.BigWord name -> Just name
   _ -> Nothing
 

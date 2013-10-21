@@ -1,4 +1,4 @@
-name: Kitten
+name: kitten
 version: 0.1
 cabal-version: >= 1.8
 build-type: Simple
@@ -46,15 +46,19 @@ library
     lib
 
   exposed-modules:
+    Kitten.AST,
     Kitten.Anno,
     Kitten.Builtin,
     Kitten.ClosedName,
     Kitten.Compile,
+    Kitten.Compile.Config,
     Kitten.Def,
     Kitten.Error,
     Kitten.Fragment,
+    Kitten.HTML,
     Kitten.Import,
     Kitten.Infer,
+    Kitten.Infer.Config,
     Kitten.Infer.Locations,
     Kitten.Infer.Monad,
     Kitten.Infer.Scheme,
@@ -78,10 +82,11 @@ library
     Kitten.Resolved,
     Kitten.Scope,
     Kitten.Term,
-    Kitten.TypeDef,
     Kitten.Token,
     Kitten.Tokenize,
     Kitten.Type,
+    Kitten.TypeDef,
+    Kitten.Typed,
     Kitten.Util.Applicative,
     Kitten.Util.Either,
     Kitten.Util.FailWriter,
@@ -93,6 +98,7 @@ library
     Kitten.Util.Show,
     Kitten.Util.Text,
     Kitten.Util.Tuple,
+    Kitten.Util.Vector,
     Kitten.Yarn
 
 executable kitten
@@ -107,10 +113,10 @@ executable kitten
     -Wall
 
   if flag(prof)
-    ghc-options: -prof -auto-all
+    ghc-options: -auto-all
 
   build-depends:
-    Kitten,
+    kitten,
     base,
     bytestring,
     cmdargs == 0.10.*,
@@ -133,11 +139,12 @@ test-suite test
     Test.hs
 
   build-depends:
-    Kitten,
+    kitten,
     base,
     containers,
     hspec == 1.4.*,
     HUnit,
+    parsec,
     QuickCheck == 2.6.*,
     text,
     transformers,

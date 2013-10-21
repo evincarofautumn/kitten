@@ -20,9 +20,7 @@ data Location
   | TestLocation
 
 instance Eq Location where
-  Location start1 indent1
-    == Location start2 indent2
-    = (start1, indent1) == (start2, indent2)
+  Location start1 _ == Location start2 _ = start1 == start2
   TestLocation == _ = True
   _ == TestLocation = True
   _ == _ = False

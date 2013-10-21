@@ -32,7 +32,7 @@ unify
   => Type a
   -> Type a
   -> Env
-  -> Either [CompileError] Env
+  -> Either [ErrorGroup] Env
 unify a b env = (unification `on` simplify env) a b env
 
 class Unification a where
@@ -40,7 +40,7 @@ class Unification a where
     :: Type a
     -> Type a
     -> Env
-    -> Either [CompileError] Env
+    -> Either [ErrorGroup] Env
 
 instance Unification Effect where
   unification type1 type2 env = case (type1, type2) of
@@ -68,9 +68,9 @@ unificationError
   -> Location
   -> Type a
   -> Type a
-  -> [CompileError]
-unificationError kind location type1 type2
-  = (TypeError location . T.unwords)
+  -> [ErrorGroup]
+unificationError kind location type1 type2 = (:[]) . ErrorGroup
+  $ (CompileError location Error . T.unwords)
     [ "cannot solve", kind, "type constraint"
     , toText type1
     , "="
@@ -78,7 +78,7 @@ unificationError kind location type1 type2
     ]
   : map errorDetail (locations type1 ++ locations type2)
   where
-  errorDetail (loc, type_) = ErrorDetail loc
+  errorDetail (loc, type_) = CompileError loc Note
     $ toText type_ <> " is from here"
 
 instance Unification Row where
@@ -144,7 +144,7 @@ unifyM type1 type2 = do
   env <- getsEnv $ unify type1 type2
   case env of
     Right env' -> putEnv env' >> return type2
-    Left errors -> Inferred $ throwMany errors
+    Left errors -> liftFailWriter $ throwMany errors
 
 unifyM_
   :: (Unification a, Simplify a)
@@ -167,7 +167,7 @@ unifyVar
   => TypeName a
   -> Type a
   -> Env
-  -> Either [CompileError] Env
+  -> Either [ErrorGroup] Env
 unifyVar var1 type_ env = case type_ of
   Var var2 _ | typeName var1 == var2 -> return env
   Var{} -> return $ declare var1 type_ env
@@ -176,6 +176,4 @@ unifyVar var1 type_ env = case type_ of
       $ unificationError "infinite" loc
         (sub env (Var (typeName var1) UnknownLocation :: Type a))
         (sub env type_)
-      ++ [ErrorDetail loc
-        "this may be due to a mismatched number of arguments or results"]
   _ -> return $ declare var1 type_ env

@@ -4,11 +4,16 @@
 module Kitten.Util.Text
   ( Textable(..)
   , ToText(..)
+  , readFileUtf8
   , showText
   , module Data.Text
   ) where
 
+import Control.Applicative
 import Data.Text
+import Data.Text.Encoding
+
+import qualified Data.ByteString as B
 
 data Textable = forall a. (ToText a) => Textable a
 
@@ -17,6 +22,9 @@ instance ToText Textable where
 
 class ToText a where
   toText :: a -> Text
+
+readFileUtf8 :: FilePath -> IO Text
+readFileUtf8 path = decodeUtf8 <$> B.readFile path
 
 showText :: (Show a) => a -> Text
 showText = pack . show

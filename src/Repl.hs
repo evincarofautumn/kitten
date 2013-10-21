@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Repl
@@ -5,6 +7,7 @@ module Repl
   ) where
 
 import Control.Applicative
+import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State.Strict
@@ -22,27 +25,35 @@ import Kitten.Def
 import Kitten.Error
 import Kitten.Fragment
 import Kitten.Interpret
-import Kitten.Resolved
+import Kitten.Interpret.Monad (InterpreterValue)
+import Kitten.Name (NameGen)
+import Kitten.Type
 import Kitten.TypeDef
+import Kitten.Typed (Typed, TypedDef)
+import Kitten.Util.Monad
 
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.Compile as Compile
+import qualified Kitten.Infer.Config as Infer
+import qualified Kitten.Interpret.Monad as Interpret
 
 data Repl = Repl
-  { replStack :: [Value]
-  , replDefs :: !(Vector (Def Value))
+  { replDefs :: !(Vector TypedDef)
+  , replLine :: !Int
+  , replNameGen :: !NameGen
+  , replStack :: [InterpreterValue]
   , replTypeDefs :: !(Vector TypeDef)
   }
 
-type ReplReader = ReaderT (Vector (Def Value)) IO
+type ReplReader = ReaderT (Vector TypedDef) IO
 type ReplState = StateT Repl ReplReader
 type ReplInput = InputT ReplState
 
 liftIO :: IO a -> ReplInput a
 liftIO = lift . lift . lift
 
-runRepl :: Fragment Value Resolved -> IO ()
-runRepl prelude = do
+runRepl :: Fragment Typed -> NameGen -> IO ()
+runRepl prelude nameGen = do
   welcome
   flip runReaderT preludeDefs
     . flip evalStateT emptyRepl
@@ -51,8 +62,10 @@ runRepl prelude = do
   where
   emptyRepl :: Repl
   emptyRepl = Repl
-    { replStack = []
-    , replDefs = preludeDefs
+    { replDefs = preludeDefs
+    , replLine = 1
+    , replNameGen = nameGen
+    , replStack = []
     , replTypeDefs = V.empty
     }
 
@@ -66,20 +79,24 @@ runRepl prelude = do
 
 repl :: ReplInput ()
 repl = do
-  showStack
   mLine <- getInputLine ">>> "
   case mLine of
     Nothing -> quit
     Just line
       | not (matched line) -> continue (T.pack line)
-      | null line -> repl
+      | null line -> repl'
+      | Just expr <- T.stripPrefix ":type" (T.pack line) -> typeOf expr
+      | Just expr <- T.stripPrefix ":t" (T.pack line) -> typeOf expr
       | line `elem` [":c", ":clear"] -> clear
       | line `elem` [":h", ":help"] -> help
       | line `elem` [":q", ":quit"] -> quit
       | line `elem` [":reset"] -> reset
       | otherwise -> eval (T.pack line)
 
-askPreludeDefs :: ReplInput (Vector (Def Value))
+repl' :: ReplInput ()
+repl' = showStack >> repl
+
+askPreludeDefs :: ReplInput (Vector TypedDef)
 askPreludeDefs = lift (lift ask)
 
 matched :: String -> Bool
@@ -93,41 +110,78 @@ matched = go False (0::Int)
   go True _ [] = True
   go False n (x:xs)
     | isOpen x = go False (succ n) xs
-    | isClose x = n < 0 || go False (pred n) xs
+    | isClose x = n <= 0 || go False (pred n) xs
     | otherwise = go False n xs
   go False n [] = n == 0
   isOpen = (`elem` "([{")
   isClose = (`elem` "}])")
 
-eval :: Text -> ReplInput ()
-eval line = do
+compileConfig :: ReplInput Compile.Config
+compileConfig = do
   Repl{..} <- lift get
-  mCompiled <- liftIO $ compile Compile.Config
+  return Compile.Config
     { Compile.dumpResolved = False
     , Compile.dumpScoped = False
+    , Compile.firstLine = replLine
+    , Compile.inferConfig = Infer.Config { enforceBottom = True }
     , Compile.libraryDirectories = []  -- TODO
     , Compile.name = replName
     , Compile.prelude = mempty
       { fragmentDefs = replDefs
       , fragmentTypeDefs = replTypeDefs
       }
-    , Compile.source = line
-    , Compile.stack = replStack
+    , Compile.source = ""
+    , Compile.stackTypes = V.empty
     }
+
+replCompile
+  :: (Compile.Config -> Compile.Config)
+  -> ReplInput (Maybe (Fragment Typed, Type Scalar))
+replCompile update = do
+  nameGen <- lift $ gets replNameGen
+  mCompiled <- liftIO . flip compile nameGen . update =<< compileConfig
   case mCompiled of
-    Left compileErrors -> liftIO
-      $ printCompileErrors compileErrors
-    Right compileResult -> do
-      stack' <- liftIO $ interpret replStack mempty
-        { fragmentDefs = replDefs
-        , fragmentTypeDefs = replTypeDefs
-        } compileResult
-      lift . modify $ \ s -> s
-        { replStack = stack'
-        , replDefs = replDefs <> fragmentDefs compileResult
-        , replTypeDefs = replTypeDefs <> fragmentTypeDefs compileResult
-        }
-  repl
+    Left errors -> liftIO (printCompileErrors errors) >> return Nothing
+    Right (nameGen', typed, type_) -> do
+      lift . modify $ \env -> env { replNameGen = nameGen' }
+      return $ Just (typed, type_)
+
+typeOf :: Text -> ReplInput ()
+typeOf line = do
+  mCompiled <- replCompile $ \config -> config
+    { Compile.source = line
+    , Compile.inferConfig = Infer.Config { enforceBottom = False }
+    }
+  whenJust mCompiled $ \(_compiled, type_) -> liftIO $ print type_
+  repl'
+
+eval :: Text -> ReplInput ()
+eval line = do
+  mCompiled <- do
+    nameGen <- lift $ gets replNameGen
+    stackValues <- lift $ gets replStack
+    let
+      (stackTypes, nameGen') = flip runState nameGen
+        $ mapM (state . Interpret.typeOfValue) stackValues
+    lift . modify $ \env -> env { replNameGen = nameGen' }
+    replCompile $ \config -> config
+      { Compile.source = line
+      , Compile.stackTypes = V.fromList (reverse stackTypes)
+      }
+
+  whenJust mCompiled $ \(compiled, _type) -> do
+    Repl{..} <- lift get
+    stack' <- liftIO $ interpret replStack mempty
+      { fragmentDefs = replDefs
+      , fragmentTypeDefs = replTypeDefs
+      } compiled
+    lift . modify $ \s -> s
+      { replDefs = replDefs <> fragmentDefs compiled
+      , replLine = replLine + T.count "\n" line + 1
+      , replStack = stack'
+      , replTypeDefs = replTypeDefs <> fragmentTypeDefs compiled
+      }
+  repl'
 
 continue :: Text -> ReplInput ()
 continue prefix = do
@@ -141,7 +195,9 @@ continue prefix = do
 showStack :: ReplInput ()
 showStack = do
   stack <- lift $ gets replStack
-  liftIO . mapM_ putStrLn . reverse $ map show stack
+  unless (null stack) . liftIO $ do
+    putStrLn "\n----"
+    mapM_ putStrLn . reverse $ map show stack
 
 replName :: String
 replName = "REPL"
@@ -156,10 +212,11 @@ help = do
     , Just (":h, :help", "Display this help message")
     , Just (":q, :quit", "Quit the Kitten REPL")
     , Just (":reset", "Clear the stack and all definitions")
+    , Just (":t, :type <expression>", "Print the inferred type of <expression>")
     , Nothing
     , Just ("<TAB>", "Autocomplete a definition name")
     ]
-  repl
+  repl'
   where
   printColumns :: [Maybe (String, String)] -> IO ()
   printColumns columns = mapM_ go columns
@@ -178,25 +235,26 @@ quit = return ()
 
 clear :: ReplInput ()
 clear = do
-  lift . modify $ \ s -> s { replStack = [] }
-  repl
+  lift . modify $ \s -> s { replStack = [] }
+  repl'
 
 reset :: ReplInput ()
 reset = do
   preludeDefs <- askPreludeDefs
+  nameGen <- lift $ gets replNameGen
   lift $ put Repl
-    { replStack = []
-    , replDefs = preludeDefs
+    { replDefs = preludeDefs
+    , replLine = 1
+    , replNameGen = nameGen
+    , replStack = []
     , replTypeDefs = V.empty
     }
-  repl
+  repl'
 
 completer :: CompletionFunc ReplState
 completer = completeWord Nothing "\t \"{}[]()\\:" completePrefix
 
-completePrefix
-  :: String
-  -> StateT Repl (ReaderT (Vector (Def Value)) IO) [Completion]
+completePrefix :: String -> ReplState [Completion]
 completePrefix prefix = do
   defs <- gets replDefs
   let

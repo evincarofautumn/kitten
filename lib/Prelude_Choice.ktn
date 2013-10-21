@@ -8,28 +8,28 @@ def fromRight (a | b -> b):
 
 // Safely gets the left branch of a choice.
 def getLeft ((a | b) -> a?):
-  choice id:
+  \choice id:
     some
   else:
     drop none
 
 // Safely gets the right branch of a choice.
 def getRight ((a | b) -> b?):
-  choice id:
+  \choice id:
     drop none
   else:
     some
 
 // Whether a choice is left.
 def isLeft (a | b -> Bool):
-  choice id:
+  \choice id:
     drop true
   else:
     drop false
 
 // Whether a choice is right.
 def isRight (a | b -> Bool):
-  choice id:
+  \choice id:
     drop false
   else:
     drop true
@@ -39,17 +39,17 @@ def left (a -> a | b):
   __left
 
 // Maps a function over the left branch of a choice.
-def liftLeft ((a | b) (a -> c) -> c | b):
+def liftLeft ((a | b) (a -> c +e) -> c | b +e):
   -> f
-  choice id:
+  \choice id:
     f@ left
   else:
     right
 
 // Maps a function over the right branch of a choice.
-def liftRight ((a | b) (b -> c) -> a | c):
+def liftRight ((a | b) (b -> c +e) -> a | c +e):
   -> f
-  choice id:
+  \choice id:
     left
   else:
     f@ right

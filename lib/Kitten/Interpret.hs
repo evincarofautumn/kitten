@@ -16,6 +16,7 @@ import System.Exit
 import System.IO
 
 import qualified Data.Foldable as F
+import qualified Data.Text as Text
 import qualified Data.Traversable as T
 import qualified Data.Vector as V
 
@@ -25,15 +26,17 @@ import Kitten.Def
 import Kitten.Fragment
 import Kitten.Interpret.Monad
 import Kitten.Name
-import Kitten.Resolved
+import Kitten.Typed (Typed)
 
 import qualified Kitten.Builtin as Builtin
+import qualified Kitten.Type as Type
+import qualified Kitten.Typed as Typed
 
 interpret
-  :: [Value]
-  -> Fragment Value Resolved
-  -> Fragment Value Resolved
-  -> IO [Value]
+  :: [InterpreterValue]
+  -> Fragment Typed
+  -> Fragment Typed
+  -> IO [InterpreterValue]
 interpret stack prelude fragment = liftM envData $ execStateT
   (F.mapM_ interpretTerm (fragmentTerms fragment)) Env
   { envData = stack
@@ -43,73 +46,66 @@ interpret stack prelude fragment = liftM envData $ execStateT
   , envLocations = []
   }              
 
-interpretTerm :: Resolved -> Interpret
-interpretTerm resolved = case resolved of
-  Builtin builtin _ -> interpretBuiltin builtin
-  Call name loc -> withLocation loc $ interpretOverload name
-  ChoiceTerm left right loc -> withLocation loc $ do
-    Choice which value <- popData
-    pushData value
-    interpretTerm $ if which then right else left
-  Compose terms loc -> withLocation loc
+interpretTerm :: Typed -> Interpret
+interpretTerm typed = case typed of
+  Typed.Builtin builtin loc _type -> withLocation loc $ interpretBuiltin builtin
+  Typed.Call name loc _type -> withLocation loc $ interpretOverload name
+  Typed.Compose terms loc _type -> withLocation loc
     $ F.mapM_ interpretTerm terms
-  From _ loc -> withLocation loc $ do
+  Typed.From _ loc _type -> withLocation loc $ do
     Wrapped _ value <- popData
     pushData value
-  Group terms loc -> withLocation loc
-    $ F.mapM_ interpretTerm terms
-  If true false loc -> withLocation loc $ do
-    Bool test <- popData
-    interpretTerm $ if test then true else false
-  OptionTerm some none loc -> withLocation loc $ do
-    Option mValue <- popData
-    case mValue of
-      Just value -> pushData value >> interpretTerm some
-      Nothing -> interpretTerm none
-  PairTerm a b loc -> withLocation loc $ do
+  Typed.PairTerm a b loc _type -> withLocation loc $ do
     interpretTerm a
     a' <- popData
     interpretTerm b
     b' <- popData
     pushData $ Pair a' b'
-  Push value loc -> withLocation loc $ interpretValue value
-  Scoped term loc -> withLocation loc $ do
+  Typed.Push value loc _type -> withLocation loc $ interpretValue value
+  Typed.Scoped term loc _type -> withLocation loc $ do
     pushLocal =<< popData
     interpretTerm term
     popLocal
-  To name loc -> withLocation loc $ do
+  Typed.To name loc _type -> withLocation loc $ do
     a <- popData
     pushData $ Wrapped name a
-  VectorTerm terms loc -> withLocation loc $ do
+  Typed.VectorTerm terms loc _type -> withLocation loc $ do
     F.mapM_ interpretTerm terms
     values <- V.fromList <$> replicateM (V.length terms) popData
     pushData $ Vector (V.reverse values)
 
-interpretValue :: Value -> Interpret
+interpretValue :: Typed.Value -> Interpret
 interpretValue value = case value of
-  Closed name -> pushData =<< getClosed name
-  Closure names term -> do
+  Typed.Bool x -> pushData $ Bool x
+  Typed.Char x -> pushData $ Char x
+  Typed.Closed name -> pushData =<< getClosed name
+  Typed.Closure names term -> do
     values <- T.mapM getClosedName names
     pushData $ Activation values term
-  Local name -> pushData =<< getLocal name
-  _ -> pushData value
+  Typed.Float x -> pushData $ Float x
+  Typed.Int x -> pushData $ Int x
+  Typed.Local name -> pushData =<< getLocal name
+  Typed.Unit -> pushData Unit
+  Typed.String x -> pushData
+    . Vector $ charsFromString (Text.unpack x)
 
-getClosedName :: ClosedName -> InterpretM Value
+getClosedName :: ClosedName -> InterpretM InterpreterValue
 getClosedName (ClosedName name) = getLocal name
 getClosedName (ReclosedName name) = getClosed name
 
-interpretFunction :: Value -> Interpret
+interpretFunction :: InterpreterValue -> Interpret
 interpretFunction function = case function of
   Activation values term
     -> withClosure values $ interpretTerm term
-  _ -> fail "attempt to apply non-function"
+  _ -> do
+    loc <- here
+    fail $ show loc ++ ": attempt to apply non-function"
 
 interpretOverload :: Name -> Interpret
 interpretOverload (Name index) = do
   Def{..} <- gets ((! index) . envDefs)
-  withLocation defLocation $ do
-    interpretValue defTerm
-    apply
+  withLocation defLocation . withClosure V.empty
+    $ interpretTerm (Type.unScheme defTerm)
 
 apply :: Interpret
 apply = interpretFunction =<< popData
@@ -133,6 +129,18 @@ interpretBuiltin builtin = case builtin of
   Builtin.CharToInt -> do
     Char a <- popData
     pushData $ Int (fromEnum a)
+
+  Builtin.Choice -> do
+    left <- popData
+    Choice which value <- popData
+    unless which $ pushData value >> interpretFunction left
+
+  Builtin.ChoiceElse -> do
+    right <- popData
+    left <- popData
+    Choice which value <- popData
+    pushData value
+    interpretFunction $ if which then right else left
 
   Builtin.Close -> do
     Handle a <- popData
@@ -172,7 +180,9 @@ interpretBuiltin builtin = case builtin of
   Builtin.Get -> do
     Int b <- popData
     Vector a <- popData
-    pushData $ a ! b
+    pushData . Option $ if b >= 0 && b < V.length a
+      then Just (a ! b)
+      else Nothing
 
   Builtin.GetLine -> do
     Handle a <- popData
@@ -182,11 +192,30 @@ interpretBuiltin builtin = case builtin of
   Builtin.GtFloat -> floatsToBool (>)
   Builtin.GtInt -> intsToBool (>)
 
+  Builtin.If -> do
+    true <- popData
+    Bool test <- popData
+    when test $ interpretFunction true
+
+  Builtin.IfElse -> do
+    false <- popData
+    true <- popData
+    Bool test <- popData
+    interpretFunction $ if test then true else false
+
   Builtin.Impure -> return ()
 
   Builtin.Init -> do
     Vector a <- popData
-    pushData $ Vector (V.init a)
+    pushData . Vector $ if V.null a
+      then V.empty
+      else V.init a
+
+  Builtin.IntToChar -> do
+    Int a <- popData
+    pushData . Option $ if a >= 0 && a <= 0x10FFFF
+      then Just $ Char (toEnum a)
+      else Nothing
 
   Builtin.LeFloat -> floatsToBool (<=)
   Builtin.LeInt -> intsToBool (<=)
@@ -222,17 +251,23 @@ interpretBuiltin builtin = case builtin of
   Builtin.OrBool -> boolsToBool (||)
   Builtin.OrInt -> intsToInt (.|.)
 
-  Builtin.OpenIn -> do
-    Vector a <- popData
-    let fileName = stringFromChars a
-    handle <- lift $ openFile fileName ReadMode
-    pushData $ Handle handle
+  Builtin.OpenIn -> openFilePushHandle ReadMode
+  Builtin.OpenOut -> openFilePushHandle WriteMode
 
-  Builtin.OpenOut -> do
-    Vector a <- popData
-    let fileName = stringFromChars a
-    handle <- lift $ openFile fileName WriteMode
-    pushData $ Handle handle
+  Builtin.Option -> do
+    some <- popData
+    Option mValue <- popData
+    case mValue of
+      Just value -> pushData value >> interpretFunction some
+      Nothing -> return ()
+
+  Builtin.OptionElse -> do
+    none <- popData
+    some <- popData
+    Option mValue <- popData
+    case mValue of
+      Just value -> pushData value >> interpretFunction some
+      Nothing -> interpretFunction none
 
   Builtin.Pair -> do
     b <- popData
@@ -281,7 +316,9 @@ interpretBuiltin builtin = case builtin of
 
   Builtin.Tail -> do
     Vector a <- popData
-    pushData $ Vector (V.tail a)
+    pushData . Vector $ if V.null a
+      then V.empty
+      else V.tail a
 
   Builtin.UnsafePurify11 -> return ()
 
@@ -335,3 +372,10 @@ interpretBuiltin builtin = case builtin of
     Int b <- popData
     Int a <- popData
     pushData $ Int (f a b)
+
+  openFilePushHandle :: IOMode -> Interpret
+  openFilePushHandle ioMode = do
+    Vector a <- popData
+    let fileName = stringFromChars a
+    handle <- lift $ openFile fileName ioMode
+    pushData $ Handle handle

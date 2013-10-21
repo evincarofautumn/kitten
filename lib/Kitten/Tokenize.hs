@@ -1,4 +1,6 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Kitten.Tokenize
@@ -11,6 +13,8 @@ import Data.Char
 import Data.Functor.Identity
 import Data.Maybe
 import Data.Text (Text)
+import Numeric
+import Text.Parsec.Pos
 import Text.Parsec.Text ()
 
 import qualified Data.Text as T
@@ -26,8 +30,9 @@ import qualified Kitten.Builtin as Builtin
 
 type Parser a = ParsecT Text Column Identity a
 
-tokenize :: String -> Text -> Either ParseError [Located]
-tokenize = runParser file 1
+tokenize :: Int -> String -> Text -> Either ParseError [Located]
+tokenize firstLine name source = runParser parser 1 name source
+  where parser = setPosition (newPos name firstLine 1) >> file
 
 located
   :: Parser Token
@@ -49,7 +54,7 @@ tokens = token `sepEndBy` silence
 
 token :: Parser Located
 token = (<?> "token") . located $ choice
-  [ BlockBegin <$ char '{'
+  [ BlockBegin NormalBlockHint <$ char '{'
   , BlockEnd <$ char '}'
   , Char <$> (char '\'' *> character '\'' <* char '\'')
   , Comma <$ char ','
@@ -72,20 +77,35 @@ token = (<?> "token") . located $ choice
     let
       applySign :: (Num a) => a -> a
       applySign = if sign == Just '-' then negate else id
-    integer <- many1 digit
-    mFraction <- optionMaybe $ (:) <$> char '.' <*> many1 digit
-    return $ case mFraction of
-      Just fraction -> Float . applySign . read $ integer ++ fraction
-      Nothing -> Int . applySign $ read integer
+
+    choice
+      [ try . fmap (\(hint, value) -> Int (applySign value) hint)
+        $ char '0' *> choice
+        [ base 'b' "01" readBin BinaryHint "binary"
+        , base 'o' ['0'..'7'] readOct' OctalHint "octal"
+        , base 'x' (['0'..'9'] ++ ['A'..'F']) readHex'
+          HexadecimalHint "hexadecimal"
+        ]
+      , do
+        integer <- many1 digit
+        mFraction <- optionMaybe $ (:) <$> char '.' <*> many1 digit
+        return $ case mFraction of
+          Just fraction -> Float . applySign . read $ integer ++ fraction
+          Nothing -> Int (applySign $ read integer) DecimalHint
+      ]
+
+  base prefix digits readBase hint desc = fmap ((,) hint . readBase)
+    $ char prefix *> many1 (oneOf digits <?> (desc ++ " digit"))
 
   text :: Parser Text
   text = T.pack <$> many (character '"')
 
   character :: Char -> Parser Char
-  character quote = noneOf ('\\' : [quote]) <|> escape
+  character quote
+    = (noneOf ('\\' : [quote]) <?> "character") <|> escape
 
   escape :: Parser Char
-  escape = char '\\' *> choice
+  escape = (<?> "escape") $ char '\\' *> choice
     [ oneOf "\\\"'"
     , '\a' <$ char 'a'
     , '\b' <$ char 'b'
@@ -98,21 +118,12 @@ token = (<?> "token") . located $ choice
 
   word :: Parser Token
   word = choice
-    [ ffor alphanumeric $ \ name -> case name of
-      "Bool" -> BoolType
-      "Char" -> CharType
-      "Float" -> FloatType
-      "Handle" -> HandleType
-      "IO" -> IOType
-      "Int" -> IntType
-      "choice" -> Choice
+    [ ffor alphanumeric $ \name -> case name of
       "def" -> Def
       "else" -> Else
       "false" -> Bool False
       "from" -> From
-      "if" -> If
       "import" -> Import
-      "option" -> Option
       "to" -> To
       "true" -> Bool True
       "type" -> Type
@@ -120,15 +131,16 @@ token = (<?> "token") . located $ choice
       _ -> case Builtin.fromText name of
         Just builtin -> Builtin builtin
         _ -> LittleWord name
-    , ffor symbolic $ \ name -> case Builtin.fromText name of
-      Just builtin -> Builtin builtin
-      _ -> Operator name
+    , ffor symbolic $ \name -> case name of
+      "\\" -> Do
+      _ | Just builtin <- Builtin.fromText name -> Builtin builtin
+        | otherwise -> Operator name
     ]
     where
 
     alphanumeric :: Parser Text
     alphanumeric
-      = (\ x y z -> T.pack $ x : y ++ maybeToList z)
+      = (\x y z -> T.pack $ x : y ++ maybeToList z)
       <$> (Parsec.satisfy isLetter <|> char '_')
       <*> (many . choice)
         [ Parsec.satisfy isLetter
@@ -146,6 +158,18 @@ token = (<?> "token") . located $ choice
 
   special :: Parser Char
   special = oneOf "\"'(),:[]_{}"
+
+readBin :: String -> Int
+readBin = go 0
+  where
+  go !acc ('0':xs) = go (2 * acc + 0) xs
+  go !acc ('1':xs) = go (2 * acc + 1) xs
+  go !acc [] = acc
+  go _ (_:_) = error "Kitten.Tokenize.readBin: non-binary digit"
+
+readHex', readOct' :: String -> Int
+readHex' = fst . head . readHex
+readOct' = fst . head . readOct
 
 silence :: Parser ()
 silence = skipMany $ comment <|> whitespace
