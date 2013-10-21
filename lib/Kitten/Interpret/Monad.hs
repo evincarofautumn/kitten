@@ -37,6 +37,7 @@ import Kitten.Name
 import Kitten.Type (Type((:&), (:?), (:|)))
 import Kitten.Typed (Typed, TypedDef)
 import Kitten.Util.Text (ToText(..), showText)
+import Kitten.Util.Applicative ((.&&.))
 
 import qualified Kitten.Type as Type
 import qualified Kitten.Typed as Typed
@@ -83,7 +84,11 @@ instance ToText InterpreterValue where
     Handle{} -> "<handle>"
     Int i -> showText i
     Option m -> maybe "none" ((<> " some") . toText) m
-    Pair a b -> T.unwords [toText a, toText b, "pair"]
+    Pair a b ->
+      let
+        pairText = T.concat [T.pack "(", toText a, T.pack ", ", toText b, T.pack ")"]
+        stripped = T.filter ((/= '(') .&&. (/= ')')) pairText
+      in T.concat [T.pack "(", stripped, T.pack ")"]
     Unit -> "()"
     Vector v@(V.toList -> (Char _ : _)) -> showText (stringFromChars v)
     Vector v -> T.concat
