@@ -1,7 +1,9 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PostfixOperators #-}
 
@@ -84,17 +86,21 @@ instance Eq (Type a) where
 
   _ == _ = False
 
-instance Show (Type a) where
+instance Show (Type Scalar) where
+  show = T.unpack . toText
+
+instance Show (Type Row) where
+  show = T.unpack . toText
+
+instance Show (Type Effect) where
   show = T.unpack . toText
 
 -- TODO showsPrec
-instance ToText (Type a) where
-  toText type_ = case type_ of
+instance ToText (Type Scalar) where
+  toText = \case
     t1 :& t2 -> T.concat ["(", toText t1, " & ", toText t2, ")"]
-    t1 :. t2 -> T.unwords [toText t1, toText t2]
     (:?) t -> toText t <> "?"
     t1 :| t2 -> T.concat ["(", toText t1, " | ", toText t2, ")"]
-    Empty{} -> "<empty>"
     Bool{} -> "Bool"
     Char{} -> "Char"
     Float{} -> "Float"
@@ -108,7 +114,18 @@ instance ToText (Type a) where
     Unit{} -> "()"
     Vector t _ -> T.concat ["[", toText t, "]"]
 
+instance ToText (Type Row) where
+  toText = \case
+    t1 :. t2 -> T.unwords [toText t1, toText t2]
+    Empty{} -> "<empty>"
+    Test{} -> ""
+    Var (Name index) _ -> "r" <> showText index
+
+instance ToText (Type Effect) where
+  toText = \case
     t1 :+ t2 -> T.concat ["(", toText t1, " + ", toText t2, ")"]
+    Test{} -> ""
+    Var (Name index) _ -> "e" <> showText index
     NoEffect{} -> "()"
     IOEffect{} -> "IO"
 
