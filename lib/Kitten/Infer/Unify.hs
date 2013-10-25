@@ -25,6 +25,7 @@ import Kitten.Infer.Monad
 import Kitten.Infer.Scheme
 import Kitten.Location
 import Kitten.Type
+import Kitten.Type.Tidy
 import Kitten.Util.FailWriter
 import Kitten.Util.Text (ToText(..))
 
@@ -66,20 +67,25 @@ instance Unification Effect where
       (envLocation env) type1 type2
 
 unificationError
-  :: (ToText (Type a))
+  :: (TidyType a, ToText (Type a))
   => Text
   -> Location
   -> Type a
   -> Type a
   -> [ErrorGroup]
-unificationError kind location type1 type2 = (:[]) . ErrorGroup
-  $ (CompileError location Error . T.unwords)
-    [ "cannot solve", kind, "type constraint"
-    , toText type1
-    , "="
-    , toText type2
-    ]
-  : map errorDetail (locations type1 ++ locations type2)
+unificationError kind location type1 type2 = runTidy $ do
+  type1' <- tidyType type1
+  type2' <- tidyType type2
+  let
+    primaryError = CompileError location Error $ T.unwords
+      [ "cannot solve", kind, "type constraint"
+      , toText type1'
+      , "="
+      , toText type2'
+      ]
+    secondaryErrors = map errorDetail
+      $ locations type1' ++ locations type2'
+  return [ErrorGroup (primaryError : secondaryErrors)]
   where
   errorDetail (loc, type_) = CompileError loc Note
     $ toText type_ <> " is from here"
@@ -166,7 +172,7 @@ unifyM_ = (void .) . unifyM
 infix 3 ===
 
 unifyVar
-  :: forall a. (Declare a, Occurrences a, Substitute a, ToText (Type a))
+  :: forall a. (Declare a, Occurrences a, Substitute a, TidyType a, ToText (Type a))
   => TypeName a
   -> Type a
   -> Env
