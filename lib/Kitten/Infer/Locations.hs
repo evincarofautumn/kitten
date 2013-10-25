@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 
 module Kitten.Infer.Locations
@@ -6,9 +7,10 @@ module Kitten.Infer.Locations
 
 import Kitten.Location
 import Kitten.Type
-import Kitten.Util.Text (Textable(..))
+import Kitten.Util.Text (Textable(..), ToText)
 
-locations :: Type a -> [(Location, Textable)]
+locations
+  :: (ToText (Type a)) => Type a -> [(Location, Textable)]
 locations type_ = case type_ of
   a :& b -> locations a ++ locations b
   a :. b -> locations a ++ locations b
