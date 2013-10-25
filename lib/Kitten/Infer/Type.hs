@@ -16,15 +16,14 @@ import qualified Data.Vector as V
 
 import Kitten.Anno (Anno(Anno))
 import Kitten.Infer.Monad (Inferred, freshVarM)
-import Kitten.Name
 import Kitten.Type
 
 import qualified Kitten.Anno as Anno
 
 data Env = Env
-  { envRows :: [Name]
-  , envScalars :: !(Map Text Name)
-  , envEffects :: !(Map Text Name)
+  { envRows :: [TypeName Row]
+  , envScalars :: !(Map Text (TypeName Scalar))
+  , envEffects :: !(Map Text (TypeName Effect))
   }
 
 type Converted a = StateT Env Inferred a
@@ -37,9 +36,9 @@ fromAnno (Anno annoType loc) = do
     , envEffects = M.empty
     } $ fromAnnoType' annoType
   return $ Forall
-    (S.fromList (map row (envRows env)))
-    (S.fromList . map scalar . M.elems $ envScalars env)
-    (S.fromList . map effect . M.elems $ envEffects env)
+    (S.fromList (envRows env))
+    (S.fromList . M.elems $ envScalars env)
+    (S.fromList . M.elems $ envEffects env)
     type_
   where
 

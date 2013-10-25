@@ -178,7 +178,7 @@ typeOfValueM value = case value of
   freshVarM :: State NameGen (Type a)
   freshVarM = do
     name <- state genName
-    return $ Type.Var name loc
+    return $ Type.Var (Type.TypeName name) loc
   loc :: Location
   loc = UnknownLocation
 

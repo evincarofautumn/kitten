@@ -59,8 +59,8 @@ instance Unification Effect where
     (a :+ b, c :+ d) | a +: b == c +: d -> Right env
     (a :+ b, c :+ d) -> unify a c env >>= unify b d
 
-    (Var var _, type_) -> unifyVar (effect var) type_ env
-    (type_, Var var _) -> unifyVar (effect var) type_ env
+    (Var var _, type_) -> unifyVar var type_ env
+    (type_, Var var _) -> unifyVar var type_ env
 
     _ -> Left $ unificationError "effect"
       (envLocation env) type1 type2
@@ -90,8 +90,8 @@ instance Unification Row where
 
     (a :. b, c :. d) -> unify b d env >>= unify a c
 
-    (Var var _, type_) -> unifyVar (row var) type_ env
-    (type_, Var var _) -> unifyVar (row var) type_ env
+    (Var var _, type_) -> unifyVar var type_ env
+    (type_, Var var _) -> unifyVar var type_ env
 
     _ -> Left $ unificationError "row"
       (envLocation env) type1 type2
@@ -109,8 +109,8 @@ instance Unification Scalar where
 
     (Vector a _, Vector b _) -> unify a b env
 
-    (Var var _, type_) -> unifyVar (scalar var) type_ env
-    (type_, Var var _) -> unifyVar (scalar var) type_ env
+    (Var var _, type_) -> unifyVar var type_ env
+    (type_, Var var _) -> unifyVar var type_ env
 
     _ -> Left $ unificationError "scalar"
       (envLocation env) type1 type2
@@ -172,11 +172,11 @@ unifyVar
   -> Env
   -> Either [ErrorGroup] Env
 unifyVar var1 type_ env = case type_ of
-  Var var2 _ | typeName var1 == var2 -> return env
+  Var var2 _ | var1 == var2 -> return env
   Var{} -> return $ declare var1 type_ env
-  _ | occurs (typeName var1) env type_
+  _ | occurs (unTypeName var1) env type_
     -> let loc = envLocation env in Left
       $ unificationError "infinite" loc
-        (sub env (Var (typeName var1) UnknownLocation :: Type a))
+        (sub env (Var var1 UnknownLocation :: Type a))
         (sub env type_)
   _ -> return $ declare var1 type_ env

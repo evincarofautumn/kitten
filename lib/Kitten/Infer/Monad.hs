@@ -132,7 +132,7 @@ freshName env
 freshVar :: Location -> Env -> (Type a, Env)
 freshVar loc env
   = let (name, env') = freshName env
-  in (Var name loc, env')
+  in (Var (TypeName name) loc, env')
 
 freshNameM :: Inferred Name
 freshNameM = liftState $ state freshName

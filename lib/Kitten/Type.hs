@@ -52,7 +52,7 @@ data Type (a :: Kind) where
   Named :: !Text -> !Location -> Type Scalar
   Test :: Type a
   Unit :: !Location -> Type Scalar
-  Var :: !Name -> !Location -> Type a
+  Var :: !(TypeName a) -> !Location -> Type a
   Vector :: !(Type Scalar) -> !Location -> Type Scalar
 
   (:+) :: !(Type Effect) -> !(Type Effect) -> Type Effect
@@ -110,7 +110,7 @@ instance ToText (Type Scalar) where
     Int{} -> "Int"
     Named name _ -> name
     Test{} -> ""
-    Var (Name index) _ -> "t" <> showText index
+    Var (TypeName (Name index)) _ -> "t" <> showText index
     Unit{} -> "()"
     Vector t _ -> T.concat ["[", toText t, "]"]
 
@@ -119,24 +119,24 @@ instance ToText (Type Row) where
     t1 :. t2 -> T.unwords [toText t1, toText t2]
     Empty{} -> "<empty>"
     Test{} -> ""
-    Var (Name index) _ -> "r" <> showText index
+    Var (TypeName (Name index)) _ -> "r" <> showText index
 
 instance ToText (Type Effect) where
   toText = \case
     t1 :+ t2 -> T.concat ["(", toText t1, " + ", toText t2, ")"]
     Test{} -> ""
-    Var (Name index) _ -> "e" <> showText index
+    Var (TypeName (Name index)) _ -> "e" <> showText index
     NoEffect{} -> "()"
     IOEffect{} -> "IO"
 
-newtype TypeName (a :: Kind) = TypeName { typeName :: Name }
+newtype TypeName (a :: Kind) = TypeName { unTypeName :: Name }
   deriving (Eq, Ord)
 
 instance Show (TypeName a) where
   show = T.unpack . toText
 
 instance ToText (TypeName a) where
-  toText = toText . typeName
+  toText = toText . unTypeName
 
 data Scheme a = Forall
   (Set (TypeName Row))
