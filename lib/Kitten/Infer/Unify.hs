@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -64,7 +66,8 @@ instance Unification Effect where
       (envLocation env) type1 type2
 
 unificationError
-  :: Text
+  :: (ToText (Type a))
+  => Text
   -> Location
   -> Type a
   -> Type a
@@ -163,7 +166,7 @@ unifyM_ = (void .) . unifyM
 infix 3 ===
 
 unifyVar
-  :: forall a. (Declare a, Occurrences a, Substitute a)
+  :: forall a. (Declare a, Occurrences a, Substitute a, ToText (Type a))
   => TypeName a
   -> Type a
   -> Env

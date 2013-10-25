@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+
 module Kitten.Infer.Type
   ( fromAnno
   ) where
