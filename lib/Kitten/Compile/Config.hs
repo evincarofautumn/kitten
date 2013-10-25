@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+
 module Kitten.Compile.Config
   ( Config(..)
   ) where

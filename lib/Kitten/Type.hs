@@ -1,5 +1,7 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PostfixOperators #-}
 
@@ -33,7 +35,7 @@ import Kitten.Util.Text (ToText(..), showText)
 
 import qualified Kitten.Util.Text as T
 
-data Type a where
+data Type (a :: Kind) where
   (:&) :: !(Type Scalar) -> !(Type Scalar) -> Type Scalar
   (:.) :: !(Type Row) -> !(Type Scalar) -> Type Row
   (:?) :: !(Type Scalar) -> Type Scalar
@@ -110,7 +112,7 @@ instance ToText (Type a) where
     NoEffect{} -> "()"
     IOEffect{} -> "IO"
 
-newtype TypeName a = TypeName { typeName :: Name }
+newtype TypeName (a :: Kind) = TypeName { typeName :: Name }
   deriving (Eq, Ord)
 
 instance Show (TypeName a) where
