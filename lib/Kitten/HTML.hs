@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -34,7 +35,7 @@ import qualified Text.Parsec.Pos as ParsecPos
 import Kitten.Def
 import Kitten.Fragment
 import Kitten.Location
-import Kitten.Type (Scalar, Type, unScheme)
+import Kitten.Type (Kind(..), Type, unScheme)
 import Kitten.Typed
 import Kitten.Util.Text (toText)
 
