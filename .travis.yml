@@ -1,0 +1,38 @@
+# Script for Travis CI: https://travis-ci.org/
+# Based off of: https://github.com/hvr/multi-ghc-travis
+
+# Don't do this!
+#language: haskell
+
+env:
+ - GHC_VERSION=7.6.3 CABAL_PACKAGE=cabal-install      CABAL=cabal      CABAL_INSTALL_FLAGS=
+ - GHC_VERSION=7.6.3 CABAL_PACKAGE=cabal-install-1.18 CABAL=cabal-1.18 CABAL_INSTALL_FLAGS=-j
+ - GHC_VERSION=head  CABAL_PACKAGE=cabal-install-1.18 CABAL=cabal-1.18 CABAL_INSTALL_FLAGS=-j
+
+matrix:
+ allow_failures:
+  # NOTE(strager): Spacing must exactly match that in 'env'.
+  - env: GHC_VERSION=head  CABAL_PACKAGE=cabal-install-1.18 CABAL=cabal-1.18 CABAL_INSTALL_FLAGS=-j
+
+before_install:
+ - sudo add-apt-repository -y ppa:hvr/ghc
+ - sudo apt-get update
+ - sudo apt-get install $CABAL_PACKAGE ghc-$GHC_VERSION
+ - export PATH=/opt/ghc/$GHC_VERSION/bin:$HOME/.cabal/bin:$PATH # HACK
+ - $CABAL update
+ # See Note [hlint].
+ # - $CABAL install $CABAL_INSTALL_FLAGS happy # Needed for hlint.
+ # - $CABAL install $CABAL_INSTALL_FLAGS hlint
+
+install:
+ - CABALFLAGS=$CABAL_INSTALL_FLAGS make deps
+
+script:
+ # - which hlint # See Note [hlint].
+ - make all
+ # TODO(strager): cabal sdist, cabal check, etc.
+
+# Note [hlint]:
+#
+# kitten fails to hlint due to hlint bugs.  We have thus
+# disabled hlinting.

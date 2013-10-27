@@ -3,3 +3,5 @@
 /*~
 /test/*.actual
 /dist
+
+!/.travis.yaml
