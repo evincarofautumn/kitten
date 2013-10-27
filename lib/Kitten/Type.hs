@@ -50,7 +50,6 @@ data Type (a :: Kind) where
   Handle :: !Location -> Type Scalar
   Int :: !Location -> Type Scalar
   Named :: !Text -> !Location -> Type Scalar
-  Test :: Type a
   Unit :: !Location -> Type Scalar
   Var :: !(TypeName a) -> !Location -> Type a
   Vector :: !(Type Scalar) -> !Location -> Type Scalar
@@ -60,9 +59,6 @@ data Type (a :: Kind) where
   IOEffect :: !Location -> Type Effect
 
 instance Eq (Type a) where
-  Test == _ = True
-  _ == Test = True
-
   (a :& b) == (c :& d) = (a, b) == (c, d)
   (a :. b) == (c :. d) = (a, b) == (c, d)
   (:?) a == (:?) b = a == b
@@ -109,7 +105,6 @@ instance ToText (Type Scalar) where
     Handle{} -> "Handle"
     Int{} -> "Int"
     Named name _ -> name
-    Test{} -> ""
     Var (TypeName (Name index)) _ -> "t" <> showText index
     Unit{} -> "()"
     Vector t _ -> T.concat ["[", toText t, "]"]
@@ -118,13 +113,11 @@ instance ToText (Type Row) where
   toText = \case
     t1 :. t2 -> T.unwords [toText t1, toText t2]
     Empty{} -> "<empty>"
-    Test{} -> ""
     Var (TypeName (Name index)) _ -> "r" <> showText index
 
 instance ToText (Type Effect) where
   toText = \case
     t1 :+ t2 -> T.concat ["(", toText t1, " + ", toText t2, ")"]
-    Test{} -> ""
     Var (TypeName (Name index)) _ -> "e" <> showText index
     NoEffect{} -> "()"
     IOEffect{} -> "IO"

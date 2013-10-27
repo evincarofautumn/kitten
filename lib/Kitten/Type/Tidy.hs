@@ -118,7 +118,6 @@ tidyScalarType type_ = case type_ of
   Handle{} -> pure type_
   Int{} -> pure type_
   Named{} -> pure type_
-  Test{} -> pure type_
   Var name loc -> Var <$> tidyScalar name <*> pure loc
   Unit{} -> pure type_
   Vector t loc -> Vector <$> tidyScalarType t <*> pure loc
@@ -128,7 +127,6 @@ tidyRowType type_ = case type_ of
   t1 :. t2 -> (:.) <$> tidyRowType t1 <*> tidyScalarType t2
   Empty{} -> pure type_
   Var name loc -> Var <$> tidyRow name <*> pure loc
-  Test{} -> pure type_
 
 tidyEffectType :: Type Effect -> Tidy (Type Effect)
 tidyEffectType type_ = case type_ of
@@ -136,4 +134,3 @@ tidyEffectType type_ = case type_ of
   Var name loc -> Var <$> tidyEffect name <*> pure loc
   NoEffect{} -> pure type_
   IOEffect{} -> pure type_
-  Test{} -> pure type_
