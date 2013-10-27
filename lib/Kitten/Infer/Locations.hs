@@ -28,7 +28,6 @@ locations type_ = case type_ of
   Handle loc -> yield loc
   Int loc -> yield loc
   Named _ loc -> yield loc
-  Test -> []
   Unit loc -> yield loc
   Var _ loc -> yield loc
   Vector a loc -> yield loc ++ locations a
