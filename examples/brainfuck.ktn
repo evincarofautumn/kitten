@@ -33,12 +33,6 @@ def maybe(a? (a -> b +e) b -> b +e):
   \option mx: f@
   else: z
 
-// FIXME(strager): Can't do this!
-// def apply: @
-
-// FIXME(strager): I can't write a 'switch' function for the
-// same reason I can't write an 'apply' alias.
-
 // FIXME(strager): I don't want to write type annotations.
 // TODO(strager): Wouldn't it be awesome if we had lenses?
 def get([a] Int -> a): #!
@@ -192,7 +186,7 @@ def stepProgram(Program Int Memory Int -> Program Int Memory Int Bool +IO):
   \option instructions pc#:
     ->instruction
     \option (instructionTable instruction {eqInstruction} lookUp):
-      @ /*apply*/
+      apply
     else:
       program pc++ ram ramc
     true // Keep running.
@@ -212,7 +206,7 @@ def findLBracket(Program Int Int -> Int?):
         program pc-- depth++ findLBracket
     ] swap {eqInstruction} lookUp
     \option id:
-      @ /*apply*/
+      apply
     else:
       program pc-- depth findLBracket
   else:
@@ -235,7 +229,7 @@ def findRBracket(Program Int Int -> Int?):
           program pc++ depth-- findRBracket
     ] swap {eqInstruction} lookUp
     \option id:
-      @ /*apply*/
+      apply
     else:
       program pc++ depth findRBracket
   else:

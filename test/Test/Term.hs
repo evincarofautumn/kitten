@@ -22,7 +22,6 @@ import Kitten.Util.Either
 import Test.Util
 
 import qualified Kitten.Anno as Anno
-import qualified Kitten.Builtin as Builtin
 
 spec :: Spec
 spec = do
@@ -145,7 +144,7 @@ spec = do
         [ compose [compose [pushi 0, call "some"]
         , push $ function [call "drop"]
         , push $ function [call "noop"]
-        , Builtin Builtin.OptionElse TestLocation]] }
+        , word "option_else"]] }
 
     testTermFailure ":"
 

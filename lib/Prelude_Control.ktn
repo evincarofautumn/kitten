@@ -1,3 +1,40 @@
+// Applies a function to the stack.
+def @ (.r (.r -> .s +e) -> .s +e):
+  apply
+
+// Applies a function to the stack.
+def apply (.r (.r -> .s +e) -> .s +e):
+  __apply
+
+// Applies a function to the left branch of a choice.
+def choice (.r (a | b) (.r a -> .r +e) -> .r +e):
+  __choice
+
+// Applies one of two functions to the branches of a choice.
+def choice_else (
+  .r (a | b) (.r a -> .s +e1) (.r b -> .s +e2)
+  ->
+  .s +(e1 + e2)
+):
+  __choice_else
+
+// Applies a function if a condition is met.
+def if (.r Bool (.r -> .r +e) -> .r +e):
+  __if
+
+// Applies one of two functions according to a condition.
+def if_else (.r Bool (.r -> .s +e1) (.r -> .s +e2) -> .s +(e1 + e2)):
+  __if_else
+
+// Applies a function to the value of some option.
+def option (.r a? (.r a -> .r +e) -> .r +e):
+  __option
+
+// Applies a function to the value of some option, or else a
+// default function.
+def option_else (.r a? (.r a -> .s +e1) (.r -> .s +e2) -> .s +(e1 + e2)):
+  __option_else
+
 // 'cond' accepts a value, a vector of patterns, and a
 // default function. A pattern consists of a matching
 // function and a body. Each matching function is attempted

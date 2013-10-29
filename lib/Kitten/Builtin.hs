@@ -110,13 +110,15 @@ names = V.map fst fromTextTable
 
 fromTextTable :: Vector (Text, Builtin)
 fromTextTable = V.fromList
-  [ (,) "@"                 Apply
-  , (,) "__add_float"       AddFloat
+  [ (,) "__add_float"       AddFloat
   , (,) "__add_int"         AddInt
   , (,) "__add_vector"      AddVector
   , (,) "__and_bool"        AndBool
   , (,) "__and_int"         AndInt
+  , (,) "__apply"           Apply
   , (,) "__char_to_int"     CharToInt
+  , (,) "__choice"          Choice
+  , (,) "__choice_else"     ChoiceElse
   , (,) "__close"           Close
   , (,) "__div_float"       DivFloat
   , (,) "__div_int"         DivInt
@@ -133,6 +135,8 @@ fromTextTable = V.fromList
   , (,) "__get_line"        GetLine
   , (,) "__gt_float"        GtFloat
   , (,) "__gt_int"          GtInt
+  , (,) "__if"              If
+  , (,) "__if_else"         IfElse
   , (,) "__impure"          Impure
   , (,) "__init"            Init
   , (,) "__int_to_char"     IntToChar
@@ -155,6 +159,8 @@ fromTextTable = V.fromList
   , (,) "__not_int"         NotInt
   , (,) "__open_in"         OpenIn
   , (,) "__open_out"        OpenOut
+  , (,) "__option"          Option
+  , (,) "__option_else"     OptionElse
   , (,) "__or_bool"         OrBool
   , (,) "__or_int"          OrInt
   , (,) "__pair"            Pair
@@ -174,12 +180,6 @@ fromTextTable = V.fromList
   , (,) "__unsafe_purify11" UnsafePurify11
   , (,) "__xor_bool"        XorBool
   , (,) "__xor_int"         XorInt
-  , (,) "choice"            Choice
-  , (,) "choice_else"       ChoiceElse
-  , (,) "if"                If
-  , (,) "if_else"           IfElse
-  , (,) "option"            Option
-  , (,) "option_else"       OptionElse
   ]
 
 toTextTable :: Vector (Builtin, Text)
