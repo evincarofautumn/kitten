@@ -14,6 +14,8 @@ The original implementation was compiled to C. In the interest of faster iterati
 
 # Building
 
+[![Build Status](https://travis-ci.org/evincarofautumn/kitten.png?branch=master)](https://travis-ci.org/evincarofautumn/kitten)
+
 To build the compiler, you need GHC ≥7.6. Simply run:
 
 ```
