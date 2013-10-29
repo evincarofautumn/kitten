@@ -1,5 +1,5 @@
 // Composes two unary functions with one result.
-def compose ((a -> b +e1) (b -> c +e2) -> (a -> c +(e1 + e2))):
+def compose (.r (.s -> .t +e1) (.t -> .u +e2) -> .r (.s -> .u +(e1 + e2))):
   -> { f g }
   { f@ g@ }
 
