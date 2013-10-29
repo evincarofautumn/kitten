@@ -14,7 +14,7 @@ The original implementation was compiled to C. In the interest of faster iterati
 
 # Building
 
-To build the compiler, you need GHC ≥7.4. Simply run:
+To build the compiler, you need GHC ≥7.6. Simply run:
 
 ```
 git clone git://github.com/evincarofautumn/kitten.git
