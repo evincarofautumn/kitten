@@ -25,6 +25,7 @@ data Type
   | Named !Text
   | Option !Type
   | Pair !Type !Type
+  | RowFunction !Text !(Vector Type) !Text !(Vector Type) !Type
   | Unit
   | Var !Text
   | Vector !Type

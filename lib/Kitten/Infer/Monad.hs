@@ -124,17 +124,17 @@ nonexistent kind loc name
 asksConfig :: (Config -> a) -> Inferred a
 asksConfig = Inferred . lift . asks
 
-freshName :: Env -> (Name, Env)
+freshName :: Env -> (TypeName a, Env)
 freshName env
   = let (name, gen') = genName (envNameGen env)
-  in (name, env { envNameGen = gen' })
+  in (TypeName name, env { envNameGen = gen' })
 
 freshVar :: Location -> Env -> (Type a, Env)
 freshVar loc env
   = let (name, env') = freshName env
-  in (Var (TypeName name) loc, env')
+  in (Var name loc, env')
 
-freshNameM :: Inferred Name
+freshNameM :: Inferred (TypeName a)
 freshNameM = liftState $ state freshName
 
 freshVarM :: Inferred (Type a)
