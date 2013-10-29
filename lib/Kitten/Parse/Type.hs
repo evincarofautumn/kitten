@@ -6,6 +6,8 @@ module Kitten.Parse.Type
   ) where
 
 import Control.Applicative
+import Data.Text (Text)
+import Data.Vector (Vector)
 
 import qualified Data.Vector as V
 
@@ -34,14 +36,24 @@ type_ :: Parser Type
 type_ = (<?> "type") $ try functionType <|> baseType
 
 functionType :: Parser Type
-functionType = (<?> "function type") $ do
-  left <- manyV baseType
-  right <- match Token.Arrow *> manyV type_
-  effect <- choice
-    [ match (Token.Operator "+") *> effectType
-    , pure Anno.NoEffect
-    ]
-  return $ Anno.Function left right effect
+functionType = (<?> "function type") $ choice
+  [ Anno.Function <$> left <*> right
+  , Anno.RowFunction <$> row <*> left <*> row <*> right
+  ] <*> functionEffect
+  where
+
+  left, right :: Parser (Vector Type)
+  left = manyV baseType <* match Token.Arrow
+  right = manyV type_
+
+  row :: Parser Text
+  row = match (Token.Operator ".") *> littleWord
+
+functionEffect :: Parser Type
+functionEffect = choice
+  [ match (Token.Operator "+") *> effectType
+  , pure Anno.NoEffect
+  ]
 
 effectType :: Parser Type
 effectType = (<?> "effect type") $ do
