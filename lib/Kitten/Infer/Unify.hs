@@ -115,7 +115,7 @@ unificationError kind location type1 type2 = runTidy $ do
       , toText type2'
       ]
     secondaryErrors = map errorDetail
-      $ locations type1' ++ locations type2'
+      $ diagnosticLocations type1' ++ diagnosticLocations type2'
   return [ErrorGroup (primaryError : secondaryErrors)]
   where
   errorDetail (loc, type_) = CompileError loc Note
