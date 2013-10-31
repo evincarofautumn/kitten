@@ -1,0 +1,3 @@
+test/type-error-5.ktn:5:1: error: cannot solve scalar type constraint Int (output of bar) = [t1] (output of __add_vector)
+test/type-error-5.ktn:3:18: note: [t1] (output of __add_vector) is from here
+test/type-error-5.ktn:5:9: note: Int (output of bar) is from here

@@ -26,7 +26,6 @@ import Data.Set (Set)
 import qualified Data.Set as S
 
 import Kitten.Infer.Monad
-import Kitten.Location
 import Kitten.Name
 import Kitten.Type
 import Kitten.Util.Monad
@@ -35,11 +34,11 @@ import qualified Kitten.NameMap as N
 
 instantiateM :: TypeScheme -> Inferred (Type Scalar)
 instantiateM scheme = do
-  loc <- getsEnv envLocation
-  liftState $ state (instantiate loc scheme)
+  origin <- getsEnv envOrigin
+  liftState $ state (instantiate origin scheme)
 
-instantiate :: Location -> TypeScheme -> Env -> (Type Scalar, Env)
-instantiate loc (Forall rows scalars effects type_) env
+instantiate :: Origin -> TypeScheme -> Env -> (Type Scalar, Env)
+instantiate origin (Forall rows scalars effects type_) env
   = (sub renamed type_, env')
 
   where
@@ -64,7 +63,7 @@ instantiate loc (Forall rows scalars effects type_) env
     -> Env
     -> State Env Env
   rename name localEnv = do
-    var <- state (freshVar loc)
+    var <- state (freshVar origin)
     return (declare name var localEnv)
 
 generalize :: Type Scalar -> Inferred TypeScheme
@@ -128,8 +127,8 @@ instance Free Scalar where
     Unit{} -> mempty
     Vector a _ -> free a
 
-normalize :: Location -> Type Scalar -> Type Scalar
-normalize loc type_ = let
+normalize :: Origin -> Type Scalar -> Type Scalar
+normalize origin type_ = let
   (rows, scalars, effects) = freeVars type_
   rowCount = length rows
   rowScalarCount = rowCount + length scalars
@@ -144,7 +143,7 @@ normalize loc type_ = let
   in sub env type_
   where
   var :: Int -> Type a
-  var index = Var (TypeName (Name index)) loc
+  var index = Var (TypeName (Name index)) origin
 
 occurs :: (Occurrences a) => Name -> Env -> Type a -> Bool
 occurs = (((> 0) .) .) . occurrences
@@ -200,23 +199,23 @@ class Simplify a where
 
 instance Simplify Effect where
   simplify env type_ = case type_ of
-    Var name _
+    Var name (Origin hint _loc)
       | Right type' <- retrieve env name
-      -> simplify env type'
+      -> simplify env type' `addHint` hint
     _ -> type_
 
 instance Simplify Row where
   simplify env type_ = case type_ of
-    Var name _
+    Var name (Origin hint _loc)
       | Right type' <- retrieve env name
-      -> simplify env type'
+      -> simplify env type' `addHint` hint
     _ -> type_
 
 instance Simplify Scalar where
   simplify env type_ = case type_ of
-    Var name _
+    Var name (Origin hint _loc)
       | Right type' <- retrieve env name
-      -> simplify env type'
+      -> simplify env type' `addHint` hint
     _ -> type_
 
 class Substitute a where
@@ -227,9 +226,9 @@ instance Substitute Effect where
     a :+ b -> sub env a +: sub env b
     NoEffect _ -> type_
     IOEffect _ -> type_
-    Var name _
+    Var name (Origin hint _loc)
       | Right type' <- retrieve env name
-      -> sub env type'
+      -> sub env type' `addHint` hint
       | otherwise
       -> type_
 
@@ -237,19 +236,19 @@ instance Substitute Row where
   sub env type_ = case type_ of
     a :. b -> sub env a :. sub env b
     Empty{} -> type_
-    Var name _
+    Var name (Origin hint _loc)
       | Right type' <- retrieve env name
-      -> sub env type'
+      -> sub env type' `addHint` hint
       | otherwise
       -> type_
 
 instance Substitute Scalar where
   sub env type_ = case type_ of
-    Function a b e loc -> Function
+    Function a b e origin -> Function
       (sub env a)
       (sub env b)
       (sub env e)
-      loc
+      origin
     a :& b -> sub env a :& sub env b
     (:?) a -> (sub env a :?)
     a :| b -> sub env a :| sub env b
@@ -259,10 +258,10 @@ instance Substitute Scalar where
     Int{} -> type_
     Handle{} -> type_
     Named{} -> type_
-    Var name _
+    Var name (Origin hint _loc)
       | Right type' <- retrieve env name
-      -> sub env type'
+      -> sub env type' `addHint` hint
       | otherwise
       -> type_
     Unit{} -> type_
-    Vector a loc -> Vector (sub env a) loc
+    Vector a origin -> Vector (sub env a) origin

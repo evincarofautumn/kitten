@@ -39,7 +39,7 @@ scopeTerm stack typed = case typed of
   From{} -> typed
   PairTerm as bs loc -> PairTerm (recur as) (recur bs) loc
   Push value loc -> Push (scopeValue stack value) loc
-  Scoped term loc -> Scoped
+  Scoped name term loc -> Scoped name
     (scopeTerm (mapHead succ stack) term)
     loc
   To{} -> typed
@@ -117,12 +117,12 @@ captureTerm typed = case typed of
 
   Push value loc -> Push <$> captureValue value <*> pure loc
 
-  Scoped terms loc -> let
+  Scoped name terms loc -> let
     inside env@Env{..} = env
       { envStack = mapHead succ envStack
       , envDepth = succ envDepth
       }
-    in Scoped
+    in Scoped name
       <$> local inside (captureTerm terms)
       <*> pure loc
 

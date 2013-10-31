@@ -84,7 +84,7 @@ resolveTerm unresolved = case unresolved of
     <$> guardMapM resolveTerm terms
     <*> pure loc
   Term.From name loc -> return $ From name loc
-  Term.Lambda name term loc -> withLocal name $ Scoped
+  Term.Lambda name term loc -> withLocal name $ Scoped name
     <$> resolveTerm term
     <*> pure loc
   Term.PairTerm as bs loc -> PairTerm

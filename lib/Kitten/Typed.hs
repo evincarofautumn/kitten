@@ -19,7 +19,7 @@ import Kitten.ClosedName
 import Kitten.Def
 import Kitten.Location
 import Kitten.Name
-import Kitten.Type
+import Kitten.Type hiding (Annotated(..), Hint(..))
 import Kitten.Util.Text (ToText(..), showText)
 
 data Typed

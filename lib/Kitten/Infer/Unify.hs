@@ -60,10 +60,41 @@ instance Unification Effect where
     (a :+ b, c :+ d) | a +: b == c +: d -> Right env
     (a :+ b, c :+ d) -> unify a c env >>= unify b d
 
-    (Var var _, type_) -> unifyVar var type_ env
-    (type_, Var var _) -> unifyVar var type_ env
+    (Var var (Origin hint _), type_) -> unifyVar var (type_ `addHint` hint) env
+    (type_, Var var (Origin hint _)) -> unifyVar var (type_ `addHint` hint) env
 
     _ -> Left $ unificationError "effect"
+      (envLocation env) type1 type2
+
+instance Unification Row where
+  unification type1 type2 env = case (type1, type2) of
+    _ | type1 == type2 -> Right env
+
+    (a :. b, c :. d) -> unify b d env >>= unify a c
+
+    (Var var (Origin hint _), type_) -> unifyVar var (type_ `addHint` hint) env
+    (type_, Var var (Origin hint _)) -> unifyVar var (type_ `addHint` hint) env
+
+    _ -> Left $ unificationError "row"
+      (envLocation env) type1 type2
+
+instance Unification Scalar where
+  unification type1 type2 env = case (type1, type2) of
+    _ | type1 == type2 -> Right env
+
+    (a :& b, c :& d) -> unify b d env >>= unify a c
+    ((:?) a, (:?) b) -> unify a b env
+    (a :| b, c :| d) -> unify b d env >>= unify a c
+
+    (Function a b e1 _, Function c d e2 _)
+      -> unify b d env >>= unify a c >>= unify e1 e2
+
+    (Vector a _, Vector b _) -> unify a b env
+
+    (Var var (Origin hint _), type_) -> unifyVar var (type_ `addHint` hint) env
+    (type_, Var var (Origin hint _)) -> unifyVar var (type_ `addHint` hint) env
+
+    _ -> Left $ unificationError "scalar"
       (envLocation env) type1 type2
 
 unificationError
@@ -84,42 +115,11 @@ unificationError kind location type1 type2 = runTidy $ do
       , toText type2'
       ]
     secondaryErrors = map errorDetail
-      $ locations type1' ++ locations type2'
+      $ diagnosticLocations type1' ++ diagnosticLocations type2'
   return [ErrorGroup (primaryError : secondaryErrors)]
   where
   errorDetail (loc, type_) = CompileError loc Note
     $ toText type_ <> " is from here"
-
-instance Unification Row where
-  unification type1 type2 env = case (type1, type2) of
-    _ | type1 == type2 -> Right env
-
-    (a :. b, c :. d) -> unify b d env >>= unify a c
-
-    (Var var _, type_) -> unifyVar var type_ env
-    (type_, Var var _) -> unifyVar var type_ env
-
-    _ -> Left $ unificationError "row"
-      (envLocation env) type1 type2
-
-instance Unification Scalar where
-  unification type1 type2 env = case (type1, type2) of
-    _ | type1 == type2 -> Right env
-
-    (a :& b, c :& d) -> unify b d env >>= unify a c
-    ((:?) a, (:?) b) -> unify a b env
-    (a :| b, c :| d) -> unify b d env >>= unify a c
-
-    (Function a b e1 _, Function c d e2 _)
-      -> unify b d env >>= unify a c >>= unify e1 e2
-
-    (Vector a _, Vector b _) -> unify a b env
-
-    (Var var _, type_) -> unifyVar var type_ env
-    (type_, Var var _) -> unifyVar var type_ env
-
-    _ -> Left $ unificationError "scalar"
-      (envLocation env) type1 type2
 
 class Subtype a where
   (<:) :: Type a -> Type a -> Bool
@@ -183,6 +183,6 @@ unifyVar var1 type_ env = case type_ of
   _ | occurs (unTypeName var1) env type_
     -> let loc = envLocation env in Left
       $ unificationError "infinite" loc
-        (sub env (Var var1 UnknownLocation :: Type a))
+        (sub env (Var var1 (Origin NoHint UnknownLocation) :: Type a))
         (sub env type_)
   _ -> return $ declare var1 type_ env

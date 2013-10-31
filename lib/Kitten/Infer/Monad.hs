@@ -10,6 +10,7 @@ module Kitten.Infer.Monad
   , Declare(..)
   , asksConfig
   , emptyEnv
+  , envLocation
   , freshNameM
   , freshVar
   , freshVarM
@@ -22,6 +23,7 @@ module Kitten.Infer.Monad
   , retrieve
   , runInference
   , withLocation
+  , withOrigin
   ) where
 
 import Control.Applicative
@@ -30,8 +32,8 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State.Strict
 import Data.Map (Map)
-import Data.Vector (Vector)
 import Data.Text (Text)
+import Data.Vector (Vector)
 
 import qualified Data.Map as M
 import qualified Data.Text as T
@@ -55,8 +57,8 @@ data Env = Env
   , envDecls :: !(NameMap TypeScheme)
   , envEffects :: !(NameMap (Type Effect))
   , envLocals :: [Type Scalar]
-  , envLocation :: !Location
   , envNameGen :: !NameGen
+  , envOrigin :: !Origin
   , envRows :: !(NameMap (Type Row))
   , envScalars :: !(NameMap (Type Scalar))
   , envTypeDefs :: !(Map Text TypeScheme)
@@ -88,8 +90,8 @@ emptyEnv = Env
   , envDecls = N.empty
   , envEffects = N.empty
   , envLocals = []
-  , envLocation = UnknownLocation
   , envNameGen = mkNameGen
+  , envOrigin = Origin NoHint UnknownLocation
   , envRows = N.empty
   , envScalars = N.empty
   , envTypeDefs = M.empty
@@ -101,20 +103,20 @@ class Retrieve a where
 instance Retrieve Effect where
   retrieve Env{..} (TypeName name)
     = flip maybeToEither (N.lookup name envEffects)
-    $ nonexistent "effect" envLocation name
+    $ nonexistent "effect" envOrigin name
 
 instance Retrieve Row where
   retrieve Env{..} (TypeName name)
     = flip maybeToEither (N.lookup name envRows)
-    $ nonexistent "row" envLocation name
+    $ nonexistent "row" envOrigin name
 
 instance Retrieve Scalar where
   retrieve Env{..} (TypeName name)
     = flip maybeToEither (N.lookup name envScalars)
-    $ nonexistent "scalar" envLocation name
+    $ nonexistent "scalar" envOrigin name
 
-nonexistent :: Text -> Location -> Name -> ErrorGroup
-nonexistent kind loc name
+nonexistent :: Text -> Origin -> Name -> ErrorGroup
+nonexistent kind (Origin _ loc) name
   = oneError $ CompileError loc Error $ T.concat
   [ "nonexistent ", kind, " variable '"
   , toText name
@@ -124,23 +126,26 @@ nonexistent kind loc name
 asksConfig :: (Config -> a) -> Inferred a
 asksConfig = Inferred . lift . asks
 
+envLocation :: Env -> Location
+envLocation env = let Origin _ loc = envOrigin env in loc
+
 freshName :: Env -> (TypeName a, Env)
 freshName env
   = let (name, gen') = genName (envNameGen env)
   in (TypeName name, env { envNameGen = gen' })
 
-freshVar :: Location -> Env -> (Type a, Env)
-freshVar loc env
-  = let (name, env') = freshName env
-  in (Var name loc, env')
+freshVar :: Origin -> Env -> (Type a, Env)
+freshVar origin env
+  = let (typeName, env') = freshName env
+  in (Var typeName origin, env')
 
 freshNameM :: Inferred (TypeName a)
 freshNameM = liftState $ state freshName
 
 freshVarM :: Inferred (Type a)
 freshVarM = do
-  loc <- getsEnv envLocation
-  liftState $ state (freshVar loc)
+  Origin hint loc <- getsEnv envOrigin
+  liftState $ state (freshVar (Origin hint loc))
 
 getEnv :: Inferred Env
 getEnv = liftState get
@@ -174,9 +179,12 @@ runInference config env action
   $ unwrapInferred action
 
 withLocation :: Location -> Inferred a -> Inferred a
-withLocation here action = do
-  there <- getsEnv envLocation
-  modifyEnv $ \env -> env { envLocation = here }
+withLocation here = withOrigin (Origin NoHint here)
+
+withOrigin :: Origin -> Inferred a -> Inferred a
+withOrigin here action = do
+  there <- getsEnv envOrigin
+  modifyEnv $ \env -> env { envOrigin = here }
   result <- action
-  modifyEnv $ \env -> env { envLocation = there }
+  modifyEnv $ \env -> env { envOrigin = there }
   return result
