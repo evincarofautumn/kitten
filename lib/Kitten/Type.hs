@@ -113,7 +113,7 @@ instance ToText (Type Row) where
   toText = \case
     t1 :. t2 -> T.unwords [toText t1, toText t2]
     Empty{} -> "<empty>"
-    Var (TypeName (Name index)) _ -> "r" <> showText index
+    Var (TypeName (Name index)) _ -> ".r" <> showText index
 
 instance ToText (Type Effect) where
   toText = \case
