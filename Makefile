@@ -1,4 +1,4 @@
-.NOTPARALLEL :
+default :
 
 HLINT ?= hlint
 CABAL ?= cabal
@@ -18,21 +18,84 @@ YARN = $(BUILDDIR)/yarn
 YARN_HEADERS = $(wildcard yarn/*.h)
 YARN_SOURCES = $(wildcard yarn/*.cpp)
 
+PHONY_TARGETS = \
+	deps \
+	configure \
+	build \
+	unit \
+	example \
+	test \
+	yarn \
+	prelude \
+	lint \
+	loc \
+	clean
+
+# Declares a soft dependency such that, given:
+#
+# test :
+# build :
+# $(call SOFT_DEP_RULE_WITH,test,build,$(MAKECMDGOALS))
+#
+# 'test' will depend upon 'build' if 'test' is specified in
+# the 'make' invocation.
+#
+# N.B. You must specify transitive dependencies.
+define SOFT_DEP_RULE_WITH
+$1 : | $(filter $2,$3)
+endef
+
+default_DEPS = build prelude unit example test
+all_DEPS = deps configure $(default_DEPS) lint
+
+BUILDING_PHONY_TARGETS = $(filter $(PHONY_TARGETS),$(MAKECMDGOALS))
+ifeq ($(MAKECMDGOALS)$(filter-out default,$(MAKECMDGOALS)),)
+BUILDING_PHONY_TARGETS += $(default_DEPS)
+else
+ifeq ($(filter-out all,$(MAKECMDGOALS)),)
+BUILDING_PHONY_TARGETS += $(all_DEPS)
+endif
+endif
+
+define SOFT_DEP_RULE
+$(call SOFT_DEP_RULE_WITH,$1,$2,$(BUILDING_PHONY_TARGETS))
+endef
+
+# Soft dependencies between .PHONY targets.
+deps_DEPS = clean
+configure_DEPS = clean $(deps_DEPS) deps
+build_DEPS = clean $(configure_DEPS) configure
+unit_DEPS = clean $(build_DEPS) build
+example_DEPS = clean $(build_DEPS) build $(prelude_DEPS) prelude
+test_DEPS = clean $(build_DEPS) build $(prelude_DEPS) prelude
+yarn_DEPS = clean
+prelude_DEPS = clean $(build_DEPS) build
+lint_DEPS = clean
+loc_DEPS = clean
+clean_DEPS =
+$(foreach PHONY_TARGET,$(PHONY_TARGETS),$(eval $(call \
+  SOFT_DEP_RULE,$(PHONY_TARGET),$($(PHONY_TARGET)_DEPS))))
+
 .PHONY : default
-default : build prelude unit example test
+default : $(default_DEPS)
 
 .PHONY : all
-all : deps configure default lint
+all : $(all_DEPS)
 
 .PHONY : build
-build $(KITTEN) :
+build : $(KITTEN)
+
+.PHONY : $(KITTEN)
+$(KITTEN) :
 	$(CABAL) build
+$(call SOFT_DEP_RULE,$(KITTEN),$(build_DEPS))
 
 .PHONY : yarn
 yarn : $(YARN) $(YARN_HEADERS)
 
 $(YARN) : $(YARN_SOURCES)
 	$(CXX) $^ -o $@ -std=c++11 -stdlib=libc++ -Wall -pedantic -g
+$(call SOFT_DEP_RULE,$(YARN),$(yarn_DEPS))
 
 .PHONY : clean
 clean :
@@ -54,6 +117,7 @@ $(PRELUDE) : $(KITTEN) lib/Prelude.ktn
 	cp lib/Prelude.ktn $(PRELUDE)
 	cp lib/Prelude_*.ktn $(BUILDDIR)
 	$(KITTEN) --no-implicit-prelude $(PRELUDE)
+$(call SOFT_DEP_RULE,$(PRELUDE),$(prelude_DEPS))
 
 .PHONY : unit
 unit :
@@ -62,6 +126,7 @@ unit :
 define EXAMPLE_RULE
 example-$1 : $(KITTEN) $(PRELUDE)
 	@$(KITTEN) --check "$1"
+$(call SOFT_DEP_RULE,example-$1,$(example_DEPS))
 example : example-$1
 endef
 
@@ -71,6 +136,7 @@ $(foreach EXAMPLE,$(EXAMPLES),$(eval $(call EXAMPLE_RULE,$(EXAMPLE))))
 define TEST_RULE
 test-$1 : $(KITTEN) $(PRELUDE) $(TESTER)
 	@$(TESTER) $$(realpath $(KITTEN)) "$1"
+$(call SOFT_DEP_RULE,test-$1,$(test_DEPS))
 test : test-$1
 endef
 
