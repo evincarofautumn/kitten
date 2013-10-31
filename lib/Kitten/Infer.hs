@@ -385,11 +385,16 @@ infer finalEnv resolved = case resolved of
     (typedTerms, types) <- V.mapAndUnzipM recur terms
     r <- freshVarM
     type_ <- foldM
-      (\(Type.Function a b e1 _) (Type.Function c d e2 _)
-        -> inferCompose a b c d e1 e2)
+      (\x y -> do
+        Type.Function a b e1 _ <- unquantify x
+        Type.Function c d e2 _ <- unquantify y
+        inferCompose a b c d e1 e2)
       ((r --> r) loc)
       (V.toList types)
     return (Typed.Compose typedTerms loc (sub finalEnv type_), type_)
+    where
+    unquantify (Type.Quantified scheme _) = instantiateM scheme
+    unquantify type_ = return type_
 
   From name loc -> asTyped (Typed.From name) loc $ do
     underlying <- instantiateM =<< getsEnv ((M.! name) . envTypeDefs)
