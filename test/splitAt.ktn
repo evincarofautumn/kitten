@@ -1,4 +1,4 @@
-def test ([Int] [Int] [Int] [Int] -> +IO):
+def test ([Int] [Int] [Int] [Int] ->):
   -> { actualL actualR expectedL expectedR }
   \if (
     actualL expectedL {=} eqVector not

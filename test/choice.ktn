@@ -1,4 +1,4 @@
-def sayIntOrString (Int | [Char] -> +IO):
+def sayIntOrString (Int | [Char] ->):
   -> x
   \choice x:
     sayInt

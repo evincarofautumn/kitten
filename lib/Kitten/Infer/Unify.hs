@@ -44,27 +44,6 @@ class Unification a where
     -> Env
     -> Either [ErrorGroup] Env
 
-instance Unification Effect where
-  unification type1 type2 env = case (type1, type2) of
-    _ | type1 == type2 -> Right env
-
-    (NoEffect loc, a :+ b)
-      -> unify a (NoEffect loc) env
-      >>= unify b (NoEffect loc)
-
-    (a :+ b, NoEffect loc)
-      -> unify a (NoEffect loc) env
-      >>= unify b (NoEffect loc)
-
-    (a :+ b, c :+ d) | a +: b == c +: d -> Right env
-    (a :+ b, c :+ d) -> unify a c env >>= unify b d
-
-    (Var var (Origin hint _), type_) -> unifyVar var (type_ `addHint` hint) env
-    (type_, Var var (Origin hint _)) -> unifyVar var (type_ `addHint` hint) env
-
-    _ -> Left $ unificationError "effect"
-      (envLocation env) type1 type2
-
 instance Unification Row where
   unification type1 type2 env = case (type1, type2) of
     _ | type1 == type2 -> Right env
@@ -80,19 +59,13 @@ instance Unification Row where
 instance Unification Scalar where
   unification type1 type2 env = case (type1, type2) of
     _ | type1 == type2 -> Right env
-
     (a :& b, c :& d) -> unify b d env >>= unify a c
     ((:?) a, (:?) b) -> unify a b env
     (a :| b, c :| d) -> unify b d env >>= unify a c
-
-    (Function a b e1 _, Function c d e2 _)
-      -> unify b d env >>= unify a c >>= unify e1 e2
-
+    (Function a b _, Function c d _) -> unify b d env >>= unify a c
     (Vector a _, Vector b _) -> unify a b env
-
     (Var var (Origin hint _), type_) -> unifyVar var (type_ `addHint` hint) env
     (type_, Var var (Origin hint _)) -> unifyVar var (type_ `addHint` hint) env
-
     _ -> Left $ unificationError "scalar"
       (envLocation env) type1 type2
 

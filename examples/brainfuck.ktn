@@ -22,13 +22,13 @@ def eofCell(-> Int): -1
 ////////////////////////////////////////////////////////////
 // Utilities
 
-def lookUp([a & b] a (a a -> Bool +e) -> b? +e):
+def lookUp([a & b] a (a a -> Bool) -> b?):
   ->{key eq}
   {first key eq@} find
   {rest} liftOption
 
 // TODO(strager): Find a better name.  'option' is taken.
-def maybe(a? (a -> b +e) b -> b +e):
+def maybe(a? (a -> b) b -> b):
   ->{mx f z}
   \option mx: f@
   else: z
@@ -40,17 +40,17 @@ def set([a] a Int -> [a]): #=
 def update([a] (a -> a) Int -> [a]): #@
 
 // FIXME(strager): Bad approximation.
-def getCharApprox(-> Char? +IO):
+def getCharApprox(-> Char?):
   getLine ->line
   line head
 
-def error([Char] -> +IO):
+def error([Char] ->):
   ->message
   ["Error: ", message, "\n"] concat stderr handlePrint
   1 exit
 
 // TODO(strager): Make this a compiler intrinsic.
-def unfoldN(a Int (a -> b a +e) -> [b] +e):
+def unfoldN(a Int (a -> b a) -> [b]):
   ->{z size f}
   \if size 0 >:
     z f@ ->{b a}
@@ -59,14 +59,14 @@ def unfoldN(a Int (a -> b a +e) -> [b] +e):
   else:
     []
 
-def generateN((Int -> a +e) Int -> [a] +e):
+def generateN((Int -> a) Int -> [a]):
   ->{f size}
   \unfoldN 0 size: ->index
     index f@
     index++
 
 // TODO(strager): Make this more efficient.
-def loopN(Int (Int -> +e) -> +e):
+def loopN(Int (Int ->) ->):
   ->{size f}
   {f@ ()} size generateN drop
 
@@ -99,14 +99,14 @@ def parseProgram([Char] -> Program):
   {to Instruction} map
   to Program
 
-def runProgram(Program -> +IO):
+def runProgram(Program ->):
   ->program
   1024 createMemory ->ram
 
   program 0 ram 0
   loopProgram
 
-def loopProgram(Program Int Memory Int -> +IO):
+def loopProgram(Program Int Memory Int ->):
   stepProgram
   ->running
   \if running:
@@ -114,7 +114,7 @@ def loopProgram(Program Int Memory Int -> +IO):
   else:
     drop drop drop drop
 
-def stepProgram(Program Int Memory Int -> Program Int Memory Int Bool +IO):
+def stepProgram(Program Int Memory Int -> Program Int Memory Int Bool):
   ->{program pc ram ramc}
 
   \if debug:
@@ -125,47 +125,38 @@ def stepProgram(Program Int Memory Int -> Program Int Memory Int Bool +IO):
 
   [ \pair '<' to Instruction:
       program pc++ ram ramc--
-      noop // FIXME(strager): Dumb compiler.
 
   , \pair '>' to Instruction:
       program pc++ ram ramc++
-      noop // FIXME(strager): Dumb compiler.
 
   , \pair '+' to Instruction:
       program pc++
       (ram {++} ramc updateMemory) ramc
-      noop // FIXME(strager): Dumb compiler.
 
   , \pair '-' to Instruction:
       program pc++
       (ram {--} ramc updateMemory) ramc
-      noop // FIXME(strager): Dumb compiler.
 
   , \pair '[' to Instruction:
       \if ram ramc getMemory 0 =:
         \option program pc findMatchingRBracket:
           ->rbracket
           program rbracket++ ram ramc
-          noop
         else:
           ["No matching ] at position ", pc showInt] concat error
           // FIXME(strager): Compiler can't infer non-termination.
           program pc ram ramc
-        noop
       else:
         program pc++ ram ramc
-      noop // FIXME(strager): Dumb compiler.
 
   , \pair ']' to Instruction:
       \option program pc findMatchingLBracket:
         ->lbracket
-        noop
         program lbracket ram ramc
       else:
         ["No matching [ at position ", pc showInt] concat error
         // FIXME(strager): Compiler can't infer non-termination.
         program pc ram ramc
-      noop // FIXME(strager): Dumb compiler.
 
   , \pair '.' to Instruction:
       ram ramc getMemory ->cell
@@ -173,7 +164,6 @@ def stepProgram(Program Int Memory Int -> Program Int Memory Int Bool +IO):
         vector print
       else:
         ["Tried to print ", cell showInt, ", which is out of range"] concat error
-      noop
       program pc++ ram ramc
 
   , \pair ',' to Instruction:
@@ -285,7 +275,7 @@ def progSort:
 ////////////////////////////////////////////////////////////
 // Debugging
 
-def dumpMemory(Memory Int -> +IO):
+def dumpMemory(Memory Int ->):
   ->{ram ramc}
 
   "Memory:" say
@@ -295,7 +285,7 @@ def dumpMemory(Memory Int -> +IO):
     \if index ramc =: " <" print
     newline
 
-def dumpProgram(Program Int -> +IO):
+def dumpProgram(Program Int ->):
   ->{_ pc}
   ["Program counter: ", pc showInt] concat say
 

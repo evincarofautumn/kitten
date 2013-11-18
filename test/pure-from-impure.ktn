@@ -1,5 +1,0 @@
-def pureFromImpure (Int -> Int +IO):
-  noop
-  ++
-
-5 pureFromImpure sayInt

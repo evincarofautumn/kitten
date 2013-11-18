@@ -38,17 +38,14 @@ instantiateM scheme = do
   liftState $ state (instantiate origin scheme)
 
 instantiate :: Origin -> TypeScheme -> Env -> (Type Scalar, Env)
-instantiate origin (Forall rows scalars effects type_) env
+instantiate origin (Forall rows scalars type_) env
   = (sub renamed type_, env')
 
   where
   renamed :: Env
   env' :: Env
   (renamed, env') = flip runState env $ composeM
-    [ renames rows
-    , renames scalars
-    , renames effects
-    ] emptyEnv
+    [renames rows, renames scalars] emptyEnv
 
   renames
     :: (Declare a)
@@ -76,69 +73,57 @@ generalize type_ = do
 
     rows :: [TypeName Row]
     scalars :: [TypeName Scalar]
-    effects :: [TypeName Effect]
-    (rows, scalars, effects) = freeVars substituted
+    (rows, scalars) = freeVars substituted
 
   return $ Forall
     (S.fromList rows)
     (S.fromList scalars)
-    (S.fromList effects)
     substituted
 
 freeVars
   :: (Free a)
   => Type a
-  -> ([TypeName Row], [TypeName Scalar], [TypeName Effect])
+  -> ([TypeName Row], [TypeName Scalar])
 freeVars type_
-  = let (rows, scalars, effects) = free type_
-  in (nub rows, nub scalars, nub effects)
+  = let (rows, scalars) = free type_
+  in (nub rows, nub scalars)
 
 class Free a where
   free
     :: Type a
-    -> ([TypeName Row], [TypeName Scalar], [TypeName Effect])
-
-instance Free Effect where
-  free type_ = case type_ of
-    a :+ b -> free a <> free b
-    NoEffect _ -> mempty
-    IOEffect _ -> mempty
-    Var name _ -> ([], [], [name])
+    -> ([TypeName Row], [TypeName Scalar])
 
 instance Free Row where
   free type_ = case type_ of
     a :. b -> free a <> free b
     Empty{} -> mempty
-    Var name _ -> ([name], [], [])
+    Var name _ -> ([name], [])
 
 instance Free Scalar where
   free type_ = case type_ of
     a :& b -> free a <> free b
     (:?) a -> free a
     a :| b -> free a <> free b
-    Function a b _ _ -> free a <> free b
+    Function a b _ -> free a <> free b
     Bool{} -> mempty
     Char{} -> mempty
     Float{} -> mempty
     Handle{} -> mempty
     Int{} -> mempty
     Named{} -> mempty
-    Var name _ -> ([], [name], [])
+    Var name _ -> ([], [name])
     Unit{} -> mempty
     Vector a _ -> free a
 
 normalize :: Origin -> Type Scalar -> Type Scalar
 normalize origin type_ = let
-  (rows, scalars, effects) = freeVars type_
+  (rows, scalars) = freeVars type_
   rowCount = length rows
-  rowScalarCount = rowCount + length scalars
   env = emptyEnv
     { envRows = N.fromList
       $ zip (map unTypeName rows) (map var [0..])
     , envScalars = N.fromList
       $ zip (map unTypeName scalars) (map var [rowCount..])
-    , envEffects = N.fromList
-      $ zip (map unTypeName effects) (map var [rowScalarCount..])
     }
   in sub env type_
   where
@@ -150,15 +135,6 @@ occurs = (((> 0) .) .) . occurrences
 
 class Occurrences a where
   occurrences :: Name -> Env -> Type a -> Int
-
-instance Occurrences Effect where
-  occurrences name env type_ = case type_ of
-    a :+ b -> occurrences name env a + occurrences name env b
-    NoEffect _ -> 0
-    IOEffect _ -> 0
-    Var typeName@(TypeName name') _ -> case retrieve env typeName of
-      Left{} -> if name == name' then 1 else 0  -- See Note [Var Kinds].
-      Right type' -> occurrences name env type'
 
 instance Occurrences Row where
   occurrences name env type_ = case type_ of
@@ -173,9 +149,7 @@ instance Occurrences Scalar where
     a :& b -> occurrences name env a + occurrences name env b
     (:?) a -> occurrences name env a
     a :| b -> occurrences name env a + occurrences name env b
-    Function a b _ _
-      -> occurrences name env a
-      + occurrences name env b
+    Function a b _ -> occurrences name env a + occurrences name env b
     Bool{} -> 0
     Char{} -> 0
     Float{} -> 0
@@ -197,13 +171,6 @@ instance Occurrences Scalar where
 class Simplify a where
   simplify :: Env -> Type a -> Type a
 
-instance Simplify Effect where
-  simplify env type_ = case type_ of
-    Var name (Origin hint _loc)
-      | Right type' <- retrieve env name
-      -> simplify env type' `addHint` hint
-    _ -> type_
-
 instance Simplify Row where
   simplify env type_ = case type_ of
     Var name (Origin hint _loc)
@@ -221,17 +188,6 @@ instance Simplify Scalar where
 class Substitute a where
   sub :: Env -> Type a -> Type a
 
-instance Substitute Effect where
-  sub env type_ = case type_ of
-    a :+ b -> sub env a +: sub env b
-    NoEffect _ -> type_
-    IOEffect _ -> type_
-    Var name (Origin hint _loc)
-      | Right type' <- retrieve env name
-      -> sub env type' `addHint` hint
-      | otherwise
-      -> type_
-
 instance Substitute Row where
   sub env type_ = case type_ of
     a :. b -> sub env a :. sub env b
@@ -244,10 +200,9 @@ instance Substitute Row where
 
 instance Substitute Scalar where
   sub env type_ = case type_ of
-    Function a b e origin -> Function
+    Function a b origin -> Function
       (sub env a)
       (sub env b)
-      (sub env e)
       origin
     a :& b -> sub env a :& sub env b
     (:?) a -> (sub env a :?)

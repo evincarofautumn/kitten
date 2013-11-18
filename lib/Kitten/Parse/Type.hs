@@ -25,7 +25,6 @@ signature = (<?> "type signature") . locate
   $ Anno <$> choice
   [ try . grouped $ Anno.Function V.empty
     <$> (V.singleton <$> baseType)
-    <*> pure Anno.NoEffect
   , grouped functionType
   ]
 
@@ -39,7 +38,7 @@ functionType :: Parser Type
 functionType = (<?> "function type") $ choice
   [ Anno.Function <$> left <*> right
   , Anno.RowFunction <$> row <*> left <*> row <*> right
-  ] <*> functionEffect
+  ]
   where
 
   left, right :: Parser (Vector Type)
@@ -48,26 +47,6 @@ functionType = (<?> "function type") $ choice
 
   row :: Parser Text
   row = match (Token.Operator ".") *> littleWord
-
-functionEffect :: Parser Type
-functionEffect = choice
-  [ match (Token.Operator "+") *> effectType
-  , pure Anno.NoEffect
-  ]
-
-effectType :: Parser Type
-effectType = (<?> "effect type") $ do
-  left <- choice
-    [ Anno.IOEffect <$ match (Token.BigWord "IO")
-    , Anno.Var <$> littleWord
-    , try $ Anno.NoEffect <$ unit
-    , grouped effectType
-    ]
-  choice
-    [ Anno.Join left
-      <$> (match (Token.Operator "+") *> effectType)
-    , pure left
-    ]
 
 baseType :: Parser Type
 baseType = (<?> "base type") $ do

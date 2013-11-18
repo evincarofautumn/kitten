@@ -9,10 +9,10 @@
 
 ticTacToe
 
-def ticTacToe (-> +IO):
+def ticTacToe (->):
   { game playAgain } loopWhile
 
-def game (-> +IO):
+def game (->):
   newBoard 'x' gameLoop -> { finalBoard winner }
 
   newline
@@ -24,7 +24,7 @@ def game (-> +IO):
 
   finalBoard printBoard
 
-def gameLoop ([Char] Char -> [Char] Char +IO):
+def gameLoop ([Char] Char -> [Char] Char):
   -> player
   -> board
 
@@ -35,7 +35,7 @@ def gameLoop ([Char] Char -> [Char] Char +IO):
     board player askTurn
     player nextPlayer gameLoop
 
-def askTurn ([Char] Char -> [Char] +IO):
+def askTurn ([Char] Char -> [Char]):
   -> player
   -> board
 
@@ -109,7 +109,7 @@ def getWinner ([Char] -> Char):
     else:
       '*'
 
-def playAgain (-> Bool +IO):
+def playAgain (-> Bool):
   "Play another game? [yN] " prompt -> input
   \if input isYes:
     newline true
@@ -129,7 +129,7 @@ def editBoard ([Char] Int Char -> [Char]):
   -> { number player }
   player (number cellNumberToIndex) #=
 
-def printBoard ([Char] -> +IO):
+def printBoard ([Char] ->):
   showBoard print
 
 def showBoard ([Char] -> [Char]):

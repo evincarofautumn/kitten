@@ -7,8 +7,6 @@ module Kitten.Type.Tidy
   ( Tidy
   , TidyType(..)
   , runTidy
-  , tidyEffect
-  , tidyEffectType
   , tidyRow
   , tidyRowType
   , tidyScalar
@@ -32,7 +30,6 @@ data TidyKindState a = TidyKindState
 data TidyState = TidyState
   { scalars :: !(TidyKindState Scalar)
   , rows :: !(TidyKindState Row)
-  , effects :: !(TidyKindState Effect)
   }
 
 newtype Tidy a = Tidy (State TidyState a)
@@ -47,9 +44,6 @@ instance TidyType Scalar where
 instance TidyType Row where
   tidyType = tidyRowType
 
-instance TidyType Effect where
-  tidyType = tidyEffectType
-
 emptyKindState :: TidyKindState a
 emptyKindState = TidyKindState
   { names = NameMap.empty
@@ -60,7 +54,6 @@ runTidy :: Tidy a -> a
 runTidy (Tidy m) = evalState m TidyState
   { scalars = emptyKindState
   , rows = emptyKindState
-  , effects = emptyKindState
   }
 
 tidyName
@@ -98,10 +91,6 @@ tidyRow :: TypeName Row -> Tidy (TypeName Row)
 tidyRow = tidyNameM rows
   (\rows' s -> s { rows = rows' })
 
-tidyEffect :: TypeName Effect -> Tidy (TypeName Effect)
-tidyEffect = tidyNameM effects
-  (\effects' s -> s { effects = effects' })
-
 tidyScalarType :: Type Scalar -> Tidy (Type Scalar)
 tidyScalarType type_ = case type_ of
   t1 :& t2 -> (:&) <$> tidyScalarType t1 <*> tidyScalarType t2
@@ -110,10 +99,9 @@ tidyScalarType type_ = case type_ of
   Bool{} -> pure type_
   Char{} -> pure type_
   Float{} -> pure type_
-  Function r1 r2 e loc -> Function
+  Function r1 r2 loc -> Function
     <$> tidyRowType r1
     <*> tidyRowType r2
-    <*> tidyEffectType e
     <*> pure loc
   Handle{} -> pure type_
   Int{} -> pure type_
@@ -127,10 +115,3 @@ tidyRowType type_ = case type_ of
   t1 :. t2 -> (:.) <$> tidyRowType t1 <*> tidyScalarType t2
   Empty{} -> pure type_
   Var name loc -> Var <$> tidyRow name <*> pure loc
-
-tidyEffectType :: Type Effect -> Tidy (Type Effect)
-tidyEffectType type_ = case type_ of
-  t1 :+ t2 -> (:+) <$> tidyEffectType t1 <*> tidyEffectType t2
-  Var name loc -> Var <$> tidyEffect name <*> pure loc
-  NoEffect{} -> pure type_
-  IOEffect{} -> pure type_

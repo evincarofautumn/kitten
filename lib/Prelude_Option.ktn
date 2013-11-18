@@ -25,7 +25,7 @@ def isSome (a? -> Bool):
     false
 
 // Maps a function over an option value.
-def liftOption (a? (a -> b +e) -> b? +e):
+def liftOption (a? (a -> b) -> b?):
   -> f
   \option id:
     f@ some
@@ -33,7 +33,7 @@ def liftOption (a? (a -> b +e) -> b? +e):
     none
 
 // Combines two option values with a function.
-def liftOption2 (a? b? (a b -> c +e) -> c? +e):
+def liftOption2 (a? b? (a b -> c) -> c?):
   -> { mx my f }
   \option mx: -> x
     \option my: -> y

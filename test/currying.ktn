@@ -11,14 +11,14 @@ def curriedAdd2 (Int Int -> Int Int -> Int Int):
 1 2 3 4 curriedAdd2 @ sayInt sayInt
 
 // Pure function returning impure function.
-def curriedImpure (Int -> Int -> Int +IO):
+def curriedImpure (Int -> Int -> Int):
   ->x
   { ->y x y + dup sayInt }
 
 32 42 curriedImpure @ ++ sayInt
 
 // Impure function returning pure function.
-def curriedImpure2 (Int -> (Int -> Int) +IO):
+def curriedImpure2 (Int -> (Int -> Int)):
   ->x
   { ->y x y + }
   x sayInt

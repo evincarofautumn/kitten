@@ -1,38 +1,34 @@
 // Applies a function to the stack.
-def @ (.r (.r -> .s +e) -> .s +e):
+def @ (.r (.r -> .s) -> .s):
   apply
 
 // Applies a function to the stack.
-def apply (.r (.r -> .s +e) -> .s +e):
+def apply (.r (.r -> .s) -> .s):
   __apply
 
 // Applies a function to the left branch of a choice.
-def choice (.r (a | b) (.r a -> .r +e) -> .r +e):
+def choice (.r (a | b) (.r a -> .r) -> .r):
   __choice
 
 // Applies one of two functions to the branches of a choice.
-def choice_else (
-  .r (a | b) (.r a -> .s +e1) (.r b -> .s +e2)
-  ->
-  .s +(e1 + e2)
-):
+def choice_else (.r (a | b) (.r a -> .s) (.r b -> .s) -> .s):
   __choice_else
 
 // Applies a function if a condition is met.
-def if (.r Bool (.r -> .r +e) -> .r +e):
+def if (.r Bool (.r -> .r) -> .r):
   __if
 
 // Applies one of two functions according to a condition.
-def if_else (.r Bool (.r -> .s +e1) (.r -> .s +e2) -> .s +(e1 + e2)):
+def if_else (.r Bool (.r -> .s) (.r -> .s) -> .s):
   __if_else
 
 // Applies a function to the value of some option.
-def option (.r a? (.r a -> .r +e) -> .r +e):
+def option (.r a? (.r a -> .r) -> .r):
   __option
 
 // Applies a function to the value of some option, or else a
 // default function.
-def option_else (.r a? (.r a -> .s +e1) (.r -> .s +e2) -> .s +(e1 + e2)):
+def option_else (.r a? (.r a -> .s) (.r -> .s) -> .s):
   __option_else
 
 // 'cond' accepts a value, a vector of patterns, and a
@@ -43,10 +39,10 @@ def option_else (.r a? (.r a -> .s +e1) (.r -> .s +e2) -> .s +(e1 + e2)):
 // returned 'none', then 'cond' evaluates the default.
 def cond (
   a                          // Matched value
-  [(a -> b?) & (b -> c +e)]  // (pattern, function) pairs
-  (-> c +e)                  // default function
+  [(a -> b?) & (b -> c)]  // (pattern, function) pairs
+  (-> c)                  // default function
   ->
-  c +e
+  c
 ):
   -> { x ps z }
   \option ps head:
@@ -62,9 +58,9 @@ def cond (
 // 'cond' without a default.
 def cond1 (
   a
-  [(a -> b?) & (b -> c +e)]
+  [(a -> b?) & (b -> c)]
   ->
-  c +e
+  c
 ):
   -> { x ps }
   ps head fromSome -> p
@@ -75,12 +71,12 @@ def cond1 (
     x (ps tail) cond1
 
 // Repeats an action until a condition is false.
-def loopWhile ((-> Bool +e) -> +e):
+def loopWhile ((-> Bool) ->):
   -> f
   \if f@: f loopWhile
 
 // Iterates a function on a value until a predicate holds.
-def until (a (a -> a +e) (a -> Bool +e) -> a +e):
+def until (a (a -> a) (a -> Bool) -> a):
   -> { x f p }
   \if x p@:
     x

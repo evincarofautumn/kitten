@@ -12,11 +12,11 @@ say
 
 \if 2 2 + 4 =: "true" say
 
-def f (-> +IO):
+def f (->):
   \if 2 2 * 4 =:
     "true" say
 
 def g (->):
-  pass
+  id
 
 f

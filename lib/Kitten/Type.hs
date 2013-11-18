@@ -17,11 +17,7 @@ module Kitten.Type
   , TypeName(..)
   , TypeScheme
   , (-->)
-  , (==>)
-  , (+:)
   , addHint
-  , effect
-  , emptyScheme
   , mono
   , row
   , scalar
@@ -51,17 +47,13 @@ data Type (a :: Kind) where
   Char :: !Origin -> Type Scalar
   Empty :: !Origin -> Type Row
   Float :: !Origin -> Type Scalar
-  Function :: !(Type Row) -> !(Type Row) -> !(Type Effect) -> !Origin -> Type Scalar
+  Function :: !(Type Row) -> !(Type Row) -> !Origin -> Type Scalar
   Handle :: !Origin -> Type Scalar
   Int :: !Origin -> Type Scalar
   Named :: !Text -> !Origin -> Type Scalar
   Unit :: !Origin -> Type Scalar
   Var :: !(TypeName a) -> !Origin -> Type a
   Vector :: !(Type Scalar) -> !Origin -> Type Scalar
-
-  (:+) :: !(Type Effect) -> !(Type Effect) -> Type Effect
-  NoEffect :: !Origin -> Type Effect
-  IOEffect :: !Origin -> Type Effect
 
 instance Eq (Type a) where
   (a :& b) == (c :& d) = (a, b) == (c, d)
@@ -72,28 +64,19 @@ instance Eq (Type a) where
   Char{} == Char{} = True
   Empty{} == Empty{} = True
   Float{} == Float{} = True
-  Function a b p1 _ == Function c d p2 _
-    = (a, b, p1) == (c, d, p2)
+  Function a b _ == Function c d _ = (a, b) == (c, d)
   Handle{} == Handle{} = True
   Int{} == Int{} = True
   Named a _ == Named b _ = a == b
   Unit{} == Unit{} = True
   Var a _ == Var b _ = a == b
   Vector a _ == Vector b _ = a == b
-
-  (a :+ b) == (c :+ d) = (a, b) == (c, d)
-  NoEffect{} == NoEffect{} = True
-  IOEffect{} == IOEffect{} = True
-
   _ == _ = False
 
 instance Show (Type Scalar) where
   show = T.unpack . toText
 
 instance Show (Type Row) where
-  show = T.unpack . toText
-
-instance Show (Type Effect) where
   show = T.unpack . toText
 
 -- TODO showsPrec
@@ -105,8 +88,8 @@ instance ToText (Type Scalar) where
     Bool o -> "Bool" <> suffix o
     Char o -> "Char" <> suffix o
     Float o -> "Float" <> suffix o
-    Function r1 r2 e o -> T.concat
-      [ "(", T.unwords [toText r1, "->", toText r2, "+", toText e], ")"
+    Function r1 r2 o -> T.concat
+      [ "(", T.unwords [toText r1, "->", toText r2], ")"
       , suffix o
       ]
     Handle o -> "Handle" <> suffix o
@@ -123,14 +106,6 @@ instance ToText (Type Row) where
     Empty o -> "<empty>" <> suffix o
     Var (TypeName (Name index)) o
       -> ".r" <> showText index <> suffix o
-
-instance ToText (Type Effect) where
-  toText = \case
-    t1 :+ t2 -> T.concat ["(", toText t1, " + ", toText t2, ")"]
-    Var (TypeName (Name index)) o
-      -> "e" <> showText index <> suffix o
-    NoEffect o -> "()" <> suffix o
-    IOEffect o -> "IO" <> suffix o
 
 suffix :: Origin -> Text
 suffix (Origin hint _) = case hint of
@@ -205,7 +180,6 @@ instance Monoid Hint where
 data Scheme a = Forall
   (Set (TypeName Row))
   (Set (TypeName Scalar))
-  (Set (TypeName Effect))
   a
   deriving (Eq, Functor)
 
@@ -213,11 +187,10 @@ instance (ToText a) => Show (Scheme a) where
   show = T.unpack . toText
 
 instance (ToText a) => ToText (Scheme a) where
-  toText (Forall rows scalars effects type_) = T.unwords
+  toText (Forall rows scalars type_) = T.unwords
     [ "forall"
     , wordSetText rows
     , wordSetText scalars
-    , wordSetText effects
     , "."
     , toText type_
     ]
@@ -231,14 +204,12 @@ infix 6 :&
 infix 6 :|
 infixl 5 :.
 infix 4 -->
-infix 4 ==>
 
 -- | Creates a 'Function' scalar type, inferring hints from
 -- the given 'Origin'.
-hintedFunction
-  :: Type Row -> Type Row -> Type Effect -> Origin -> Type Scalar
-hintedFunction inputs outputs e origin
-  = Function inputs' outputs' e origin
+hintedFunction :: Type Row -> Type Row -> Origin -> Type Scalar
+hintedFunction inputs outputs origin
+  = Function inputs' outputs' origin
   where
   inputs', outputs' :: Type Row
   (inputs', outputs') = case origin of
@@ -250,19 +221,7 @@ hintedFunction inputs outputs e origin
     _ -> (inputs, outputs)
 
 (-->) :: Type Row -> Type Row -> Origin -> Type Scalar
-(a --> b) origin = hintedFunction a b (NoEffect origin) origin
-
-(==>) :: Type Row -> Type Row -> Origin -> Type Scalar
-(a ==> b) origin = hintedFunction a b (IOEffect origin) origin
-
-(+:) :: Type Effect -> Type Effect -> Type Effect
-a +: b | a == b = a
-IOEffect loc +: _ = IOEffect loc
-NoEffect _ +: a = a
-_ +: IOEffect loc = IOEffect loc
-a +: NoEffect _ = a
-(a :+ b) +: c = a +: (b +: c)
-a +: b = a :+ b
+(a --> b) origin = hintedFunction a b origin
 
 addHint :: Type a -> Hint -> Type a
 addHint type_ hint = case type_ of
@@ -274,17 +233,13 @@ addHint type_ hint = case type_ of
   Bool o -> Bool (f o)
   Char o -> Char (f o)
   Float o -> Float (f o)
-  Function r1 r2 e o -> Function r1 r2 e (f o)
+  Function r1 r2 o -> Function r1 r2 (f o)
   Handle o -> Handle (f o)
   Int o -> Int (f o)
   Named name o -> Named name (f o)
   Var name o -> Var name (f o)
   Unit o -> Unit (f o)
   Vector t o -> Vector t (f o)
-
-  _ :+ _ -> type_
-  NoEffect o -> NoEffect (f o)
-  IOEffect o -> IOEffect (f o)
   where
   f :: Origin -> Origin
   f (Origin _hint loc) = Origin hint loc
@@ -298,14 +253,8 @@ addRowHint type_ hint = case type_ of
   r :. t -> addRowHint r hint :. (t `addHint` hint)
   _ -> type_
 
-effect :: Name -> TypeName Effect
-effect = TypeName
-
-emptyScheme :: a -> Scheme a
-emptyScheme = Forall S.empty S.empty S.empty
-
 mono :: a -> Scheme a
-mono = Forall S.empty S.empty S.empty
+mono = Forall S.empty S.empty
 
 row :: Name -> TypeName Row
 row = TypeName
@@ -314,4 +263,4 @@ scalar :: Name -> TypeName Scalar
 scalar = TypeName
 
 unScheme :: Scheme a -> a
-unScheme (Forall _ _ _ x) = x
+unScheme (Forall _ _ x) = x

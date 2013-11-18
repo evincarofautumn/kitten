@@ -55,7 +55,6 @@ data Env = Env
   { envClosure :: !(Vector (Type Scalar))
   , envDefs :: !(NameMap TypeScheme)
   , envDecls :: !(NameMap TypeScheme)
-  , envEffects :: !(NameMap (Type Effect))
   , envLocals :: [Type Scalar]
   , envNameGen :: !NameGen
   , envOrigin :: !Origin
@@ -71,10 +70,6 @@ newtype Inferred a = Inferred
 class Declare a where
   declare :: TypeName a -> Type a -> Env -> Env
 
-instance Declare Effect where
-  declare (TypeName name) type_ env = env
-    { envEffects = N.insert name type_ (envEffects env) }
-
 instance Declare Row where
   declare (TypeName name) type_ env = env
     { envRows = N.insert name type_ (envRows env) }
@@ -88,7 +83,6 @@ emptyEnv = Env
   { envClosure = V.empty
   , envDefs = N.empty
   , envDecls = N.empty
-  , envEffects = N.empty
   , envLocals = []
   , envNameGen = mkNameGen
   , envOrigin = Origin NoHint UnknownLocation
@@ -99,11 +93,6 @@ emptyEnv = Env
 
 class Retrieve a where
   retrieve :: Env -> TypeName a -> Either ErrorGroup (Type a)
-
-instance Retrieve Effect where
-  retrieve Env{..} (TypeName name)
-    = flip maybeToEither (N.lookup name envEffects)
-    $ nonexistent "effect" envOrigin name
 
 instance Retrieve Row where
   retrieve Env{..} (TypeName name)

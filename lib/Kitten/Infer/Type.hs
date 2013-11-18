@@ -29,10 +29,6 @@ data Env = Env
   -- ^ Anonymous rows implicit on both sides of an
   -- 'Anno.Function' constructor.
 
-  , envEffects :: !(Map Text (TypeName Effect))
-  -- ^ Map from effect variable names to effect variables
-  -- themselves.
-
   , envRows :: !(Map Text (TypeName Row))
   -- ^ Map from row variable names to row variables
   -- themselves.
@@ -48,14 +44,12 @@ fromAnno :: Annotated -> Anno -> Inferred (Scheme (Type Scalar))
 fromAnno annotated (Anno annoType annoLoc) = do
   (type_, env) <- flip runStateT Env
     { envAnonRows = []
-    , envEffects = M.empty
     , envRows = M.empty
     , envScalars = M.empty
     } $ fromAnnoType' (AnnoType annotated) annoType
   return $ Forall
     (S.fromList (envAnonRows env <> M.elems (envRows env)))
     (S.fromList . M.elems $ envScalars env)
-    (S.fromList . M.elems $ envEffects env)
     type_
   where
 
@@ -70,11 +64,11 @@ fromAnno annotated (Anno annoType annoLoc) = do
     Anno.Choice a b -> (:|)
       <$> fromAnnoType' NoHint a
       <*> fromAnnoType' NoHint b
-    Anno.Function a b e -> do
+    Anno.Function a b -> do
       r <- lift freshNameM
       let rVar = Var r origin
       modify $ \env -> env { envAnonRows = r : envAnonRows env }
-      makeFunction origin rVar a rVar b e
+      makeFunction origin rVar a rVar b
     Anno.Float -> return (Float origin)
     Anno.Handle -> return (Handle origin)
     Anno.Int -> return (Int origin)
@@ -84,14 +78,13 @@ fromAnno annotated (Anno annoType annoLoc) = do
     Anno.Pair a b -> (:&)
       <$> fromAnnoType' NoHint a
       <*> fromAnnoType' NoHint b
-    Anno.RowFunction leftRow leftScalars rightRow rightScalars effectAnno -> do
+    Anno.RowFunction leftRow leftScalars rightRow rightScalars -> do
       leftRowVar <- rowVar leftRow loc annotated
       rightRowVar <- rowVar rightRow loc annotated
-      makeFunction origin leftRowVar leftScalars rightRowVar rightScalars effectAnno
+      makeFunction origin leftRowVar leftScalars rightRowVar rightScalars
     Anno.Unit -> return (Unit origin)
     Anno.Var name -> scalarVar name loc annotated
     Anno.Vector a -> Vector <$> fromAnnoType' NoHint a <*> pure origin
-    _ -> error "converting effect annotation to non-effect type"
     where
     origin :: Origin
     origin = Origin hint loc
@@ -104,28 +97,11 @@ fromAnno annotated (Anno annoType annoLoc) = do
     -> Vector Anno.Type
     -> Type Row
     -> Vector Anno.Type
-    -> Anno.Type
     -> Converted (Type Scalar)
-  makeFunction origin leftRow leftScalars rightRow rightScalars effectAnno = Function
+  makeFunction origin leftRow leftScalars rightRow rightScalars = Function
     <$> (V.foldl' (:.) leftRow <$> V.mapM fromInput leftScalars)
     <*> (V.foldl' (:.) rightRow <$> V.mapM fromOutput rightScalars)
-    <*> fromAnnoEffect NoHint effectAnno  -- FIXME(strager): Hint.
     <*> pure origin
-
-  fromAnnoEffect :: Hint -> Anno.Type -> Converted (Type Effect)
-  fromAnnoEffect hint = \case
-    Anno.NoEffect -> return (NoEffect origin)
-    Anno.IOEffect -> return (IOEffect origin)
-    Anno.Var name -> effectVar name loc annotated
-    Anno.Join a b -> (+:)
-      <$> fromAnnoEffect NoHint a
-      <*> fromAnnoEffect NoHint b
-    _ -> error "converting non-effect annotation to effect type"
-    where
-    origin :: Origin
-    origin = Origin hint loc
-    loc :: Location
-    loc = annoLoc  -- FIXME(strager)
 
 -- | Gets a scalar variable by name from the environment.
 scalarVar :: Text -> Location -> Annotated -> Converted (Type Scalar)
@@ -140,13 +116,6 @@ rowVar = annoVar
   (\name -> M.lookup name . envRows)
   (\name var env -> env
     { envRows = M.insert name var (envRows env) })
-
--- | Gets an effect variable by name from the environment.
-effectVar :: Text -> Location -> Annotated -> Converted (Type Effect)
-effectVar = annoVar
-  (\name -> M.lookup name . envEffects)
-  (\name var env -> env
-    { envEffects = M.insert name var (envEffects env) })
 
 -- | Gets a variable by name from the environment, creating
 -- it if it does not exist.

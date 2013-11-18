@@ -7,7 +7,7 @@ def absFloat (Float -> Float):
   \if dup 0.0 <.: negFloat
 
 // Whether all elements of a vector satisfy a predicate.
-def all ([a] (a -> Bool +e) -> Bool +e):
+def all ([a] (a -> Bool) -> Bool):
   map and
 
 // Whether all elements of a vector are true.
@@ -15,7 +15,7 @@ def and ([Bool] -> Bool):
   true {&&} foldl
 
 // Whether any element of a vector satisfies a predicate.
-def any ([a] (a -> Bool +e) -> Bool +e):
+def any ([a] (a -> Bool) -> Bool):
   map or
 
 // Whether a floating-point number is even.

@@ -23,21 +23,13 @@ diagnosticLocations type_ = case type_ of
   Char loc -> yield loc
   Empty loc -> yield loc
   Float loc -> yield loc
-  Function r s e loc
-    -> yield loc
-    ++ locations r
-    ++ locations s
-    ++ locations e
+  Function r s loc -> yield loc ++ locations r ++ locations s
   Handle loc -> yield loc
   Int loc -> yield loc
   Named _ loc -> yield loc
   Unit loc -> yield loc
   Var _ loc -> yield loc
   Vector a loc -> yield loc ++ locationsIfUnhinted loc a
-
-  a :+ b -> locations a ++ locations b
-  NoEffect loc -> yield loc
-  IOEffect loc -> yield loc
 
   where
   yield :: Origin -> [(Location, Textable)]

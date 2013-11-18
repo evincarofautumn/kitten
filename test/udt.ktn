@@ -8,7 +8,7 @@ type Size (Width & Height)
 def sizeWidth: from Size first
 def sizeHeight: from Size rest
 
-def saySize (Size -> +IO):
+def saySize (Size ->):
   -> size
   size sizeWidth printWidth
   "x" print
