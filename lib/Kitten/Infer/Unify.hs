@@ -5,8 +5,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Kitten.Infer.Unify
-  ( (<:)
-  , (===)
+  ( (===)
   , unifyM
   , unifyM_
   , unifyVar
@@ -120,28 +119,6 @@ unificationError kind location type1 type2 = runTidy $ do
   where
   errorDetail (loc, type_) = CompileError loc Note
     $ toText type_ <> " is from here"
-
-class Subtype a where
-  (<:) :: Type a -> Type a -> Bool
-
-instance Subtype Row where
-  type1 <: type2 = case (type1, type2) of
-    _ | type1 == type2 -> True
-    (a :. b, c :. d) -> b <: d && a <: c
-    (Var{}, Var{}) -> False
-    (Var{}, _) -> True
-    _ -> False
-
-instance Subtype Scalar where
-  type1 <: type2 = case (type1, type2) of
-    _ | type1 == type2 -> True
-    (a :& b, c :& d) -> b <: d && a <: c
-    (Function a b p1 _, Function c d p2 _)
-      -> p1 == p2 && a <: c && b <: d
-    (Vector a _, Vector b _) -> a <: b
-    (Var{}, Var{}) -> False
-    (Var{}, _) -> True
-    _ -> False
 
 -- | Unifies two types, returning the second type.
 unifyM
