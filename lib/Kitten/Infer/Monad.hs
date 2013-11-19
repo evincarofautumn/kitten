@@ -1,5 +1,7 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -12,7 +14,9 @@ module Kitten.Infer.Monad
   , emptyEnv
   , envLocation
   , freshNameM
+  , freshConst
   , freshVar
+  , freshConstM
   , freshVarM
   , getEnv
   , getsEnv
@@ -26,7 +30,7 @@ module Kitten.Infer.Monad
   , withOrigin
   ) where
 
-import Control.Applicative
+import Control.Applicative hiding (Const)
 import Control.Monad.Fix
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
@@ -123,18 +127,34 @@ freshName env
   = let (name, gen') = genName (envNameGen env)
   in (TypeName name, env { envNameGen = gen' })
 
-freshVar :: Origin -> Env -> (Type a, Env)
-freshVar origin env
+fresh
+  :: forall a (b :: Kind -> *). (TypeName a -> Origin -> b a)
+  -> Origin -> Env -> (b a, Env)
+fresh constructor origin env
   = let (typeName, env') = freshName env
-  in (Var typeName origin, env')
+  in (constructor typeName origin, env')
+
+freshConst :: Origin -> Env -> (Type Scalar, Env)
+freshConst = fresh Const
+
+freshVar :: Origin -> Env -> (Type a, Env)
+freshVar = fresh Var
 
 freshNameM :: Inferred (TypeName a)
 freshNameM = liftState $ state freshName
 
-freshVarM :: Inferred (Type a)
-freshVarM = do
+freshM
+  :: forall a (b :: Kind -> *). (Origin -> Env -> (b a, Env))
+  -> Inferred (b a)
+freshM action = do
   Origin hint loc <- getsEnv envOrigin
-  liftState $ state (freshVar (Origin hint loc))
+  liftState $ state (action (Origin hint loc))
+
+freshConstM :: Inferred (Type Scalar)
+freshConstM = freshM freshConst
+
+freshVarM :: forall (a :: Kind). Inferred (Type a)
+freshVarM = freshM freshVar
 
 getEnv :: Inferred Env
 getEnv = liftState get

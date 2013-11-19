@@ -1,5 +1,6 @@
 module Kitten.Util.Maybe
   ( applyMaybe
+  , consMaybe
   , justIf
   , maybeToEither
   , replaceMaybe
@@ -11,6 +12,12 @@ import Data.Maybe
 
 applyMaybe :: (a -> Maybe a) -> a -> a
 applyMaybe = ap fromMaybe
+
+consMaybe :: Maybe a -> [a] -> [a]
+Nothing `consMaybe` xs = xs
+Just x `consMaybe` xs = x : xs
+
+infixr 5 `consMaybe`
 
 justIf :: Bool -> a -> Maybe a
 justIf condition value = if condition then Just value else Nothing

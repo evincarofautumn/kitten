@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE GADTs #-}
 
 module Kitten.Infer.Type
   ( fromAnno
@@ -47,6 +48,7 @@ fromAnno annotated (Anno annoType annoLoc) = do
     , envRows = M.empty
     , envScalars = M.empty
     } $ fromAnnoType' (AnnoType annotated) annoType
+
   return $ Forall
     (S.fromList (envAnonRows env <> M.elems (envRows env)))
     (S.fromList . M.elems $ envScalars env)
@@ -67,8 +69,9 @@ fromAnno annotated (Anno annoType annoLoc) = do
     Anno.Function a b -> do
       r <- lift freshNameM
       let rVar = Var r origin
-      modify $ \env -> env { envAnonRows = r : envAnonRows env }
-      makeFunction origin rVar a rVar b
+      scheme <- Forall (S.singleton r) S.empty
+        <$> makeFunction origin rVar a rVar b
+      return $ Quantified scheme origin
     Anno.Float -> return (Float origin)
     Anno.Handle -> return (Handle origin)
     Anno.Int -> return (Int origin)
