@@ -1,5 +1,8 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE PostfixOperators #-}
@@ -15,8 +18,10 @@ module Kitten.Infer.Scheme
   , instantiateM
   , normalize
   , occurs
+  , skolemize
   ) where
 
+import Control.Monad
 import Control.Monad.Trans.State.Strict
 import Data.Foldable (foldrM)
 import Data.List
@@ -81,7 +86,7 @@ generalize type_ = do
     substituted
 
 freeVars
-  :: (Free a)
+  :: (Free (Type a))
   => Type a
   -> ([TypeName Row], [TypeName Scalar])
 freeVars type_
@@ -89,17 +94,15 @@ freeVars type_
   in (nub rows, nub scalars)
 
 class Free a where
-  free
-    :: Type a
-    -> ([TypeName Row], [TypeName Scalar])
+  free :: a -> ([TypeName Row], [TypeName Scalar])
 
-instance Free Row where
+instance Free (Type Row) where
   free type_ = case type_ of
     a :. b -> free a <> free b
     Empty{} -> mempty
     Var name _ -> ([name], [])
 
-instance Free Scalar where
+instance Free (Type Scalar) where
   free type_ = case type_ of
     a :& b -> free a <> free b
     (:?) a -> free a
@@ -107,6 +110,7 @@ instance Free Scalar where
     Function a b _ -> free a <> free b
     Bool{} -> mempty
     Char{} -> mempty
+    Const name _ -> ([], [name])
     Float{} -> mempty
     Handle{} -> mempty
     Int{} -> mempty
@@ -114,6 +118,11 @@ instance Free Scalar where
     Var name _ -> ([], [name])
     Unit{} -> mempty
     Vector a _ -> free a
+
+instance Free TypeScheme where
+  free (Forall rows scalars type_) = let
+    (rows', scalars') = free type_
+    in (rows' \\ S.toList rows, scalars' \\ S.toList scalars)
 
 normalize :: Origin -> Type Scalar -> Type Scalar
 normalize origin type_ = let
@@ -152,6 +161,9 @@ instance Occurrences Scalar where
     Function a b _ -> occurrences name env a + occurrences name env b
     Bool{} -> 0
     Char{} -> 0
+    Const typeName@(TypeName name') _ -> case retrieve env typeName of
+      Left{} -> if name == name' then 1 else 0  -- See Note [Var Kinds].
+      Right type' -> occurrences name env type'
     Float{} -> 0
     Handle{} -> 0
     Int{} -> 0
@@ -166,7 +178,9 @@ instance Occurrences Scalar where
 --
 -- Type variables are allocated such that, if the 'Kind's of
 -- two type variables are not equal, the 'Names' of those
--- two type variables are not equal.
+-- two type variables are also not equal. Additionally,
+-- skolem constants ('Const') do not overlap with type
+-- variables ('Var').
 
 class Simplify a where
   simplify :: Env -> Type a -> Type a
@@ -209,6 +223,7 @@ instance Substitute Scalar where
     a :| b -> sub env a :| sub env b
     Bool{} -> type_
     Char{} -> type_
+    Const{} -> type_  -- See Note [Constant Substitution].
     Float{} -> type_
     Int{} -> type_
     Handle{} -> type_
@@ -220,3 +235,36 @@ instance Substitute Scalar where
       -> type_
     Unit{} -> type_
     Vector a origin -> Vector (sub env a) origin
+
+-- Note [Constant Substitution]:
+--
+-- Skolem constants do not unify with anything but
+-- themselves, so they never appear as substitutions in the
+-- typing environment. Therefore, it is unnecessary to
+-- substitute on them.
+
+skolemize
+  :: TypeScheme
+  -> Inferred ([TypeName Scalar], Type Scalar)
+skolemize (Forall _rowVars scalarVars type_) = do
+  origin <- getsEnv envOrigin
+  let
+    declares :: Set (TypeName Scalar) -> [TypeName Scalar] -> Env -> Env
+    declares vars consts env0
+      = foldr (uncurry declare) env0
+      $ zip (S.toList vars) (map (\name -> Const name origin) consts)
+  consts <- replicateM (S.size scalarVars) freshNameM
+  env <- getsEnv $ declares scalarVars consts
+  (consts', type') <- skolemizeType (sub env type_)
+  return (consts ++ consts', type')
+
+-- This is currently unnecessary, but will be required when
+-- quantifiers are allowed to be non-prenex.
+skolemizeType
+  :: Type a
+  -> Inferred ([TypeName Scalar], Type a)
+skolemizeType = \case
+  Function a b origin -> do
+    (consts, b') <- skolemizeType b
+    return (consts, Function a b' origin)
+  type_ -> return ([], type_)

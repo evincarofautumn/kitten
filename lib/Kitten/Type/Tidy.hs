@@ -13,7 +13,7 @@ module Kitten.Type.Tidy
   , tidyScalarType
   ) where
 
-import Control.Applicative
+import Control.Applicative hiding (Const)
 import Control.Monad.Trans.State
 
 import Kitten.Name
@@ -98,6 +98,7 @@ tidyScalarType type_ = case type_ of
   t1 :| t2 -> (:|) <$> tidyScalarType t1 <*> tidyScalarType t2
   Bool{} -> pure type_
   Char{} -> pure type_
+  Const name loc -> Const <$> tidyScalar name <*> pure loc
   Float{} -> pure type_
   Function r1 r2 loc -> Function
     <$> tidyRowType r1

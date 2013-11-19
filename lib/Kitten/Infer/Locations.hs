@@ -21,6 +21,7 @@ diagnosticLocations type_ = case type_ of
   a :| b -> locations a ++ locations b
   Bool loc -> yield loc
   Char loc -> yield loc
+  Const _ loc -> yield loc
   Empty loc -> yield loc
   Float loc -> yield loc
   Function r s loc -> yield loc ++ locations r ++ locations s

@@ -45,6 +45,7 @@ data Type (a :: Kind) where
   (:|) :: !(Type Scalar) -> !(Type Scalar) -> Type Scalar
   Bool :: !Origin -> Type Scalar
   Char :: !Origin -> Type Scalar
+  Const :: !(TypeName Scalar) -> !Origin -> Type Scalar
   Empty :: !Origin -> Type Row
   Float :: !Origin -> Type Scalar
   Function :: !(Type Row) -> !(Type Row) -> !Origin -> Type Scalar
@@ -62,6 +63,7 @@ instance Eq (Type a) where
   (a :| b) == (c :| d) = (a, b) == (c, d)
   Bool{} == Bool{} = True
   Char{} == Char{} = True
+  Const a _ == Const b _ = a == b
   Empty{} == Empty{} = True
   Float{} == Float{} = True
   Function a b _ == Function c d _ = (a, b) == (c, d)
@@ -87,6 +89,8 @@ instance ToText (Type Scalar) where
     t1 :| t2 -> T.concat ["(", toText t1, " | ", toText t2, ")"]
     Bool o -> "Bool" <> suffix o
     Char o -> "Char" <> suffix o
+    Const (TypeName (Name index)) o
+      -> "t" <> showText index <> suffix o  -- TODO Show differently?
     Float o -> "Float" <> suffix o
     Function r1 r2 o -> T.concat
       [ "(", T.unwords [toText r1, "->", toText r2], ")"
@@ -232,6 +236,7 @@ addHint type_ hint = case type_ of
   Empty o -> Empty (f o)
   Bool o -> Bool (f o)
   Char o -> Char (f o)
+  Const name o -> Const name (f o)
   Float o -> Float (f o)
   Function r1 r2 o -> Function r1 r2 (f o)
   Handle o -> Handle (f o)

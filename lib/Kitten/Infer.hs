@@ -102,7 +102,7 @@ inferFragment prelude fragment stackTypes = mdo
   typedDefs <- iforFragmentDefs $ \index def
     -> withOrigin (defOrigin def) $ do
       (typedTerm, type_) <- infer finalEnv (defTerm def)
-      typeScheme <- generalize type_
+      inferredScheme <- generalize type_
       declaredScheme <- do
         decls <- getsEnv envDecls
         case N.lookup (Name index) decls of
@@ -110,11 +110,17 @@ inferFragment prelude fragment stackTypes = mdo
           Nothing -> do
             origin <- getsEnv envOrigin
             fmap mono . forAll $ \r s -> Type.Function r s origin
-      saveDefWith (flip const) index typeScheme
-      declared <- instantiateM declaredScheme
-      inferred <- instantiateM typeScheme
+      saveDefWith (flip const) index inferredScheme
+
+      (consts, declared) <- skolemize declaredScheme
+      inferred <- instantiateM inferredScheme
       declared === inferred
-      return def { defTerm = typedTerm <$ typeScheme }
+      let (_, escaped) = free declaredScheme <> free inferredScheme
+      let bad = filter (`elem` escaped) consts
+      unless (null bad)
+        $ error "SOMETHING SOMETHING BLARNEY"
+
+      return def { defTerm = typedTerm <$ inferredScheme }
 
   (typedTerms, fragmentType) <- infer finalEnv
     $ Compose (fragmentTerms fragment) UnknownLocation
