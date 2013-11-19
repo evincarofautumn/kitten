@@ -1,0 +1,3 @@
+test/instance-checks-4.ktn:1:1: error: cannot solve scalar type constraint Int (input to example) = t1 (type var a of example)
+test/instance-checks-4.ktn:1:1: note: t1 (type var a of example) is from here
+test/instance-checks-4.ktn:1:13: note: Int (input to example) is from here

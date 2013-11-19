@@ -1,0 +1,1 @@
+def example (->): ->{x y} y x

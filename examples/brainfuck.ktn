@@ -195,7 +195,7 @@ def findLBracket(Program Int Int -> Int?):
     , \pair ']' to Instruction:
         program pc-- depth++ findLBracket
     ] swap {eqInstruction} lookUp
-    \option id:
+    \option:
       apply
     else:
       program pc-- depth findLBracket
@@ -218,7 +218,7 @@ def findRBracket(Program Int Int -> Int?):
         else:
           program pc++ depth-- findRBracket
     ] swap {eqInstruction} lookUp
-    \option id:
+    \option:
       apply
     else:
       program pc++ depth findRBracket

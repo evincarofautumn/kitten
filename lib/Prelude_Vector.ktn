@@ -431,7 +431,7 @@ def #@ ([a] (a -> a) Int -> [a]):
 // Gets a value from a 2D vector.
 def ## ([[a]] Int Int -> a?):
   -> { i j }
-  i# \option id {j#} else {none}
+  i# \option {j#} else {none}
 
 // Unsafely gets a value from a 2D vector.
 def ##! ([[a]] Int Int -> a):

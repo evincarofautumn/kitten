@@ -22,7 +22,7 @@ size saySize
 
 type Id (a -> a)
 
-{id} to Id -> f
+{} to Id -> f
 
 3 (f from Id)@ sayInt
 "four" (f from Id)@ say

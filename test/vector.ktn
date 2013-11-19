@@ -14,9 +14,9 @@ vec init sayInts
 3 -> z
 [x, y, z] sayInts
 
-def a (->): id
+def a (->) {}
 
-def b (->): id
+def b (->) {}
 
 [{a}, {b}] length sayInt
 
