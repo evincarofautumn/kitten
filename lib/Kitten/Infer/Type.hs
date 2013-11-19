@@ -7,6 +7,7 @@ module Kitten.Infer.Type
 
 import Control.Applicative
 import Control.Monad.Trans.Class
+import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
 import Data.Map (Map)
 import Data.Monoid
@@ -38,15 +39,23 @@ data Env = Env
   -- themselves.
   }
 
-type Converted a = StateT Env Inferred a
+type Converted a = ReaderT (Type Row) (StateT Env Inferred) a
+
+getDefaultRow :: (Monad m) => ReaderT (Type Row) m (Type Row)
+getDefaultRow = ask
 
 fromAnno :: Annotated -> Anno -> Inferred (Scheme (Type Scalar))
 fromAnno annotated (Anno annoType annoLoc) = do
+  r <- freshNameM
+  let defaultRow = Var r (Origin (AnnoType annotated) annoLoc)
+
   (type_, env) <- flip runStateT Env
-    { envAnonRows = []
+    { envAnonRows = [r]
     , envRows = M.empty
     , envScalars = M.empty
-    } $ fromAnnoType' (AnnoType annotated) annoType
+    } $ flip runReaderT defaultRow
+    $ fromAnnoType' (AnnoType annotated) annoType
+
   return $ Forall
     (S.fromList (envAnonRows env <> M.elems (envRows env)))
     (S.fromList . M.elems $ envScalars env)
@@ -65,10 +74,8 @@ fromAnno annotated (Anno annoType annoLoc) = do
       <$> fromAnnoType' NoHint a
       <*> fromAnnoType' NoHint b
     Anno.Function a b -> do
-      r <- lift freshNameM
-      let rVar = Var r origin
-      modify $ \env -> env { envAnonRows = r : envAnonRows env }
-      makeFunction origin rVar a rVar b
+      r <- getDefaultRow
+      makeFunction origin r a r b
     Anno.Float -> return (Float origin)
     Anno.Handle -> return (Handle origin)
     Anno.Int -> return (Int origin)
@@ -127,12 +134,12 @@ annoVar
   -> Annotated
   -> Converted (Type a)
 annoVar retrieve save name loc annotated = do
-  mExisting <- gets $ retrieve name
+  mExisting <- lift $ gets $ retrieve name
   case mExisting of
     Just existing -> return (Var existing origin)
     Nothing -> do
-      var <- lift freshNameM
-      modify $ save name var
+      var <- lift $ lift $ freshNameM
+      lift $ modify $ save name var
       return (Var var origin)
   where
   origin :: Origin

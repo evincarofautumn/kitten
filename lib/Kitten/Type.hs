@@ -45,7 +45,7 @@ data Type (a :: Kind) where
   (:|) :: !(Type Scalar) -> !(Type Scalar) -> Type Scalar
   Bool :: !Origin -> Type Scalar
   Char :: !Origin -> Type Scalar
-  Const :: !(TypeName Scalar) -> !Origin -> Type Scalar
+  Const :: !(TypeName a) -> !Origin -> Type a
   Empty :: !Origin -> Type Row
   Float :: !Origin -> Type Scalar
   Function :: !(Type Row) -> !(Type Row) -> !Origin -> Type Scalar
@@ -107,6 +107,8 @@ instance ToText (Type Scalar) where
 instance ToText (Type Row) where
   toText = \case
     t1 :. t2 -> T.unwords [toText t1, toText t2]
+    Const (TypeName (Name index)) o
+      -> ".r" <> showText index <> suffix o
     Empty o -> "<empty>" <> suffix o
     Var (TypeName (Name index)) o
       -> ".r" <> showText index <> suffix o

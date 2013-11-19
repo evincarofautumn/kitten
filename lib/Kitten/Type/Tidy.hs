@@ -114,5 +114,6 @@ tidyScalarType type_ = case type_ of
 tidyRowType :: Type Row -> Tidy (Type Row)
 tidyRowType type_ = case type_ of
   t1 :. t2 -> (:.) <$> tidyRowType t1 <*> tidyScalarType t2
+  Const name loc -> Const <$> tidyRow name <*> pure loc
   Empty{} -> pure type_
   Var name loc -> Var <$> tidyRow name <*> pure loc

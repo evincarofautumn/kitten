@@ -99,6 +99,7 @@ class Free a where
 instance Free (Type Row) where
   free type_ = case type_ of
     a :. b -> free a <> free b
+    Const name _ -> ([name], [])
     Empty{} -> mempty
     Var name _ -> ([name], [])
 
@@ -148,6 +149,9 @@ class Occurrences a where
 instance Occurrences Row where
   occurrences name env type_ = case type_ of
     a :. b -> occurrences name env a + occurrences name env b
+    Const typeName@(TypeName name') _ -> case retrieve env typeName of
+      Left{} -> if name == name' then 1 else 0  -- See Note [Var Kinds].
+      Right type' -> occurrences name env type'
     Empty{} -> 0
     Var typeName@(TypeName name') _ -> case retrieve env typeName of
       Left{} -> if name == name' then 1 else 0  -- See Note [Var Kinds].
@@ -205,6 +209,7 @@ class Substitute a where
 instance Substitute Row where
   sub env type_ = case type_ of
     a :. b -> sub env a :. sub env b
+    Const{} -> type_  -- See Note [Constant Substitution].
     Empty{} -> type_
     Var name (Origin hint _loc)
       | Right type' <- retrieve env name
@@ -245,26 +250,31 @@ instance Substitute Scalar where
 
 skolemize
   :: TypeScheme
-  -> Inferred ([TypeName Scalar], Type Scalar)
-skolemize (Forall _rowVars scalarVars type_) = do
+  -> Inferred ([TypeName Row], [TypeName Scalar], Type Scalar)
+skolemize (Forall rowVars scalarVars type_) = do
   origin <- getsEnv envOrigin
   let
-    declares :: Set (TypeName Scalar) -> [TypeName Scalar] -> Env -> Env
+    declares
+      :: (Declare a)
+      => Set (TypeName a) -> [TypeName a] -> Env -> Env
     declares vars consts env0
       = foldr (uncurry declare) env0
       $ zip (S.toList vars) (map (\name -> Const name origin) consts)
-  consts <- replicateM (S.size scalarVars) freshNameM
-  env <- getsEnv $ declares scalarVars consts
-  (consts', type') <- skolemizeType (sub env type_)
-  return (consts ++ consts', type')
+  rowConsts <- replicateM (S.size rowVars) freshNameM
+  scalarConsts <- replicateM (S.size scalarVars) freshNameM
+  env <- getsEnv
+    $ declares scalarVars scalarConsts
+    . declares rowVars rowConsts
+  (rowConsts', scalarConsts', type') <- skolemizeType (sub env type_)
+  return (rowConsts ++ rowConsts', scalarConsts ++ scalarConsts', type')
 
 -- This is currently unnecessary, but will be required when
 -- quantifiers are allowed to be non-prenex.
 skolemizeType
   :: Type a
-  -> Inferred ([TypeName Scalar], Type a)
+  -> Inferred ([TypeName Row], [TypeName Scalar], Type a)
 skolemizeType = \case
   Function a b origin -> do
-    (consts, b') <- skolemizeType b
-    return (consts, Function a b' origin)
-  type_ -> return ([], type_)
+    (rowConsts, scalarConsts, b') <- skolemizeType b
+    return (rowConsts, scalarConsts, Function a b' origin)
+  type_ -> return ([], [], type_)

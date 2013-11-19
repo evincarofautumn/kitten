@@ -112,12 +112,15 @@ inferFragment prelude fragment stackTypes = mdo
             fmap mono . forAll $ \r s -> Type.Function r s origin
       saveDefWith (flip const) index inferredScheme
 
-      (consts, declared) <- skolemize declaredScheme
+      (rowConsts, scalarConsts, declared) <- skolemize declaredScheme
       inferred <- instantiateM inferredScheme
       declared === inferred
-      let (_, escaped) = free declaredScheme <> free inferredScheme
-      let bad = filter (`elem` escaped) consts
-      unless (null bad)
+      let
+        (escapedRows, escapedScalars)
+          = free declaredScheme <> free inferredScheme
+        badRows = filter (`elem` escapedRows) rowConsts
+        badScalars = filter (`elem` escapedScalars) scalarConsts
+      unless (null badRows && null badScalars)
         $ error "SOMETHING SOMETHING BLARNEY"
 
       return def { defTerm = typedTerm <$ inferredScheme }
