@@ -14,12 +14,14 @@ import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State.Strict
 import Data.Maybe
 import Data.Monoid
+import Data.Char (isSpace)
 import Data.Text (Text)
 import Data.Vector (Vector)
 import System.Console.Haskeline
 
 import qualified Data.Text as T
 import qualified Data.Vector as V
+import qualified Data.Text.IO as TIO
 
 import Kitten.Compile (compile)
 import Kitten.Def
@@ -88,11 +90,15 @@ repl = do
       | null line -> repl'
       | Just expr <- T.stripPrefix ":type" (T.pack line) -> typeOf expr
       | Just expr <- T.stripPrefix ":t" (T.pack line) -> typeOf expr
-      | line `elem` [":c", ":clear"] -> clear
-      | line `elem` [":h", ":help"] -> help
-      | line `elem` [":q", ":quit"] -> quit
-      | line `elem` [":reset"] -> reset
+      | cmd `elem` [":c", ":clear"] -> clear
+      | cmd `elem` [":h", ":help"] -> help
+      | cmd `elem` [":q", ":quit"] -> quit
+      | cmd `elem` [":l", ":load"] -> load args
+      | cmd `elem` [":reset"] -> reset
       | otherwise -> eval (T.pack line)
+      where (cmd, args) = 
+              let (c, a) = break isSpace $ line
+              in (c, T.unpack $ T.strip $ T.pack a)
 
 repl' :: ReplInput ()
 repl' = showStack >> repl
@@ -212,6 +218,7 @@ help = do
     , Just (":c, :clear", "Clear the stack")
     , Just (":h, :help", "Display this help message")
     , Just (":q, :quit", "Quit the Kitten REPL")
+    , Just (":l, :load <filepath>", "Load function definitions from file into the REPL")
     , Just (":reset", "Clear the stack and all definitions")
     , Just (":t, :type <expression>", "Print the inferred type of <expression>")
     , Nothing
@@ -252,6 +259,9 @@ reset = do
     }
   repl'
 
+load :: FilePath -> ReplInput ()
+load file = liftIO (TIO.readFile file) >>= eval
+  
 completer :: CompletionFunc ReplState
 completer = completeWord Nothing "\t \"{}[]()\\:" completePrefix
 
