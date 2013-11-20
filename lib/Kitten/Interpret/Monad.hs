@@ -84,7 +84,7 @@ instance ToText InterpreterValue where
     Handle{} -> "<handle>"
     Int i -> showText i
     Option m -> maybe "none" ((<> " some") . toText) m
-    Pair a b -> T.unwords [toText a, toText b, "pair"]
+    Pair a b -> T.concat ["(", toText a, ", ", toText b, ")"]
     Unit -> "()"
     Vector v@(V.toList -> (Char _ : _)) -> showText (stringFromChars v)
     Vector v -> T.concat
