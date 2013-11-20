@@ -215,12 +215,12 @@ help = do
     [ Just ("<expression>", "Evaluate <expression> and print the result")
     , Just ("def <name> (<signature>) <body>", "Introduce a definition")
     , Nothing
-    , Just (":c, :clear", "Clear the stack")
-    , Just (":h, :help", "Display this help message")
-    , Just (":q, :quit", "Quit the Kitten REPL")
-    , Just (":l, :load <filepath>", "Load function definitions from file into the REPL")
-    , Just (":reset", "Clear the stack and all definitions")
-    , Just (":t, :type <expression>", "Print the inferred type of <expression>")
+    , Just ("[:c, :clear]", "Clear the stack")
+    , Just ("[:h, :help]", "Display this help message")
+    , Just ("[:q, :quit]", "Quit the Kitten REPL")
+    , Just ("[:l, :load] <filepath>", "Load function definitions from file into the REPL")
+    , Just ("[:reset]", "Clear the stack and all definitions")
+    , Just ("[:t, :type] <expression>", "Print the inferred type of <expression>")
     , Nothing
     , Just ("<TAB>", "Autocomplete a definition name")
     ]
