@@ -80,25 +80,68 @@ runRepl prelude nameGen = do
 
   preludeDefs = fragmentDefs prelude
 
+data ReplCommandDesc = ReplCommandDesc
+  { descCommand :: Text
+  , descHelp :: Text
+  }
+
+data ReplCommand = ReplCommand
+  { cmdSymbols :: [Text]
+  , cmdFunc :: Text -> ReplInput ()
+  , cmdDesc :: ReplCommandDesc
+  }
+
+newArgCommand :: [Text] -> (Text -> ReplInput ()) -> Text -> Text -> ReplCommand
+newArgCommand symbols func fmtArgs helpText =
+  ReplCommand
+  { cmdSymbols = fmtSymbols
+  , cmdFunc = func
+  , cmdDesc = ReplCommandDesc
+    { descCommand = T.unwords [symbolText, fmtArgs]
+    , descHelp = helpText
+    }
+  }
+  where
+  fmtSymbols = map (T.cons ':') symbols
+  symbolText = T.concat ["[", (T.intercalate ", " fmtSymbols), "]"]
+
+newCommand :: [Text] -> ReplInput () -> Text -> ReplCommand
+newCommand symbols func helpText =
+  newArgCommand symbols (const func) "" helpText
+
+replCommands :: [ReplCommand]
+replCommands =
+  [ newCommand ["c", "clear"] clear "Clear the Stack"
+  , newCommand ["h", "help"] help "Display this help message"
+  , newCommand ["q", "quit"] quit "Quit the Kitten REPL"
+  , newArgCommand ["l", "load"] (load . T.unpack)
+      "<filename>" "Load a file into the Kitten REPL"
+  , newCommand ["reset"] reset "Clear the stack and all definitions"
+  , newArgCommand ["t", "type"] typeOf
+      "<expression>" "Print the inferred type of <expression>"
+  ]
+
+replCommandsTable :: [(Text, ReplCommand)]
+replCommandsTable = toTable $ zipSymbols replCommands
+  where
+  zipSymbols xs = zip (map cmdSymbols xs) xs
+  toTable = concatMap (\(ks, v) -> map (\k -> (k, v)) ks)
+
 repl :: ReplInput ()
 repl = do
   mLine <- getInputLine ">>> "
   case mLine of
     Nothing -> quit
-    Just line
-      | not (matched line) -> continue (T.pack line)
-      | null line -> repl'
-      | Just expr <- T.stripPrefix ":type" (T.pack line) -> typeOf expr
-      | Just expr <- T.stripPrefix ":t" (T.pack line) -> typeOf expr
-      | cmd `elem` [":c", ":clear"] -> clear
-      | cmd `elem` [":h", ":help"] -> help
-      | cmd `elem` [":q", ":quit"] -> quit
-      | cmd `elem` [":l", ":load"] -> load args
-      | cmd `elem` [":reset"] -> reset
-      | otherwise -> eval (T.pack line)
-      where (cmd, args) = 
-              let (c, a) = break isSpace $ line
-              in (c, T.unpack $ T.strip $ T.pack a)
+    Just line -> case lookup cmd replCommandsTable of
+      Just (ReplCommand {cmdFunc=fn}) -> fn args
+      Nothing
+        | not (matched line) -> continue (T.pack line)
+        | null line -> repl'
+        | otherwise -> eval (T.pack line)
+      where
+      (cmd, args) =
+        let (c, a) = T.break isSpace $ T.pack line
+        in (c, T.strip a)
 
 repl' :: ReplInput ()
 repl' = showStack >> repl
@@ -211,18 +254,15 @@ replName = "REPL"
 
 help :: ReplInput ()
 help = do
-  liftIO $ printColumns
-    [ Just ("<expression>", "Evaluate <expression> and print the result")
-    , Just ("def <name> (<signature>) <body>", "Introduce a definition")
-    , Nothing
-    , Just ("[:c, :clear]", "Clear the stack")
-    , Just ("[:h, :help]", "Display this help message")
-    , Just ("[:q, :quit]", "Quit the Kitten REPL")
-    , Just ("[:l, :load] <filepath>", "Load function definitions from file into the REPL")
-    , Just ("[:reset]", "Clear the stack and all definitions")
-    , Just ("[:t, :type] <expression>", "Print the inferred type of <expression>")
-    , Nothing
-    , Just ("<TAB>", "Autocomplete a definition name")
+  liftIO $ printColumns $ concat
+    [ [ Just ("<expression>", "Evaluate <expression> and print the result")
+      , Just ("def <name> (<signature>) <body>", "Introduce a definition")
+      , Nothing
+      ]
+    , replCommandsHelp
+    , [ Nothing
+      , Just ("<TAB>", "Autocomplete a definition name")
+      ]
     ]
   repl'
   where
@@ -237,6 +277,9 @@ help = do
         putStr a
         putStr (replicate (width + margin - length a) ' ')
         putStrLn b
+  replCommandsHelp =
+    map (\(ReplCommand {cmdDesc=(ReplCommandDesc fmt info)}) ->
+      Just (T.unpack fmt, T.unpack info)) replCommands
 
 quit :: ReplInput ()
 quit = return ()
@@ -261,7 +304,7 @@ reset = do
 
 load :: FilePath -> ReplInput ()
 load file = liftIO (TIO.readFile file) >>= eval
-  
+
 completer :: CompletionFunc ReplState
 completer = completeWord Nothing "\t \"{}[]()\\:" completePrefix
 
