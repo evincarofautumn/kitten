@@ -13,7 +13,7 @@ module Kitten.Type.Tidy
   , tidyScalarType
   ) where
 
-import Control.Applicative
+import Control.Applicative hiding (Const)
 import Control.Monad.Trans.State
 
 import Kitten.Name
@@ -21,6 +21,7 @@ import Kitten.NameMap (NameMap)
 import Kitten.Type
 
 import qualified Kitten.NameMap as NameMap
+import qualified Kitten.Util.Set as Set
 
 data TidyKindState a = TidyKindState
   { names :: !(NameMap (TypeName a))
@@ -98,6 +99,7 @@ tidyScalarType type_ = case type_ of
   t1 :| t2 -> (:|) <$> tidyScalarType t1 <*> tidyScalarType t2
   Bool{} -> pure type_
   Char{} -> pure type_
+  Const name loc -> Const <$> tidyScalar name <*> pure loc
   Float{} -> pure type_
   Function r1 r2 loc -> Function
     <$> tidyRowType r1
@@ -106,6 +108,12 @@ tidyScalarType type_ = case type_ of
   Handle{} -> pure type_
   Int{} -> pure type_
   Named{} -> pure type_
+  Quantified (Forall r s t) loc -> Quantified
+    <$> (Forall
+      <$> Set.mapM tidyRow r
+      <*> Set.mapM tidyScalar s
+      <*> tidyScalarType t)
+    <*> pure loc
   Var name loc -> Var <$> tidyScalar name <*> pure loc
   Unit{} -> pure type_
   Vector t loc -> Vector <$> tidyScalarType t <*> pure loc
@@ -113,5 +121,6 @@ tidyScalarType type_ = case type_ of
 tidyRowType :: Type Row -> Tidy (Type Row)
 tidyRowType type_ = case type_ of
   t1 :. t2 -> (:.) <$> tidyRowType t1 <*> tidyScalarType t2
+  Const name loc -> Const <$> tidyRow name <*> pure loc
   Empty{} -> pure type_
   Var name loc -> Var <$> tidyRow name <*> pure loc

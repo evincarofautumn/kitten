@@ -13,11 +13,6 @@ def const (a -> (b -> a)):
   -> x
   { drop x }
 
-// Identity function.
-def id (a -> a):
-  -> x
-  x
-
 // Applies a unary function to two values.
 def toBoth (a a (a -> b) -> b b):
   -> { x y f }

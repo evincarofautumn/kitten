@@ -158,8 +158,7 @@ def showBoardCellAt ([Char] Int -> Char):
 def cellNumberToIndex (Int -> Int):
   8 swap -
 
-def showBoardCell (Char -> Char):
-  id
+def showBoardCell (Char -> Char) {}
 
 // Input
 

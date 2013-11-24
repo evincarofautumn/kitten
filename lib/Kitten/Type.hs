@@ -45,12 +45,14 @@ data Type (a :: Kind) where
   (:|) :: !(Type Scalar) -> !(Type Scalar) -> Type Scalar
   Bool :: !Origin -> Type Scalar
   Char :: !Origin -> Type Scalar
+  Const :: !(TypeName a) -> !Origin -> Type a
   Empty :: !Origin -> Type Row
   Float :: !Origin -> Type Scalar
   Function :: !(Type Row) -> !(Type Row) -> !Origin -> Type Scalar
   Handle :: !Origin -> Type Scalar
   Int :: !Origin -> Type Scalar
   Named :: !Text -> !Origin -> Type Scalar
+  Quantified :: !TypeScheme -> !Origin -> Type Scalar
   Unit :: !Origin -> Type Scalar
   Var :: !(TypeName a) -> !Origin -> Type a
   Vector :: !(Type Scalar) -> !Origin -> Type Scalar
@@ -62,6 +64,7 @@ instance Eq (Type a) where
   (a :| b) == (c :| d) = (a, b) == (c, d)
   Bool{} == Bool{} = True
   Char{} == Char{} = True
+  Const a _ == Const b _ = a == b
   Empty{} == Empty{} = True
   Float{} == Float{} = True
   Function a b _ == Function c d _ = (a, b) == (c, d)
@@ -87,6 +90,8 @@ instance ToText (Type Scalar) where
     t1 :| t2 -> T.concat ["(", toText t1, " | ", toText t2, ")"]
     Bool o -> "Bool" <> suffix o
     Char o -> "Char" <> suffix o
+    Const (TypeName (Name index)) o
+      -> "t" <> showText index <> suffix o  -- TODO Show differently?
     Float o -> "Float" <> suffix o
     Function r1 r2 o -> T.concat
       [ "(", T.unwords [toText r1, "->", toText r2], ")"
@@ -95,14 +100,17 @@ instance ToText (Type Scalar) where
     Handle o -> "Handle" <> suffix o
     Int o -> "Int" <> suffix o
     Named name o -> name <> suffix o
+    Quantified scheme _ -> toText scheme
+    Unit o -> "()" <> suffix o
     Var (TypeName (Name index)) o
       -> "t" <> showText index <> suffix o
-    Unit o -> "()" <> suffix o
     Vector t o -> T.concat ["[", toText t, "]", suffix o]
 
 instance ToText (Type Row) where
   toText = \case
     t1 :. t2 -> T.unwords [toText t1, toText t2]
+    Const (TypeName (Name index)) o
+      -> ".r" <> showText index <> suffix o
     Empty o -> "<empty>" <> suffix o
     Var (TypeName (Name index)) o
       -> ".r" <> showText index <> suffix o
@@ -232,13 +240,15 @@ addHint type_ hint = case type_ of
   Empty o -> Empty (f o)
   Bool o -> Bool (f o)
   Char o -> Char (f o)
+  Const name o -> Const name (f o)
   Float o -> Float (f o)
   Function r1 r2 o -> Function r1 r2 (f o)
   Handle o -> Handle (f o)
   Int o -> Int (f o)
   Named name o -> Named name (f o)
-  Var name o -> Var name (f o)
+  Quantified scheme o -> Quantified scheme o
   Unit o -> Unit (f o)
+  Var name o -> Var name (f o)
   Vector t o -> Vector t (f o)
   where
   f :: Origin -> Origin

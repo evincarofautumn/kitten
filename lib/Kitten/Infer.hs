@@ -101,8 +101,8 @@ inferFragment prelude fragment stackTypes = mdo
 
   typedDefs <- iforFragmentDefs $ \index def
     -> withOrigin (defOrigin def) $ do
-      (typedTerm, type_) <- infer finalEnv (defTerm def)
-      typeScheme <- generalize type_
+      (typedTerm, inferredScheme) <- generalize
+        (infer finalEnv (defTerm def))
       declaredScheme <- do
         decls <- getsEnv envDecls
         case N.lookup (Name index) decls of
@@ -110,11 +110,20 @@ inferFragment prelude fragment stackTypes = mdo
           Nothing -> do
             origin <- getsEnv envOrigin
             fmap mono . forAll $ \r s -> Type.Function r s origin
-      saveDefWith (flip const) index typeScheme
-      declared <- instantiateM declaredScheme
-      inferred <- instantiateM typeScheme
+      saveDefWith (flip const) index inferredScheme
+
+      (rowConsts, scalarConsts, declared) <- skolemize declaredScheme
+      inferred <- instantiateM inferredScheme
       declared === inferred
-      return def { defTerm = typedTerm <$ typeScheme }
+      let
+        (escapedRows, escapedScalars)
+          = free declaredScheme <> free inferredScheme
+        badRows = filter (`elem` escapedRows) rowConsts
+        badScalars = filter (`elem` escapedScalars) scalarConsts
+      unless (null badRows && null badScalars)
+        $ error "SOMETHING SOMETHING BLARNEY"
+
+      return def { defTerm = typedTerm <$ inferredScheme }
 
   (typedTerms, fragmentType) <- infer finalEnv
     $ Compose (fragmentTerms fragment) UnknownLocation
@@ -400,11 +409,16 @@ infer finalEnv resolved = case resolved of
     r <- freshVarM
     origin <- getsEnv envOrigin
     type_ <- foldM
-      (\(Type.Function a b _) (Type.Function c d _)
-        -> inferCompose a b c d)
+      (\x y -> do
+        Type.Function a b _ <- unquantify x
+        Type.Function c d _ <- unquantify y
+        inferCompose a b c d)
       ((r --> r) origin)
       (V.toList types)
     return (Typed.Compose typedTerms loc (sub finalEnv type_), type_)
+    where
+    unquantify (Type.Quantified scheme _) = instantiateM scheme
+    unquantify type_ = return type_
 
   From name loc -> asTyped (Typed.From name) loc $ do
     underlying <- instantiateM =<< getsEnv ((M.! name) . envTypeDefs)
