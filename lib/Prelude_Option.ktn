@@ -1,10 +1,7 @@
 // Safely gets a value from an option value.
 def fromOption (a? a -> a):
   -> { m z }
-  \option m:
-    id
-  else:
-    z
+  \option m {} else: z
 
 // Unsafely gets the value from an option.
 def fromSome (a? -> a):
@@ -12,14 +9,14 @@ def fromSome (a? -> a):
 
 // Whether an option is empty.
 def isNone (a? -> Bool):
-  \option id:
+  \option:
     drop false
   else:
     true
 
 // Whether an option contains a value.
 def isSome (a? -> Bool):
-  \option id:
+  \option:
     drop true
   else:
     false
@@ -27,7 +24,7 @@ def isSome (a? -> Bool):
 // Maps a function over an option value.
 def liftOption (a? (a -> b) -> b?):
   -> f
-  \option id:
+  \option:
     f@ some
   else:
     none
