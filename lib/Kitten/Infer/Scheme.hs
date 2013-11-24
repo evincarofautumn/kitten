@@ -2,10 +2,12 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE PostfixOperators #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Kitten.Infer.Scheme
@@ -22,6 +24,7 @@ module Kitten.Infer.Scheme
   ) where
 
 import Control.Applicative hiding (Const)
+import Control.Arrow
 import Control.Monad
 import Control.Monad.Trans.State.Strict
 import Control.Monad.Trans.Writer
@@ -70,22 +73,60 @@ instantiate origin (Forall rows scalars type_) env
     var <- state (freshVar origin)
     return (declare name var localEnv)
 
-generalize :: Type Scalar -> Inferred TypeScheme
-generalize type_ = do
-  env <- getEnv
+generalize :: Inferred (a, Type Scalar) -> Inferred (a, TypeScheme)
+generalize action = do
+  before <- getEnv
+  (extra, type_) <- action  -- HACK To preserve effect ordering.
+  after <- getEnv
 
   let
     substituted :: Type Scalar
-    substituted = sub env type_
+    substituted = sub after type_
+
+    dependent :: (Occurrences a, Unbound a) => TypeName a -> Bool
+    dependent = dependentBetween before after
 
     rows :: [TypeName Row]
     scalars :: [TypeName Scalar]
-    (rows, scalars) = freeVars substituted
+    (rows, scalars) = (filter dependent *** filter dependent)
+      (freeVars substituted)
 
-  return . regeneralize env $ Forall
+  return $ (,) extra $ regeneralize after $ Forall
     (S.fromList rows)
     (S.fromList scalars)
     substituted
+
+-- | Tests whether a variable is dependent between two type
+-- environment states.
+dependentBetween
+  :: forall a. (Occurrences a, Unbound a)
+  => Env
+  -> Env
+  -> TypeName a
+  -> Bool
+dependentBetween before after name
+  = any (bound after) (unbound before)
+  where
+  bound :: Env -> TypeName a -> Bool
+  bound env name' = occurs (unTypeName name) env
+    (Var name' (envOrigin env) :: Type a)
+
+-- | Enumerates those type variables in an environment that
+-- are allocated but not yet bound to a type.
+class Unbound (a :: Kind) where
+  unbound :: Env -> [TypeName a]
+
+instance Unbound Scalar where
+  unbound env = map TypeName $ filter (not . (`N.member` envScalars env))
+    [Name 0 .. envMaxName env]
+
+instance Unbound Row where
+  unbound env = map TypeName $ filter (not . (`N.member` envRows env))
+    [Name 0 .. envMaxName env]
+
+-- | The last allocated name in an environment.
+envMaxName :: Env -> Name
+envMaxName = pred . fst . genName . envNameGen
 
 data TypeLevel = TopLevel | NonTopLevel
   deriving (Eq)

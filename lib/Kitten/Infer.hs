@@ -101,8 +101,8 @@ inferFragment prelude fragment stackTypes = mdo
 
   typedDefs <- iforFragmentDefs $ \index def
     -> withOrigin (defOrigin def) $ do
-      (typedTerm, type_) <- infer finalEnv (defTerm def)
-      inferredScheme <- generalize type_
+      (typedTerm, inferredScheme) <- generalize
+        (infer finalEnv (defTerm def))
       declaredScheme <- do
         decls <- getsEnv envDecls
         case N.lookup (Name index) decls of
