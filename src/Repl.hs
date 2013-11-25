@@ -21,6 +21,7 @@ import System.Console.Haskeline
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import qualified Data.Text.IO as TIO
+import qualified Control.Exception as E
 
 import Kitten.Compile (compile)
 import Kitten.Def
@@ -79,50 +80,54 @@ runRepl prelude nameGen = do
 
   preludeDefs = fragmentDefs prelude
 
+type LineArgs = Text
+type ReplAction = LineArgs -> ReplInput ()
+
 data ReplCommandDesc = ReplCommandDesc
   { descCommand :: Text
   , descHelp :: Text
   }
 
 data ReplCommand = ReplCommand
-  { cmdSymbols :: [Text]
-  , cmdFunc :: Text -> ReplInput ()
+  { cmdSymbols :: Set Text
+  , cmdAction :: ReplAction
   , cmdDesc :: ReplCommandDesc
   }
 
-newArgCommand :: [Text] -> (Text -> ReplInput ()) -> Text -> Text -> ReplCommand
-newArgCommand symbols func fmtArgs helpText =
+newArgCommand :: Set Text -> ReplAction -> Text -> Text -> ReplCommand
+newArgCommand symbols func helpArgs helpText =
   ReplCommand
   { cmdSymbols = fmtSymbols
-  , cmdFunc = func
+  , cmdAction = func
   , cmdDesc = ReplCommandDesc
-    { descCommand = T.unwords [symbolText, fmtArgs]
+    { descCommand = T.unwords [symbolText, helpArgs]
     , descHelp = helpText
     }
   }
   where
-  fmtSymbols = map (T.cons ':') symbols
-  symbolText = T.concat ["[", T.intercalate ", " fmtSymbols, "]"]
+  fmtSymbols = S.map (T.cons ':') symbols
+  symbolText = T.concat ["[", (T.intercalate ", " (S.toList fmtSymbols)), "]"]
 
-newCommand :: [Text] -> ReplInput () -> Text -> ReplCommand
-newCommand symbols func = newArgCommand symbols (const func) ""
+newCommand :: Set Text -> ReplInput () -> Text -> ReplCommand
+newCommand symbols func helpText =
+  newArgCommand symbols (const func) "" helpText
 
 replCommands :: [ReplCommand]
 replCommands =
-  [ newCommand ["c", "clear"] clear "Clear the Stack"
-  , newCommand ["h", "help"] help "Display this help message"
-  , newCommand ["q", "quit"] quit "Quit the Kitten REPL"
-  , newArgCommand ["l", "load"] (load . T.unpack)
-      "<filename>" "Load a file into the Kitten REPL"
-  , newCommand ["reset"] reset "Clear the stack and all definitions"
-  , newArgCommand ["t", "type"] typeOf
+  [ newCommand (S.fromList ["c", "clear"]) clear "Clear the Stack"
+  , newCommand (S.fromList ["h", "help"]) help "Display this help message"
+  , newCommand (S.fromList ["q", "quit"]) (quit) "Quit the Kitten REPL"
+  , newArgCommand (S.fromList ["l", "load"]) (load . T.unpack)
+      "<filepath>" "Load a file into the Kitten REPL"
+  , newCommand (S.fromList ["reset"]) reset "Clear the stack and all definitions"
+  , newArgCommand (S.fromList ["t", "type"]) typeOf
       "<expression>" "Print the inferred type of <expression>"
   ]
 
 replCommandsTable :: [(Text, ReplCommand)]
 replCommandsTable = toTable $ zipSymbols replCommands
   where
-  zipSymbols xs = zip (map cmdSymbols xs) xs
+  zipSymbols xs = zip (map (S.toList . cmdSymbols) xs) xs
   toTable = concatMap (\(ks, v) -> map (\k -> (k, v)) ks)
 
 repl :: ReplInput ()
@@ -130,16 +135,18 @@ repl = do
   mLine <- getInputLine ">>> "
   case mLine of
     Nothing -> quit
-    Just line -> case lookup cmd replCommandsTable of
-      Just (ReplCommand {cmdFunc=fn}) -> fn args
-      Nothing
-        | not (matched line) -> continue (T.pack line)
-        | null line -> repl'
-        | otherwise -> eval (T.pack line)
-      where
-      (cmd, args) =
-        let (c, a) = T.break isSpace $ T.pack line
-        in (c, T.strip a)
+    Just input -> evaluate input
+  where
+  evaluate line = case lookup cmd replCommandsTable of
+    Just (ReplCommand {cmdAction=execute}) -> execute args
+    Nothing
+      | not (matched line) -> continue (T.pack line)
+      | null line -> repl'
+      | otherwise -> eval (T.pack line)
+    where
+    (cmd, args) =
+      let (c, a) = T.break isSpace $ T.pack line
+      in (c, T.strip a)
 
 repl' :: ReplInput ()
 repl' = showStack >> repl
@@ -194,7 +201,7 @@ replCompile update = do
       lift . modify $ \env -> env { replNameGen = nameGen' }
       return $ Just (typed, type_)
 
-typeOf :: Text -> ReplInput ()
+typeOf :: ReplAction
 typeOf line = do
   mCompiled <- replCompile $ \config -> config
     { Compile.source = line
@@ -203,7 +210,7 @@ typeOf line = do
   whenJust mCompiled $ \(_compiled, type_) -> liftIO $ print type_
   repl'
 
-eval :: Text -> ReplInput ()
+eval :: ReplAction
 eval line = do
   mCompiled <- do
     nameGen <- lift $ gets replNameGen
@@ -231,7 +238,7 @@ eval line = do
       }
   repl'
 
-continue :: Text -> ReplInput ()
+continue :: ReplAction
 continue prefix = do
   mLine <- getInputLine "... "
   case mLine of
@@ -301,7 +308,11 @@ reset = do
   repl'
 
 load :: FilePath -> ReplInput ()
-load file = liftIO (TIO.readFile file) >>= eval
+load file = do
+  r <- liftIO $ (E.try (TIO.readFile file) :: IO (Either IOException Text))
+  case r of
+    Left e -> liftIO (putStrLn $ "Error loading file:\n  " ++ show e) >> repl'
+    Right contents -> liftIO (putStrLn $ "File loaded: " ++ file) >> eval contents
 
 completer :: CompletionFunc ReplState
 completer = completeWord Nothing "\t \"{}[]()\\:" completePrefix
