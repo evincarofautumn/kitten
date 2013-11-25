@@ -187,25 +187,24 @@ spec = do
         [ def "inc" $ compose [pushi 1, word "+"]
         , def "dec" $ compose [pushi 1, word "-"]] }
 
-  describe "type" $ do
-    testTerm
-      "def curriedAdd (Int -> Int -> Int) {\n\
-      \  ->x\n\
-      \  { ->y x y + }\n\
-      \}"
-      $ mempty { fragmentDefs = V.fromList
-        [ defWithAnno "curriedAdd"
-          (Anno.Function
-            (V.fromList [Anno.Int])
-            (V.fromList
-              [Anno.Function
-                (V.fromList [Anno.Int])
-                (V.fromList [Anno.Int])]))
-          $ compose
-            [ lambda "x"
-              [ push $ function
-                [ lambda "y"
-                  [word "x", word "y", word "+"]]]]] }
+  describe "type" $ testTerm
+    "def curriedAdd (Int -> Int -> Int) {\n\
+    \  ->x\n\
+    \  { ->y x y + }\n\
+    \}"
+    $ mempty { fragmentDefs = V.fromList
+      [ defWithAnno "curriedAdd"
+        (Anno.Function
+          (V.fromList [Anno.Int])
+          (V.fromList
+            [Anno.Function
+              (V.fromList [Anno.Int])
+              (V.fromList [Anno.Int])]))
+        $ compose
+          [ lambda "x"
+            [ push $ function
+              [ lambda "y"
+                [word "x", word "y", word "+"]]]]] }
 
 testTerm :: Text -> Fragment Term -> Spec
 testTerm source expected = it (show source)

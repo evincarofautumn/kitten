@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Repl
@@ -103,11 +102,10 @@ newArgCommand symbols func fmtArgs helpText =
   }
   where
   fmtSymbols = map (T.cons ':') symbols
-  symbolText = T.concat ["[", (T.intercalate ", " fmtSymbols), "]"]
+  symbolText = T.concat ["[", T.intercalate ", " fmtSymbols, "]"]
 
 newCommand :: [Text] -> ReplInput () -> Text -> ReplCommand
-newCommand symbols func helpText =
-  newArgCommand symbols (const func) "" helpText
+newCommand symbols func = newArgCommand symbols (const func) ""
 
 replCommands :: [ReplCommand]
 replCommands =

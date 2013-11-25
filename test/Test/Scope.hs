@@ -20,27 +20,24 @@ import qualified Kitten.Builtin as Builtin
 
 spec :: Spec
 spec = do
-  describe "no change" $ do
-    testScope
-      mempty { fragmentTerms = V.fromList [function [scoped [push $ local 0]]] }
-      mempty { fragmentTerms = V.fromList [closure [] [scoped [push $ local 0]]] }
+  describe "no change" $ testScope
+    mempty { fragmentTerms = V.fromList [function [scoped [push $ local 0]]] }
+    mempty { fragmentTerms = V.fromList [closure [] [scoped [push $ local 0]]] }
 
-  describe "non-nested closure" $ do
-    testScope
-      mempty { fragmentTerms = V.fromList [scoped [function [push $ local 0]]] }
-      mempty { fragmentTerms = V.fromList [scoped [closure [closedName 0] [push $ closed 0]]] }
+  describe "non-nested closure" $ testScope
+    mempty { fragmentTerms = V.fromList [scoped [function [push $ local 0]]] }
+    mempty { fragmentTerms = V.fromList [scoped [closure [closedName 0] [push $ closed 0]]] }
 
-  describe "nested closure" $ do
-    testScope
-      mempty { fragmentTerms = V.fromList [scoped [function [scoped [function [push $ local 1, push $ local 0, biAdd]]]]] }
-      mempty { fragmentTerms = V.fromList
-        [scoped
-          [ closure [closedName 0]
-            [ scoped
-              [ closure [reclosedName 0, closedName 0]
-                [ push $ closed 0
-                , push $ closed 1
-                , biAdd]]]]] }
+  describe "nested closure" $ testScope
+    mempty { fragmentTerms = V.fromList [scoped [function [scoped [function [push $ local 1, push $ local 0, biAdd]]]]] }
+    mempty { fragmentTerms = V.fromList
+      [scoped
+        [ closure [closedName 0]
+          [ scoped
+            [ closure [reclosedName 0, closedName 0]
+              [ push $ closed 0
+              , push $ closed 1
+              , biAdd]]]]] }
 
 testScope
   :: Fragment Resolved -> Fragment Resolved -> Spec

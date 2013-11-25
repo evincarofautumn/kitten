@@ -274,12 +274,11 @@ nodeTypeTag :: NodeType -> Text
 nodeTypeTag _ = "span"
 
 tellNode :: Location -> Node -> Writer LocMap ()
-tellNode location node = do
-  case locationPos location of
-    Just (path, pos) -> tell
-      . UnionMap . Map.singleton path
-      . UnionMap $ Map.singleton pos [node]
-    Nothing -> return ()
+tellNode location node = case locationPos location of
+  Just (path, pos) -> tell
+    . UnionMap . Map.singleton path
+    . UnionMap $ Map.singleton pos [node]
+  Nothing -> return ()
 
 -- | Advances a 'Pos' by a character, a la
 -- Text.Parsec.Pos.updatePosChar.
