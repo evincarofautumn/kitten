@@ -96,10 +96,10 @@ data ReplCommand = ReplCommand
   , cmdDesc :: ReplCommandDesc
   }
 
-newArgCommand :: Set Text -> ReplAction -> Text -> Text -> ReplCommand
+newArgCommand :: [Text] -> ReplAction -> Text -> Text -> ReplCommand
 newArgCommand symbols func helpArgs helpText =
   ReplCommand
-  { cmdSymbols = fmtSymbols
+  { cmdSymbols = S.fromList fmtSymbols
   , cmdAction = func
   , cmdDesc = ReplCommandDesc
     { descCommand = T.unwords [symbolText, helpArgs]
@@ -107,22 +107,22 @@ newArgCommand symbols func helpArgs helpText =
     }
   }
   where
-  fmtSymbols = S.map (T.cons ':') symbols
-  symbolText = T.concat ["[", (T.intercalate ", " (S.toList fmtSymbols)), "]"]
+  fmtSymbols = map (T.cons ':') symbols
+  symbolText = T.concat ["[", T.intercalate ", " fmtSymbols, "]"]
 
-newCommand :: Set Text -> ReplInput () -> Text -> ReplCommand
+newCommand :: [Text] -> ReplInput () -> Text -> ReplCommand
 newCommand symbols func helpText =
   newArgCommand symbols (const func) "" helpText
 
 replCommands :: [ReplCommand]
 replCommands =
-  [ newCommand (S.fromList ["c", "clear"]) clear "Clear the Stack"
-  , newCommand (S.fromList ["h", "help"]) help "Display this help message"
-  , newCommand (S.fromList ["q", "quit"]) (quit) "Quit the Kitten REPL"
-  , newArgCommand (S.fromList ["l", "load"]) (load . T.unpack)
+  [ newCommand ["c", "clear"] clear "Clear the Stack"
+  , newCommand ["h", "help"] help "Display this help message"
+  , newCommand ["q", "quit"] quit "Quit the Kitten REPL"
+  , newArgCommand ["l", "load"] (load . T.unpack)
       "<filepath>" "Load a file into the Kitten REPL"
-  , newCommand (S.fromList ["reset"]) reset "Clear the stack and all definitions"
-  , newArgCommand (S.fromList ["t", "type"]) typeOf
+  , newCommand ["reset"] reset "Clear the stack and all definitions"
+  , newArgCommand ["t", "type"] typeOf
       "<expression>" "Print the inferred type of <expression>"
   ]
 
