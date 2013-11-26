@@ -14,10 +14,12 @@ import Control.Monad.Trans.State.Strict
 import Data.Maybe
 import Data.Monoid
 import Data.Char (isSpace)
+import Data.Set (Set)
 import Data.Text (Text)
 import Data.Vector (Vector)
 import System.Console.Haskeline
 
+import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import qualified Data.Text.IO as TIO

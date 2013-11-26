@@ -121,6 +121,7 @@ executable kitten
     kitten,
     base,
     bytestring,
+    containers == 0.5.*,
     cmdargs == 0.10.*,
     directory,
     filepath,
