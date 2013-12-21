@@ -47,6 +47,7 @@ data Arguments = Arguments
 
 main :: IO ()
 main = do
+  hSetEncoding stdout utf8
   arguments <- parseArguments
   let
     defaultConfig prelude filename program = Compile.Config
