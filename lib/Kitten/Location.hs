@@ -3,6 +3,7 @@
 
 module Kitten.Location
   ( Location(..)
+  , newLocation
   ) where
 
 import Text.Parsec.Pos
@@ -17,6 +18,12 @@ data Location
     , locationIndent :: Column
     }
   | TestLocation
+
+newLocation :: String -> Line -> Column -> Location
+newLocation name line column = Location
+  { locationStart = newPos name line column
+  , locationIndent = 0
+  }
 
 instance Eq Location where
   Location start1 _ == Location start2 _ = start1 == start2

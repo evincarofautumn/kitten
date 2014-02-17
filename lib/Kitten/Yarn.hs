@@ -94,7 +94,6 @@ data Value
   | Pair !Value !Value
   | Unit
   | String !Text
-  | Word !Label                 
 
 instance Show Value where
   show = T.unpack . toText
@@ -123,7 +122,6 @@ instance ToText Value where
       : showText (T.length string)
       : map (\char -> "char " <> showText (Char.ord char))
         (T.unpack string)
-    Word label -> ["word", showText label]
     Unit -> ["unit"]
 
 data Env = Env
@@ -137,9 +135,9 @@ yarn
   -> Vector Instruction
 yarn Fragment{..}
   = collectClosures . withClosureOffset $ (<>)
-    <$> concatMapM (uncurry yarnDef)
+    <$> yarnEntry fragmentTerms
+    <*> concatMapM (uncurry yarnDef)
       (V.zip fragmentDefs (V.fromList [0..V.length fragmentDefs]))
-    <*> yarnEntry fragmentTerms
 
   where
   closureOffset :: Int
@@ -155,9 +153,8 @@ yarn Fragment{..}
     -> Vector Instruction
   collectClosures action = let
     (instructions, Env{..}) = runState action Env { envClosures = [] }
-    in V.concatMap (uncurry collectClosure)
-        (V.fromList (zip [closureOffset..] envClosures))
-      <> instructions
+    in instructions <> V.concatMap (uncurry collectClosure)
+      (V.fromList (zip [closureOffset..] (reverse envClosures)))
 
   collectClosure
     :: Int

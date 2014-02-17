@@ -18,7 +18,6 @@ import Kitten.Interpret
 import Kitten.Name (NameGen, mkNameGen)
 import Kitten.Tree
 import Kitten.Yarn (yarn)
-import Repl
 
 import qualified Kitten.Compile as Compile
 import qualified Kitten.HTML as HTML
@@ -65,7 +64,7 @@ main = do
 
   let nameGen = mkNameGen  -- TODO(strager): Use StateT NameGen.
   case argsEntryPoints arguments of
-    [] -> runRepl nameGen
+    [] -> return ()  -- TODO runRepl nameGen
     entryPoints -> interpretAll entryPoints
       (argsCompileMode arguments) defaultConfig nameGen
 
@@ -93,7 +92,7 @@ interpretAll entryPoints compileMode config nameGen
       Right (_nameGen', result, _type) -> case compileMode of
         CheckMode -> return ()
         CompileMode -> V.mapM_ print $ yarn result
-        InterpretMode -> void $ interpret [] result
+        InterpretMode -> void $ interpret [] (yarn result)
         HTMLMode -> do
           html <- HTML.fromFragmentsM T.readFileUtf8 [result]
           T.putStrLn html
