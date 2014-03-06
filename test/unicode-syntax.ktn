@@ -20,7 +20,4 @@ def latter′ (ε ζ → ζ):
 
 7 8 latter′ sayInt
 
-type Π (Int & Int)
-(9, 10) to Π from Π first sayInt
-
 true ¬ sayBool

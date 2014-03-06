@@ -26,10 +26,8 @@ data Typed
   = Builtin !Builtin !Location (Type Scalar)
   | Call !Name !Location (Type Scalar)
   | Compose !(Vector Typed) !Location (Type Scalar)
-  | From !Text !Location (Type Scalar)
   | PairTerm !Typed !Typed !Location (Type Scalar)
   | Push !Value !Location (Type Scalar)
-  | To !Text !Location (Type Scalar)
   | Scoped !Typed !Location (Type Scalar)
   | VectorTerm !(Vector Typed) !Location (Type Scalar)
   deriving (Eq, Show)
@@ -66,9 +64,7 @@ typedType typed = case typed of
   Builtin _ _ t -> t
   Call _ _ t -> t
   Compose _ _ t -> t
-  From _ _ t -> t
   PairTerm _ _ _ t -> t
   Push _ _ t -> t
-  To _ _ t -> t
   Scoped _ _ t -> t
   VectorTerm _ _ t -> t

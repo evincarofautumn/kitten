@@ -52,9 +52,6 @@ interpretTerm typed = case typed of
   Typed.Call name loc _type -> withLocation loc $ interpretOverload name
   Typed.Compose terms loc _type -> withLocation loc
     $ F.mapM_ interpretTerm terms
-  Typed.From _ loc _type -> withLocation loc $ do
-    Wrapped _ value <- popData
-    pushData value
   Typed.PairTerm a b loc _type -> withLocation loc $ do
     interpretTerm a
     a' <- popData
@@ -66,9 +63,6 @@ interpretTerm typed = case typed of
     pushLocal =<< popData
     interpretTerm term
     popLocal
-  Typed.To name loc _type -> withLocation loc $ do
-    a <- popData
-    pushData $ Wrapped name a
   Typed.VectorTerm terms loc _type -> withLocation loc $ do
     F.mapM_ interpretTerm terms
     values <- V.fromList <$> replicateM (V.length terms) popData

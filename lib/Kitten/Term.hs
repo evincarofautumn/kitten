@@ -17,11 +17,9 @@ data Term
   = Builtin !Builtin !Location
   | Call !Text !Location
   | Compose !(Vector Term) !Location
-  | From !Text !Location
   | Lambda !Text !Term !Location
   | PairTerm !Term !Term !Location
   | Push !Value !Location
-  | To !Text !Location
   | VectorTerm !(Vector Term) !Location
   deriving (Eq, Show)
 

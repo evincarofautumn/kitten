@@ -83,7 +83,6 @@ resolveTerm unresolved = case unresolved of
   Term.Compose terms loc -> Compose
     <$> guardMapM resolveTerm terms
     <*> pure loc
-  Term.From name loc -> return $ From name loc
   Term.Lambda name term loc -> withLocal name $ Scoped name
     <$> resolveTerm term
     <*> pure loc
@@ -92,7 +91,6 @@ resolveTerm unresolved = case unresolved of
     <*> resolveTerm bs
     <*> pure loc
   Term.Push value loc -> Push <$> resolveValue value <*> pure loc
-  Term.To name loc -> return $ To name loc
   Term.VectorTerm items loc -> VectorTerm
     <$> guardMapM resolveTerm items
     <*> pure loc

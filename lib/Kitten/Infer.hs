@@ -18,7 +18,6 @@ import Data.Monoid
 import Data.Vector (Vector)
 
 import qualified Data.Foldable as F
-import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
@@ -36,7 +35,6 @@ import Kitten.Resolved
 import Kitten.Type (Type((:&), (:.), (:?), (:|)))
 import Kitten.Type hiding (Type(..), Local)
 import Kitten.Typed (Typed)
-import Kitten.TypeDef
 import Kitten.Util.FailWriter
 import Kitten.Util.Monad
 import Kitten.Util.Text (toText)
@@ -71,26 +69,6 @@ inferFragment
   -> Vector (Type Scalar)
   -> Inferred (Fragment Typed, Type Scalar)
 inferFragment prelude fragment stackTypes = mdo
-
-  -- Aggregate type definitions ('type Foo Bar').
-  F.forM_ allTypeDefs $ \typeDef -> do
-    let name = typeDefName typeDef
-    scheme <- fromAnno (AnnotatedDef name) (typeDefAnno typeDef)
-    mExisting <- getsEnv (M.lookup name . envTypeDefs)
-    case mExisting of
-      Nothing -> modifyEnv $ \env -> env
-        { envTypeDefs = M.insert name scheme (envTypeDefs env) }
-      Just existing
-        -> liftFailWriter . throwMany . (:[]) . oneError
-        . CompileError (typeDefLocation typeDef) Error $ T.unwords
-          [ "multiple definitions of type"
-          , name
-          , "as both"
-          , toText existing
-          , "and"
-          , toText scheme
-          ]
-
   -- Populate environment with Prelude definition types.
   -- FIXME(strager): Use previously-inferred types (i.e.
   -- Typed.defTypeScheme def).  We cannot right now because
@@ -151,15 +129,12 @@ inferFragment prelude fragment stackTypes = mdo
       { fragmentDefs = typedDefs
       , fragmentImports = fragmentImports fragment
       , fragmentTerms = V.singleton typedTerms
-      , fragmentTypeDefs = fragmentTypeDefs fragment
       }
 
   finalEnv <- getEnv
   return (typedFragment, sub finalEnv fragmentType)
 
   where
-  allTypeDefs = fragmentTypeDefs prelude <> fragmentTypeDefs fragment
-
   defOrigin :: Def a -> Origin
   defOrigin def = Origin
     (AnnoType (AnnotatedDef (defName def)))
@@ -426,11 +401,6 @@ infer finalEnv resolved = case resolved of
       (V.toList types)
     return (Typed.Compose typedTerms loc (sub finalEnv type_), type_)
 
-  From name loc -> asTyped (Typed.From name) loc $ do
-    underlying <- instantiateM =<< getsEnv ((M.! name) . envTypeDefs)
-    origin <- getsEnv envOrigin
-    forAll $ \r -> (r :. Type.Named name origin --> r :. underlying) origin
-
   PairTerm x y loc -> withLocation loc $ do
     (x', a) <- secondM fromConstant =<< recur x
     (y', b) <- secondM fromConstant =<< recur y
@@ -450,11 +420,6 @@ infer finalEnv resolved = case resolved of
     origin <- getsEnv envOrigin
     let type_ = Type.Function (b :. a) c origin
     return (Typed.Scoped term' loc (sub finalEnv type_), type_)
-
-  To name loc -> asTyped (Typed.To name) loc $ do
-    underlying <- instantiateM =<< getsEnv ((M.! name) . envTypeDefs)
-    origin <- getsEnv envOrigin
-    forAll $ \r -> (r :. underlying --> r :. Type.Named name origin) origin
 
   VectorTerm values loc -> withLocation loc $ do
     (typedValues, types) <- mapAndUnzipM recur (V.toList values)

@@ -33,7 +33,6 @@ import Kitten.Interpret
 import Kitten.Interpret.Monad (InterpreterValue)
 import Kitten.Name (NameGen)
 import Kitten.Type
-import Kitten.TypeDef
 import Kitten.Typed (Typed, TypedDef)
 import Kitten.Util.Monad
 
@@ -47,7 +46,6 @@ data Repl = Repl
   , replLine :: !Int
   , replNameGen :: !NameGen
   , replStack :: [InterpreterValue]
-  , replTypeDefs :: !(Vector TypeDef)
   }
 
 type ReplReader = ReaderT (Vector TypedDef) IO
@@ -71,7 +69,6 @@ runRepl prelude nameGen = do
     , replLine = 1
     , replNameGen = nameGen
     , replStack = []
-    , replTypeDefs = V.empty
     }
 
   welcome :: IO ()
@@ -183,10 +180,7 @@ compileConfig = do
     , Compile.inferConfig = Infer.Config { enforceBottom = True }
     , Compile.libraryDirectories = []  -- TODO
     , Compile.name = replName
-    , Compile.prelude = mempty
-      { fragmentDefs = replDefs
-      , fragmentTypeDefs = replTypeDefs
-      }
+    , Compile.prelude = mempty { fragmentDefs = replDefs }
     , Compile.source = ""
     , Compile.stackTypes = V.empty
     }
@@ -228,15 +222,12 @@ eval line = do
 
   whenJust mCompiled $ \(compiled, _type) -> do
     Repl{..} <- lift get
-    stack' <- liftIO $ interpret replStack mempty
-      { fragmentDefs = replDefs
-      , fragmentTypeDefs = replTypeDefs
-      } compiled
+    stack' <- liftIO $ interpret replStack
+      mempty { fragmentDefs = replDefs } compiled
     lift . modify $ \s -> s
       { replDefs = replDefs <> fragmentDefs compiled
       , replLine = replLine + T.count "\n" line + 1
       , replStack = stack'
-      , replTypeDefs = replTypeDefs <> fragmentTypeDefs compiled
       }
   repl'
 
@@ -305,7 +296,6 @@ reset = do
     , replLine = 1
     , replNameGen = nameGen
     , replStack = []
-    , replTypeDefs = V.empty
     }
   repl'
 

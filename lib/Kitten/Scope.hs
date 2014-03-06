@@ -36,13 +36,11 @@ scopeTerm stack typed = case typed of
   Builtin{} -> typed
   Call{} -> typed
   Compose terms loc -> Compose (recur <$> terms) loc
-  From{} -> typed
   PairTerm as bs loc -> PairTerm (recur as) (recur bs) loc
   Push value loc -> Push (scopeValue stack value) loc
   Scoped name term loc -> Scoped name
     (scopeTerm (mapHead succ stack) term)
     loc
-  To{} -> typed
   VectorTerm items loc -> VectorTerm (recur <$> items) loc
 
   where
@@ -108,8 +106,6 @@ captureTerm typed = case typed of
     <$> T.mapM captureTerm terms
     <*> pure loc
 
-  From{} -> return typed
-
   PairTerm a b loc -> PairTerm
     <$> captureTerm a
     <*> captureTerm b
@@ -125,8 +121,6 @@ captureTerm typed = case typed of
     in Scoped name
       <$> local inside (captureTerm terms)
       <*> pure loc
-
-  To{} -> return typed
 
   VectorTerm items loc -> VectorTerm
     <$> T.mapM captureTerm items

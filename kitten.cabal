@@ -86,7 +86,6 @@ library
     Kitten.Tokenize,
     Kitten.Type,
     Kitten.Type.Tidy,
-    Kitten.TypeDef,
     Kitten.Typed,
     Kitten.Util.Applicative,
     Kitten.Util.Either,

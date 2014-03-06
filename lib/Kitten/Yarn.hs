@@ -190,7 +190,6 @@ yarnTerm term = case term of
   Typed.Builtin builtin _ _ -> return $ V.singleton (Builtin builtin)
   Typed.Call (Name index) _ _ -> return $ V.singleton (Call index)
   Typed.Compose terms _ _ -> concatMapM yarnTerm terms
-  Typed.From{} -> return V.empty
   Typed.PairTerm a b _ _ -> do
     a' <- yarnTerm a
     b' <- yarnTerm b
@@ -199,7 +198,6 @@ yarnTerm term = case term of
   Typed.Scoped terms _ _ -> do
     instructions <- yarnTerm terms
     return $ V.singleton Enter <> instructions <> V.singleton Leave
-  Typed.To{} -> return V.empty
   Typed.VectorTerm values _ _ -> do
     values' <- concatMapM yarnTerm values
     return $ values' <> (V.singleton . MakeVector $ V.length values)

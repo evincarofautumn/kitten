@@ -22,10 +22,8 @@ data Resolved
   = Builtin !Builtin !Location
   | Call !Name !Location
   | Compose !(Vector Resolved) !Location
-  | From !Text !Location
   | PairTerm !Resolved !Resolved !Location
   | Push !Value !Location
-  | To !Text !Location
   | Scoped !Text !Resolved !Location
   | VectorTerm !(Vector Resolved) !Location
   deriving (Eq, Show)

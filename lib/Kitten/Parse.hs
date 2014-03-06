@@ -26,7 +26,6 @@ import Kitten.Parse.Monad
 import Kitten.Parse.Primitive
 import Kitten.Parse.Type
 import Kitten.Term
-import Kitten.TypeDef
 import Kitten.Token (Located(..), Token)
 import Kitten.Util.Parsec
 
@@ -56,7 +55,6 @@ element = choice
   [ DefElement <$> def
   , ImportElement <$> import_
   , TermElement <$> term
-  , TypeElement <$> type_
   ]
 
 def :: Parser (Def Term)
@@ -94,8 +92,6 @@ term = nonblockTerm <|> blockTerm
     , mapOne toBuiltin <?> "builtin"
     , lambda
     , doElse
-    , to
-    , from
     ]
 
   blockTerm :: Parser Term
@@ -153,12 +149,6 @@ term = nonblockTerm <|> blockTerm
   pair :: Vector Term -> Location -> Term
   pair values loc = V.foldr1 (\x y -> PairTerm x y loc) values
 
-  to :: Parser (Location -> Term)
-  to = To <$> (match Token.To *> bigWord)
-
-  from :: Parser (Location -> Term)
-  from = From <$> (match Token.From *> bigWord)
-
   toBuiltin :: Token -> Maybe (Location -> Term)
   toBuiltin (Token.Builtin name) = Just $ Builtin name
   toBuiltin _ = Nothing
@@ -174,17 +164,6 @@ term = nonblockTerm <|> blockTerm
     (match Token.VectorEnd)
     (locate (Compose <$> many1V term) `sepEndByV` match Token.Comma)
     <?> "vector"
-
-type_ :: Parser TypeDef
-type_ = (<?> "type definition") . locate $ do
-  void (match Token.Type)
-  name <- bigWord
-  anno <- typeDefType
-  return $ \loc -> TypeDef
-    { typeDefName = name
-    , typeDefAnno = anno
-    , typeDefLocation = loc
-    }
 
 blockValue :: Parser Value
 blockValue = (<?> "function") . locate $ Function <$> block

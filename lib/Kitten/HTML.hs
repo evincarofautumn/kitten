@@ -107,14 +107,12 @@ flattenTerm theTerm = case theTerm of
   Compose terms loc type_ -> do
     tellNode loc $ ScalarType type_
     V.mapM_ flattenTerm terms
-  From _name loc type_ -> tellNode loc $ ScalarType type_
   PairTerm a b loc type_ -> do
     tellNode loc $ ScalarType type_
     flattenTerm a >> flattenTerm b
   Push value loc type_ -> do
     tellNode loc $ ScalarType type_
     flattenValue value
-  To _name loc type_ -> tellNode loc $ ScalarType type_
   Scoped term loc type_ -> do
     tellNode loc $ ScalarType type_
     flattenTerm term

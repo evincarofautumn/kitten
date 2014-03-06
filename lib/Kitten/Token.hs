@@ -37,7 +37,6 @@ data Token
   | Def
   | Do
   | Else
-  | From
   | GroupBegin
   | GroupEnd
   | Float Double
@@ -47,7 +46,6 @@ data Token
   | LittleWord Text
   | Operator Text
   | Text Text
-  | To
   | Type
   | VectorBegin
   | VectorEnd
@@ -65,7 +63,6 @@ instance Eq Token where
   Def          == Def          = True
   Do           == Do           = True
   Else         == Else         = True
-  From         == From         = True
   GroupBegin   == GroupBegin   = True
   GroupEnd     == GroupEnd     = True
   Float a      == Float b      = a == b
@@ -76,7 +73,6 @@ instance Eq Token where
   LittleWord a == LittleWord b = a == b
   Operator a   == Operator b   = a == b
   Text a       == Text b       = a == b
-  To           == To           = True
   Type         == Type         = True
   VectorBegin  == VectorBegin  = True
   VectorEnd    == VectorEnd    = True
@@ -96,7 +92,6 @@ instance Show Token where
     Def -> "def"
     Do -> "\\"
     Else -> "else"
-    From -> "from"
     GroupBegin -> "("
     GroupEnd -> ")"
     Float value -> show value
@@ -113,7 +108,6 @@ instance Show Token where
     LittleWord word -> T.unpack word
     Operator word -> T.unpack word
     Text value -> show value
-    To -> "to"
     Type -> "type"
     VectorBegin -> "["
     VectorEnd -> "]"
