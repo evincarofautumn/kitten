@@ -12,8 +12,8 @@ import Kitten.ClosedName
 import Kitten.Fragment
 import Kitten.Location
 import Kitten.Name
-import Kitten.Resolved
 import Kitten.Scope
+import Kitten.Tree
 import Test.Util
 
 import qualified Kitten.Builtin as Builtin
@@ -40,41 +40,42 @@ spec = do
               , biAdd]]]]] }
 
 testScope
-  :: Fragment Resolved -> Fragment Resolved -> Spec
+  :: Fragment ResolvedTerm -> Fragment ResolvedTerm -> Spec
 testScope source expected
   = let actual = scope source
   in it (show source) . unless (actual == expected)
     $ expectedButGot (show expected) (show actual)
 
-biAdd :: Resolved
+biAdd :: ResolvedTerm
 biAdd = Builtin Builtin.AddInt TestLocation
 
-closed :: Int -> Value
-closed index = Closed (Name index)
+closed :: Int -> ResolvedValue
+closed index = Closed (Name index) TestLocation
 
 closedName :: Int -> ClosedName
 closedName = ClosedName . Name
 
-closure :: [ClosedName] -> [Resolved] -> Resolved
-closure names terms = push $ Closure (V.fromList names) (compose terms)
+closure :: [ClosedName] -> [ResolvedTerm] -> ResolvedTerm
+closure names terms = push $ Closure
+  (V.fromList names) (compose terms) TestLocation
 
-compose :: [Resolved] -> Resolved
+compose :: [ResolvedTerm] -> ResolvedTerm
 compose terms = Compose (V.fromList terms) TestLocation
 
-function :: [Resolved] -> Resolved
-function terms = push $ Function (compose terms)
+function :: [ResolvedTerm] -> ResolvedTerm
+function terms = push $ Function (compose terms) TestLocation
 
-local :: Int -> Value
-local index = Local (Name index)
+local :: Int -> ResolvedValue
+local index = Local (Name index) TestLocation
 
-push :: Value -> Resolved
+push :: ResolvedValue -> ResolvedTerm
 push value = Push value TestLocation
 
 reclosedName :: Int -> ClosedName
 reclosedName = ReclosedName . Name
 
-scoped :: [Resolved] -> Resolved
-scoped terms = Scoped "testvar" (compose terms) TestLocation
+scoped :: [ResolvedTerm] -> ResolvedTerm
+scoped terms = Lambda "testvar" (compose terms) TestLocation
 
-word :: Int -> Resolved
+word :: Int -> ResolvedTerm
 word index = Call (Name index) TestLocation

@@ -46,7 +46,6 @@ library
     lib
 
   exposed-modules:
-    Kitten.AST,
     Kitten.Anno,
     Kitten.Builtin,
     Kitten.ClosedName,
@@ -79,14 +78,12 @@ library
     Kitten.Parsec,
     Kitten.Resolve,
     Kitten.Resolve.Monad,
-    Kitten.Resolved,
     Kitten.Scope,
-    Kitten.Term,
     Kitten.Token,
     Kitten.Tokenize,
+    Kitten.Tree,
     Kitten.Type,
     Kitten.Type.Tidy,
-    Kitten.Typed,
     Kitten.Util.Applicative,
     Kitten.Util.Either,
     Kitten.Util.FailWriter,

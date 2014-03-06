@@ -10,20 +10,20 @@ import qualified Data.Vector as V
 import Kitten.Def
 import Kitten.Fragment
 import Kitten.Import
-import Kitten.Term
+import Kitten.Tree
 
 data Element
-  = DefElement (Def Term)
+  = DefElement (Def ParsedTerm)
   | ImportElement Import
-  | TermElement Term
+  | TermElement ParsedTerm
 
 data Partitioned = Partitioned
-  { partDefs :: [Def Term]
+  { partDefs :: [Def ParsedTerm]
   , partImports :: [Import]
-  , partTerms :: [Term]
+  , partTerms :: [ParsedTerm]
   }
 
-partitionElements :: [Element] -> Fragment Term
+partitionElements :: [Element] -> Fragment ParsedTerm
 partitionElements
   = fromPartitioned . foldr go (Partitioned [] [] [])
   where
@@ -35,7 +35,7 @@ partitionElements
     TermElement term -> acc
       { partTerms = term : partTerms acc }
 
-fromPartitioned :: Partitioned -> Fragment Term
+fromPartitioned :: Partitioned -> Fragment ParsedTerm
 fromPartitioned Partitioned{..} = Fragment
   { fragmentDefs = V.fromList partDefs
   , fragmentImports = partImports

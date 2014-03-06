@@ -26,7 +26,7 @@ import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
-import Kitten.AST
+import Kitten.Def
 import Kitten.Error
 import Kitten.Fragment
 import Kitten.Import
@@ -35,10 +35,9 @@ import Kitten.Name (NameGen)
 import Kitten.Parse
 import Kitten.Resolve
 import Kitten.Scope
-import Kitten.Term (Term)
 import Kitten.Tokenize
+import Kitten.Tree
 import Kitten.Type
-import Kitten.Typed (Typed)
 import Kitten.Util.Either
 import Kitten.Util.Monad
 
@@ -52,7 +51,7 @@ parseSource
   :: Int
   -> String
   -> Text
-  -> Either [ErrorGroup] (Fragment Term)
+  -> Either [ErrorGroup] (Fragment ParsedTerm)
 parseSource line name source = do
   tokenized <- liftParseError $ tokenize line name source
   liftParseError $ parse name tokenized
@@ -60,7 +59,7 @@ parseSource line name source = do
 compile
   :: Compile.Config
   -> NameGen
-  -> IO (Either [ErrorGroup] (NameGen, Fragment Typed, Type Scalar))
+  -> IO (Either [ErrorGroup] (NameGen, Fragment TypedTerm, Type Scalar))
 compile Compile.Config{..} nameGen
   = liftM (mapLeft sort) . runEitherT $ do
   parsed <- hoistEither $ parseSource firstLine name source
@@ -104,8 +103,8 @@ locateImport libraryDirectories importName = do
 
 substituteImports
   :: [FilePath]
-  -> Fragment Term
-  -> IO (Either [ErrorGroup] (Fragment Term))
+  -> Fragment ParsedTerm
+  -> IO (Either [ErrorGroup] (Fragment ParsedTerm))
 substituteImports libraryDirectories fragment = runEitherT $ do
   substituted <- go
     (fragmentImports fragment)
@@ -116,8 +115,8 @@ substituteImports libraryDirectories fragment = runEitherT $ do
   go
     :: [Import]
     -> Set Text
-    -> [TermDef Term]
-    -> EitherT [ErrorGroup] IO [TermDef Term]
+    -> [Def ParsedTerm]
+    -> EitherT [ErrorGroup] IO [Def ParsedTerm]
   go [] _ defs = return defs
   go (current:remaining) seenNames defs = let
     name = importName current

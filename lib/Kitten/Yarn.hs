@@ -26,13 +26,13 @@ import Kitten.ClosedName
 import Kitten.Def
 import Kitten.Fragment
 import Kitten.Name
-import Kitten.Typed (Typed, TypedDef)
+import Kitten.Tree (TypedTerm, TypedValue)
 import Kitten.Util.Monad
 import Kitten.Util.Text (ToText(..), showText)
 
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.Type as Type
-import qualified Kitten.Typed as Typed
+import qualified Kitten.Tree as Tree
 
 type Label = Int
 type Offset = Int
@@ -133,7 +133,7 @@ data Env = Env
 type Yarn a = ReaderT Int (State Env) a
 
 yarn
-  :: Fragment Typed
+  :: Fragment TypedTerm
   -> Vector Instruction
 yarn Fragment{..}
   = collectClosures . withClosureOffset $ (<>)
@@ -167,7 +167,7 @@ yarn Fragment{..}
     = V.singleton (Label index) <> instructions <> V.singleton Return
 
 yarnDef
-  :: TypedDef
+  :: Def TypedTerm
   -> Int
   -> Yarn (Vector Instruction)
 yarnDef Def{..} index = do
@@ -177,7 +177,7 @@ yarnDef Def{..} index = do
     <> instructions
     <> V.singleton Return
 
-yarnEntry :: Vector Typed -> Yarn (Vector Instruction)
+yarnEntry :: Vector TypedTerm -> Yarn (Vector Instruction)
 yarnEntry terms = do
   instructions <- concatMapM yarnTerm terms
   return
@@ -185,39 +185,40 @@ yarnEntry terms = do
     <> instructions
     <> V.singleton Return
 
-yarnTerm :: Typed -> Yarn (Vector Instruction)
+yarnTerm :: TypedTerm -> Yarn (Vector Instruction)
 yarnTerm term = case term of
-  Typed.Builtin builtin _ _ -> return $ V.singleton (Builtin builtin)
-  Typed.Call (Name index) _ _ -> return $ V.singleton (Call index)
-  Typed.Compose terms _ _ -> concatMapM yarnTerm terms
-  Typed.PairTerm a b _ _ -> do
+  Tree.Builtin builtin _ -> return $ V.singleton (Builtin builtin)
+  Tree.Call (Name index) _ -> return $ V.singleton (Call index)
+  Tree.Compose terms _ -> concatMapM yarnTerm terms
+  Tree.Lambda _ terms _ -> do
+    instructions <- yarnTerm terms
+    return $ V.singleton Enter <> instructions <> V.singleton Leave
+  Tree.PairTerm a b _ -> do
     a' <- yarnTerm a
     b' <- yarnTerm b
     return $ a' <> b' <> V.singleton (Builtin Builtin.Pair)
-  Typed.Push value _ _ -> yarnValue value
-  Typed.Scoped terms _ _ -> do
-    instructions <- yarnTerm terms
-    return $ V.singleton Enter <> instructions <> V.singleton Leave
-  Typed.VectorTerm values _ _ -> do
+  Tree.Push value _ -> yarnValue value
+  Tree.VectorTerm values _ -> do
     values' <- concatMapM yarnTerm values
     return $ values' <> (V.singleton . MakeVector $ V.length values)
 
 yarnValue
-  :: Typed.Value
+  :: TypedValue
   -> Yarn (Vector Instruction)
 yarnValue resolved = case resolved of
-  Typed.Bool x -> value $ Bool x
-  Typed.Char x -> value $ Char x
-  Typed.Closed (Name index) -> return $ V.singleton (Closure index)
-  Typed.Closure names terms -> do
+  Tree.Bool x _ -> value $ Bool x
+  Tree.Char x _ -> value $ Char x
+  Tree.Closed (Name index) _ -> return $ V.singleton (Closure index)
+  Tree.Closure names terms _ -> do
     instructions <- yarnTerm terms
     index <- yarnClosure instructions
     return $ V.singleton (Act index names)
-  Typed.Float x -> value $ Float x
-  Typed.Int x -> value $ Int x
-  Typed.Local (Name index) -> return $ V.singleton (Local index)
-  Typed.Unit -> value Unit
-  Typed.String x -> value $ String x
+  Tree.Float x _ -> value $ Float x
+  Tree.Function{} -> error "'Function' appeared during conversion to IR"
+  Tree.Int x _ -> value $ Int x
+  Tree.Local (Name index) _ -> return $ V.singleton (Local index)
+  Tree.Unit _ -> value Unit
+  Tree.String x _ -> value $ String x
   where
   value :: Value -> Yarn (Vector Instruction)
   value = return . V.singleton . Push

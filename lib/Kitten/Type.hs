@@ -1,5 +1,7 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
@@ -28,6 +30,8 @@ module Kitten.Type
 import Data.Monoid
 import Data.Set (Set)
 import Data.Text (Text)
+import Data.Foldable (Foldable)
+import Data.Traversable (Traversable)
 
 import qualified Data.Set as S
 
@@ -190,7 +194,7 @@ data Scheme a = Forall
   (Set (TypeName Row))
   (Set (TypeName Scalar))
   a
-  deriving (Eq, Functor)
+  deriving (Eq, Foldable, Functor, Traversable)
 
 instance (ToText a) => Show (Scheme a) where
   show = T.unpack . toText

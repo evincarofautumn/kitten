@@ -18,14 +18,13 @@ import Kitten.Error
 import Kitten.Fragment
 import Kitten.Interpret
 import Kitten.Name (NameGen, mkNameGen)
-import Kitten.Typed (Typed)
+import Kitten.Tree
 import Kitten.Yarn (yarn)
 import Repl
 
 import qualified Kitten.Compile as Compile
 import qualified Kitten.HTML as HTML
 import qualified Kitten.Infer.Config as Infer
-import qualified Kitten.Typed as Typed
 import qualified Kitten.Util.Text as T
 
 data CompileMode
@@ -108,14 +107,14 @@ main = do
       (defaultConfig prelude)
       nameGen
 
-containsCode :: Typed -> Bool
-containsCode (Typed.Compose terms _ _) = V.any containsCode terms
+containsCode :: TypedTerm -> Bool
+containsCode (Compose terms _) = V.any containsCode terms
 containsCode _ = True
 
 interpretAll
   :: [FilePath]
   -> CompileMode
-  -> Fragment Typed
+  -> Fragment TypedTerm
   -> (FilePath -> Text -> Compile.Config)
   -> NameGen
   -> IO ()

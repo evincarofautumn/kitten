@@ -33,21 +33,22 @@ import System.IO
 
 import qualified Data.Vector as V
 
+import Kitten.Def
 import Kitten.Location
 import Kitten.Name
+import Kitten.Tree (TypedTerm)
 import Kitten.Type (Type((:&), (:?), (:|)))
-import Kitten.Typed (Typed, TypedDef)
 import Kitten.Util.Text (ToText(..), showText)
 
+import qualified Kitten.Tree as Tree
 import qualified Kitten.Type as Type
-import qualified Kitten.Typed as Typed
 import qualified Kitten.Util.Text as T
 import qualified Kitten.Util.Vector as V
 
 data Env = Env
   { envData :: [InterpreterValue]
   , envLocals :: [InterpreterValue]
-  , envDefs :: !(Vector TypedDef)
+  , envDefs :: !(Vector (Def TypedTerm))
   , envClosure :: !(Vector InterpreterValue)
   , envLocations :: [Location]
   }
@@ -57,7 +58,7 @@ type Interpret = InterpretM ()
 type InterpretM a = StateT Env IO a
 
 data InterpreterValue
-  = Activation !(Vector InterpreterValue) !Typed
+  = Activation !(Vector InterpreterValue) !TypedTerm
   | Bool !Bool
   | Char !Char
   | Choice !Bool !InterpreterValue
@@ -158,7 +159,7 @@ typeOfValue = runState . typeOfValueM
 
 typeOfValueM :: InterpreterValue -> State NameGen (Type Type.Scalar)
 typeOfValueM value = case value of
-  Activation _closed typed -> return $ Typed.typedType typed
+  Activation _closed typed -> return $ Tree.typedType typed
   Bool _ -> return $ Type.Bool origin
   Char _ -> return $ Type.Char origin
   Choice False x -> liftM2 (:|) (typeOfValueM x) freshVarM

@@ -31,10 +31,9 @@ import Kitten.Infer.Type
 import Kitten.Infer.Unify
 import Kitten.Location
 import Kitten.Name
-import Kitten.Resolved
+import Kitten.Tree as Tree
 import Kitten.Type (Type((:&), (:.), (:?), (:|)))
 import Kitten.Type hiding (Type(..), Local)
-import Kitten.Typed (Typed)
 import Kitten.Util.FailWriter
 import Kitten.Util.Monad
 import Kitten.Util.Text (toText)
@@ -42,45 +41,46 @@ import Kitten.Util.Text (toText)
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.NameMap as N
 import qualified Kitten.Type as Type
-import qualified Kitten.Typed as Typed
 import qualified Kitten.Util.Vector as V
 
 typeFragment
   :: Config
   -> Vector (Type Scalar)
-  -> Fragment Typed
-  -> Fragment Resolved
+  -> Fragment TypedTerm
+  -> Fragment ResolvedTerm
   -> NameGen
-  -> Either [ErrorGroup] (NameGen, Fragment Typed, Type Scalar)
+  -> Either [ErrorGroup] (NameGen, Fragment TypedTerm, Type Scalar)
 typeFragment config stackTypes prelude fragment nameGen
   = case run of
     (Left err, _) -> Left err
     (Right (typed, type_), env') -> Right (envNameGen env', typed, type_)
   where
-  run :: (Either [ErrorGroup] (Fragment Typed, Type Scalar), Env)
+  run :: (Either [ErrorGroup] (Fragment TypedTerm, Type Scalar), Env)
   run = runInference config env
     $ inferFragment prelude fragment stackTypes
   env :: Env
   env = emptyEnv { envNameGen = nameGen }
 
 inferFragment
-  :: Fragment Typed
-  -> Fragment Resolved
+  :: Fragment TypedTerm
+  -> Fragment ResolvedTerm
   -> Vector (Type Scalar)
-  -> Inferred (Fragment Typed, Type Scalar)
+  -> Inferred (Fragment TypedTerm, Type Scalar)
 inferFragment prelude fragment stackTypes = mdo
+
   -- Populate environment with Prelude definition types.
-  -- FIXME(strager): Use previously-inferred types (i.e.
-  -- Typed.defTypeScheme def).  We cannot right now because
-  -- effects are not inferred properly (e.g. for the effects
-  -- of the 'map' prelude function).
+  --
+  -- FIXME(strager):
+  -- Use previously-inferred types (i.e. defTypeScheme def). We cannot
+  -- right now because effects are not inferred properly (e.g. for the
+  -- effects of the 'map' prelude function).
   _ <- iforPreludeDefs save
   _ <- iforFragmentDefs save
 
   typedDefs <- iforFragmentDefs $ \index def
     -> withOrigin (defOrigin def) $ do
       (typedTerm, inferredScheme) <- generalize
-        (infer finalEnv (defTerm def))
+        (infer finalEnv (unScheme (defTerm def)))  -- See note [scheming defs].
       declaredScheme <- do
         decls <- getsEnv envDecls
         case N.lookup (Name index) decls of
@@ -145,14 +145,14 @@ inferFragment prelude fragment stackTypes = mdo
     (V.length (fragmentDefs prelude)) [0..]
 
   iforFragmentDefs
-    :: (Int -> Def Resolved -> Inferred a)
+    :: (Int -> Def ResolvedTerm -> Inferred a)
     -> Inferred (Vector a)
   iforFragmentDefs f = liftM V.fromList $ zipWithM f
     fragmentIndices
     (V.toList (fragmentDefs fragment))
 
   iforPreludeDefs
-    :: (Int -> Typed.TypedDef -> Inferred a)
+    :: (Int -> Def TypedTerm -> Inferred a)
     -> Inferred (Vector a)
   iforPreludeDefs f = liftM V.fromList $ zipWithM f
     preludeIndices
@@ -185,6 +185,11 @@ inferFragment prelude fragment stackTypes = mdo
     annotated :: Annotated
     annotated = AnnotatedDef (defName def)
 
+-- Note [scheming defs]:
+--
+-- Defs are always wrapped in 'Scheme's for convenience after type
+-- inference, but they are always monomorphic beforehand.
+
 class ForAll a b where
   forAll :: a -> Inferred (Type b)
 
@@ -197,10 +202,10 @@ instance ForAll (Type a) a where
   forAll = pure
 
 -- | Infers the type of a term.
-infer :: Env -> Resolved -> Inferred (Typed, Type Scalar)
+infer :: Env -> ResolvedTerm -> Inferred (TypedTerm, Type Scalar)
 infer finalEnv resolved = case resolved of
 
-  Kitten.Resolved.Builtin name loc -> asTyped (Typed.Builtin name) loc $ case name of
+  Tree.Builtin name loc -> asTyped (Tree.Builtin name) loc $ case name of
 
     Builtin.AddVector -> forAll $ \r a
       -> (r :. Type.Vector a o :. Type.Vector a o
@@ -379,7 +384,7 @@ infer finalEnv resolved = case resolved of
     o :: Origin
     o = Origin (AnnoType (Kitten.Type.Builtin name)) loc
 
-  Call name loc -> asTyped (Typed.Call name) loc
+  Call name loc -> asTyped (Call name) loc
     $ instantiateM =<< declOrDef
     where
     declOrDef = do
@@ -399,46 +404,49 @@ infer finalEnv resolved = case resolved of
         inferCompose a b c d)
       ((r --> r) origin)
       (V.toList types)
-    return (Typed.Compose typedTerms loc (sub finalEnv type_), type_)
+    return (Compose typedTerms (loc, sub finalEnv type_), type_)
+
+  Lambda name term loc -> withOrigin (Origin (Type.Local name) loc) $ do
+    a <- freshVarM
+    (term', Type.Function b c _) <- local a $ recur term
+    origin <- getsEnv envOrigin
+    let type_ = Type.Function (b :. a) c origin
+    return (Lambda name term' (loc, sub finalEnv type_), type_)
 
   PairTerm x y loc -> withLocation loc $ do
     (x', a) <- secondM fromConstant =<< recur x
     (y', b) <- secondM fromConstant =<< recur y
     origin <- getsEnv envOrigin
     type_ <- forAll $ \r -> (r --> r :. a :& b) origin
-    return (Typed.PairTerm x' y' loc (sub finalEnv type_), type_)
+    return (PairTerm x' y' (loc, sub finalEnv type_), type_)
 
   Push value loc -> withLocation loc $ do
     (value', a) <- inferValue finalEnv value
     origin <- getsEnv envOrigin
     type_ <- forAll $ \r -> (r --> r :. a) origin
-    return (Typed.Push value' loc (sub finalEnv type_), type_)
-
-  Scoped name term loc -> withOrigin (Origin (Type.Local name) loc) $ do
-    a <- freshVarM
-    (term', Type.Function b c _) <- local a $ recur term
-    origin <- getsEnv envOrigin
-    let type_ = Type.Function (b :. a) c origin
-    return (Typed.Scoped term' loc (sub finalEnv type_), type_)
+    return (Push value' (loc, sub finalEnv type_), type_)
 
   VectorTerm values loc -> withLocation loc $ do
     (typedValues, types) <- mapAndUnzipM recur (V.toList values)
     elementType <- fromConstant =<< unifyEach types
     origin <- getsEnv envOrigin
     type_ <- forAll $ \r -> (r --> r :. Type.Vector elementType origin) origin
-    return (Typed.VectorTerm (V.fromList typedValues) loc (sub finalEnv type_), type_)
+    return
+      ( VectorTerm (V.fromList typedValues) (loc, sub finalEnv type_)
+      , type_
+      )
 
   where
   recur = infer finalEnv
 
   asTyped
-    :: (Location -> Type Scalar -> a)
+    :: ((Location, Type Scalar) -> a)
     -> Location
     -> Inferred (Type Scalar)
     -> Inferred (a, Type Scalar)
   asTyped constructor loc action = do
     type_ <- withLocation loc action
-    return (constructor loc (sub finalEnv type_), type_)
+    return (constructor (loc, sub finalEnv type_), type_)
 
 -- | Removes top-level quantifiers from a type.
 unquantify :: Type a -> Inferred (Type a)
@@ -488,26 +496,27 @@ getClosedName name = case name of
   ClosedName (Name index) -> getsEnv $ (!! index) . envLocals
   ReclosedName (Name index) -> getsEnv $ (V.! index) . envClosure
 
-inferValue :: Env -> Value -> Inferred (Typed.Value, Type Scalar)
+inferValue :: Env -> ResolvedValue -> Inferred (TypedValue, Type Scalar)
 inferValue finalEnv value = getsEnv envOrigin >>= \origin -> case value of
-  Bool val -> return (Typed.Bool val, Type.Bool origin)
-  Char val -> return (Typed.Char val, Type.Char origin)
-  Closed name@(Name index) -> do
+  Bool val loc -> ret loc (Type.Bool origin) (Bool val)
+  Char val loc -> ret loc (Type.Char origin) (Char val)
+  Closed name@(Name index) loc -> do
     type_ <- getsEnv ((V.! index) . envClosure)
-    return (Typed.Closed name, type_)
-  Closure names term -> do
+    ret loc type_ (Closed name)
+  Closure names term loc -> do
     closedTypes <- V.mapM getClosedName names
     (term', type_) <- withClosure closedTypes (infer finalEnv term)
-    return (Typed.Closure names term', type_)
-  Float val -> return (Typed.Float val, Type.Float origin)
-  Function _ -> error "function appeared during type inference"
-  Int val -> return (Typed.Int val, Type.Int origin)
-  Local name@(Name index) -> do
+    ret loc type_ (Closure names term')
+  Float val loc -> ret loc (Type.Float origin) (Float val)
+  Function{} -> error "'Function' appeared during type inference"
+  Int val loc -> ret loc (Type.Int origin) (Int val)
+  Local name@(Name index) loc -> do
     type_ <- getsEnv ((!! index) . envLocals)
-    return (Typed.Local name, type_)
-  Unit -> return (Typed.Unit, Type.Unit origin)
-  String val -> return
-    (Typed.String val, Type.Vector (Type.Char origin) origin)
+    ret loc type_ (Local name)
+  Unit loc -> ret loc (Type.Unit origin) Unit
+  String val loc -> ret loc (Type.Vector (Type.Char origin) origin) (String val)
+  where
+  ret loc type_ constructor = return (constructor (loc, type_), type_)
 
 unifyEach :: [Type Scalar] -> Inferred (Type Scalar)
 unifyEach (x : y : zs) = x === y >> unifyEach (y : zs)

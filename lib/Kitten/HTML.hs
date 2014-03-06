@@ -35,8 +35,8 @@ import qualified Text.Parsec.Pos as ParsecPos
 import Kitten.Def
 import Kitten.Fragment
 import Kitten.Location
+import Kitten.Tree
 import Kitten.Type (Kind(..), Type, unScheme)
-import Kitten.Typed
 import Kitten.Util.Text (toText)
 
 type LocMap = UnionMap FilePath (UnionMap Pos [Node])
@@ -70,7 +70,7 @@ data ScanEnv = ScanEnv
 fromFragmentsM
   :: forall m. (Monad m)
   => (FilePath -> m Text)
-  -> [Fragment Typed]
+  -> [Fragment TypedTerm]
   -> m Text
 fromFragmentsM lookUpSource fragments = do
   let UnionMap locMap = foldMap (execWriter . flattenFragment) fragments
@@ -90,47 +90,48 @@ fromFragmentsM lookUpSource fragments = do
 
 -- * Flattening.
 
-flattenFragment :: Fragment Typed -> Writer LocMap ()
+flattenFragment :: Fragment TypedTerm -> Writer LocMap ()
 flattenFragment fragment = do
   V.mapM_ flattenDef (fragmentDefs fragment)
   V.mapM_ flattenTerm (fragmentTerms fragment)
 
-flattenDef :: TypedDef -> Writer LocMap ()
+flattenDef :: Def TypedTerm -> Writer LocMap ()
 flattenDef def = do
   tellNode (defLocation def) $ Definition (defName def)
   flattenTerm $ unScheme (defTerm def)
 
-flattenTerm :: Typed -> Writer LocMap ()
+flattenTerm :: TypedTerm -> Writer LocMap ()
 flattenTerm theTerm = case theTerm of
-  Builtin _builtin loc type_ -> tellNode loc $ ScalarType type_
-  Call _name loc type_ -> tellNode loc $ ScalarType type_
-  Compose terms loc type_ -> do
+  Builtin _builtin (loc, type_) -> tellNode loc $ ScalarType type_
+  Call _name (loc, type_) -> tellNode loc $ ScalarType type_
+  Compose terms (loc, type_) -> do
     tellNode loc $ ScalarType type_
     V.mapM_ flattenTerm terms
-  PairTerm a b loc type_ -> do
-    tellNode loc $ ScalarType type_
-    flattenTerm a >> flattenTerm b
-  Push value loc type_ -> do
-    tellNode loc $ ScalarType type_
-    flattenValue value
-  Scoped term loc type_ -> do
+  Lambda _name term (loc, type_) -> do
     tellNode loc $ ScalarType type_
     flattenTerm term
-  VectorTerm terms loc type_ -> do
+  PairTerm a b (loc, type_) -> do
+    tellNode loc $ ScalarType type_
+    flattenTerm a >> flattenTerm b
+  Push value (loc, type_) -> do
+    tellNode loc $ ScalarType type_
+    flattenValue value
+  VectorTerm terms (loc, type_) -> do
     tellNode loc $ ScalarType type_
     V.mapM_ flattenTerm terms
 
-flattenValue :: Value -> Writer LocMap ()
+flattenValue :: TypedValue -> Writer LocMap ()
 flattenValue theValue = case theValue of
-  Bool _ -> return ()
-  Char _ -> return ()
-  Closed _ -> return ()
-  Closure _closed term -> flattenTerm term
-  Float _ -> return ()
-  Int _ -> return ()
-  Local _ -> return ()
-  Unit -> return ()
-  String _ -> return ()
+  Bool{} -> return ()
+  Char{} -> return ()
+  Closed{} -> return ()
+  Closure _closed term _ -> flattenTerm term
+  Float{} -> return ()
+  Function{} -> return ()  -- ?
+  Int{} -> return ()
+  Local{} -> return ()
+  Unit{} -> return ()
+  String{} -> return ()
 
 -- * Scanning and HTML generation.
 

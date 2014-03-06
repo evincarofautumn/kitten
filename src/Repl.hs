@@ -32,8 +32,8 @@ import Kitten.Fragment
 import Kitten.Interpret
 import Kitten.Interpret.Monad (InterpreterValue)
 import Kitten.Name (NameGen)
+import Kitten.Tree
 import Kitten.Type
-import Kitten.Typed (Typed, TypedDef)
 import Kitten.Util.Monad
 
 import qualified Kitten.Builtin as Builtin
@@ -42,20 +42,20 @@ import qualified Kitten.Infer.Config as Infer
 import qualified Kitten.Interpret.Monad as Interpret
 
 data Repl = Repl
-  { replDefs :: !(Vector TypedDef)
+  { replDefs :: !(Vector (Def TypedTerm))
   , replLine :: !Int
   , replNameGen :: !NameGen
   , replStack :: [InterpreterValue]
   }
 
-type ReplReader = ReaderT (Vector TypedDef) IO
+type ReplReader = ReaderT (Vector (Def TypedTerm)) IO
 type ReplState = StateT Repl ReplReader
 type ReplInput = InputT ReplState
 
 liftIO :: IO a -> ReplInput a
 liftIO = lift . lift . lift
 
-runRepl :: Fragment Typed -> NameGen -> IO ()
+runRepl :: Fragment TypedTerm -> NameGen -> IO ()
 runRepl prelude nameGen = do
   welcome
   flip runReaderT preludeDefs
@@ -150,7 +150,7 @@ repl = do
 repl' :: ReplInput ()
 repl' = showStack >> repl
 
-askPreludeDefs :: ReplInput (Vector TypedDef)
+askPreludeDefs :: ReplInput (Vector (Def TypedTerm))
 askPreludeDefs = lift (lift ask)
 
 matched :: String -> Bool
@@ -187,7 +187,7 @@ compileConfig = do
 
 replCompile
   :: (Compile.Config -> Compile.Config)
-  -> ReplInput (Maybe (Fragment Typed, Type Scalar))
+  -> ReplInput (Maybe (Fragment TypedTerm, Type Scalar))
 replCompile update = do
   nameGen <- lift $ gets replNameGen
   mCompiled <- do

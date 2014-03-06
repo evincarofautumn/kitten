@@ -26,16 +26,16 @@ import Kitten.Def
 import Kitten.Fragment
 import Kitten.Interpret.Monad
 import Kitten.Name
-import Kitten.Typed (Typed)
+import Kitten.Tree (TypedTerm, TypedValue)
 
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.Type as Type
-import qualified Kitten.Typed as Typed
+import qualified Kitten.Tree as Tree
 
 interpret
   :: [InterpreterValue]
-  -> Fragment Typed
-  -> Fragment Typed
+  -> Fragment TypedTerm
+  -> Fragment TypedTerm
   -> IO [InterpreterValue]
 interpret stack prelude fragment = liftM envData $ execStateT
   (F.mapM_ interpretTerm (fragmentTerms fragment)) Env
@@ -46,41 +46,42 @@ interpret stack prelude fragment = liftM envData $ execStateT
   , envLocations = []
   }              
 
-interpretTerm :: Typed -> Interpret
+interpretTerm :: TypedTerm -> Interpret
 interpretTerm typed = case typed of
-  Typed.Builtin builtin loc _type -> withLocation loc $ interpretBuiltin builtin
-  Typed.Call name loc _type -> withLocation loc $ interpretOverload name
-  Typed.Compose terms loc _type -> withLocation loc
+  Tree.Builtin builtin (loc, _) -> withLocation loc $ interpretBuiltin builtin
+  Tree.Call name (loc, _) -> withLocation loc $ interpretOverload name
+  Tree.Compose terms (loc, _) -> withLocation loc
     $ F.mapM_ interpretTerm terms
-  Typed.PairTerm a b loc _type -> withLocation loc $ do
+  Tree.Lambda _ term (loc, _) -> withLocation loc $ do
+    pushLocal =<< popData
+    interpretTerm term
+    popLocal
+  Tree.PairTerm a b (loc, _) -> withLocation loc $ do
     interpretTerm a
     a' <- popData
     interpretTerm b
     b' <- popData
     pushData $ Pair a' b'
-  Typed.Push value loc _type -> withLocation loc $ interpretValue value
-  Typed.Scoped term loc _type -> withLocation loc $ do
-    pushLocal =<< popData
-    interpretTerm term
-    popLocal
-  Typed.VectorTerm terms loc _type -> withLocation loc $ do
+  Tree.Push value (loc, _) -> withLocation loc $ interpretValue value
+  Tree.VectorTerm terms (loc, _) -> withLocation loc $ do
     F.mapM_ interpretTerm terms
     values <- V.fromList <$> replicateM (V.length terms) popData
     pushData $ Vector (V.reverse values)
 
-interpretValue :: Typed.Value -> Interpret
+interpretValue :: TypedValue -> Interpret
 interpretValue value = case value of
-  Typed.Bool x -> pushData $ Bool x
-  Typed.Char x -> pushData $ Char x
-  Typed.Closed name -> pushData =<< getClosed name
-  Typed.Closure names term -> do
+  Tree.Bool x _ -> pushData $ Bool x
+  Tree.Char x _ -> pushData $ Char x
+  Tree.Closed name _ -> pushData =<< getClosed name
+  Tree.Closure names term _ -> do
     values <- T.mapM getClosedName names
     pushData $ Activation values term
-  Typed.Float x -> pushData $ Float x
-  Typed.Int x -> pushData $ Int x
-  Typed.Local name -> pushData =<< getLocal name
-  Typed.Unit -> pushData Unit
-  Typed.String x -> pushData
+  Tree.Float x _ -> pushData $ Float x
+  Tree.Function{} -> error "'Function' appeared during interpretation"
+  Tree.Int x _ -> pushData $ Int x
+  Tree.Local name _ -> pushData =<< getLocal name
+  Tree.Unit _ -> pushData Unit
+  Tree.String x _ -> pushData
     . Vector $ charsFromString (Text.unpack x)
 
 getClosedName :: ClosedName -> InterpretM InterpreterValue

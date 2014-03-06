@@ -13,6 +13,7 @@ import Data.Vector (Vector)
 import GHC.Exts
 
 import qualified Data.Text as T
+import qualified Data.Traversable as T
 import qualified Data.Vector as V
 
 import Kitten.Def
@@ -21,17 +22,13 @@ import Kitten.Fragment
 import Kitten.Location
 import Kitten.Name
 import Kitten.Resolve.Monad
-import Kitten.Resolved
-import Kitten.Term (Term)
-import Kitten.Typed (Typed)
+import Kitten.Tree
 import Kitten.Util.Function
 
-import qualified Kitten.Term as Term
-
 resolve
-  :: Fragment Typed
-  -> Fragment Term
-  -> Either [ErrorGroup] (Fragment Resolved)
+  :: Fragment TypedTerm
+  -> Fragment ParsedTerm
+  -> Either [ErrorGroup] (Fragment ResolvedTerm)
 resolve prelude fragment = do
   case reportDuplicateDefs allNamesAndLocs of
     [] -> return ()
@@ -48,9 +45,10 @@ resolve prelude fragment = do
     = namesAndLocs (fragmentDefs prelude)
     ++ namesAndLocs (fragmentDefs fragment)
   emptyEnv = Env
-    (fragmentDefs prelude)
-    (fragmentDefs fragment)
-    []
+    { envDefs = fragmentDefs fragment
+    , envPrelude = fragmentDefs prelude
+    , envScope = []
+    }
 
 namesAndLocs :: Vector (Def a) -> [(Text, Location)]
 namesAndLocs = map (defName &&& defLocation) . V.toList
@@ -68,52 +66,56 @@ reportDuplicateDefs param = mapMaybe reportDuplicate . groupWith fst $ param
       : for duplicates
         (\ (_, here) -> CompileError here Note "also defined here")
 
-resolveDefs :: Vector (Def Term) -> Resolution (Vector (Def Resolved))
+resolveDefs
+  :: Vector (Def ParsedTerm)
+  -> Resolution (Vector (Def ResolvedTerm))
 resolveDefs = guardMapM resolveDef
   where
-  resolveDef :: Def Term -> Resolution (Def Resolved)
+  resolveDef :: Def ParsedTerm -> Resolution (Def ResolvedTerm)
   resolveDef def = do
-    defTerm' <- resolveTerm (defTerm def)
+    defTerm' <- T.traverse resolveTerm (defTerm def)
     return def { defTerm = defTerm' }
 
-resolveTerm :: Term -> Resolution Resolved
+resolveTerm :: ParsedTerm -> Resolution ResolvedTerm
 resolveTerm unresolved = case unresolved of
-  Term.Builtin name loc -> return $ Builtin name loc
-  Term.Call name loc -> resolveName name loc
-  Term.Compose terms loc -> Compose
+  Builtin name loc -> return $ Builtin name loc
+  Call name loc -> resolveName name loc
+  Compose terms loc -> Compose
     <$> guardMapM resolveTerm terms
     <*> pure loc
-  Term.Lambda name term loc -> withLocal name $ Scoped name
+  Lambda name term loc -> withLocal name $ Lambda name
     <$> resolveTerm term
     <*> pure loc
-  Term.PairTerm as bs loc -> PairTerm
+  PairTerm as bs loc -> PairTerm
     <$> resolveTerm as
     <*> resolveTerm bs
     <*> pure loc
-  Term.Push value loc -> Push <$> resolveValue value <*> pure loc
-  Term.VectorTerm items loc -> VectorTerm
+  Push value loc -> Push <$> resolveValue value <*> pure loc
+  VectorTerm items loc -> VectorTerm
     <$> guardMapM resolveTerm items
     <*> pure loc
 
-resolveValue :: Term.Value -> Resolution Value
+resolveValue :: ParsedValue -> Resolution ResolvedValue
 resolveValue unresolved = case unresolved of
-  Term.Bool value _ -> return $ Bool value
-  Term.Char value _ -> return $ Char value
-  Term.Float value _ -> return $ Float value
-  Term.Function term loc -> Function
-    <$> (Compose <$> guardMapM resolveTerm term <*> pure loc)
-  Term.Int value _ -> return $ Int value
-  Term.Unit _ -> return Unit
-  Term.String value _ -> return $ String value
+  Bool value loc -> return $ Bool value loc
+  Char value loc -> return $ Char value loc
+  Float value loc -> return $ Float value loc
+  Function term loc -> Function <$> resolveTerm term <*> pure loc
+  Int value loc -> return $ Int value loc
+  Unit loc -> return $ Unit loc
+  String value loc -> return $ String value loc
+  Closed{} -> error "FIXME 'Closed' appeared before resolution"
+  Closure{} -> error "FIXME 'Closure' appeared before resolution"
+  Local{} -> error "FIXME 'Local' appeared before resolution"
 
 resolveName
   :: Text
   -> Location
-  -> Resolution Resolved
+  -> Resolution ResolvedTerm
 resolveName name loc = do
   mLocalIndex <- getsEnv $ localIndex name
   case mLocalIndex of
-    Just index -> return $ Push (Local $ Name index) loc
+    Just index -> return $ Push (Local (Name index) loc) loc
     Nothing -> do
       indices <- getsEnv $ defIndices name
       index <- case V.toList indices of

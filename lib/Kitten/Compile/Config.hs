@@ -8,8 +8,8 @@ import Data.Text (Text)
 import Data.Vector (Vector)
 
 import Kitten.Fragment
+import Kitten.Tree
 import Kitten.Type
-import Kitten.Typed (Typed)
 
 import qualified Kitten.Infer.Config as Infer
 
@@ -20,7 +20,7 @@ data Config = Config
   , inferConfig :: !Infer.Config
   , libraryDirectories :: [FilePath]
   , name :: String
-  , prelude :: !(Fragment Typed)
+  , prelude :: !(Fragment TypedTerm)
   , source :: !Text
   , stackTypes :: Vector (Type Scalar)
   }

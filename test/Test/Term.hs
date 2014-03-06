@@ -16,8 +16,9 @@ import Kitten.Error
 import Kitten.Fragment
 import Kitten.Location
 import Kitten.Parse
-import Kitten.Term
 import Kitten.Tokenize
+import Kitten.Tree
+import Kitten.Type (mono)
 import Kitten.Util.Either
 import Test.Util
 
@@ -206,7 +207,7 @@ spec = do
               [ lambda "y"
                 [word "x", word "y", word "+"]]]]] }
 
-testTerm :: Text -> Fragment Term -> Spec
+testTerm :: Text -> Fragment ParsedTerm -> Spec
 testTerm source expected = it (show source)
   $ case parsed source of
     Left message -> assertFailure $ show message
@@ -221,7 +222,7 @@ testTermFailure source = it ("should fail: " ++ show source)
     Left _ -> return ()
     Right actual -> assertFailure $ show actual
 
-parsed :: Text -> Either ErrorGroup (Fragment Term)
+parsed :: Text -> Either ErrorGroup (Fragment ParsedTerm)
 parsed
   = mapLeft parseError . tokenize 1 "test"
   >=> mapLeft parseError . parse "test"
@@ -231,34 +232,35 @@ def name term = Def
   { defAnno = Nothing
   , defLocation = TestLocation
   , defName = name
-  , defTerm = term
+  , defTerm = mono term
   }
 
 defWithAnno :: Text -> Anno.Type -> a -> Def a
 defWithAnno name anno term = (def name term)
   { defAnno = Just (Anno anno TestLocation) }
 
-call :: Text -> Term
+call :: Text -> ParsedTerm
 call name = Call name TestLocation
 
-compose :: [Term] -> Term
+compose :: [ParsedTerm] -> ParsedTerm
 compose terms = Compose (V.fromList terms) TestLocation
 
-function :: [Term] -> Value
-function terms = Function (V.fromList terms) TestLocation
+function :: [ParsedTerm] -> ParsedValue
+function terms = Function
+  (Compose (V.fromList terms) TestLocation) TestLocation
 
-int :: Int -> Value
+int :: Int -> ParsedValue
 int value = Int value TestLocation
 
-pushi :: Int -> Term
+pushi :: Int -> ParsedTerm
 pushi value = push $ int value
 
-lambda :: Text -> [Term] -> Term
+lambda :: Text -> [ParsedTerm] -> ParsedTerm
 lambda name terms
   = Lambda name (compose terms) TestLocation
 
-push :: Value -> Term
+push :: ParsedValue -> ParsedTerm
 push value = Push value TestLocation
 
-word :: Text -> Term
+word :: Text -> ParsedTerm
 word value = Call value TestLocation

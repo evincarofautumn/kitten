@@ -18,36 +18,35 @@ import Kitten.ClosedName
 import Kitten.Def
 import Kitten.Fragment
 import Kitten.Name
-import Kitten.Resolved
+import Kitten.Tree
 import Kitten.Util.List
 
-scope :: Fragment Resolved -> Fragment Resolved
+scope :: Fragment ResolvedTerm -> Fragment ResolvedTerm
 scope fragment@Fragment{..} = fragment
-  { fragmentDefs = scopeDef <$> fragmentDefs
-  , fragmentTerms = scopeTerm [0] <$> fragmentTerms
+  { fragmentDefs = V.map scopeDef fragmentDefs
+  , fragmentTerms = V.map (scopeTerm [0]) fragmentTerms
   }
 
-scopeDef :: Def Resolved -> Def Resolved
-scopeDef def@Def{..} = def
-  { defTerm = scopeTerm [0] defTerm }
+scopeDef :: Def ResolvedTerm -> Def ResolvedTerm
+scopeDef def@Def{..} = def { defTerm = scopeTerm [0] <$> defTerm }
 
-scopeTerm :: [Int] -> Resolved -> Resolved
+scopeTerm :: [Int] -> ResolvedTerm -> ResolvedTerm
 scopeTerm stack typed = case typed of
   Builtin{} -> typed
   Call{} -> typed
   Compose terms loc -> Compose (recur <$> terms) loc
-  PairTerm as bs loc -> PairTerm (recur as) (recur bs) loc
-  Push value loc -> Push (scopeValue stack value) loc
-  Scoped name term loc -> Scoped name
+  Lambda name term loc -> Lambda name
     (scopeTerm (mapHead succ stack) term)
     loc
+  PairTerm as bs loc -> PairTerm (recur as) (recur bs) loc
+  Push value loc -> Push (scopeValue stack value) loc
   VectorTerm items loc -> VectorTerm (recur <$> items) loc
 
   where
-  recur :: Resolved -> Resolved
+  recur :: ResolvedTerm -> ResolvedTerm
   recur = scopeTerm stack
 
-scopeValue :: [Int] -> Value -> Value
+scopeValue :: [Int] -> ResolvedValue -> ResolvedValue
 scopeValue stack value = case value of
   Bool{} -> value
   Char{} -> value
@@ -55,17 +54,17 @@ scopeValue stack value = case value of
   Closure{} -> value
   Float{} -> value
 
-  Function funTerm
-    -> Closure (ClosedName <$> capturedNames) capturedTerm
+  Function funTerm x
+    -> Closure (ClosedName <$> capturedNames) capturedTerm x
     where
 
-    capturedTerm :: Resolved
+    capturedTerm :: ResolvedTerm
     capturedNames :: Vector Name
     (capturedTerm, capturedNames)
       = runCapture stack'
       $ captureTerm scopedTerm
 
-    scopedTerm :: Resolved
+    scopedTerm :: ResolvedTerm
     scopedTerm = scopeTerm stack' funTerm
 
     stack' :: [Int]
@@ -73,7 +72,7 @@ scopeValue stack value = case value of
 
   Int{} -> value
   Local{} -> value
-  Unit -> Unit
+  Unit{} -> value
   String{} -> value
 
 data Env = Env
@@ -97,7 +96,7 @@ addName name = do
       lift $ put (names <> V.singleton name)
       return . Name $ V.length names
 
-captureTerm :: Resolved -> Capture Resolved
+captureTerm :: ResolvedTerm -> Capture ResolvedTerm
 captureTerm typed = case typed of
   Builtin{} -> return typed
   Call{} -> return typed
@@ -106,21 +105,21 @@ captureTerm typed = case typed of
     <$> T.mapM captureTerm terms
     <*> pure loc
 
+  Lambda name terms loc -> let
+    inside env@Env{..} = env
+      { envStack = mapHead succ envStack
+      , envDepth = succ envDepth
+      }
+    in Lambda name
+      <$> local inside (captureTerm terms)
+      <*> pure loc
+
   PairTerm a b loc -> PairTerm
     <$> captureTerm a
     <*> captureTerm b
     <*> pure loc
 
   Push value loc -> Push <$> captureValue value <*> pure loc
-
-  Scoped name terms loc -> let
-    inside env@Env{..} = env
-      { envStack = mapHead succ envStack
-      , envDepth = succ envDepth
-      }
-    in Scoped name
-      <$> local inside (captureTerm terms)
-      <*> pure loc
 
   VectorTerm items loc -> VectorTerm
     <$> T.mapM captureTerm items
@@ -136,14 +135,15 @@ closeLocal (Name index) = do
       -> Just <$> addName (Name $ index - depth)
     _ -> return Nothing
 
-captureValue :: Value -> Capture Value
+captureValue :: ResolvedValue -> Capture ResolvedValue
 captureValue value = case value of
   Bool{} -> return value
   Char{} -> return value
   Closed{} -> return value
-  Closure names term -> Closure
+  Closure names term x -> Closure
     <$> T.mapM close names
     <*> pure term
+    <*> pure x
     where
     close :: ClosedName -> Capture ClosedName
     close original@(ClosedName name) = do
@@ -154,16 +154,16 @@ captureValue value = case value of
     close original@(ReclosedName _) = return original
 
   Float{} -> return value
-  Function terms -> let
+  Function terms x -> let
     inside env@Env{..} = env { envStack = 0 : envStack }
-    in Function <$> local inside (captureTerm terms)
+    in Function <$> local inside (captureTerm terms) <*> pure x
   Int{} -> return value
 
-  Local name -> do
+  Local name x -> do
     closed <- closeLocal name
     return $ case closed of
       Nothing -> value
-      Just closedName -> Closed closedName
+      Just closedName -> Closed closedName x
 
   Unit{} -> return value
   String{} -> return value

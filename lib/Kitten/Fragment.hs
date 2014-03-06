@@ -7,17 +7,14 @@ module Kitten.Fragment
 import Data.Monoid
 import Data.Vector (Vector)
 
-import Kitten.AST
+import Kitten.Def
 import Kitten.Import
 
 data Fragment a = Fragment
-  { fragmentDefs :: !(Vector (TermDef a))
+  { fragmentDefs :: !(Vector (Def a))
   , fragmentImports :: [Import]
   , fragmentTerms :: !(Vector a)
-  }
-
-deriving instance (AST a) => Eq (Fragment a)
-deriving instance (AST a) => Show (Fragment a)
+  } deriving (Eq, Show)
 
 instance Monoid (Fragment a) where
   mempty = Fragment
