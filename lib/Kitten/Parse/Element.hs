@@ -38,6 +38,6 @@ partitionElements
 fromPartitioned :: Partitioned -> Fragment Term
 fromPartitioned Partitioned{..} = Fragment
   { fragmentDefs = V.fromList partDefs
-  , fragmentImports = V.fromList partImports
+  , fragmentImports = partImports
   , fragmentTerms = V.fromList partTerms
   }

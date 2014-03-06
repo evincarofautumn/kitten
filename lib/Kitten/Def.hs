@@ -8,8 +8,8 @@ import Kitten.Anno (Anno)
 import Kitten.Location
 
 data Def a = Def
-  { defName :: Text
-  , defTerm :: a
-  , defAnno :: Maybe Anno
-  , defLocation :: Location
+  { defAnno :: !(Maybe Anno)
+  , defLocation :: !Location
+  , defName :: !Text
+  , defTerm :: !a
   } deriving (Eq, Show)

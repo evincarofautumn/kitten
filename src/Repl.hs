@@ -190,7 +190,9 @@ replCompile
   -> ReplInput (Maybe (Fragment Typed, Type Scalar))
 replCompile update = do
   nameGen <- lift $ gets replNameGen
-  mCompiled <- liftIO . flip compile nameGen . update =<< compileConfig
+  mCompiled <- do
+    config <- compileConfig
+    liftIO $ compile (update config) nameGen
   case mCompiled of
     Left errors -> liftIO (printCompileErrors errors) >> return Nothing
     Right (nameGen', typed, type_) -> do

@@ -12,7 +12,7 @@ import Kitten.Import
 
 data Fragment a = Fragment
   { fragmentDefs :: !(Vector (TermDef a))
-  , fragmentImports :: !(Vector Import)
+  , fragmentImports :: [Import]
   , fragmentTerms :: !(Vector a)
   }
 

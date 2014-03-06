@@ -48,7 +48,7 @@ setInitialPosition _ (Located{..} : _)
   = setPosition (locationStart locatedLocation)
 
 fragment :: Parser (Fragment Term)
-fragment = partitionElements <$> (many element <* eof)
+fragment = fmap partitionElements $ many element <* eof
 
 element :: Parser Element
 element = choice
@@ -64,10 +64,10 @@ def = (<?> "definition") . locate $ do
   anno <- optionMaybe signature
   bodyTerm <- locate (Compose <$> block) <?> "definition body"
   return $ \loc -> Def
-    { defName = name
-    , defTerm = bodyTerm
-    , defAnno = anno
+    { defAnno = anno
     , defLocation = loc
+    , defName = name
+    , defTerm = bodyTerm
     }
 
 import_ :: Parser Import

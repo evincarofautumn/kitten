@@ -228,10 +228,10 @@ parsed
 
 def :: Text -> a -> Def a
 def name term = Def
-  { defName = name
-  , defAnno = Nothing
-  , defTerm = term
+  { defAnno = Nothing
   , defLocation = TestLocation
+  , defName = name
+  , defTerm = term
   }
 
 defWithAnno :: Text -> Anno.Type -> a -> Def a
