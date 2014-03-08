@@ -18,7 +18,7 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
-import Kitten.Anno (Anno(Anno))
+import Kitten.Anno (Anno(..))
 import Kitten.Infer.Monad (Inferred, freshNameM)
 import Kitten.Location
 import Kitten.Type
@@ -104,6 +104,8 @@ fromAnno annotated (Anno annoType annoLoc) = do
     <$> (V.foldl' (:.) leftRow <$> V.mapM fromInput leftScalars)
     <*> (V.foldl' (:.) rightRow <$> V.mapM fromOutput rightScalars)
     <*> pure origin
+
+fromAnno _ TestAnno = error "cannot make type from test annotation"
 
 -- | Gets a scalar variable by name from the environment.
 scalarVar :: Text -> Location -> Annotated -> Converted (Type Scalar)

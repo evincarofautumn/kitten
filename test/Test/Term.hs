@@ -10,7 +10,7 @@ import Data.Text (Text)
 
 import qualified Data.Vector as V
 
-import Kitten.Anno (Anno(Anno))
+import Kitten.Anno (Anno(..))
 import Kitten.Def
 import Kitten.Error
 import Kitten.Fragment
@@ -166,22 +166,22 @@ spec = do
   describe "definition" $ do
 
     testTerm
-      "def pi: 3"
+      "def pi (Float): 3"
       $ mempty { fragmentDefs = V.fromList
         [def "pi" $ compose [pushi 3]] }
 
     testTerm
-      "def inc {\n\
+      "def inc (Int -> Int) {\n\
       \  1 +\n\
       \}\n"
       $ mempty { fragmentDefs = V.fromList
         [def "inc" $ compose [pushi 1, word "+"]] }
 
     testTerm
-      "def inc:\n\
+      "def inc (Int -> Int):\n\
       \  1 +\n\
       \\n\
-      \def dec:\n\
+      \def dec (Int -> Int):\n\
       \  1 -\n\
       \\n"
       $ mempty { fragmentDefs = V.fromList
@@ -229,7 +229,7 @@ parsed
 
 def :: Text -> a -> Def a
 def name term = Def
-  { defAnno = Nothing
+  { defAnno = TestAnno
   , defLocation = TestLocation
   , defName = name
   , defTerm = mono term
@@ -237,7 +237,7 @@ def name term = Def
 
 defWithAnno :: Text -> Anno.Type -> a -> Def a
 defWithAnno name anno term = (def name term)
-  { defAnno = Just (Anno anno TestLocation) }
+  { defAnno = Anno anno TestLocation }
 
 call :: Text -> ParsedTerm
 call name = Call name TestLocation

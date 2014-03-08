@@ -172,18 +172,10 @@ inferFragment prelude fragment stackTypes = mdo
       (Name index) scheme (envDefs env) }
 
   save :: Int -> Def a -> Inferred ()
-  save index def = case defAnno def of
-    Just anno -> do
-      scheme <- fromAnno annotated anno
-      saveDecl index scheme
-      saveDefWith const index scheme
-    Nothing -> do
-      scheme <- fmap mono . forAll $ \r s
-        -> Type.Function r s (Origin (AnnoType annotated) (defLocation def))
-      saveDecl index scheme
-    where
-    annotated :: Annotated
-    annotated = AnnotatedDef (defName def)
+  save index def = do
+    scheme <- fromAnno (AnnotatedDef (defName def)) (defAnno def)
+    saveDecl index scheme
+    saveDefWith const index scheme
 
 -- Note [scheming defs]:
 --

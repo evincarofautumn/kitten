@@ -62,9 +62,8 @@ def :: Parser (Def ParsedTerm)
 def = (<?> "definition") . locate $ do
   void (match Token.Def)
   name <- functionName <?> "definition name"
-  anno <- optionMaybe signature
-  bodyTerm <- locate (Compose <$> block)
-    <?> "definition body"
+  anno <- signature
+  bodyTerm <- locate (Compose <$> block) <?> "definition body"
   return $ \loc -> Def
     { defAnno = anno
     , defLocation = loc

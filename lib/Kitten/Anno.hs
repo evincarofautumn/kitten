@@ -11,8 +11,13 @@ import Data.Vector (Vector)
 
 import Kitten.Location
 
-data Anno = Anno Type Location
-  deriving (Eq, Show)
+data Anno = Anno Type Location | TestAnno
+  deriving (Show)
+
+instance Eq Anno where
+  TestAnno == _ = True
+  _ == TestAnno = True
+  Anno type1 loc1 == Anno type2 loc2 = (type1, loc1) == (type2, loc2)
 
 data Type
   = Function !(Vector Type) !(Vector Type)

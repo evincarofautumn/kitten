@@ -11,7 +11,7 @@ import Kitten.Location
 import Kitten.Type (Scheme)
 
 data Def a = Def
-  { defAnno :: !(Maybe Anno)
+  { defAnno :: !Anno
   , defLocation :: !Location
   , defName :: !Text
   , defTerm :: !(Scheme a)
