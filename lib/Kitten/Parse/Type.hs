@@ -57,7 +57,6 @@ baseType = (<?> "base type") $ do
     , Anno.Handle <$ match (Token.BigWord "Handle")
     , Anno.Int <$ match (Token.BigWord "Int")
     , Anno.Var <$> littleWord
-    , Anno.Named <$> bigWord
     , vector
     , try unit
     , try $ grouped type_

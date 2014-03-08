@@ -56,7 +56,6 @@ data Type (a :: Kind) where
   Function :: !(Type Row) -> !(Type Row) -> !Origin -> Type Scalar
   Handle :: !Origin -> Type Scalar
   Int :: !Origin -> Type Scalar
-  Named :: !Text -> !Origin -> Type Scalar
   Quantified :: !TypeScheme -> !Origin -> Type Scalar
   Unit :: !Origin -> Type Scalar
   Var :: !(TypeName a) -> !Origin -> Type a
@@ -75,7 +74,6 @@ instance Eq (Type a) where
   Function a b _ == Function c d _ = (a, b) == (c, d)
   Handle{} == Handle{} = True
   Int{} == Int{} = True
-  Named a _ == Named b _ = a == b
   Unit{} == Unit{} = True
   Var a _ == Var b _ = a == b
   Vector a _ == Vector b _ = a == b
@@ -104,7 +102,6 @@ instance ToText (Type Scalar) where
       ]
     Handle o -> "Handle" <> suffix o
     Int o -> "Int" <> suffix o
-    Named name o -> name <> suffix o
     Quantified scheme _ -> toText scheme
     Unit o -> "()" <> suffix o
     Var (TypeName (Name index)) o
@@ -250,7 +247,6 @@ addHint type_ hint = case type_ of
   Function r1 r2 o -> Function r1 r2 (f o)
   Handle o -> Handle (f o)
   Int o -> Int (f o)
-  Named name o -> Named name (f o)
   Quantified scheme o -> Quantified scheme o
   Unit o -> Unit (f o)
   Var name o -> Var name (f o)

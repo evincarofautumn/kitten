@@ -107,7 +107,6 @@ tidyScalarType type_ = case type_ of
     <*> pure loc
   Handle{} -> pure type_
   Int{} -> pure type_
-  Named{} -> pure type_
   Quantified (Forall r s t) loc -> Quantified
     <$> (Forall
       <$> Set.mapM tidyRow r

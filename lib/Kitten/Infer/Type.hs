@@ -75,7 +75,6 @@ fromAnno annotated (Anno annoType annoLoc) = do
     Anno.Float -> return (Float origin)
     Anno.Handle -> return (Handle origin)
     Anno.Int -> return (Int origin)
-    Anno.Named name -> return (Named name origin)
     Anno.Option a -> (:?)
       <$> fromAnnoType' NoHint a
     Anno.Pair a b -> (:&)

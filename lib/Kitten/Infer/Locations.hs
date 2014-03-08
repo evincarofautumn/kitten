@@ -27,7 +27,6 @@ diagnosticLocations type_ = case type_ of
   Function r s loc -> yield loc ++ locations r ++ locations s
   Handle loc -> yield loc
   Int loc -> yield loc
-  Named _ loc -> yield loc
   Quantified _ loc -> yield loc
   Unit loc -> yield loc
   Var _ loc -> yield loc

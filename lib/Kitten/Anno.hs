@@ -22,7 +22,6 @@ data Type
   | Float
   | Handle
   | Int
-  | Named !Text
   | Option !Type
   | Pair !Type !Type
   | RowFunction !Text !(Vector Type) !Text !(Vector Type)

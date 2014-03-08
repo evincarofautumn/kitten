@@ -197,7 +197,6 @@ instance Free (Type Scalar) where
     Float{} -> mempty
     Handle{} -> mempty
     Int{} -> mempty
-    Named{} -> mempty
     Quantified (Forall r s t) _
       -> let (rows, scalars) = free t
       in (rows \\ S.toList r, scalars \\ S.toList s)
@@ -256,7 +255,6 @@ instance Occurrences Scalar where
     Float{} -> 0
     Handle{} -> 0
     Int{} -> 0
-    Named{} -> 0
     Var typeName@(TypeName name') _ -> case retrieve env typeName of
       Left{} -> if name == name' then 1 else 0  -- See Note [Var Kinds].
       Right type' -> occurrences name env type'
@@ -319,7 +317,6 @@ instance Substitute Scalar where
     Float{} -> type_
     Int{} -> type_
     Handle{} -> type_
-    Named{} -> type_
     Quantified (Forall r s t) loc
       -> Quantified (Forall r s (sub env t)) loc
     Var name (Origin hint _loc)

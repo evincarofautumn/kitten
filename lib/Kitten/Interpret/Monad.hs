@@ -26,7 +26,6 @@ import Control.Monad (liftM, liftM2)
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.Monoid
-import Data.Text (Text)
 import Data.Vector (Vector, (!))
 import System.Exit
 import System.IO
@@ -69,7 +68,6 @@ data InterpreterValue
   | Pair !InterpreterValue !InterpreterValue
   | Unit
   | Vector !(Vector InterpreterValue)
-  | Wrapped !Text !InterpreterValue
 
 instance Show InterpreterValue where
   show = T.unpack . toText
@@ -93,7 +91,6 @@ instance ToText InterpreterValue where
       , T.intercalate ", " (V.toList (V.map toText v))
       , "]"
       ]
-    Wrapped name v -> T.unwords [toText v, "to", name]
 
 charsFromString :: String -> Vector InterpreterValue
 charsFromString = V.fromList . map Char
@@ -174,7 +171,6 @@ typeOfValueM value = case value of
   Vector xs -> case V.safeHead xs of
     Nothing -> liftM2 Type.Vector freshVarM (return origin)
     Just x -> liftM2 Type.Vector (typeOfValueM x) (return origin)
-  Wrapped name _ -> return $ Type.Named name origin
 
   where
   freshVarM :: State NameGen (Type a)
