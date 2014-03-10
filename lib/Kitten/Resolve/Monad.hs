@@ -20,7 +20,6 @@ import Control.Applicative
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.List
-import Data.Monoid
 import Data.Text (Text)
 import Data.Traversable (Traversable)
 import Data.Vector (Vector)
@@ -40,7 +39,6 @@ newtype Resolution a = Resolution
 
 data Env = Env
   { envDefs :: !(Vector (Def ParsedTerm))
-  , envPrelude :: !(Vector (Def TypedTerm))
   , envScope :: [Text]
   }
 
@@ -49,15 +47,10 @@ compileError :: ErrorGroup -> Resolution a
 compileError err = Resolution $ FailWriter.throwMany [err]
 
 defIndices :: Text -> Env -> Vector Int
-defIndices expected Env{..} = findExpected envPrelude
-  <> ((V.length envPrelude +) <$> findExpected envDefs)
-  where
-  findExpected :: Vector (Def a) -> Vector Int
-  findExpected = V.findIndices $ (== expected) . defName
+defIndices expected = V.findIndices ((== expected) . defName) . envDefs
 
 evalResolution :: Env -> Resolution a -> Either [ErrorGroup] a
-evalResolution env (Resolution m)
-  = evalState (runFailWriterT null m) env
+evalResolution env (Resolution m) = evalState (runFailWriterT null m) env
 
 getsEnv :: (Env -> a) -> Resolution a
 getsEnv = Resolution . lift . gets

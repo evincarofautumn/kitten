@@ -46,35 +46,32 @@ import qualified Kitten.Util.Vector as V
 typeFragment
   :: Config
   -> Vector (Type Scalar)
-  -> Fragment TypedTerm
   -> Fragment ResolvedTerm
   -> NameGen
   -> Either [ErrorGroup] (NameGen, Fragment TypedTerm, Type Scalar)
-typeFragment config stackTypes prelude fragment nameGen
+typeFragment config stackTypes fragment nameGen
   = case run of
     (Left err, _) -> Left err
     (Right (typed, type_), env') -> Right (envNameGen env', typed, type_)
   where
   run :: (Either [ErrorGroup] (Fragment TypedTerm, Type Scalar), Env)
   run = runInference config env
-    $ inferFragment prelude fragment stackTypes
+    $ inferFragment fragment stackTypes
   env :: Env
   env = emptyEnv { envNameGen = nameGen }
 
 inferFragment
-  :: Fragment TypedTerm
-  -> Fragment ResolvedTerm
+  :: Fragment ResolvedTerm
   -> Vector (Type Scalar)
   -> Inferred (Fragment TypedTerm, Type Scalar)
-inferFragment prelude fragment stackTypes = mdo
+inferFragment fragment stackTypes = mdo
 
-  -- Populate environment with Prelude definition types.
+  -- Populate environment with definition types.
   --
   -- FIXME(strager):
   -- Use previously-inferred types (i.e. defTypeScheme def). We cannot
   -- right now because effects are not inferred properly (e.g. for the
   -- effects of the 'map' prelude function).
-  _ <- iforPreludeDefs save
   _ <- iforFragmentDefs save
 
   typedDefs <- iforFragmentDefs $ \index def
@@ -139,23 +136,12 @@ inferFragment prelude fragment stackTypes = mdo
     (AnnoType (AnnotatedDef (defName def)))
     (defLocation def)
 
-  preludeIndices, fragmentIndices :: [Int]
-  (preludeIndices, fragmentIndices) = splitAt
-    (V.length (fragmentDefs prelude)) [0..]
-
   iforFragmentDefs
     :: (Int -> Def ResolvedTerm -> Inferred a)
     -> Inferred (Vector a)
   iforFragmentDefs f = liftM V.fromList $ zipWithM f
-    fragmentIndices
+    [0..]
     (V.toList (fragmentDefs fragment))
-
-  iforPreludeDefs
-    :: (Int -> Def TypedTerm -> Inferred a)
-    -> Inferred (Vector a)
-  iforPreludeDefs f = liftM V.fromList $ zipWithM f
-    preludeIndices
-    (V.toList (fragmentDefs prelude))
 
   saveDecl :: Int -> TypeScheme -> Inferred ()
   saveDecl index scheme = modifyEnv $ \env -> env

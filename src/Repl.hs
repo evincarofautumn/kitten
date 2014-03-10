@@ -9,7 +9,6 @@ module Repl
 import Control.Applicative
 import Control.Monad
 import Control.Monad.Trans.Class
-import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State.Strict
 import Data.Maybe
 import Data.Monoid
@@ -48,24 +47,21 @@ data Repl = Repl
   , replStack :: [InterpreterValue]
   }
 
-type ReplReader = ReaderT (Vector (Def TypedTerm)) IO
-type ReplState = StateT Repl ReplReader
+type ReplState = StateT Repl IO
 type ReplInput = InputT ReplState
 
 liftIO :: IO a -> ReplInput a
-liftIO = lift . lift . lift
+liftIO = lift . lift
 
-runRepl :: Fragment TypedTerm -> NameGen -> IO ()
-runRepl prelude nameGen = do
+runRepl :: NameGen -> IO ()
+runRepl nameGen = do
   welcome
-  flip runReaderT preludeDefs
-    . flip evalStateT emptyRepl
-    $ runInputT settings repl
+  flip evalStateT emptyRepl $ runInputT settings repl
 
   where
   emptyRepl :: Repl
   emptyRepl = Repl
-    { replDefs = preludeDefs
+    { replDefs = V.empty
     , replLine = 1
     , replNameGen = nameGen
     , replStack = []
@@ -76,8 +72,6 @@ runRepl prelude nameGen = do
     [ "Welcome to Kitten!"
     , "Type ':help' for help or ':quit' to quit."
     ]
-
-  preludeDefs = fragmentDefs prelude
 
 type LineArgs = Text
 type ReplAction = LineArgs -> ReplInput ()
@@ -150,9 +144,6 @@ repl = do
 repl' :: ReplInput ()
 repl' = showStack >> repl
 
-askPreludeDefs :: ReplInput (Vector (Def TypedTerm))
-askPreludeDefs = lift (lift ask)
-
 matched :: String -> Bool
 matched = go False (0::Int)
   where
@@ -177,10 +168,11 @@ compileConfig = do
     { Compile.dumpResolved = False
     , Compile.dumpScoped = False
     , Compile.firstLine = replLine
+    , Compile.implicitPrelude = True
     , Compile.inferConfig = Infer.Config { enforceBottom = True }
     , Compile.libraryDirectories = []  -- TODO
     , Compile.name = replName
-    , Compile.prelude = mempty { fragmentDefs = replDefs }
+    , Compile.predefined = replDefs
     , Compile.source = ""
     , Compile.stackTypes = V.empty
     }
@@ -224,8 +216,7 @@ eval line = do
 
   whenJust mCompiled $ \(compiled, _type) -> do
     Repl{..} <- lift get
-    stack' <- liftIO $ interpret replStack
-      mempty { fragmentDefs = replDefs } compiled
+    stack' <- liftIO $ interpret replStack {- replDefs -} compiled
     lift . modify $ \s -> s
       { replDefs = replDefs <> fragmentDefs compiled
       , replLine = replLine + T.count "\n" line + 1
@@ -291,10 +282,9 @@ clear = do
 
 reset :: ReplInput ()
 reset = do
-  preludeDefs <- askPreludeDefs
   nameGen <- lift $ gets replNameGen
   lift $ put Repl
-    { replDefs = preludeDefs
+    { replDefs = V.empty
     , replLine = 1
     , replNameGen = nameGen
     , replStack = []

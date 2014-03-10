@@ -5,8 +5,6 @@
 module Kitten.Compile
   ( Compile.Config(..)
   , compile
-  , locateImport
-  , substituteImports
   ) where
 
 import Control.Applicative
@@ -64,15 +62,14 @@ compile
   -> IO (Either [ErrorGroup] (NameGen, Fragment TypedTerm, Type Scalar))
 compile Compile.Config{..} nameGen
   = liftM (mapLeft sort) . runEitherT $ do
-  let
-    preludeImport = Import
-      { importName = "Prelude"
-      -- FIXME Use a more semantically accurate location.
-      , importLocation = UnknownLocation
-      }
   parsed <- fmap
-    (\fragment -> fragment
-      { fragmentImports = preludeImport : fragmentImports fragment })
+    (\fragment -> if implicitPrelude then fragment
+      { fragmentImports = Import
+        { importName = "Prelude"
+        -- FIXME Use a more semantically accurate location.
+        , importLocation = UnknownLocation
+        } : fragmentImports fragment
+      } else fragment)
     $ hoistEither (parseSource firstLine name source)
 
   substituted <- hoistEither
@@ -81,7 +78,7 @@ compile Compile.Config{..} nameGen
   -- Applicative rewriting must take place after imports have been
   -- substituted, so that all operator declarations are in scope.
   postfix <- hoistEither . mapLeft (:[]) $ rewriteInfix substituted
-  resolved <- hoistEither $ resolve prelude postfix
+  resolved <- hoistEither $ resolve postfix
 
   when dumpResolved . lift $ hPrint stderr resolved
 
@@ -89,7 +86,7 @@ compile Compile.Config{..} nameGen
   when dumpScoped . lift $ hPrint stderr scoped
 
   (nameGen', typed, type_) <- hoistEither
-    $ typeFragment inferConfig stackTypes prelude scoped nameGen
+    $ typeFragment inferConfig stackTypes scoped nameGen
 
   return (nameGen', typed, type_)
 

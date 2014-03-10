@@ -7,7 +7,7 @@ module Kitten.Compile.Config
 import Data.Text (Text)
 import Data.Vector (Vector)
 
-import Kitten.Fragment
+import Kitten.Def
 import Kitten.Tree
 import Kitten.Type
 
@@ -17,10 +17,11 @@ data Config = Config
   { dumpResolved :: !Bool
   , dumpScoped :: !Bool
   , firstLine :: !Int
+  , implicitPrelude :: !Bool
   , inferConfig :: !Infer.Config
   , libraryDirectories :: [FilePath]
   , name :: String
-  , prelude :: !(Fragment TypedTerm)
+  , predefined :: !(Vector (Def TypedTerm))
   , source :: !Text
   , stackTypes :: Vector (Type Scalar)
   }

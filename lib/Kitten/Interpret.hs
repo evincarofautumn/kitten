@@ -35,13 +35,12 @@ import qualified Kitten.Tree as Tree
 interpret
   :: [InterpreterValue]
   -> Fragment TypedTerm
-  -> Fragment TypedTerm
   -> IO [InterpreterValue]
-interpret stack prelude fragment = liftM envData $ execStateT
+interpret stack fragment = liftM envData $ execStateT
   (F.mapM_ interpretTerm (fragmentTerms fragment)) Env
   { envData = stack
   , envLocals = []
-  , envDefs = fragmentDefs prelude <> fragmentDefs fragment
+  , envDefs = fragmentDefs fragment
   , envClosure = V.empty
   , envLocations = []
   }              

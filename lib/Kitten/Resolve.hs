@@ -27,10 +27,9 @@ import Kitten.Tree
 import Kitten.Util.Function
 
 resolve
-  :: Fragment TypedTerm
-  -> Fragment ParsedTerm
+  :: Fragment ParsedTerm
   -> Either [ErrorGroup] (Fragment ResolvedTerm)
-resolve prelude fragment = do
+resolve fragment = do
   case reportDuplicateDefs allNamesAndLocs of
     [] -> return ()
     errors -> Left errors
@@ -42,12 +41,9 @@ resolve prelude fragment = do
     (resolveDefs (fragmentDefs fragment))
     (guardMapM resolveTerm (fragmentTerms fragment))
   where
-  allNamesAndLocs
-    = namesAndLocs (fragmentDefs prelude)
-    ++ namesAndLocs (fragmentDefs fragment)
+  allNamesAndLocs = namesAndLocs (fragmentDefs fragment)
   emptyEnv = Env
     { envDefs = fragmentDefs fragment
-    , envPrelude = fragmentDefs prelude
     , envScope = []
     }
 

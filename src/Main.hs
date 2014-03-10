@@ -4,7 +4,6 @@
 module Main where
 
 import Control.Monad
-import Data.Monoid
 import Data.Text (Text)
 import System.Console.CmdArgs.Explicit
 import System.Exit
@@ -13,9 +12,8 @@ import System.IO
 import qualified Data.Text.IO as T
 import qualified Data.Vector as V
 
-import Kitten.Compile (compile, locateImport)
+import Kitten.Compile
 import Kitten.Error
-import Kitten.Fragment
 import Kitten.Interpret
 import Kitten.Name (NameGen, mkNameGen)
 import Kitten.Tree
@@ -49,66 +47,25 @@ main = do
   hSetEncoding stdout utf8
   arguments <- parseArguments
   let
-    defaultConfig prelude filename program = Compile.Config
+    defaultConfig filename program = Compile.Config
       { Compile.dumpResolved = argsDumpResolved arguments
       , Compile.dumpScoped = argsDumpScoped arguments
       , Compile.firstLine = 1
+      , Compile.implicitPrelude = argsEnableImplicitPrelude arguments
       , Compile.inferConfig = Infer.Config
         { Infer.enforceBottom = True }
       , Compile.libraryDirectories = argsLibraryDirectories arguments
       , Compile.name = filename
-      , Compile.prelude = prelude
+      , Compile.predefined = V.empty
       , Compile.source = program
       , Compile.stackTypes = V.empty
       }
 
-  preludes <- locateImport
-    (argsLibraryDirectories arguments)
-    "Prelude"
-
   let nameGen = mkNameGen  -- TODO(strager): Use StateT NameGen.
-
-  (nameGen', prelude) <- if not (argsEnableImplicitPrelude arguments)
-    then return (nameGen, mempty)
-    else case preludes of
-
-    [] -> do
-      hPutStrLn stderr "No module 'Prelude' found."
-      exitFailure
-
-    [filename] -> do
-      source <- T.readFileUtf8 filename
-      mPrelude <- compile (defaultConfig mempty filename source) nameGen
-
-      (nameGen', Fragment{..}) <- case mPrelude of
-        Left compileErrors -> do
-          printCompileErrors compileErrors
-          exitFailure
-        Right (nameGen', prelude, _type)
-          -> return (nameGen', prelude)
-
-      when (V.any containsCode fragmentTerms) $ do
-        print fragmentTerms
-        hPutStrLn stderr "Prelude includes executable code."
-        exitFailure
-
-      return $ (,) nameGen' $ mempty
-        { fragmentDefs = fragmentDefs
-        , fragmentOperators = fragmentOperators
-        }
-
-    _ -> do
-      hPutStrLn stderr . unlines
-        $ "Too many Prelude candidates:"
-        : preludes
-      exitFailure
-
   case argsEntryPoints arguments of
-    [] -> runRepl prelude nameGen'
+    [] -> runRepl nameGen
     entryPoints -> interpretAll entryPoints
-      (argsCompileMode arguments) prelude
-      (defaultConfig prelude)
-      nameGen
+      (argsCompileMode arguments) defaultConfig nameGen
 
 containsCode :: TypedTerm -> Bool
 containsCode (Compose terms _) = V.any containsCode terms
@@ -117,11 +74,10 @@ containsCode _ = True
 interpretAll
   :: [FilePath]
   -> CompileMode
-  -> Fragment TypedTerm
   -> (FilePath -> Text -> Compile.Config)
   -> NameGen
   -> IO ()
-interpretAll entryPoints compileMode prelude config nameGen
+interpretAll entryPoints compileMode config nameGen
   = mapM_ interpretOne entryPoints
   where
   interpretOne :: FilePath -> IO ()
@@ -134,10 +90,10 @@ interpretAll entryPoints compileMode prelude config nameGen
         exitFailure
       Right (_nameGen', result, _type) -> case compileMode of
         CheckMode -> return ()
-        CompileMode -> V.mapM_ print $ yarn (prelude <> result)
-        InterpretMode -> void $ interpret [] prelude result
+        CompileMode -> V.mapM_ print $ yarn result
+        InterpretMode -> void $ interpret [] result
         HTMLMode -> do
-          html <- HTML.fromFragmentsM T.readFileUtf8 [prelude, result]
+          html <- HTML.fromFragmentsM T.readFileUtf8 [result]
           T.putStrLn html
 
 parseArguments :: IO Arguments
