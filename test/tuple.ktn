@@ -18,6 +18,6 @@ compound first fourth say
 1 2 pair first 1 = sayBool
 1 2 pair rest 2 = sayBool
 
-(1 2 *, "three" "four" cat) -> p
+((1 * 2), "three" "four" cat) -> p
 p first sayInt
 p rest say

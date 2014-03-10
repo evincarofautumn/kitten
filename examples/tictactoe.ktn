@@ -7,6 +7,8 @@
  *
  */
 
+import Prelude
+
 ticTacToe
 
 def ticTacToe (->):
@@ -113,7 +115,7 @@ def playAgain (-> Bool):
   "Play another game? [yN] " prompt -> input
   \if input isYes:
     newline true
-  else if (input isNo) (input isEmpty) ||:
+  else if (input isNo || input isEmpty):
     newline false
   else:
     playAgain
@@ -145,11 +147,11 @@ def showBoard ([Char] -> [Char]):
 def showBoardRow ([Char] Int -> [Char]):
   -> rowIndex
   -> board
-  rowIndex 3 * -> index
+  (rowIndex * 3) -> index
   [
-    ' ', board 0 index + showBoardCellAt,
-    '|', board 1 index + showBoardCellAt,
-    '|', board 2 index + showBoardCellAt,
+    ' ', board (0 + index) showBoardCellAt,
+    '|', board (1 + index) showBoardCellAt,
+    '|', board (2 + index) showBoardCellAt,
   ]
 
 def showBoardCellAt ([Char] Int -> Char):
@@ -164,8 +166,8 @@ def showBoardCell (Char -> Char) {}
 
 def readMoveLine ([Char] -> (Int & Int)?):
   -> chars
-  \if chars length 2 =:
-    (chars 0#!) (chars 1#!) readXY
+  \if (chars length = 2):
+    (chars #! 0) (chars #! 1) readXY
   else:
     none
 
@@ -198,5 +200,4 @@ def readY (Char -> Int?):
 
 def xyToCellNumber (Int Int -> Int):
   -> { x y }
-  y 3 *
-  x +
+  (y * 3 + x)

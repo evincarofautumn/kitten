@@ -21,6 +21,7 @@ import Kitten.Error
 import Kitten.Fragment
 import Kitten.Location
 import Kitten.Name
+import Kitten.Operator
 import Kitten.Resolve.Monad
 import Kitten.Tree
 import Kitten.Util.Function
@@ -79,7 +80,7 @@ resolveDefs = guardMapM resolveDef
 resolveTerm :: ParsedTerm -> Resolution ResolvedTerm
 resolveTerm unresolved = case unresolved of
   Builtin name loc -> return $ Builtin name loc
-  Call name loc -> resolveName name loc
+  Call hint name loc -> resolveName hint name loc
   Compose terms loc -> Compose
     <$> guardMapM resolveTerm terms
     <*> pure loc
@@ -91,6 +92,11 @@ resolveTerm unresolved = case unresolved of
     <*> resolveTerm bs
     <*> pure loc
   Push value loc -> Push <$> resolveValue value <*> pure loc
+  UnparsedApplicative{} -> error $ concat
+    [ "unparsed applicative "
+    , show unresolved
+    , " appeared during name resolution"
+    ]
   VectorTerm items loc -> VectorTerm
     <$> guardMapM resolveTerm items
     <*> pure loc
@@ -109,10 +115,11 @@ resolveValue unresolved = case unresolved of
   Local{} -> error "FIXME 'Local' appeared before resolution"
 
 resolveName
-  :: Text
+  :: FixityHint
+  -> Text
   -> Location
   -> Resolution ResolvedTerm
-resolveName name loc = do
+resolveName hint name loc = do
   mLocalIndex <- getsEnv $ localIndex name
   case mLocalIndex of
     Just index -> return $ Push (Local (Name index) loc) loc
@@ -122,6 +129,6 @@ resolveName name loc = do
         [index] -> return index
         [] -> err ["undefined word '", name, "'"]
         _ -> err ["ambiguous word '", name, "'"]
-      return $ Call (Name index) loc
+      return $ Call hint (Name index) loc
   where
   err = compileError . oneError . CompileError loc Error . T.concat

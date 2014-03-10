@@ -188,7 +188,7 @@ yarnEntry terms = do
 yarnTerm :: TypedTerm -> Yarn (Vector Instruction)
 yarnTerm term = case term of
   Tree.Builtin builtin _ -> return $ V.singleton (Builtin builtin)
-  Tree.Call (Name index) _ -> return $ V.singleton (Call index)
+  Tree.Call _ (Name index) _ -> return $ V.singleton (Call index)
   Tree.Compose terms _ -> concatMapM yarnTerm terms
   Tree.Lambda _ terms _ -> do
     instructions <- yarnTerm terms
@@ -198,6 +198,8 @@ yarnTerm term = case term of
     b' <- yarnTerm b
     return $ a' <> b' <> V.singleton (Builtin Builtin.Pair)
   Tree.Push value _ -> yarnValue value
+  Tree.UnparsedApplicative{} -> error
+    "unparsed applicative appeared during conversion to IR"
   Tree.VectorTerm values _ -> do
     values' <- concatMapM yarnTerm values
     return $ values' <> (V.singleton . MakeVector $ V.length values)

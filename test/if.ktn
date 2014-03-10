@@ -4,16 +4,16 @@ else:
   "false"
 say
 
-\if 2 2 =:
+\if (2 = 2):
   "true" say
 
 \if false:
   "false" say
 
-\if 2 2 + 4 =: "true" say
+\if (2 + 2 = 4): "true" say
 
 def f (->):
-  \if 2 2 * 4 =:
+  \if (2 * 2 = 4):
     "true" say
 
 def g (->) {}

@@ -41,10 +41,15 @@ data Token
   | GroupEnd
   | Float Double
   | Import
+  | Infix
+  | InfixLeft
+  | InfixRight
   | Int Int BaseHint
   | Layout
   | LittleWord Text
   | Operator Text
+  | Postfix
+  | Prefix
   | Text Text
   | Type
   | VectorBegin
@@ -66,12 +71,17 @@ instance Eq Token where
   GroupBegin   == GroupBegin   = True
   GroupEnd     == GroupEnd     = True
   Float a      == Float b      = a == b
+  Infix        == Infix        = True
+  InfixLeft    == InfixLeft    = True
+  InfixRight   == InfixRight   = True
   Import       == Import       = True
   -- Ints are equal regardless of BaseHint.
   Int a _      == Int b _      = a == b
   Layout       == Layout       = True
   LittleWord a == LittleWord b = a == b
   Operator a   == Operator b   = a == b
+  Postfix      == Postfix      = True
+  Prefix       == Prefix       = True
   Text a       == Text b       = a == b
   Type         == Type         = True
   VectorBegin  == VectorBegin  = True
@@ -92,6 +102,9 @@ instance Show Token where
     Def -> "def"
     Do -> "\\"
     Else -> "else"
+    Infix -> "infix"
+    InfixLeft -> "infix_left"
+    InfixRight -> "infix_right"
     GroupBegin -> "("
     GroupEnd -> ")"
     Float value -> show value
@@ -107,6 +120,8 @@ instance Show Token where
     Layout -> ":"
     LittleWord word -> T.unpack word
     Operator word -> T.unpack word
+    Postfix -> "postfix"
+    Prefix -> "prefix"
     Text value -> show value
     Type -> "type"
     VectorBegin -> "["

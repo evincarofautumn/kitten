@@ -92,7 +92,10 @@ main = do
         hPutStrLn stderr "Prelude includes executable code."
         exitFailure
 
-      return (nameGen', mempty { fragmentDefs = fragmentDefs })
+      return $ (,) nameGen' $ mempty
+        { fragmentDefs = fragmentDefs
+        , fragmentOperators = fragmentOperators
+        }
 
     _ -> do
       hPutStrLn stderr . unlines

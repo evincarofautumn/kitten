@@ -1,9 +1,9 @@
 def test ([Int] [Int] ->):
   -> { actual expected }
-  \if (actual expected {=} eqVector not):
+  \if (!(actual expected {=} eqVector)):
     "Expected " print expected sayInts
     "But got  " print actual sayInts
-    1 __exit
+    1 exit
 
 0 0 rangeUntil
 []

@@ -18,9 +18,14 @@ def cartesianWith ([a] [b] (a b -> c) -> [c]):
 def cat ([a] [a] -> [a]):
   __add_vector
 
+// Operator alias for 'cat'.
+infix_right 5 <>
+def <> ([a] [a] -> [a]):
+  cat
+
 // Concatenates a vector of vectors.
 def concat ([[a]] -> [a]):
-  [] {cat} foldl
+  [] {<>} foldl
 
 // Lifts an impure function on values to one on vectors.
 def each ([a] (a ->) ->):
@@ -47,7 +52,7 @@ def elemInt ([Int] Int -> Bool):
 // equality predicate.
 def eqVector ([a] [a] (a a -> Bool) -> Bool):
   -> { xs ys eq }
-  \if xs length ys length !=:
+  \if (xs length != ys length):
     false
   else:
     xs ys eq zipWith and
@@ -181,7 +186,7 @@ def join ([[a]] [a] -> [a]):
 // Keeps the first n elements of a vector, tossing the rest.
 def keep ([a] Int -> [a]):
   -> { xs n }
-  \if n 0 <=:
+  \if (n <= 0):
     []
   else option xs head:
     -> x
@@ -203,7 +208,8 @@ def keepWhile ([a] (a -> Bool) -> [a]):
 
 // Gets the last element of a vector.
 def last ([a] -> a?):
-  dup length 1 - #
+  -> xs
+  (xs # (xs length - 1))
 
 // Gets the length of a vector.
 def length ([a] -> Int):
@@ -226,7 +232,7 @@ def mapConcat ([a] (a -> [b]) -> [b]):
 // Maps a function over part of a vector.
 def mapFrom ([a] (a -> a) Int -> [a]):
   -> { vec function offset }
-  \if (vec isEmpty) (offset vec length >=) ||:
+  \if (vec isEmpty || offset >= vec length):
     vec
   else:
     vec function offset #@
@@ -235,7 +241,7 @@ def mapFrom ([a] (a -> a) Int -> [a]):
 // Maps a function over a value for each integer in a range.
 def mapRange (a Int Int (a Int -> a) -> a):
   -> { value start end function }
-  \if start end <=:
+  \if (start <= end):
     value start function@
     start++ end function mapRange
   else:
@@ -263,7 +269,7 @@ def prependToAll ([a] a -> [a]):
 // Produces a vector with some number of copies of a value.
 def replicate (a Int -> [a]):
   -> { value count }
-  \if count 0 <=:
+  \if (count <= 0):
     []
   else:
     value count-- replicate
@@ -338,7 +344,7 @@ def tail ([a] -> [a]):
 // Tosses the first n elements of a vector, keeping the rest.
 def toss ([a] Int -> [a]):
   -> { xs n }
-  \if (n 0 <=) (xs isEmpty) ||:
+  \if (n <= 0 || xs isEmpty):
     xs
   else:
     xs tail n-- toss

@@ -69,6 +69,7 @@ library
     Kitten.Location,
     Kitten.Name,
     Kitten.NameMap,
+    Kitten.Operator,
     Kitten.Parse,
     Kitten.Parse.Element,
     Kitten.Parse.Layout,

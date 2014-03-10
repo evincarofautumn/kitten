@@ -49,7 +49,7 @@ interpret stack prelude fragment = liftM envData $ execStateT
 interpretTerm :: TypedTerm -> Interpret
 interpretTerm typed = case typed of
   Tree.Builtin builtin (loc, _) -> withLocation loc $ interpretBuiltin builtin
-  Tree.Call name (loc, _) -> withLocation loc $ interpretOverload name
+  Tree.Call _ name (loc, _) -> withLocation loc $ interpretOverload name
   Tree.Compose terms (loc, _) -> withLocation loc
     $ F.mapM_ interpretTerm terms
   Tree.Lambda _ term (loc, _) -> withLocation loc $ do
@@ -63,6 +63,8 @@ interpretTerm typed = case typed of
     b' <- popData
     pushData $ Pair a' b'
   Tree.Push value (loc, _) -> withLocation loc $ interpretValue value
+  Tree.UnparsedApplicative{} -> error
+    "unparsed applicative appeared during interpretation"
   Tree.VectorTerm terms (loc, _) -> withLocation loc $ do
     F.mapM_ interpretTerm terms
     values <- V.fromList <$> replicateM (V.length terms) popData

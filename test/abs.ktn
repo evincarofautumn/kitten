@@ -1,7 +1,7 @@
 def test (Int Int ->):
   -> { input expected }
   input absInt -> actual
-  \if actual expected !=:
+  \if (actual != expected):
     "Expected: " print expected sayInt
     "But got:  " print actual sayInt
 

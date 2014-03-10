@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Kitten.Tree
   ( Term(..)
@@ -10,6 +11,7 @@ module Kitten.Tree
   , TypedTerm
   , TypedValue
   , defTypeScheme
+  , termMetadata
   , typedType
   ) where
 
@@ -24,18 +26,33 @@ import Kitten.ClosedName
 import Kitten.Def
 import Kitten.Location
 import Kitten.Name
+import Kitten.Operator
 import Kitten.Type hiding (Annotated(..), Hint(..))
 import Kitten.Util.Text (ToText(..))
 
+-- TODO Add pretty 'Show' instance for 'Term's.
 data Term label a
   = Builtin !Builtin !a
-  | Call !label !a
+  | Call FixityHint !label !a
   | Compose !(Vector (Term label a)) !a
   | Lambda !Text !(Term label a) !a
   | PairTerm !(Term label a) !(Term label a) !a
   | Push !(Value label a) !a
+  | UnparsedApplicative [Term label a] !a
   | VectorTerm !(Vector (Term label a)) !a
-  deriving (Eq, Show)
+  deriving (Show)
+
+instance (Eq label, Eq a) => Eq (Term label a) where
+  Builtin a b == Builtin c d = (a, b) == (c, d)
+  -- Calls are equal regardless of 'FixityHint'.
+  Call _ a b == Call _ c d = (a, b) == (c, d)
+  Compose a b == Compose c d = (a, b) == (c, d)
+  Lambda a b c == Lambda d e f = (a, b, c) == (d, e, f)
+  PairTerm a b c == PairTerm d e f = (a, b, c) == (d, e, f)
+  Push a b == Push c d = (a, b) == (c, d)
+  UnparsedApplicative a b == UnparsedApplicative c d = (a, b) == (c, d)
+  VectorTerm a b == VectorTerm c d = (a, b) == (c, d)
+  _ == _ = False
 
 instance (Show label, Show a) => ToText (Term label a) where
   toText = T.pack . show
@@ -70,12 +87,16 @@ defTypeScheme def = type_ <$ defTerm def
   where
   type_ = typedType $ unScheme (defTerm def)
 
+termMetadata :: Term label a -> a
+termMetadata = \case
+  Builtin _ x -> x
+  Call _ _ x -> x
+  Compose _ x -> x
+  Lambda _ _ x -> x
+  PairTerm _ _ x -> x
+  Push _ x -> x
+  UnparsedApplicative _ x -> x
+  VectorTerm _ x -> x
+
 typedType :: TypedTerm -> Type Scalar
-typedType typed = case typed of
-  Builtin _ (_, t) -> t
-  Call _ (_, t) -> t
-  Compose _ (_, t) -> t
-  Lambda _ _ (_, t) -> t
-  PairTerm _ _ (_, t) -> t
-  Push _ (_, t) -> t
-  VectorTerm _ (_, t) -> t
+typedType = snd . termMetadata

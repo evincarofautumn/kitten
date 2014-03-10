@@ -125,9 +125,8 @@ inferFragment prelude fragment stackTypes = mdo
     stackType === consumption
 
   let
-    typedFragment = Fragment
+    typedFragment = fragment
       { fragmentDefs = typedDefs
-      , fragmentImports = fragmentImports fragment
       , fragmentTerms = V.singleton typedTerms
       }
 
@@ -235,8 +234,8 @@ infer finalEnv resolved = case resolved of
     Builtin.EqFloat -> relational (Type.Float o) o
     Builtin.EqInt -> relational (Type.Int o) o
 
-    Builtin.Exit -> forAll $ \r
-      -> (r :. Type.Int o --> r) o
+    Builtin.Exit -> forAll $ \r s
+      -> (r :. Type.Int o --> s) o
 
     Builtin.First -> forAll $ \r a b
       -> (r :. a :& b --> r :. a) o
@@ -376,7 +375,7 @@ infer finalEnv resolved = case resolved of
     o :: Origin
     o = Origin (AnnoType (Kitten.Type.Builtin name)) loc
 
-  Call name loc -> asTyped (Call name) loc
+  Call hint name loc -> asTyped (Call hint name) loc
     $ instantiateM =<< declOrDef
     where
     declOrDef = do
@@ -417,6 +416,9 @@ infer finalEnv resolved = case resolved of
     origin <- getsEnv envOrigin
     type_ <- forAll $ \r -> (r --> r :. a) origin
     return (Push value' (loc, sub finalEnv type_), type_)
+
+  UnparsedApplicative{} -> error
+    "unparsed applicative appeared during type inference"
 
   VectorTerm values loc -> withLocation loc $ do
     (typedValues, types) <- mapAndUnzipM recur (V.toList values)

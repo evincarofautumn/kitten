@@ -40,6 +40,8 @@ scopeTerm stack typed = case typed of
     loc
   PairTerm as bs loc -> PairTerm (recur as) (recur bs) loc
   Push value loc -> Push (scopeValue stack value) loc
+  UnparsedApplicative{} -> error
+    "unparsed applicative appeared during scoping"
   VectorTerm items loc -> VectorTerm (recur <$> items) loc
 
   where
@@ -120,6 +122,9 @@ captureTerm typed = case typed of
     <*> pure loc
 
   Push value loc -> Push <$> captureValue value <*> pure loc
+
+  UnparsedApplicative{} -> error
+    "unparsed applicative appeared during name capture"
 
   VectorTerm items loc -> VectorTerm
     <$> T.mapM captureTerm items

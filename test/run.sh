@@ -13,7 +13,7 @@ KITTEN="$1"
 shift
 
 function run_kitten {
-  "$KITTEN" -L "$HERE" $*
+  "$KITTEN" --no-implicit-prelude -L "$HERE" $*
 }
 
 function run_test {

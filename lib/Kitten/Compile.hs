@@ -31,7 +31,9 @@ import Kitten.Error
 import Kitten.Fragment
 import Kitten.Import
 import Kitten.Infer
+import Kitten.Location
 import Kitten.Name (NameGen)
+import Kitten.Operator
 import Kitten.Parse
 import Kitten.Resolve
 import Kitten.Scope
@@ -54,7 +56,7 @@ parseSource
   -> Either [ErrorGroup] (Fragment ParsedTerm)
 parseSource line name source = do
   tokenized <- liftParseError $ tokenize line name source
-  liftParseError $ parse name tokenized
+  mapLeft (:[]) $ parse name tokenized
 
 compile
   :: Compile.Config
@@ -62,10 +64,24 @@ compile
   -> IO (Either [ErrorGroup] (NameGen, Fragment TypedTerm, Type Scalar))
 compile Compile.Config{..} nameGen
   = liftM (mapLeft sort) . runEitherT $ do
-  parsed <- hoistEither $ parseSource firstLine name source
+  let
+    preludeImport = Import
+      { importName = "Prelude"
+      -- FIXME Use a more semantically accurate location.
+      , importLocation = UnknownLocation
+      }
+  parsed <- fmap
+    (\fragment -> fragment
+      { fragmentImports = preludeImport : fragmentImports fragment })
+    $ hoistEither (parseSource firstLine name source)
+
   substituted <- hoistEither
     =<< lift (substituteImports libraryDirectories parsed)
-  resolved <- hoistEither $ resolve prelude substituted
+
+  -- Applicative rewriting must take place after imports have been
+  -- substituted, so that all operator declarations are in scope.
+  postfix <- hoistEither . mapLeft (:[]) $ rewriteInfix substituted
+  resolved <- hoistEither $ resolve prelude postfix
 
   when dumpResolved . lift $ hPrint stderr resolved
 
@@ -106,23 +122,26 @@ substituteImports
   -> Fragment ParsedTerm
   -> IO (Either [ErrorGroup] (Fragment ParsedTerm))
 substituteImports libraryDirectories fragment = runEitherT $ do
-  substituted <- go
+  (substitutedDefs, substitutedOperators) <- go
     (fragmentImports fragment)
     S.empty
-    (V.toList (fragmentDefs fragment))
-  return fragment { fragmentDefs = V.fromList substituted }
+    (V.toList (fragmentDefs fragment), fragmentOperators fragment)
+  return fragment
+    { fragmentDefs = V.fromList substitutedDefs
+    , fragmentOperators = substitutedOperators
+    }
   where
   go
     :: [Import]
     -> Set Text
-    -> [Def ParsedTerm]
-    -> EitherT [ErrorGroup] IO [Def ParsedTerm]
-  go [] _ defs = return defs
-  go (current:remaining) seenNames defs = let
-    name = importName current
-    location = importLocation current
-    in if name `S.member` seenNames
-      then go remaining seenNames defs
+    -> ([Def ParsedTerm], [Operator])
+    -> EitherT [ErrorGroup] IO ([Def ParsedTerm], [Operator])
+  go [] _ acc = return acc
+  go (currentModule : remainingModules) seenModules acc@(defs, operators) = let
+    name = importName currentModule
+    location = importLocation currentModule
+    in if name `S.member` seenModules
+      then go remainingModules seenModules acc
       else do
         possible <- lift $ locateImport libraryDirectories name
         case possible of
@@ -130,9 +149,11 @@ substituteImports libraryDirectories fragment = runEitherT $ do
             source <- lift $ T.readFileUtf8 filename
             parsed <- hoistEither $ parseSource 1 filename source
             go
-              (fragmentImports parsed ++ remaining)
-              (S.insert name seenNames)
-              (V.toList (fragmentDefs parsed) ++ defs)
+              (fragmentImports parsed ++ remainingModules)
+              (S.insert name seenModules)
+              ( V.toList (fragmentDefs parsed) ++ defs
+              , fragmentOperators parsed ++ operators
+              )
           [] -> err location $ T.concat
             ["missing import '", name, "'"]
           _ -> err location $ T.concat

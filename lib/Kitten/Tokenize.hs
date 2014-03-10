@@ -122,7 +122,12 @@ token = (<?> "token") . located $ choice
       "def" -> Def
       "else" -> Else
       "false" -> Bool False
+      "infix" -> Infix
+      "infix_left" -> InfixLeft
+      "infix_right" -> InfixRight
       "import" -> Import
+      "postfix" -> Postfix
+      "prefix" -> Prefix
       "true" -> Bool True
       "type" -> Type
       (T.unpack -> first : _) | isUpper first -> BigWord name

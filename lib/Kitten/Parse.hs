@@ -1,24 +1,34 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -w #-}
 
 module Kitten.Parse
   ( parse
+  , rewriteInfix
   ) where
 
 import Control.Applicative hiding (some)
 import Control.Monad
+import Data.Function
+import Data.Functor.Identity
+import Data.List (nubBy)
 import Data.Monoid
 import Data.Text (Text)
+import Data.Traversable (traverse)
 import Data.Vector (Vector)
 import Text.Parsec.Pos
 
 import qualified Data.Vector as V
+import qualified Text.Parsec.Expr as E
 import qualified Text.Parsec as Parsec
 
 import Kitten.Def
+import Kitten.Error
 import Kitten.Fragment
 import Kitten.Import
 import Kitten.Location
+import Kitten.Operator
 import Kitten.Parsec
 import Kitten.Parse.Element
 import Kitten.Parse.Layout
@@ -28,6 +38,9 @@ import Kitten.Parse.Type
 import Kitten.Token (Located(..), Token)
 import Kitten.Tree
 import Kitten.Type (mono)
+import Kitten.Util.Either
+import Kitten.Util.Function
+import Kitten.Util.Maybe
 import Kitten.Util.Parsec
 
 import qualified Kitten.Builtin as Builtin
@@ -36,12 +49,10 @@ import qualified Kitten.Token as Token
 parse
   :: String
   -> [Located]
-  -> Either ParseError (Fragment ParsedTerm)
-parse name tokens = do
+  -> Either ErrorGroup (Fragment ParsedTerm)
+parse name tokens = mapLeft parseError $ do
   inserted <- Parsec.parse insertBraces name tokens
-  Parsec.parse
-    (setInitialPosition name inserted >> fragment)
-    name inserted
+  Parsec.parse (setInitialPosition name inserted >> fragment) name inserted
 
 setInitialPosition :: String -> [Located] -> Parser ()
 setInitialPosition name [] = setPosition (newPos name 1 1)
@@ -55,17 +66,22 @@ element :: Parser Element
 element = choice
   [ DefElement <$> def
   , ImportElement <$> import_
+  , OperatorElement <$> operatorDeclaration
   , TermElement <$> term
   ]
 
 def :: Parser (Def ParsedTerm)
 def = (<?> "definition") . locate $ do
   void (match Token.Def)
-  name <- functionName <?> "definition name"
+  (hint, name) <- choice
+    [ (,) PostfixHint <$> littleWord
+    , (,) InfixHint <$> operator
+    ] <?> "definition name"
   anno <- signature
   bodyTerm <- locate (Compose <$> block) <?> "definition body"
   return $ \loc -> Def
     { defAnno = anno
+    , defFixityHint = hint
     , defLocation = loc
     , defName = name
     , defTerm = mono bodyTerm
@@ -80,16 +96,31 @@ import_ = (<?> "import") . locate $ do
     , importLocation = loc
     }
 
+operatorDeclaration :: Parser Operator
+operatorDeclaration = (<?> "operator declaration") . locate $ Operator
+  <$> choice
+    [ Infix <$ match Token.Infix
+    , InfixLeft <$ match Token.InfixLeft
+    , InfixRight <$ match Token.InfixRight
+    , Postfix <$ match Token.Postfix
+    , Prefix <$ match Token.Prefix
+    ]
+  <*> mapOne (\case Token.Int value _ -> Just value; _ -> Nothing)
+  <*> operator
+
 term :: Parser ParsedTerm
 term = nonblockTerm <|> blockTerm
   where
   nonblockTerm :: Parser ParsedTerm
   nonblockTerm = locate $ choice
     [ try $ Push <$> nonblockValue
-    , Call <$> functionName
-    , VectorTerm <$> vector
-    , try group
+    , Call PostfixHint <$> littleWord
+    , Call InfixHint <$> operator
+    , try $ Call PostfixHint
+      <$> (grouped operator <?> "parenthesized operator")
+    , try group <?> "grouped expression"
     , pair <$> tuple
+    , VectorTerm <$> vector
     , mapOne toBuiltin <?> "builtin"
     , lambda
     , doElse
@@ -99,7 +130,7 @@ term = nonblockTerm <|> blockTerm
   blockTerm = locate $ Push <$> blockValue
 
   group :: Parser (Location -> ParsedTerm)
-  group = (<?> "group") $ Compose <$> grouped (many1V term)
+  group = (<?> "group") $ UnparsedApplicative <$> grouped (many1 term)
 
   doElse :: Parser (Location -> ParsedTerm)
   doElse = (<?> "do block") $ match Token.Do *> doBody
@@ -127,7 +158,7 @@ term = nonblockTerm <|> blockTerm
         Just elseBody -> (name <> "_else", V.singleton elseBody)
       name'' = case Builtin.fromText name' of
         Just builtin -> Builtin builtin
-        _ -> Call name'
+        _ -> Call PostfixHint name'
     return $ \loc -> let
       whole = V.concat
         [ V.fromList open
@@ -192,3 +223,109 @@ unit = locate $ Unit <$ (match Token.GroupBegin >> match Token.GroupEnd)
 
 block :: Parser (Vector ParsedTerm)
 block = blocked (manyV term) <?> "block"
+
+----------------------------------------
+
+type TermParser a = ParsecT [ParsedTerm] () Identity a
+
+rewriteInfix
+  :: Fragment ParsedTerm
+  -> Either ErrorGroup (Fragment ParsedTerm)
+rewriteInfix parsed@Fragment{..} = do
+  defs <- V.mapM (traverse rewriteInfixTerm) fragmentDefs
+  terms <- V.mapM rewriteInfixTerm fragmentTerms
+  return parsed
+    { fragmentDefs = defs
+    , fragmentTerms = terms
+    }
+
+  where
+  rewriteInfixTerm :: ParsedTerm -> Either ErrorGroup ParsedTerm
+  rewriteInfixTerm = \case
+    x@Builtin{} -> return x
+    x@Call{} -> return x
+    Compose terms loc -> do
+      terms' <- V.mapM rewriteInfixTerm terms
+      return $ Compose terms' loc
+    Lambda name body loc -> do
+      body' <- rewriteInfixTerm body
+      return $ Lambda name body' loc
+    PairTerm a b loc -> do
+      a' <- rewriteInfixTerm a
+      b' <- rewriteInfixTerm b
+      return $ PairTerm a' b' loc
+    Push value loc -> do
+      value' <- rewriteInfixValue value
+      return $ Push value' loc
+    UnparsedApplicative terms _loc -> do
+      terms' <- mapM rewriteInfixTerm terms
+      case Parsec.parse (expression <* eof) [] terms' of
+        Left message -> Left $ parseError message
+        Right parseResult -> Right parseResult
+    VectorTerm terms loc -> do
+      terms' <- V.mapM rewriteInfixTerm terms
+      return $ VectorTerm terms' loc
+
+  rewriteInfixValue :: ParsedValue -> Either ErrorGroup ParsedValue
+  rewriteInfixValue = \case
+    Function body loc -> Function <$> rewriteInfixTerm body <*> pure loc
+    -- TODO Exhaustivity/safety.
+    other -> return other
+
+  binary :: Text -> Location -> ParsedTerm -> ParsedTerm -> ParsedTerm
+  binary name loc x y = Compose
+    (V.fromList [x, y, Call InfixHint name loc]) loc
+
+  unary :: Text -> Location -> ParsedTerm -> ParsedTerm
+  unary name loc x = Compose
+    (V.fromList [x, Call InfixHint name loc]) loc
+
+  binaryOp :: Text -> TermParser (ParsedTerm -> ParsedTerm -> ParsedTerm)
+  binaryOp name = mapTerm $ \t -> case t of
+    Call InfixHint name' loc
+      | name == name' -> Just (binary name loc)
+    _ -> Nothing
+
+  unaryOp :: Text -> TermParser (ParsedTerm -> ParsedTerm)
+  unaryOp name = mapTerm $ \case
+    Call InfixHint name' loc | name == name' -> Just (unary name loc)
+    _ -> Nothing
+
+  expression :: TermParser ParsedTerm
+  expression = E.buildExpressionParser opTable
+    (locate $ Compose <$> many1V nonOp)
+    where
+    nonOp :: TermParser ParsedTerm
+    nonOp = satisfyTerm $ \case Call InfixHint _ _ -> False; _ -> True
+
+  -- TODO Detect/report duplicates.
+  opTable = map (map toOp) rawTable
+
+  rawTable :: [[Operator]]
+  rawTable = let
+    -- TODO Make smarter than a linear search.
+    useDefault def = defFixityHint def == InfixHint
+      && not (any ((defName def ==) . operatorName) fragmentOperators)
+    flat = fragmentOperators
+      ++ map (\Def{..} -> Operator InfixLeft 6 defName defLocation)
+        (filter useDefault (V.toList fragmentDefs))
+    in for [9,8..0] $ \p -> filter ((p ==) . operatorPrecedence) flat
+
+  toOp :: Operator -> E.Operator [ParsedTerm] () Identity ParsedTerm
+  toOp (Operator fixity _ name _) = case fixity of
+    Infix -> E.Infix (binaryOp name) E.AssocNone
+    InfixLeft -> E.Infix (binaryOp name) E.AssocLeft
+    InfixRight -> E.Infix (binaryOp name) E.AssocRight
+    Prefix -> E.Prefix (unaryOp name)
+    Postfix -> E.Postfix (unaryOp name)
+
+mapTerm :: (ParsedTerm -> Maybe a) -> TermParser a
+mapTerm = tokenPrim show advanceTerm
+
+advanceTerm :: SourcePos -> t -> [ParsedTerm] -> SourcePos
+advanceTerm _ _ (t : _) = locationStart (termMetadata t)
+advanceTerm sourcePos _ _ = sourcePos
+
+satisfyTerm :: (ParsedTerm -> Bool) -> TermParser ParsedTerm
+satisfyTerm predicate = tokenPrim show advanceTerm
+  $ \t -> justIf (predicate t) t

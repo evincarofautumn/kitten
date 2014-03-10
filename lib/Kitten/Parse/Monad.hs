@@ -24,7 +24,10 @@ advance :: SourcePos -> t -> [Located] -> SourcePos
 advance _ _ (Located _ Location{..} : _) = locationStart
 advance sourcePos _ _ = sourcePos
 
-locate :: Parser (Location -> a) -> Parser a
+locate
+  :: (Stream s m c, Monad m)
+  => ParsecT s u m (Location -> a)
+  -> ParsecT s u m a
 locate parser = do
   start <- getPosition
   result <- parser

@@ -11,6 +11,7 @@ import qualified Data.Vector as V
 import Kitten.ClosedName
 import Kitten.Fragment
 import Kitten.Location
+import Kitten.Operator
 import Kitten.Name
 import Kitten.Scope
 import Kitten.Tree
@@ -78,4 +79,4 @@ scoped :: [ResolvedTerm] -> ResolvedTerm
 scoped terms = Lambda "testvar" (compose terms) TestLocation
 
 word :: Int -> ResolvedTerm
-word index = Call (Name index) TestLocation
+word index = Call PostfixHint (Name index) TestLocation

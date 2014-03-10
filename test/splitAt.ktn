@@ -1,9 +1,7 @@
 def test ([Int] [Int] [Int] [Int] ->):
   -> { actualL actualR expectedL expectedR }
-  \if (
-    actualL expectedL {=} eqVector not
-    actualR expectedR {=} eqVector not
-    ||
+  \if (!(actualL expectedL {=} eqVector)
+    || !(actualR expectedR {=} eqVector)
   ):
     "Expected:" say
       tab expectedL sayInts
@@ -43,6 +41,6 @@ v -1 splitAt
 [] v
 test
 
-v v length 2 / splitAt
+v (v length / 2) splitAt
 [1, 2] [3, 4, 5]
 test

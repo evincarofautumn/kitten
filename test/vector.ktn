@@ -22,4 +22,4 @@ def b (->) {}
 
 def f (Int Int -> Int): +
 
-[1 2 +, 3 4 *, 5 6 f] sayInts
+[(1 + 2), (3 * 4), 5 6 f] sayInts

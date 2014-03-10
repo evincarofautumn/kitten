@@ -2,6 +2,8 @@
 def @ (.r (.r -> .s) -> .s):
   apply
 
+postfix 0 @
+
 // Applies a function to the stack.
 def apply (.r (.r -> .s) -> .s):
   __apply

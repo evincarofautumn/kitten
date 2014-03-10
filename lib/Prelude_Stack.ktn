@@ -3,10 +3,6 @@ def dup (a -> a a):
   -> x
   x x
 
-// Operator alias for 'dup'.
-def <> (a -> a a):
-  dup
-
 // Drops a value.
 def drop (a ->):
   -> x
@@ -16,7 +12,3 @@ def drop (a ->):
 def swap (a b -> b a):
   -> { a b }
   b a
-
-// Operator alias for 'swap'.
-def >< (a b -> b a):
-  swap

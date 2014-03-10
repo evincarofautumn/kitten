@@ -15,6 +15,7 @@ import Kitten.Def
 import Kitten.Error
 import Kitten.Fragment
 import Kitten.Location
+import Kitten.Operator
 import Kitten.Parse
 import Kitten.Tokenize
 import Kitten.Tree
@@ -223,13 +224,13 @@ testTermFailure source = it ("should fail: " ++ show source)
     Right actual -> assertFailure $ show actual
 
 parsed :: Text -> Either ErrorGroup (Fragment ParsedTerm)
-parsed
-  = mapLeft parseError . tokenize 1 "test"
-  >=> mapLeft parseError . parse "test"
+parsed = mapLeft parseError . tokenize 1 "test"
+  >=> parse "test" >=> rewriteInfix
 
 def :: Text -> a -> Def a
 def name term = Def
   { defAnno = TestAnno
+  , defFixityHint = PostfixHint
   , defLocation = TestLocation
   , defName = name
   , defTerm = mono term
@@ -240,7 +241,7 @@ defWithAnno name anno term = (def name term)
   { defAnno = Anno anno TestLocation }
 
 call :: Text -> ParsedTerm
-call name = Call name TestLocation
+call name = Call PostfixHint name TestLocation
 
 compose :: [ParsedTerm] -> ParsedTerm
 compose terms = Compose (V.fromList terms) TestLocation
@@ -263,4 +264,4 @@ push :: ParsedValue -> ParsedTerm
 push value = Push value TestLocation
 
 word :: Text -> ParsedTerm
-word value = Call value TestLocation
+word value = Call PostfixHint value TestLocation

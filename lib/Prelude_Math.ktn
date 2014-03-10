@@ -29,7 +29,7 @@ def evenInt (Int -> Bool):
 // The maximum of two integers.
 def maxInt (Int Int -> Int):
   -> { a b }
-  \if a b >: a else: b
+  \if (a > b): a else: b
 
 // The maximum of three integers.
 def maxInt3 (Int Int Int -> Int):
@@ -42,7 +42,7 @@ def maxInts ([Int] -> Int?):
 // The minimum of two integers.
 def minInt (Int Int -> Int):
   -> { a b }
-  \if a b <: a else: b
+  \if (a < b): a else: b
 
 // The minimum of three integers.
 def minInt3 (Int Int Int -> Int):
@@ -64,6 +64,12 @@ def negInt (Int -> Int):
 def not (Bool -> Bool):
   __not_bool
 
+// Operator alias for 'not'.
+prefix 9 !
+def ! (Bool -> Bool):
+  not
+
+prefix 9 ¬
 def ¬ (Bool -> Bool):
   __not_bool
 
@@ -102,175 +108,222 @@ def sumInts ([Int] -> Int):
 def tau (Float): 6.283185307179586
 
 // Integer inequality.
+infix 4 !=
 def != (Int Int -> Bool):
   __ne_int
 
+infix 4 ≠
 def ≠ (Int Int -> Bool):
   __ne_int
 
 // Floating-point inequality.
+infix 4 !=.
 def !=. (Float Float -> Bool):
   __ne_float
 
+infix 4 ≠.
 def ≠. (Float Float -> Bool):
   __ne_float
 
 // Integer modulus.
+infix_left 7 %
 def % (Int Int -> Int):
   __mod_int
 
 // Floating-point modulus.
+infix_left 7 %.
 def %. (Float Float -> Float):
   __mod_float
 
 // Bitwise AND.
+infix_left 7 .&.
 def & (Int Int -> Int):
   __and_int
 
 // Logical AND.
+infix_right 3 &&
 def && (Bool Bool -> Bool):
   __and_bool
 
+infix_right 3 ∧
 def ∧ (Bool Bool -> Bool):
   __and_bool
 
 // Integer multiplication.
+infix_left 7 *
 def * (Int Int -> Int):
   __mul_int
 
+infix_left 7 ×
 def × (Int Int -> Int):
   __mul_int
 
 // Floating-point multiplication.
+infix_left 7 *.
 def *. (Float Float -> Float):
   __mul_float
 
+infix_left 7 ×.
 def ×. (Float Float -> Float):
   __mul_float
 
 // Integer addition.
+infix_right 6 +
 def + (Int Int -> Int):
   __add_int
 
 // Floating-point addition.
+infix_left 6 +.
 def +. (Float Float -> Float):
   __add_float
 
 // Integer increment.
+postfix 9 ++
 def ++ (Int -> Int):
   1 +
 
 // Floating-point increment.
+postfix 9 ++.
 def ++. (Float -> Float):
   1.0 +.
 
 // Integer subtraction.
+infix_left 6 -
 def - (Int Int -> Int):
   __sub_int
 
+infix_left 6 −
 def − (Int Int -> Int):
   __sub_int
 
 // Floating-point subtraction.
+infix_left 6 -.
 def -. (Float Float -> Float):
   __sub_float
 
+infix_left 6 −.
 def −. (Float Float -> Float):
   __sub_float
 
 // Integer decrement.
+postfix 9 --
 def -- (Int -> Int):
   1 -
 
 // Floating-point decrement.
+postfix 9 --.
 def --. (Float -> Float):
   1.0 -.
 
 // Integer division.
+infix_left 7 /
 def / (Int Int -> Int):
   __div_int
 
+infix_left 7 ÷
 def ÷ (Int Int -> Int):
   __div_int
 
 // Floating-point division.
+infix_left 7 /.
 def /. (Float Float -> Float):
   __div_float
 
+infix_left 7 ÷.
 def ÷. (Float Float -> Float):
   __div_float
 
 // Integer less than.
+infix 4 <
 def < (Int Int -> Bool):
   __lt_int
 
 // Floating-point less than.
+infix 4 <.
 def <. (Float Float -> Bool):
   __lt_float
 
 // Integer less than or equal.
+infix 4 <=
 def <= (Int Int -> Bool):
   __le_int
 
+infix 4 ≤
 def ≤ (Int Int -> Bool):
   __le_int
 
 // Floating-point less than or equal.
+infix 4 <=.
 def <=. (Float Float -> Bool):
   __le_float
 
+infix 4 ≤.
 def ≤. (Float Float -> Bool):
   __le_float
 
 // Integer equality.
+infix 4 =
 def = (Int Int -> Bool):
   __eq_int
 
 // Floating-point equality.
+infix 4 =.
 def =. (Float Float -> Bool):
   __eq_float
 
 // Integer greater than.
+infix 4 >
 def > (Int Int -> Bool):
   __gt_int
 
 // Floating-point greater than.
+infix 4 >.
 def >. (Float Float -> Bool):
   __gt_float
 
 // Integer greater than or equal.
+infix 4 >=
 def >= (Int Int -> Bool):
   __ge_int
 
+infix 4 ≥
 def ≥ (Int Int -> Bool):
   __ge_int
 
 // Floating-point greater than or equal.
+infix 4 >=.
 def >=. (Float Float -> Bool):
   __ge_float
 
+infix 4 ≥.
 def ≥. (Float Float -> Bool):
   __ge_float
 
 // Bitwise XOR.
+infix_left 6 ^
 def ^ (Int Int -> Int):
   __xor_int
 
 // Boolean XOR.
+infix_right 2 ^^
 def ^^ (Bool Bool -> Bool):
   __xor_bool
 
 // Bitwise OR.
+infix_left 5 |
 def | (Int Int -> Int):
   __or_int
 
 // Logical OR.
+infix_right 2 ||
 def || (Bool Bool -> Bool):
   __or_bool
 
+infix_right 2 ∨
 def ∨ (Bool Bool -> Bool):
   __or_bool
 
 // Bitwise NOT.
+prefix 9 ~
 def ~ (Int -> Int):
   __not_int

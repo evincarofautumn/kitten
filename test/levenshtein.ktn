@@ -21,8 +21,8 @@ def levenshtein ([Char] [Char] -> Int):
   \mapRange 1 rows: -> row
     \mapRange 1 columns: -> { distances column }
 
-      first row-- #! -> firstChar
-      second column-- #! -> secondChar
+      (first #! row--) -> firstChar
+      (second #! column--) -> secondChar
 
       distances
       \if firstChar secondChar eqChar:
