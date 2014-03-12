@@ -1,6 +1,6 @@
 // Safely gets a value from an option value.
 def fromOption (a? a -> a):
-  -> { m z }
+  -> m z;
   \option m {} else: z
 
 // Unsafely gets the value from an option.
@@ -23,7 +23,7 @@ def isSome (a? -> Bool):
 
 // Maps a function over an option value.
 def liftOption (a? (a -> b) -> b?):
-  -> f
+  -> f;
   \option:
     f@ some
   else:
@@ -31,9 +31,9 @@ def liftOption (a? (a -> b) -> b?):
 
 // Combines two option values with a function.
 def liftOption2 (a? b? (a b -> c) -> c?):
-  -> { mx my f }
-  \option mx: -> x
-    \option my: -> y
+  -> mx my f;
+  \option mx: -> x;
+    \option my: -> y;
       x y f@ some
     else: none
   else: none

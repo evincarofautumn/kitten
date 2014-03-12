@@ -15,6 +15,7 @@ module Kitten.Type
   , Hint(..)
   , Origin(..)
   , Scheme(..)
+  , StackHint(..)
   , Type(..)
   , TypeName(..)
   , TypeScheme
@@ -57,7 +58,6 @@ data Type (a :: Kind) where
   Handle :: !Origin -> Type Scalar
   Int :: !Origin -> Type Scalar
   Quantified :: !TypeScheme -> !Origin -> Type Scalar
-  Unit :: !Origin -> Type Scalar
   Var :: !(TypeName a) -> !Origin -> Type a
   Vector :: !(Type Scalar) -> !Origin -> Type Scalar
 
@@ -74,7 +74,6 @@ instance Eq (Type a) where
   Function a b _ == Function c d _ = (a, b) == (c, d)
   Handle{} == Handle{} = True
   Int{} == Int{} = True
-  Unit{} == Unit{} = True
   Var a _ == Var b _ = a == b
   Vector a _ == Vector b _ = a == b
   _ == _ = False
@@ -103,7 +102,6 @@ instance ToText (Type Scalar) where
     Handle o -> "Handle" <> suffix o
     Int o -> "Int" <> suffix o
     Quantified scheme _ -> toText scheme
-    Unit o -> "()" <> suffix o
     Var (TypeName (Name index)) o
       -> "t" <> showText index <> suffix o
     Vector t o -> T.concat ["[", toText t, "]", suffix o]
@@ -151,7 +149,7 @@ instance Show Annotated where
 
 instance ToText Annotated where
   toText (AnnotatedDef defName) = defName
-  toText (Builtin builtin) = showText builtin
+  toText (Builtin builtin) = toText builtin
 
 data Origin = Origin !Hint !Location
 
@@ -187,6 +185,11 @@ instance Monoid Hint where
   _ `mappend` x@AnnoFunctionOutput{} = x
   x@NoHint `mappend` _ = x
 
+data StackHint
+  = StackAny
+  | Stack0
+  | Stack1
+
 data Scheme a = Forall
   (Set (TypeName Row))
   (Set (TypeName Scalar))
@@ -198,15 +201,15 @@ instance (ToText a) => Show (Scheme a) where
 
 instance (ToText a) => ToText (Scheme a) where
   toText (Forall rows scalars type_) = T.unwords
-    [ "forall"
-    , wordSetText rows
-    , wordSetText scalars
-    , "."
-    , toText type_
-    ]
+    $ (if null variables then id else (("forall" : variables ++ ["."]) ++))
+    [toText type_]
+
     where
-    wordSetText :: Set (TypeName a) -> Text
-    wordSetText = T.unwords . map toText . S.toList
+    variables :: [Text]
+    variables = wordSetText rows ++ wordSetText scalars
+
+    wordSetText :: Set (TypeName a) -> [Text]
+    wordSetText = map toText . S.toList
 
 type TypeScheme = Scheme (Type Scalar)
 
@@ -248,7 +251,6 @@ addHint type_ hint = case type_ of
   Handle o -> Handle (f o)
   Int o -> Int (f o)
   Quantified scheme o -> Quantified scheme o
-  Unit o -> Unit (f o)
   Var name o -> Var name (f o)
   Vector t o -> Vector t (f o)
   where

@@ -1,5 +1,5 @@
 def showPoint (Int & Int -> [Char]):
-  -> p
+  -> p;
   [ "("
   , p first showInt
   , ", "
@@ -7,8 +7,8 @@ def showPoint (Int & Int -> [Char]):
   , ")"
   ] concat
 
-[1, 2, 3] -> xs
-[4, 5, 6] -> ys
+[1, 2, 3] -> xs;
+[4, 5, 6] -> ys;
 
 xs ys cartesian {showPoint} showVector say
-xs ys {*} cartesianWith sayInts
+xs ys {(*)} cartesianWith sayInts

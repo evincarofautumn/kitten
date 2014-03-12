@@ -1,6 +1,5 @@
 def myId (a -> a):
-  ->x
-  x
+  ->x; x
 
 def myIdAlias (.r a -> .r a): myId
 

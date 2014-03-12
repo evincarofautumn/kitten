@@ -63,6 +63,7 @@ token = (<?> "token") . located $ choice
   , Layout <$ char ':'
   , VectorBegin <$ char '['
   , VectorEnd <$ char ']'
+  , Semicolon <$ char ';'
   , Text <$> between (char '"') (char '"') text
   , try number
   , try $ Arrow <$ (string "->" <|> string "\x2192")
@@ -119,6 +120,7 @@ token = (<?> "token") . located $ choice
   word :: Parser Token
   word = choice
     [ ffor alphanumeric $ \name -> case name of
+      "_" -> Ignore
       "def" -> Def
       "else" -> Else
       "false" -> Bool False
@@ -160,7 +162,7 @@ token = (<?> "token") . located $ choice
     *> (Parsec.satisfy isSymbol <|> Parsec.satisfy isPunctuation)
 
   special :: Parser Char
-  special = oneOf "\"'(),:[]_{}"
+  special = oneOf "\"'(),:;[]_{}"
 
 readBin :: String -> Int
 readBin = go 0

@@ -8,6 +8,7 @@ module Kitten.Builtin
   ) where
 
 import Data.Map (Map)
+import Data.Maybe
 import Data.Text (Text)
 import Data.Vector (Vector)
 
@@ -15,6 +16,7 @@ import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
+import Kitten.Util.Text (ToText(..))
 import Kitten.Util.Tuple
 
 data Builtin
@@ -90,11 +92,11 @@ data Builtin
   | XorInt
   deriving (Eq, Ord)
 
-instance Show Builtin where
-  show = maybe "<unknown builtin>" T.unpack . toText
+instance ToText Builtin where
+  toText = fromJust . (`M.lookup` toTextMap)
 
-toText :: Builtin -> Maybe Text
-toText = (`M.lookup` toTextMap)
+instance Show Builtin where
+  show = T.unpack . toText
 
 fromText :: Text -> Maybe Builtin
 fromText = (`M.lookup` fromTextMap)

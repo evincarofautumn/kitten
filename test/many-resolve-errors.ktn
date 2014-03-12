@@ -6,9 +6,9 @@ def fun1 (->):
 def fun2 (->):
   some_other_undefined_name
 
-{ ->x y y z }
-{ ->y z z x }
-{ ->z x x y }
+{ ->x; y y z }
+{ ->y; z z x }
+{ ->z; x x y }
 
 \if bad: hi hello
 else if bad: hi hello

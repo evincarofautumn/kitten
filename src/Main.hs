@@ -68,7 +68,7 @@ main = do
       (argsCompileMode arguments) defaultConfig nameGen
 
 containsCode :: TypedTerm -> Bool
-containsCode (Compose terms _) = V.any containsCode terms
+containsCode (Compose _ terms _) = V.any containsCode terms
 containsCode _ = True
 
 interpretAll

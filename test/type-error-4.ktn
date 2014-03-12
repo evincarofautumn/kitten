@@ -1,2 +1,2 @@
 def foo ([a] -> a):
-  ->q q __from_some
+  ->q; q __from_some

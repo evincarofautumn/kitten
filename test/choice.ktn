@@ -1,5 +1,5 @@
 def sayIntOrString (Int | [Char] ->):
-  -> x
+  -> x;
   \choice x:
     sayInt
   else:

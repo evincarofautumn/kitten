@@ -1,4 +1,4 @@
-[1, 2] -> vec
+[1, 2] -> vec;
 vec unsafeHead sayInt
 vec tail sayInts
 vec unsafeLast sayInt
@@ -9,9 +9,9 @@ vec init sayInts
 [1] [2] cat sayInts
 [1, 2, 3] [4, 5, 6] cat sayInts
 
-1 -> x
-2 -> y
-3 -> z
+1 -> x;
+2 -> y;
+3 -> z;
 [x, y, z] sayInts
 
 def a (->) {}
@@ -20,6 +20,6 @@ def b (->) {}
 
 [{a}, {b}] length sayInt
 
-def f (Int Int -> Int): +
+def f (Int Int -> Int): (+)
 
-[(1 + 2), (3 * 4), 5 6 f] sayInts
+[1 + 2, 3 * 4, 5 6 f] sayInts

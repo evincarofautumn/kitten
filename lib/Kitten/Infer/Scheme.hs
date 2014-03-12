@@ -200,7 +200,6 @@ instance Free (Type Scalar) where
     Quantified (Forall r s t) _
       -> let (rows, scalars) = free t
       in (rows \\ S.toList r, scalars \\ S.toList s)
-    Unit{} -> mempty
     Var name _ -> ([], [name])
     Vector a _ -> free a
 
@@ -260,7 +259,6 @@ instance Occurrences Scalar where
       Right type' -> occurrences name env type'
     Quantified (Forall _ s t) _
       -> if TypeName name `S.member` s then 0 else occurrences name env t
-    Unit{} -> 0
     Vector a _ -> occurrences name env a
 
 -- Note [Var Kinds]:
@@ -324,7 +322,6 @@ instance Substitute Scalar where
       -> sub env type' `addHint` hint
       | otherwise
       -> type_
-    Unit{} -> type_
     Vector a origin -> Vector (sub env a) origin
 
 -- Note [Constant Substitution]:

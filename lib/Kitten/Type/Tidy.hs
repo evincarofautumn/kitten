@@ -114,7 +114,6 @@ tidyScalarType type_ = case type_ of
       <*> tidyScalarType t)
     <*> pure loc
   Var name loc -> Var <$> tidyScalar name <*> pure loc
-  Unit{} -> pure type_
   Vector t loc -> Vector <$> tidyScalarType t <*> pure loc
 
 tidyRowType :: Type Row -> Tidy (Type Row)

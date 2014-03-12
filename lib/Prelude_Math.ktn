@@ -1,10 +1,18 @@
 // Absolute value of an integer.
 def absInt (Int -> Int):
-  \if dup 0 <: negInt
+  -> x;
+  \if x < 0:
+    x negInt
+  else:
+    x
 
 // Absolute value of a floating-point number.
 def absFloat (Float -> Float):
-  \if dup 0.0 <.: negFloat
+  -> x;
+  \if x <. 0.0:
+    x negFloat
+  else:
+    x
 
 // Whether all elements of a vector satisfy a predicate.
 def all ([a] (a -> Bool) -> Bool):
@@ -12,7 +20,7 @@ def all ([a] (a -> Bool) -> Bool):
 
 // Whether all elements of a vector are true.
 def and ([Bool] -> Bool):
-  true {&&} foldl
+  true {(&&)} foldl
 
 // Whether any element of a vector satisfies a predicate.
 def any ([a] (a -> Bool) -> Bool):
@@ -20,16 +28,16 @@ def any ([a] (a -> Bool) -> Bool):
 
 // Whether a floating-point number is even.
 def evenFloat (Float -> Bool):
-  2.0 %. 0.0 =.
+  -> x; x %. 2.0 =. 0.0
 
 // Whether an integer is even.
 def evenInt (Int -> Bool):
-  2 % 0 =
+  -> x; x % 2 = 0
 
 // The maximum of two integers.
 def maxInt (Int Int -> Int):
-  -> { a b }
-  \if (a > b): a else: b
+  -> a b;
+  \if a > b: a else: b
 
 // The maximum of three integers.
 def maxInt3 (Int Int Int -> Int):
@@ -41,8 +49,8 @@ def maxInts ([Int] -> Int?):
 
 // The minimum of two integers.
 def minInt (Int Int -> Int):
-  -> { a b }
-  \if (a < b): a else: b
+  -> a b;
+  \if a < b: a else: b
 
 // The minimum of three integers.
 def minInt3 (Int Int Int -> Int):
@@ -71,7 +79,7 @@ def ! (Bool -> Bool):
 
 prefix 9 ¬
 def ¬ (Bool -> Bool):
-  __not_bool
+  not
 
 // Whether a floating-point number is odd.
 def oddFloat (Float -> Bool):
@@ -83,26 +91,26 @@ def oddInt (Int -> Bool):
 
 // Whether any element of a vector is true.
 def or ([Bool] -> Bool):
-  false {||} foldl
+  false {(||)} foldl
 
 // The ratio of a circle's circumference to its diameter.
 def pi (Float): 3.141592653589793
 
 // The product of a vector of floating-point numbers.
 def productFloats ([Float] -> Float):
-  1.0 {*.} foldl
+  1.0 {(*.)} foldl
 
 // The product of a vector of integers.
 def productInts ([Int] -> Int):
-  1 {*} foldl
+  1 {(*)} foldl
 
 // The sum of a vector of floating-point numbers.
 def sumFloats ([Float] -> Float):
-  0.0 {+.} foldl
+  0.0 {(+.)} foldl
 
 // The sum of a vector of integers.
 def sumInts ([Int] -> Int):
-  0 {+} foldl
+  0 {(+)} foldl
 
 // The ratio of a circle's circumference to its radius.
 def tau (Float): 6.283185307179586
@@ -180,12 +188,12 @@ def +. (Float Float -> Float):
 // Integer increment.
 postfix 9 ++
 def ++ (Int -> Int):
-  1 +
+  (_ + 1)
 
 // Floating-point increment.
 postfix 9 ++.
 def ++. (Float -> Float):
-  1.0 +.
+  (_ +. 1.0)
 
 // Integer subtraction.
 infix_left 6 -
@@ -208,12 +216,12 @@ def −. (Float Float -> Float):
 // Integer decrement.
 postfix 9 --
 def -- (Int -> Int):
-  1 -
+  (_ - 1)
 
 // Floating-point decrement.
 postfix 9 --.
 def --. (Float -> Float):
-  1.0 -.
+  (_ -. 1.0)
 
 // Integer division.
 infix_left 7 /
@@ -307,6 +315,10 @@ def ^ (Int Int -> Int):
 // Boolean XOR.
 infix_right 2 ^^
 def ^^ (Bool Bool -> Bool):
+  __xor_bool
+
+infix_right 2 ⊻
+def ⊻ (Bool Bool -> Bool):
   __xor_bool
 
 // Bitwise OR.

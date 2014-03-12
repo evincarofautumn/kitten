@@ -34,14 +34,12 @@ scopeTerm :: [Int] -> ResolvedTerm -> ResolvedTerm
 scopeTerm stack typed = case typed of
   Builtin{} -> typed
   Call{} -> typed
-  Compose terms loc -> Compose (recur <$> terms) loc
+  Compose hint terms loc -> Compose hint (recur <$> terms) loc
   Lambda name term loc -> Lambda name
     (scopeTerm (mapHead succ stack) term)
     loc
   PairTerm as bs loc -> PairTerm (recur as) (recur bs) loc
   Push value loc -> Push (scopeValue stack value) loc
-  UnparsedApplicative{} -> error
-    "unparsed applicative appeared during scoping"
   VectorTerm items loc -> VectorTerm (recur <$> items) loc
 
   where
@@ -74,7 +72,6 @@ scopeValue stack value = case value of
 
   Int{} -> value
   Local{} -> value
-  Unit{} -> value
   String{} -> value
 
 data Env = Env
@@ -103,7 +100,7 @@ captureTerm typed = case typed of
   Builtin{} -> return typed
   Call{} -> return typed
 
-  Compose terms loc -> Compose
+  Compose hint terms loc -> Compose hint
     <$> T.mapM captureTerm terms
     <*> pure loc
 
@@ -122,9 +119,6 @@ captureTerm typed = case typed of
     <*> pure loc
 
   Push value loc -> Push <$> captureValue value <*> pure loc
-
-  UnparsedApplicative{} -> error
-    "unparsed applicative appeared during name capture"
 
   VectorTerm items loc -> VectorTerm
     <$> T.mapM captureTerm items
@@ -170,5 +164,4 @@ captureValue value = case value of
       Nothing -> value
       Just closedName -> Closed closedName x
 
-  Unit{} -> return value
   String{} -> return value

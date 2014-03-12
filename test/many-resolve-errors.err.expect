@@ -4,15 +4,15 @@ test/many-resolve-errors.ktn:4:3: error: undefined word 'some_undefined_name'
 
 test/many-resolve-errors.ktn:7:3: error: undefined word 'some_other_undefined_name'
 
-test/many-resolve-errors.ktn:9:7: error: undefined word 'y'
+test/many-resolve-errors.ktn:9:8: error: undefined word 'y'
 
-test/many-resolve-errors.ktn:9:9: error: undefined word 'y'
+test/many-resolve-errors.ktn:9:10: error: undefined word 'y'
 
-test/many-resolve-errors.ktn:9:11: error: undefined word 'z'
+test/many-resolve-errors.ktn:9:12: error: undefined word 'z'
 
-test/many-resolve-errors.ktn:10:7: error: undefined word 'z'
+test/many-resolve-errors.ktn:10:8: error: undefined word 'z'
 
-test/many-resolve-errors.ktn:10:9: error: undefined word 'z'
+test/many-resolve-errors.ktn:10:10: error: undefined word 'z'
 
 test/many-resolve-errors.ktn:13:5: error: undefined word 'bad'
 

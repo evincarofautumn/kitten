@@ -1,7 +1,6 @@
 import Prelude_Choice
 import Prelude_Convert
 import Prelude_Control
-import Prelude_Effect
 import Prelude_Exit
 import Prelude_Function
 import Prelude_IO
@@ -12,5 +11,4 @@ import Prelude_Read
 import Prelude_Stack
 import Prelude_String
 import Prelude_Tuple
-import Prelude_Unit
 import Prelude_Vector

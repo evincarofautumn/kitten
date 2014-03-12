@@ -28,7 +28,6 @@ diagnosticLocations type_ = case type_ of
   Handle loc -> yield loc
   Int loc -> yield loc
   Quantified _ loc -> yield loc
-  Unit loc -> yield loc
   Var _ loc -> yield loc
   Vector a loc -> yield loc ++ locationsIfUnhinted loc a
 

@@ -12,8 +12,9 @@ import Numeric
 
 import qualified Data.Text as T
 
-import Kitten.Location
 import Kitten.Builtin (Builtin)
+import Kitten.Location
+import Kitten.Util.Text (toText)
 
 data BlockTypeHint
   = NormalBlockHint
@@ -40,6 +41,7 @@ data Token
   | GroupBegin
   | GroupEnd
   | Float Double
+  | Ignore
   | Import
   | Infix
   | InfixLeft
@@ -50,6 +52,7 @@ data Token
   | Operator Text
   | Postfix
   | Prefix
+  | Semicolon
   | Text Text
   | Type
   | VectorBegin
@@ -71,6 +74,7 @@ instance Eq Token where
   GroupBegin   == GroupBegin   = True
   GroupEnd     == GroupEnd     = True
   Float a      == Float b      = a == b
+  Ignore       == Ignore       = True
   Infix        == Infix        = True
   InfixLeft    == InfixLeft    = True
   InfixRight   == InfixRight   = True
@@ -82,6 +86,7 @@ instance Eq Token where
   Operator a   == Operator b   = a == b
   Postfix      == Postfix      = True
   Prefix       == Prefix       = True
+  Semicolon    == Semicolon    = True
   Text a       == Text b       = a == b
   Type         == Type         = True
   VectorBegin  == VectorBegin  = True
@@ -96,12 +101,13 @@ instance Show Token where
     BlockBegin LayoutBlockHint -> ":"
     BlockEnd -> "}"
     Bool value -> if value then "true" else "false"
-    Builtin name -> show name
+    Builtin name -> T.unpack (toText name)
     Char char -> show char
     Comma -> ","
     Def -> "def"
     Do -> "\\"
     Else -> "else"
+    Ignore -> "_"
     Infix -> "infix"
     InfixLeft -> "infix_left"
     InfixRight -> "infix_right"
@@ -122,6 +128,7 @@ instance Show Token where
     Operator word -> T.unpack word
     Postfix -> "postfix"
     Prefix -> "prefix"
+    Semicolon -> ";"
     Text value -> show value
     Type -> "type"
     VectorBegin -> "["

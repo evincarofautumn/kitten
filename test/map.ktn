@@ -1,5 +1,5 @@
-[] {++} map sayInts
-[1, 2, 3] {++} map sayInts
+[] {(++)} map sayInts
+[1, 2, 3] {(++)} map sayInts
 ["a", "b", "c"] { "s" cat } map sayStrings
 ["one", "two", "three"] {length} map sayInts
 [1, 2, 3, 4, 5] 0 const map sayInts

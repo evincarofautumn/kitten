@@ -1,5 +1,5 @@
 // TODO(strager): Improve error location reporting.
 
 def baq ([Char] [Char] -> Char):
-  ->q q 0 __get __from_some
-  ->{x y} x
+  ->q; q 0 __get __from_some
+  ->x y; x

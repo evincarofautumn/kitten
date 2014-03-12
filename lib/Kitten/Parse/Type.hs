@@ -58,7 +58,6 @@ baseType = (<?> "base type") $ do
     , Anno.Int <$ match (Token.BigWord "Int")
     , Anno.Var <$> littleWord
     , vector
-    , try unit
     , try $ grouped type_
     ]
   (<?> "") $ choice
@@ -75,7 +74,3 @@ vector = Anno.Vector <$> between
   (match Token.VectorBegin)
   (match Token.VectorEnd)
   baseType
-
-unit :: Parser Type
-unit = Anno.Unit
-  <$ (match Token.GroupBegin >> match Token.GroupEnd)

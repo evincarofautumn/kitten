@@ -9,9 +9,9 @@ def cartesian ([a] [b] -> [a & b]):
 // The Cartesian product of two vectors with a generalized
 // tupling function.
 def cartesianWith ([a] [b] (a b -> c) -> [c]):
-  -> { xs ys function }
-  \mapConcat xs: -> x
-    \map ys: -> y
+  -> xs ys function;
+  \mapConcat xs: -> x;
+    \map ys: -> y;
       x y function@
 
 // Concatenates two vectors.
@@ -25,11 +25,11 @@ def <> ([a] [a] -> [a]):
 
 // Concatenates a vector of vectors.
 def concat ([[a]] -> [a]):
-  [] {<>} foldl
+  [] {(<>)} foldl
 
 // Lifts an impure function on values to one on vectors.
 def each ([a] (a ->) ->):
-  -> { xs f }
+  -> xs f;
   \option xs head:
     f@
     xs tail f each
@@ -37,7 +37,7 @@ def each ([a] (a ->) ->):
 // Whether an element is present in a vector according to
 // the given equality predicate.
 def elem ([a] a (a a -> Bool) -> Bool):
-  -> { xs x f }
+  -> xs x f;
   xs { x f@ } any
 
 // Whether a character is present in a string.
@@ -46,22 +46,21 @@ def elemChar ([Char] Char -> Bool):
 
 // Whether an integer is present in an integer vector.
 def elemInt ([Int] Int -> Bool):
-  {=} elem
+  {(=)} elem
 
 // Whether two vectors are equal according to the given
 // equality predicate.
 def eqVector ([a] [a] (a a -> Bool) -> Bool):
-  -> { xs ys eq }
-  \if (xs length != ys length):
+  -> xs ys eq;
+  \if xs length != ys length:
     false
   else:
     xs ys eq zipWith and
 
 // Filters a vector by a predicate.
 def filter ([a] (a -> Bool) -> [a]):
-  -> { v f }
-  \option v head:
-    -> x
+  -> v f;
+  \option v head: -> x;
     \if x f@:
       v tail f filter
       x prepend
@@ -76,64 +75,58 @@ def find ([a] (a -> Bool) -> a?):
 
 // Folds elements of a vector right-associatively.
 def foldr ([a] b (a b -> b) -> b):
-  -> { xs z k }
-  \option xs last:
-    -> x
+  -> xs z k;
+  \option xs last: -> x;
     (xs init) (x z k@) k foldr
   else:
     z
 
 // Right-associative non-empty vector fold.
 def foldr1 ([a] (a a -> a) -> a?):
-  -> { xs fn }
-  \option xs last:
-    -> x
+  -> xs fn;
+  \option xs last: -> x;
     (xs init) x fn foldr some
   else:
     none
 
 // Unsafe right-associative non-empty vector fold.
 def unsafeFoldr1 ([a] (a a -> a) -> a):
-  -> { xs fn }
+  -> xs fn;
   xs init (xs unsafeLast) fn foldr
 
 // Folds elements of a vector left-associatively.
 def foldl ([b] a (a b -> a) -> a):
-  -> { xs z k }
-  \option xs head:
-    -> x
+  -> xs z k;
+  \option xs head: -> x;
     xs tail (z x k@) k foldl
   else:
     z
 
 // Left-associative non-empty vector fold.
 def foldl1 ([a] (a a -> a) -> a?):
-  -> { xs fn }
-  \option xs head:
-    -> x
+  -> xs fn;
+  \option xs head: -> x;
     xs tail x fn foldl some
   else:
     none
 
 // Unsafe left-associative non-empty vector fold.
 def unsafeFoldl1 ([a] (a a -> a) -> a):
-  -> { xs fn }
+  -> xs fn;
   xs tail (xs unsafeHead) fn foldl
 
 // Gets multiple elements of a vector.
 def getAll ([a] [Int] -> [a?]):
-  -> indices
-  -> xs
-  indices { xs swap # } map
+  -> xs indices;
+  indices {(xs # _)} map
 
 // Gets the first element of a vector.
 def head ([a] -> a?):
-  0#
+  (_ # 0)
 
 // Splits a vector into its head and tail.
 def headTail ([a] -> a? [a]):
-  -> xs
-  xs head xs tail
+  {head} {tail} bothTo
 
 // Unsafely removes the last element of a vector.
 def init ([a] -> [a]):
@@ -143,9 +136,8 @@ def init ([a] -> [a]):
 // a value n and a vector xs, generates a matrix with n on
 // the main diagonal and xs wrapped to the remainder.
 def insertEverywhere ([a] a -> [[a]]):
-  -> { xs n }
-  \option xs head:
-    -> x
+  -> xs n;
+  \option xs head: -> x;
     (xs tail) n insertEverywhere
     {x prepend} map
     (xs n prepend)
@@ -154,9 +146,8 @@ def insertEverywhere ([a] a -> [[a]]):
     [[n]]
 
 def insert ([a] a (a a -> Bool) -> [a]):
-  -> { xs n lt }
-  \option xs head:
-    -> x
+  -> xs n lt;
+  \option xs head: -> x;
     \if x n lt@:
       (xs tail) n lt insert
       x prepend
@@ -167,9 +158,8 @@ def insert ([a] a (a a -> Bool) -> [a]):
 
 // Intersperses a value between the values of a vector.
 def intersperse ([a] a -> [a]):
-  -> { xs sep }
-  \option xs head:
-    -> x
+  -> xs sep;
+  \option xs head: -> x;
     xs tail sep prependToAll
     x prepend
   else:
@@ -177,7 +167,7 @@ def intersperse ([a] a -> [a]):
 
 // Whether a vector is empty.
 def isEmpty ([a] -> Bool):
-  length 0 =
+  length (_ = 0)
 
 // Joins a vector with a separator.
 def join ([[a]] [a] -> [a]):
@@ -185,11 +175,10 @@ def join ([[a]] [a] -> [a]):
 
 // Keeps the first n elements of a vector, tossing the rest.
 def keep ([a] Int -> [a]):
-  -> { xs n }
-  \if (n <= 0):
+  -> xs n;
+  \if n <= 0:
     []
-  else option xs head:
-    -> x
+  else option xs head: -> x;
     xs tail n-- keep
     x prepend
   else:
@@ -197,10 +186,9 @@ def keep ([a] Int -> [a]):
 
 // Keeps elements of a vector while a predicate holds.
 def keepWhile ([a] (a -> Bool) -> [a]):
-  -> { xs f }
+  -> xs f;
   []
-  \option xs head:
-    -> x
+  \option xs head: -> x;
     \if x f@:
       drop
       xs tail f keepWhile
@@ -208,8 +196,8 @@ def keepWhile ([a] (a -> Bool) -> [a]):
 
 // Gets the last element of a vector.
 def last ([a] -> a?):
-  -> xs
-  (xs # (xs length - 1))
+  -> xs;
+  xs # (xs length - 1)
 
 // Gets the length of a vector.
 def length ([a] -> Int):
@@ -217,7 +205,7 @@ def length ([a] -> Int):
 
 // Lifts a function on values to a function on vectors.
 def map ([a] (a -> b) -> [b]):
-  -> { xs f }
+  -> xs f;
   \option xs head:
     f@ vector
     (xs tail) f map
@@ -231,17 +219,17 @@ def mapConcat ([a] (a -> [b]) -> [b]):
 
 // Maps a function over part of a vector.
 def mapFrom ([a] (a -> a) Int -> [a]):
-  -> { vec function offset }
-  \if (vec isEmpty || offset >= vec length):
+  -> vec function offset;
+  \if vec isEmpty || offset >= vec length:
     vec
   else:
-    vec function offset #@
+    vec function offset (#@)
     function offset++ mapFrom
 
 // Maps a function over a value for each integer in a range.
 def mapRange (a Int Int (a Int -> a) -> a):
-  -> { value start end function }
-  \if (start <= end):
+  -> value start end function;
+  \if start <= end:
     value start function@
     start++ end function mapRange
   else:
@@ -249,17 +237,16 @@ def mapRange (a Int Int (a Int -> a) -> a):
 
 // Generates all permutations of a vector.
 def permutations ([a] -> [[a]]):
-  [[]] { -> x {x insertEverywhere} mapConcat } foldl
+  [[]] { -> x; {x insertEverywhere} mapConcat } foldl
 
 // Prepends a value to the head of a vector.
 def prepend ([a] a -> [a]):
-  -> { xs x }
+  -> xs x;
   x vector xs cat
 
 def prependToAll ([a] a -> [a]):
-  -> { xs sep }
-  \option xs head:
-    -> x
+  -> xs sep;
+  \option xs head: -> x;
     xs tail sep prependToAll
     x prepend
     sep prepend
@@ -268,8 +255,8 @@ def prependToAll ([a] a -> [a]):
 
 // Produces a vector with some number of copies of a value.
 def replicate (a Int -> [a]):
-  -> { value count }
-  \if (count <= 0):
+  -> value count;
+  \if count <= 0:
     []
   else:
     value count-- replicate
@@ -277,9 +264,8 @@ def replicate (a Int -> [a]):
 
 // Reverses a vector.
 def reverse ([a] -> [a]):
-  -> xs
-  \option xs last:
-    -> x
+  -> xs;
+  \option xs last: -> x;
     xs init reverse
     x prepend
   else:
@@ -287,20 +273,19 @@ def reverse ([a] -> [a]):
 
 // Produce a list of fold-left results
 def scanl ([b] a (a b -> a) -> [a]):
-  -> { xs z k }
+  -> xs z k;
   xs z k scanlRest z prepend
 
 // Scan left with vector head as accumulator
 def scanl1 ([a] (a a -> a) -> [a]):
-  -> { xs k }
+  -> xs k;
   xs tail (xs unsafeHead) k scanl
 
 // Scan fold of remaining elements
 def scanlRest ([b] a (a b -> a) -> [a]):
-  -> { xs z k }
-  \option xs head:
-    -> x
-    z x k@ -> q
+  -> xs z k;
+  \option xs head: -> x;
+    z x k@ -> q;
     xs tail q k scanlRest
     q prepend
   else:
@@ -308,9 +293,8 @@ def scanlRest ([b] a (a b -> a) -> [a]):
 
 // Produce a list of fold-right results
 def scanr ([a] b (a b -> b) -> [b]):
-  -> { xs z k }
-  \option xs head:
-    -> x
+  -> xs z k;
+  \option xs head: -> x;
     (xs tail) z k scanr dup unsafeHead
     x swap k@
     prepend
@@ -319,21 +303,21 @@ def scanr ([a] b (a b -> b) -> [b]):
 
 // Scan right with vector last as accumulator
 def scanr1 ([a] (a a -> a) -> [a]):
-  -> { xs k }
+  -> xs k;
   xs init (xs unsafeLast) k scanr
 
 def sort ([a] (a a -> Bool) -> [a]):
-  -> lt
+  -> lt;
   [] {lt insert} foldl
 
 def span ([a] (a -> Bool) -> [a] [a]):
-  -> { xs f }
+  -> xs f;
   xs f keepWhile
   xs f tossWhile
 
 // Splits a vector into two parts at the given index.
 def splitAt ([a] Int -> [a] [a]):
-  -> { xs n }
+  -> xs n;
   xs n keep
   xs n toss
 
@@ -343,31 +327,30 @@ def tail ([a] -> [a]):
 
 // Tosses the first n elements of a vector, keeping the rest.
 def toss ([a] Int -> [a]):
-  -> { xs n }
-  \if (n <= 0 || xs isEmpty):
+  -> xs n;
+  \if n <= 0 || xs isEmpty:
     xs
   else:
     xs tail n-- toss
 
 // Tosses elements of a vector while a predicate holds.
 def tossWhile ([a] (a -> Bool) -> [a]):
-  -> { xs f }
+  -> xs f;
   xs
-  \option xs head:
-    -> x
+  \option xs head: -> x;
     \if x f@:
       tail f tossWhile
 
 // Transposes the rows and columns of a 2D vector.
 def transpose ([[a]] -> [[a]]):
-  -> xss
+  -> xss;
   \if xss isEmpty:
     []
   else if xss unsafeHead isEmpty:
     xss tail transpose
   else:
-    xss unsafeHeadTail -> { xs xss }
-    xs unsafeHeadTail -> { x xs }
+    xss unsafeHeadTail -> xs xss;
+    xs unsafeHeadTail -> x xs;
     ((xss {tail} map) xs prepend) transpose
     (xss {unsafeHead} map) x prepend
     prepend
@@ -375,9 +358,8 @@ def transpose ([[a]] -> [[a]]):
 // Strips duplicate elements from a vector according the
 // given equality predicate.
 def unique ([a] (a a -> Bool) -> [a]):
-  -> { xs eq }
-  \option xs head:
-    -> x
+  -> xs eq;
+  \option xs head: -> x;
     (xs tail {x eq@ not} filter) eq unique
     x prepend
   else:
@@ -394,8 +376,7 @@ def unsafeLast ([a] -> a):
 
 // Wraps a value in a vector.
 def vector (a -> [a]):
-  -> x
-  [x]
+  -> x; [x]
 
 // Zips two lists together as pairs.
 def zip ([a] [b] -> [a & b]):
@@ -403,12 +384,10 @@ def zip ([a] [b] -> [a & b]):
 
 // Zips two lists together with a function.
 def zipWith ([a] [b] (a b -> c) -> [c]):
-  -> { as bs f }
+  -> as bs f;
   []
-  \option as head:
-    -> a
-    \option bs head:
-      -> b
+  \option as head: -> a;
+    \option bs head: -> b;
       drop
       (as tail) (bs tail) f zipWith
       a b f@ prepend
@@ -419,7 +398,7 @@ def # ([a] Int -> a?):
 
 // Unsafely gets an element of a vector.
 def #! ([a] Int -> a):
-  # fromSome
+  (#) fromSome
 
 // Sets the value at an index in a vector.
 def #= ([a] a Int -> [a]):
@@ -427,24 +406,24 @@ def #= ([a] a Int -> [a]):
 
 // Maps a function over an element of a vector.
 def #@ ([a] (a -> a) Int -> [a]):
-  -> { vec function offset }
-  \option vec offset#:
-    function@ -> value
-    vec value offset #=
+  -> vec function offset;
+  \option vec # offset:
+    function@ -> value;
+    vec value offset (#=)
   else:
     vec
 
 // Gets a value from a 2D vector.
 def ## ([[a]] Int Int -> a?):
-  -> { i j }
-  i# \option {j#} else {none}
+  -> i j;
+  (_ # i) \option {(_ # j)} else {none}
 
 // Unsafely gets a value from a 2D vector.
 def ##! ([[a]] Int Int -> a):
-  -> { i j }
-  i#! j#!
+  -> i j;
+  (_ #! i) (_ #! j)
 
 // Sets a value in a 2D vector.
 def ##= ([[a]] a Int Int -> [[a]]):
-  -> { x i j }
-  { x j#= } i#@
+  -> x i j;
+  { x j (#=) } i (#@)

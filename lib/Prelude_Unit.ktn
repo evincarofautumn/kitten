@@ -1,3 +1,0 @@
-// Unit equality.
-def eqUnit (() () -> Bool):
-  drop drop true

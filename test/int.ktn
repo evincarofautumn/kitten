@@ -5,32 +5,32 @@ def binary (-> Int Int):
   1 2
 
 def ii ((Int -> Int) ->):
-  -> f
+  -> f;
   unary f@ sayInt
 
 def iib ((Int Int -> Bool) ->):
-  -> f
+  -> f;
   binary f@ sayBool
 
 def iii ((Int Int -> Int) ->):
-  -> f
+  -> f;
   binary f@ sayInt
 
-{+} iii
-{&} iii
-{--} ii
-{/} iii
-{=} iib
-{>=} iib
-{>} iib
-{++} ii
-{<=} iib
-{<} iib
-{%} iii
-{*} iii
-{!=} iib
+{(+)} iii
+{(&)} iii
+{(--)} ii
+{(/)} iii
+{(=)} iib
+{(>=)} iib
+{(>)} iib
+{(++)} ii
+{(<=)} iib
+{(<)} iib
+{(%)} iii
+{(*)} iii
+{(!=)} iib
 {negInt} ii
-{~} ii
-{|} iii
-{-} iii
-{^} iii
+{(~)} ii
+{(|)} iii
+{(-)} iii
+{(^)} iii

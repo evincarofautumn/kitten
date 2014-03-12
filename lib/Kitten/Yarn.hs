@@ -66,7 +66,7 @@ instance Show Instruction where
       showClosedName (ClosedName (Name index)) = "local:" <> showText index
       showClosedName (ReclosedName (Name index)) = "closure:" <> showText index
 
-    Builtin builtin -> ["builtin", showText builtin]
+    Builtin builtin -> ["builtin", toText builtin]
     Call label -> ["call", showText label]
     Closure index -> ["closure", showText index]
     Comment comment -> ["\n;", comment]
@@ -189,7 +189,7 @@ yarnTerm :: TypedTerm -> Yarn (Vector Instruction)
 yarnTerm term = case term of
   Tree.Builtin builtin _ -> return $ V.singleton (Builtin builtin)
   Tree.Call _ (Name index) _ -> return $ V.singleton (Call index)
-  Tree.Compose terms _ -> concatMapM yarnTerm terms
+  Tree.Compose _ terms _ -> concatMapM yarnTerm terms
   Tree.Lambda _ terms _ -> do
     instructions <- yarnTerm terms
     return $ V.singleton Enter <> instructions <> V.singleton Leave
@@ -198,8 +198,6 @@ yarnTerm term = case term of
     b' <- yarnTerm b
     return $ a' <> b' <> V.singleton (Builtin Builtin.Pair)
   Tree.Push value _ -> yarnValue value
-  Tree.UnparsedApplicative{} -> error
-    "unparsed applicative appeared during conversion to IR"
   Tree.VectorTerm values _ -> do
     values' <- concatMapM yarnTerm values
     return $ values' <> (V.singleton . MakeVector $ V.length values)
@@ -219,7 +217,6 @@ yarnValue resolved = case resolved of
   Tree.Function{} -> error "'Function' appeared during conversion to IR"
   Tree.Int x _ -> value $ Int x
   Tree.Local (Name index) _ -> return $ V.singleton (Local index)
-  Tree.Unit _ -> value Unit
   Tree.String x _ -> value $ String x
   where
   value :: Value -> Yarn (Vector Instruction)

@@ -30,7 +30,6 @@ data Type
   | Option !Type
   | Pair !Type !Type
   | RowFunction !Text !(Vector Type) !Text !(Vector Type)
-  | Unit
   | Var !Text
   | Vector !Type
   deriving (Eq, Show)

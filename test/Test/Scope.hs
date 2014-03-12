@@ -15,6 +15,7 @@ import Kitten.Operator
 import Kitten.Name
 import Kitten.Scope
 import Kitten.Tree
+import Kitten.Type (StackHint(..))
 import Test.Util
 
 import qualified Kitten.Builtin as Builtin
@@ -61,7 +62,7 @@ closure names terms = push $ Closure
   (V.fromList names) (compose terms) TestLocation
 
 compose :: [ResolvedTerm] -> ResolvedTerm
-compose terms = Compose (V.fromList terms) TestLocation
+compose terms = Compose StackAny (V.fromList terms) TestLocation
 
 function :: [ResolvedTerm] -> ResolvedTerm
 function terms = push $ Function (compose terms) TestLocation

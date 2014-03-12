@@ -12,7 +12,7 @@ def third ((a & b & c & d) -> c):
 
 // Flips the elements of a double.
 def flip (a & b -> b & a):
-  -> pair
+  -> pair;
   (pair rest, pair first)
 
 // Gets the fourth element of a tuple.

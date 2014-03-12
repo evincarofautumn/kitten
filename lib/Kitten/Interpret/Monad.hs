@@ -66,7 +66,6 @@ data InterpreterValue
   | Int !Int
   | Option !(Maybe InterpreterValue)
   | Pair !InterpreterValue !InterpreterValue
-  | Unit
   | Vector !(Vector InterpreterValue)
 
 instance Show InterpreterValue where
@@ -84,7 +83,6 @@ instance ToText InterpreterValue where
     Int i -> showText i
     Option m -> maybe "none" ((<> " some") . toText) m
     Pair a b -> T.concat ["(", toText a, ", ", toText b, ")"]
-    Unit -> "()"
     Vector v@(V.toList -> (Char _ : _)) -> showText (stringFromChars v)
     Vector v -> T.concat
       [ "["
@@ -167,7 +165,6 @@ typeOfValueM value = case value of
   Option (Just x) -> liftM (:?) (typeOfValueM x)
   Option Nothing -> liftM (:?) freshVarM
   Pair x y -> liftM2 (:&) (typeOfValueM x) (typeOfValueM y)
-  Unit -> return $ Type.Unit origin
   Vector xs -> case V.safeHead xs of
     Nothing -> liftM2 Type.Vector freshVarM (return origin)
     Just x -> liftM2 Type.Vector (typeOfValueM x) (return origin)

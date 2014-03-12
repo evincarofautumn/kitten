@@ -84,7 +84,6 @@ fromAnno annotated (Anno annoType annoLoc) = do
       leftRowVar <- rowVar leftRow loc annotated
       rightRowVar <- rowVar rightRow loc annotated
       makeFunction origin leftRowVar leftScalars rightRowVar rightScalars
-    Anno.Unit -> return (Unit origin)
     Anno.Var name -> scalarVar name loc annotated
     Anno.Vector a -> Vector <$> fromAnnoType' NoHint a <*> pure origin
     where

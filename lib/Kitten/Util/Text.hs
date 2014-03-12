@@ -23,6 +23,9 @@ instance ToText Textable where
 class ToText a where
   toText :: a -> Text
 
+instance ToText Text where
+  toText = pack . show
+
 readFileUtf8 :: FilePath -> IO Text
 readFileUtf8 path = decodeUtf8 <$> B.readFile path
 

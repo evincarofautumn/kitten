@@ -110,7 +110,7 @@ inferFragment fragment stackTypes = mdo
       return def { defTerm = typedTerm <$ inferredScheme }
 
   (typedTerms, fragmentType) <- infer finalEnv
-    $ Compose (fragmentTerms fragment) UnknownLocation
+    $ Compose Stack0 (fragmentTerms fragment) UnknownLocation
 
   -- Equate the bottom of the stack with stackTypes.
   do
@@ -370,7 +370,7 @@ infer finalEnv resolved = case resolved of
         Just decl -> return decl
         Nothing -> getsEnv ((N.! name) . envDefs)
 
-  Compose terms loc -> withLocation loc $ do
+  Compose hint terms loc -> withLocation loc $ do
     (typedTerms, types) <- V.mapAndUnzipM recur terms
     r <- freshVarM
     origin <- getsEnv envOrigin
@@ -381,7 +381,8 @@ infer finalEnv resolved = case resolved of
         inferCompose a b c d)
       ((r --> r) origin)
       (V.toList types)
-    return (Compose typedTerms (loc, sub finalEnv type_), type_)
+    -- TODO Enforce 'StackHint'.
+    return (Compose hint typedTerms (loc, sub finalEnv type_), type_)
 
   Lambda name term loc -> withOrigin (Origin (Type.Local name) loc) $ do
     a <- freshVarM
@@ -402,9 +403,6 @@ infer finalEnv resolved = case resolved of
     origin <- getsEnv envOrigin
     type_ <- forAll $ \r -> (r --> r :. a) origin
     return (Push value' (loc, sub finalEnv type_), type_)
-
-  UnparsedApplicative{} -> error
-    "unparsed applicative appeared during type inference"
 
   VectorTerm values loc -> withLocation loc $ do
     (typedValues, types) <- mapAndUnzipM recur (V.toList values)
@@ -493,7 +491,6 @@ inferValue finalEnv value = getsEnv envOrigin >>= \origin -> case value of
   Local name@(Name index) loc -> do
     type_ <- getsEnv ((!! index) . envLocals)
     ret loc type_ (Local name)
-  Unit loc -> ret loc (Type.Unit origin) Unit
   String val loc -> ret loc (Type.Vector (Type.Char origin) origin) (String val)
   where
   ret loc type_ constructor = return (constructor (loc, type_), type_)

@@ -3,13 +3,13 @@ import Prelude
 99 bottlesOfBeer
 
 def bottlesOfBeer (Int ->):
-  -> x
+  -> x;
   x verse
-  \if (x > 1):
+  \if x > 1:
     x-- bottlesOfBeer
 
 def verse (Int ->):
-  -> x
+  -> x;
   x wall newline
   x beer newline
   take newline
@@ -26,10 +26,10 @@ def take (->):
   "take one down, pass it around" print
 
 def bottles (Int ->):
-  -> x
-  \if (x = 0):
+  -> x;
+  \if x = 0:
     "no more bottles"
-  else if (x = 1):
+  else if x = 1:
     "one bottle"
   else:
     x showInt " bottles" cat

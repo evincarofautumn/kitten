@@ -46,10 +46,9 @@ def cond (
   ->
   c
 ):
-  -> { x ps z }
-  \option ps head:
-    -> p
-    x (p first)@ -> m
+  -> x ps z;
+  \option ps head: -> p;
+    x (p first)@ -> m;
     \option m:
       p rest @
     else:
@@ -64,9 +63,9 @@ def cond1 (
   ->
   c
 ):
-  -> { x ps }
-  ps head fromSome -> p
-  x (p first)@ -> m
+  -> x ps;
+  ps head fromSome -> p;
+  x (p first)@ -> m;
   \option m:
     p rest @
   else:
@@ -74,12 +73,12 @@ def cond1 (
 
 // Repeats an action until a condition is false.
 def loopWhile ((-> Bool) ->):
-  -> f
+  -> f;
   \if f@: f loopWhile
 
 // Iterates a function on a value until a predicate holds.
 def until (a (a -> a) (a -> Bool) -> a):
-  -> { x f p }
+  -> x f p;
   \if x p@:
     x
   else:

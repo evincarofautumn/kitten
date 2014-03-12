@@ -104,7 +104,7 @@ flattenTerm :: TypedTerm -> Writer LocMap ()
 flattenTerm theTerm = case theTerm of
   Builtin _builtin (loc, type_) -> tellNode loc $ ScalarType type_
   Call _ _ (loc, type_) -> tellNode loc $ ScalarType type_
-  Compose terms (loc, type_) -> do
+  Compose _ terms (loc, type_) -> do
     tellNode loc $ ScalarType type_
     V.mapM_ flattenTerm terms
   Lambda _name term (loc, type_) -> do
@@ -116,8 +116,6 @@ flattenTerm theTerm = case theTerm of
   Push value (loc, type_) -> do
     tellNode loc $ ScalarType type_
     flattenValue value
-  UnparsedApplicative{} -> error
-    "unparsed applicative appeared during HTML rendering"
   VectorTerm terms (loc, type_) -> do
     tellNode loc $ ScalarType type_
     V.mapM_ flattenTerm terms
@@ -132,7 +130,6 @@ flattenValue theValue = case theValue of
   Function{} -> return ()  -- ?
   Int{} -> return ()
   Local{} -> return ()
-  Unit{} -> return ()
   String{} -> return ()
 
 -- * Scanning and HTML generation.

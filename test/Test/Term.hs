@@ -19,7 +19,7 @@ import Kitten.Operator
 import Kitten.Parse
 import Kitten.Tokenize
 import Kitten.Tree
-import Kitten.Type (mono)
+import Kitten.Type (StackHint(..), mono)
 import Kitten.Util.Either
 import Test.Util
 
@@ -57,14 +57,14 @@ spec = do
         [push $ function [pushi 3]] }
 
     testTerm
-      "{ 1 + }"
+      "{ 1 (+) }"
       $ mempty { fragmentTerms = V.fromList
         [push $ function [pushi 1, word "+"]] }
 
   describe "lambda" $ do
 
     testTerm
-      "->x x x *"
+      "->x; x x (*)"
       $ mempty { fragmentTerms = V.fromList
         [ lambda "x"
           [ word "x"
@@ -72,7 +72,7 @@ spec = do
           , word "*"]] }
 
     testTerm
-      "->x ->y x y *"
+      "->x; ->y; x y (*)"
       $ mempty { fragmentTerms = V.fromList
         [ lambda "x"
           [ lambda "y"
@@ -81,7 +81,7 @@ spec = do
             , word "*"]]] }
 
     testTerm
-      "{ ->x ->y x y * }"
+      "{ ->x; ->y; x y (*) }"
       $ mempty { fragmentTerms = V.fromList
         [ push $ function
           [ lambda "x"
@@ -91,7 +91,7 @@ spec = do
               , word "*"]]]] }
 
     testTerm
-      ": ->x ->y x y *"
+      ": ->x; ->y; x y (*)"
       $ mempty { fragmentTerms = V.fromList
         [ push $ function
           [ lambda "x"
@@ -173,17 +173,17 @@ spec = do
 
     testTerm
       "def inc (Int -> Int) {\n\
-      \  1 +\n\
+      \  1 (+)\n\
       \}\n"
       $ mempty { fragmentDefs = V.fromList
         [def "inc" $ compose [pushi 1, word "+"]] }
 
     testTerm
       "def inc (Int -> Int):\n\
-      \  1 +\n\
+      \  1 (+)\n\
       \\n\
       \def dec (Int -> Int):\n\
-      \  1 -\n\
+      \  1 (-)\n\
       \\n"
       $ mempty { fragmentDefs = V.fromList
         [ def "inc" $ compose [pushi 1, word "+"]
@@ -191,8 +191,8 @@ spec = do
 
   describe "type" $ testTerm
     "def curriedAdd (Int -> Int -> Int) {\n\
-    \  ->x\n\
-    \  { ->y x y + }\n\
+    \  ->x;\n\
+    \  { ->y; x y (+) }\n\
     \}"
     $ mempty { fragmentDefs = V.fromList
       [ defWithAnno "curriedAdd"
@@ -244,11 +244,11 @@ call :: Text -> ParsedTerm
 call name = Call PostfixHint name TestLocation
 
 compose :: [ParsedTerm] -> ParsedTerm
-compose terms = Compose (V.fromList terms) TestLocation
+compose terms = Compose StackAny (V.fromList terms) TestLocation
 
 function :: [ParsedTerm] -> ParsedValue
 function terms = Function
-  (Compose (V.fromList terms) TestLocation) TestLocation
+  (Compose StackAny (V.fromList terms) TestLocation) TestLocation
 
 int :: Int -> ParsedValue
 int value = Int value TestLocation

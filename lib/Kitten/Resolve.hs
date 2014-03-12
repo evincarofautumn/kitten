@@ -77,7 +77,7 @@ resolveTerm :: ParsedTerm -> Resolution ResolvedTerm
 resolveTerm unresolved = case unresolved of
   Builtin name loc -> return $ Builtin name loc
   Call hint name loc -> resolveName hint name loc
-  Compose terms loc -> Compose
+  Compose hint terms loc -> Compose hint
     <$> guardMapM resolveTerm terms
     <*> pure loc
   Lambda name term loc -> withLocal name $ Lambda name
@@ -88,11 +88,6 @@ resolveTerm unresolved = case unresolved of
     <*> resolveTerm bs
     <*> pure loc
   Push value loc -> Push <$> resolveValue value <*> pure loc
-  UnparsedApplicative{} -> error $ concat
-    [ "unparsed applicative "
-    , show unresolved
-    , " appeared during name resolution"
-    ]
   VectorTerm items loc -> VectorTerm
     <$> guardMapM resolveTerm items
     <*> pure loc
@@ -104,7 +99,6 @@ resolveValue unresolved = case unresolved of
   Float value loc -> return $ Float value loc
   Function term loc -> Function <$> resolveTerm term <*> pure loc
   Int value loc -> return $ Int value loc
-  Unit loc -> return $ Unit loc
   String value loc -> return $ String value loc
   Closed{} -> error "FIXME 'Closed' appeared before resolution"
   Closure{} -> error "FIXME 'Closure' appeared before resolution"
