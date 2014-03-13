@@ -37,7 +37,7 @@ type_ = (<?> "type") $ try functionType <|> baseType
 functionType :: Parser Type
 functionType = (<?> "function type") $ choice
   [ Anno.Function <$> left <*> right
-  , Anno.RowFunction <$> row <*> left <*> row <*> right
+  , Anno.StackFunction <$> stack <*> left <*> stack <*> right
   ]
   where
 
@@ -45,8 +45,8 @@ functionType = (<?> "function type") $ choice
   left = manyV baseType <* match Token.Arrow
   right = manyV type_
 
-  row :: Parser Text
-  row = match (Token.Operator ".") *> littleWord
+  stack :: Parser Text
+  stack = match (Token.Operator ".") *> littleWord
 
 baseType :: Parser Type
 baseType = (<?> "base type") $ do

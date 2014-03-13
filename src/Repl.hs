@@ -235,10 +235,10 @@ continue prefix = do
 
 showStack :: ReplInput ()
 showStack = do
-  stack <- lift $ gets replStack
-  unless (null stack) . liftIO $ do
+  data_ <- lift $ gets replStack
+  unless (null data_) . liftIO $ do
     putStrLn "\n----"
-    mapM_ putStrLn . reverse $ map show stack
+    mapM_ putStrLn . reverse $ map show data_
 
 replName :: String
 replName = "REPL"

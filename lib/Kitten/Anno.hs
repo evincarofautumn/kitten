@@ -29,7 +29,7 @@ data Type
   | Int
   | Option !Type
   | Pair !Type !Type
-  | RowFunction !Text !(Vector Type) !Text !(Vector Type)
+  | StackFunction !Text !(Vector Type) !Text !(Vector Type)
   | Var !Text
   | Vector !Type
   deriving (Eq, Show)

@@ -87,15 +87,15 @@ inferFragment fragment stackTypes = mdo
             fmap mono . forAll $ \r s -> Type.Function r s origin
       saveDefWith (flip const) index inferredScheme
 
-      (rowConsts, scalarConsts, declared) <- skolemize declaredScheme
+      (stackConsts, scalarConsts, declared) <- skolemize declaredScheme
       inferred <- instantiateM inferredScheme
       declared === inferred
       let
-        (escapedRows, escapedScalars)
+        (escapedStacks, escapedScalars)
           = free declaredScheme <> free inferredScheme
-        badRows = filter (`elem` escapedRows) rowConsts
+        badStacks = filter (`elem` escapedStacks) stackConsts
         badScalars = filter (`elem` escapedScalars) scalarConsts
-      unless (null badRows && null badScalars) $ let
+      unless (null badStacks && null badScalars) $ let
         item = CompileError (defLocation def)
         in liftFailWriter . throwMany . (:[]) $ ErrorGroup
           [ item Error $ T.unwords
@@ -501,8 +501,8 @@ unifyEach [x] = return x
 unifyEach [] = freshVarM
 
 inferCompose
-  :: Type Row -> Type Row
-  -> Type Row -> Type Row
+  :: Type Stack -> Type Stack
+  -> Type Stack -> Type Stack
   -> Inferred (Type Scalar)
 inferCompose in1 out1 in2 out2 = do
   out1 === in2

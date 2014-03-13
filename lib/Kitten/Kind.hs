@@ -10,7 +10,7 @@ module Kitten.Kind
 
 import Kitten.Util.Text
 
-data Kind = Row | Scalar
+data Kind = Scalar | Stack
 
 -- | A helper data type for reification of a kind type,
 -- better demonstrated than explained:
@@ -22,12 +22,12 @@ data KindProxy (a :: Kind) = KindProxy
 class ReifyKind (a :: Kind) where
   reifyKind :: KindProxy a -> Kind
 
-instance ReifyKind Row where
-  reifyKind _ = Row
+instance ReifyKind Stack where
+  reifyKind _ = Stack
 
 instance ReifyKind Scalar where
   reifyKind _ = Scalar
 
 instance ToText Kind where
-  toText Row = "row"
+  toText Stack = "stack"
   toText Scalar = "scalar"

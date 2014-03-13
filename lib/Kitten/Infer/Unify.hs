@@ -47,7 +47,7 @@ class Unification a where
     -> Env
     -> Either [ErrorGroup] Env
 
-instance Unification Row where
+instance Unification Stack where
   unification type1 type2 env = case (type1, type2) of
     _ | type1 == type2 -> Right env
 

@@ -62,8 +62,8 @@ data Env = Env
   , envLocals :: [Type Scalar]
   , envNameGen :: !NameGen
   , envOrigin :: !Origin
-  , envRows :: !(NameMap (Type Row))
   , envScalars :: !(NameMap (Type Scalar))
+  , envStacks :: !(NameMap (Type Stack))
   , envTypeDefs :: !(Map Text TypeScheme)
   }
 
@@ -74,9 +74,9 @@ newtype Inferred a = Inferred
 class Declare a where
   declare :: TypeName a -> Type a -> Env -> Env
 
-instance Declare Row where
+instance Declare Stack where
   declare (TypeName name) type_ env = env
-    { envRows = N.insert name type_ (envRows env) }
+    { envStacks = N.insert name type_ (envStacks env) }
 
 instance Declare Scalar where
   declare (TypeName name) type_ env = env
@@ -90,18 +90,18 @@ emptyEnv = Env
   , envLocals = []
   , envNameGen = mkNameGen
   , envOrigin = Origin NoHint UnknownLocation
-  , envRows = N.empty
   , envScalars = N.empty
+  , envStacks = N.empty
   , envTypeDefs = M.empty
   }
 
 class Retrieve a where
   retrieve :: Env -> TypeName a -> Either ErrorGroup (Type a)
 
-instance Retrieve Row where
+instance Retrieve Stack where
   retrieve Env{..} (TypeName name)
-    = flip maybeToEither (N.lookup name envRows)
-    $ nonexistent "row" envOrigin name
+    = flip maybeToEither (N.lookup name envStacks)
+    $ nonexistent "stack" envOrigin name
 
 instance Retrieve Scalar where
   retrieve Env{..} (TypeName name)

@@ -26,12 +26,12 @@ import Kitten.Type
 import qualified Kitten.Anno as Anno
 
 data Env = Env
-  { envAnonRows :: [TypeName Row]
-  -- ^ Anonymous rows implicit on both sides of an
+  { envAnonStacks :: [TypeName Stack]
+  -- ^ Anonymous stacks implicit on both sides of an
   -- 'Anno.Function' constructor.
 
-  , envRows :: !(Map Text (TypeName Row))
-  -- ^ Map from row variable names to row variables
+  , envStacks :: !(Map Text (TypeName Stack))
+  -- ^ Map from stack variable names to stack variables
   -- themselves.
 
   , envScalars :: !(Map Text (TypeName Scalar))
@@ -44,13 +44,13 @@ type Converted a = StateT Env Inferred a
 fromAnno :: Annotated -> Anno -> Inferred (Scheme (Type Scalar))
 fromAnno annotated (Anno annoType annoLoc) = do
   (type_, env) <- flip runStateT Env
-    { envAnonRows = []
-    , envRows = M.empty
+    { envAnonStacks = []
+    , envStacks = M.empty
     , envScalars = M.empty
     } $ fromAnnoType' (AnnoType annotated) annoType
 
   return $ Forall
-    (S.fromList (envAnonRows env <> M.elems (envRows env)))
+    (S.fromList (envAnonStacks env <> M.elems (envStacks env)))
     (S.fromList . M.elems $ envScalars env)
     type_
   where
@@ -80,10 +80,10 @@ fromAnno annotated (Anno annoType annoLoc) = do
     Anno.Pair a b -> (:&)
       <$> fromAnnoType' NoHint a
       <*> fromAnnoType' NoHint b
-    Anno.RowFunction leftRow leftScalars rightRow rightScalars -> do
-      leftRowVar <- rowVar leftRow loc annotated
-      rightRowVar <- rowVar rightRow loc annotated
-      makeFunction origin leftRowVar leftScalars rightRowVar rightScalars
+    Anno.StackFunction leftStack leftScalars rightStack rightScalars -> do
+      leftStackVar <- stackVar leftStack loc annotated
+      rightStackVar <- stackVar rightStack loc annotated
+      makeFunction origin leftStackVar leftScalars rightStackVar rightScalars
     Anno.Var name -> scalarVar name loc annotated
     Anno.Vector a -> Vector <$> fromAnnoType' NoHint a <*> pure origin
     where
@@ -94,14 +94,14 @@ fromAnno annotated (Anno annoType annoLoc) = do
 
   makeFunction
     :: Origin
-    -> Type Row
+    -> Type Stack
     -> Vector Anno.Type
-    -> Type Row
+    -> Type Stack
     -> Vector Anno.Type
     -> Converted (Type Scalar)
-  makeFunction origin leftRow leftScalars rightRow rightScalars = Function
-    <$> (V.foldl' (:.) leftRow <$> V.mapM fromInput leftScalars)
-    <*> (V.foldl' (:.) rightRow <$> V.mapM fromOutput rightScalars)
+  makeFunction origin leftStack leftScalars rightStack rightScalars = Function
+    <$> (V.foldl' (:.) leftStack <$> V.mapM fromInput leftScalars)
+    <*> (V.foldl' (:.) rightStack <$> V.mapM fromOutput rightScalars)
     <*> pure origin
 
 fromAnno _ TestAnno = error "cannot make type from test annotation"
@@ -113,12 +113,12 @@ scalarVar = annoVar
   (\name var env -> env
     { envScalars = M.insert name var (envScalars env) })
 
--- | Gets a row variable by name from the environment.
-rowVar :: Text -> Location -> Annotated -> Converted (Type Row)
-rowVar = annoVar
-  (\name -> M.lookup name . envRows)
+-- | Gets a stack variable by name from the environment.
+stackVar :: Text -> Location -> Annotated -> Converted (Type Stack)
+stackVar = annoVar
+  (\name -> M.lookup name . envStacks)
   (\name var env -> env
-    { envRows = M.insert name var (envRows env) })
+    { envStacks = M.insert name var (envStacks env) })
 
 -- | Gets a variable by name from the environment, creating
 -- it if it does not exist.

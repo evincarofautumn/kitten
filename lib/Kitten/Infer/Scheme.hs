@@ -48,14 +48,14 @@ instantiateM scheme = do
   liftState $ state (instantiate origin scheme)
 
 instantiate :: Origin -> TypeScheme -> Env -> (Type Scalar, Env)
-instantiate origin (Forall rows scalars type_) env
+instantiate origin (Forall stacks scalars type_) env
   = (sub renamed type_, env')
 
   where
   renamed :: Env
   env' :: Env
   (renamed, env') = flip runState env $ composeM
-    [renames rows, renames scalars] emptyEnv
+    [renames stacks, renames scalars] emptyEnv
 
   renames
     :: (Declare a)
@@ -86,13 +86,13 @@ generalize action = do
     dependent :: (Occurrences a, Unbound a) => TypeName a -> Bool
     dependent = dependentBetween before after
 
-    rows :: [TypeName Row]
     scalars :: [TypeName Scalar]
-    (rows, scalars) = (filter dependent *** filter dependent)
+    stacks :: [TypeName Stack]
+    (stacks, scalars) = (filter dependent *** filter dependent)
       (freeVars substituted)
 
   return . (,) extra . regeneralize after $ Forall
-    (S.fromList rows)
+    (S.fromList stacks)
     (S.fromList scalars)
     substituted
 
@@ -120,8 +120,8 @@ instance Unbound Scalar where
   unbound env = map TypeName $ filter (`N.notMember` envScalars env)
     [Name 0 .. envMaxName env]
 
-instance Unbound Row where
-  unbound env = map TypeName $ filter (`N.notMember` envRows env)
+instance Unbound Stack where
+  unbound env = map TypeName $ filter (`N.notMember` envStacks env)
     [Name 0 .. envMaxName env]
 
 -- | The last allocated name in an environment. Relies on
@@ -133,11 +133,11 @@ data TypeLevel = TopLevel | NonTopLevel
   deriving (Eq)
 
 regeneralize :: Env -> TypeScheme -> TypeScheme
-regeneralize env (Forall rows scalars wholeType) = let
+regeneralize env (Forall stacks scalars wholeType) = let
   (type_, vars) = runWriter $ regeneralize' TopLevel wholeType
-  in Forall (foldr S.delete rows vars) scalars type_
+  in Forall (foldr S.delete stacks vars) scalars type_
   where
-  regeneralize' :: TypeLevel -> Type a -> Writer [TypeName Row] (Type a)
+  regeneralize' :: TypeLevel -> Type a -> Writer [TypeName Stack] (Type a)
   regeneralize' level type_ = case type_ of
     Function a b loc
       | level == NonTopLevel
@@ -170,15 +170,15 @@ regeneralize env (Forall rows scalars wholeType) = let
 freeVars
   :: (Free (Type a))
   => Type a
-  -> ([TypeName Row], [TypeName Scalar])
+  -> ([TypeName Stack], [TypeName Scalar])
 freeVars type_
-  = let (rows, scalars) = free type_
-  in (nub rows, nub scalars)
+  = let (stacks, scalars) = free type_
+  in (nub stacks, nub scalars)
 
 class Free a where
-  free :: a -> ([TypeName Row], [TypeName Scalar])
+  free :: a -> ([TypeName Stack], [TypeName Scalar])
 
-instance Free (Type Row) where
+instance Free (Type Stack) where
   free type_ = case type_ of
     a :. b -> free a <> free b
     Const name _ -> ([name], [])
@@ -198,25 +198,25 @@ instance Free (Type Scalar) where
     Handle{} -> mempty
     Int{} -> mempty
     Quantified (Forall r s t) _
-      -> let (rows, scalars) = free t
-      in (rows \\ S.toList r, scalars \\ S.toList s)
+      -> let (stacks, scalars) = free t
+      in (stacks \\ S.toList r, scalars \\ S.toList s)
     Var name _ -> ([], [name])
     Vector a _ -> free a
 
 instance Free TypeScheme where
-  free (Forall rows scalars type_) = let
-    (rows', scalars') = free type_
-    in (rows' \\ S.toList rows, scalars' \\ S.toList scalars)
+  free (Forall stacks scalars type_) = let
+    (stacks', scalars') = free type_
+    in (stacks' \\ S.toList stacks, scalars' \\ S.toList scalars)
 
 normalize :: Origin -> Type Scalar -> Type Scalar
 normalize origin type_ = let
-  (rows, scalars) = freeVars type_
-  rowCount = length rows
+  (stacks, scalars) = freeVars type_
+  stackCount = length stacks
   env = emptyEnv
-    { envRows = N.fromList
-      $ zip (map unTypeName rows) (map var [0..])
+    { envStacks = N.fromList
+      $ zip (map unTypeName stacks) (map var [0..])
     , envScalars = N.fromList
-      $ zip (map unTypeName scalars) (map var [rowCount..])
+      $ zip (map unTypeName scalars) (map var [stackCount..])
     }
   in sub env type_
   where
@@ -229,7 +229,7 @@ occurs = (((> 0) .) .) . occurrences
 class Occurrences a where
   occurrences :: Name -> Env -> Type a -> Int
 
-instance Occurrences Row where
+instance Occurrences Stack where
   occurrences name env type_ = case type_ of
     a :. b -> occurrences name env a + occurrences name env b
     Const typeName@(TypeName name') _ -> case retrieve env typeName of
@@ -272,7 +272,7 @@ instance Occurrences Scalar where
 class Simplify a where
   simplify :: Env -> Type a -> Type a
 
-instance Simplify Row where
+instance Simplify Stack where
   simplify env type_ = case type_ of
     Var name (Origin hint _loc)
       | Right type' <- retrieve env name
@@ -289,7 +289,7 @@ instance Simplify Scalar where
 class Substitute a where
   sub :: Env -> Type a -> Type a
 
-instance Substitute Row where
+instance Substitute Stack where
   sub env type_ = case type_ of
     a :. b -> sub env a :. sub env b
     Const{} -> type_  -- See Note [Constant Substitution].
@@ -336,8 +336,8 @@ instance Substitute Scalar where
 -- constants and the skolemized type.
 skolemize
   :: TypeScheme
-  -> Inferred ([TypeName Row], [TypeName Scalar], Type Scalar)
-skolemize (Forall rowVars scalarVars type_) = do
+  -> Inferred ([TypeName Stack], [TypeName Scalar], Type Scalar)
+skolemize (Forall stackVars scalarVars type_) = do
   origin <- getsEnv envOrigin
   let
     declares
@@ -346,20 +346,20 @@ skolemize (Forall rowVars scalarVars type_) = do
     declares vars consts env0
       = foldr (uncurry declare) env0
       $ zip (S.toList vars) (map (\name -> Const name origin) consts)
-  rowConsts <- replicateM (S.size rowVars) freshNameM
+  stackConsts <- replicateM (S.size stackVars) freshNameM
   scalarConsts <- replicateM (S.size scalarVars) freshNameM
   env <- getsEnv
     $ declares scalarVars scalarConsts
-    . declares rowVars rowConsts
-  (rowConsts', scalarConsts', type') <- skolemizeType (sub env type_)
-  return (rowConsts ++ rowConsts', scalarConsts ++ scalarConsts', type')
+    . declares stackVars stackConsts
+  (stackConsts', scalarConsts', type') <- skolemizeType (sub env type_)
+  return (stackConsts ++ stackConsts', scalarConsts ++ scalarConsts', type')
 
 skolemizeType
   :: Type a
-  -> Inferred ([TypeName Row], [TypeName Scalar], Type a)
+  -> Inferred ([TypeName Stack], [TypeName Scalar], Type a)
 skolemizeType = \case
   Function a b origin -> do
-    (rowConsts, scalarConsts, b') <- skolemizeType b
-    return (rowConsts, scalarConsts, Function a b' origin)
+    (stackConsts, scalarConsts, b') <- skolemizeType b
+    return (stackConsts, scalarConsts, Function a b' origin)
   Quantified scheme _ -> skolemize scheme
   type_ -> return ([], [], type_)

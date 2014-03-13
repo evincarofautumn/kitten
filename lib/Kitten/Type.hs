@@ -23,8 +23,8 @@ module Kitten.Type
   , addHint
   , bottommost
   , mono
-  , row
   , scalar
+  , stack
   , unScheme
   ) where
 
@@ -46,15 +46,15 @@ import qualified Kitten.Util.Text as T
 
 data Type (a :: Kind) where
   (:&) :: !(Type Scalar) -> !(Type Scalar) -> Type Scalar
-  (:.) :: !(Type Row) -> !(Type Scalar) -> Type Row
+  (:.) :: !(Type Stack) -> !(Type Scalar) -> Type Stack
   (:?) :: !(Type Scalar) -> Type Scalar
   (:|) :: !(Type Scalar) -> !(Type Scalar) -> Type Scalar
   Bool :: !Origin -> Type Scalar
   Char :: !Origin -> Type Scalar
   Const :: !(TypeName a) -> !Origin -> Type a
-  Empty :: !Origin -> Type Row
+  Empty :: !Origin -> Type Stack
   Float :: !Origin -> Type Scalar
-  Function :: !(Type Row) -> !(Type Row) -> !Origin -> Type Scalar
+  Function :: !(Type Stack) -> !(Type Stack) -> !Origin -> Type Scalar
   Handle :: !Origin -> Type Scalar
   Int :: !Origin -> Type Scalar
   Quantified :: !TypeScheme -> !Origin -> Type Scalar
@@ -81,7 +81,7 @@ instance Eq (Type a) where
 instance Show (Type Scalar) where
   show = T.unpack . toText
 
-instance Show (Type Row) where
+instance Show (Type Stack) where
   show = T.unpack . toText
 
 -- TODO showsPrec
@@ -106,14 +106,14 @@ instance ToText (Type Scalar) where
       -> "t" <> showText index <> suffix o
     Vector t o -> T.concat ["[", toText t, "]", suffix o]
 
-instance ToText (Type Row) where
+instance ToText (Type Stack) where
   toText = \case
     t1 :. t2 -> T.unwords [toText t1, toText t2]
     Const (TypeName (Name index)) o
-      -> ".r" <> showText index <> suffix o
+      -> ".s" <> showText index <> suffix o
     Empty o -> "<empty>" <> suffix o
     Var (TypeName (Name index)) o
-      -> ".r" <> showText index <> suffix o
+      -> ".s" <> showText index <> suffix o
 
 suffix :: Origin -> Text
 suffix (Origin hint _) = case hint of
@@ -191,7 +191,7 @@ data StackHint
   | Stack1
 
 data Scheme a = Forall
-  (Set (TypeName Row))
+  (Set (TypeName Stack))
   (Set (TypeName Scalar))
   a
   deriving (Eq, Foldable, Functor, Traversable)
@@ -200,13 +200,13 @@ instance (ToText a) => Show (Scheme a) where
   show = T.unpack . toText
 
 instance (ToText a) => ToText (Scheme a) where
-  toText (Forall rows scalars type_) = T.unwords
+  toText (Forall stacks scalars type_) = T.unwords
     $ (if null variables then id else (("forall" : variables ++ ["."]) ++))
     [toText type_]
 
     where
     variables :: [Text]
-    variables = wordSetText rows ++ wordSetText scalars
+    variables = wordSetText stacks ++ wordSetText scalars
 
     wordSetText :: Set (TypeName a) -> [Text]
     wordSetText = map toText . S.toList
@@ -220,20 +220,20 @@ infix 4 -->
 
 -- | Creates a 'Function' scalar type, inferring hints from
 -- the given 'Origin'.
-hintedFunction :: Type Row -> Type Row -> Origin -> Type Scalar
+hintedFunction :: Type Stack -> Type Stack -> Origin -> Type Scalar
 hintedFunction inputs outputs origin
   = Function inputs' outputs' origin
   where
-  inputs', outputs' :: Type Row
+  inputs', outputs' :: Type Stack
   (inputs', outputs') = case origin of
     Origin (AnnoType anno) _
       ->
-        ( inputs `addRowHint` AnnoFunctionInput anno
-        , outputs `addRowHint` AnnoFunctionOutput anno
+        ( inputs `addStackHint` AnnoFunctionInput anno
+        , outputs `addStackHint` AnnoFunctionOutput anno
         )
     _ -> (inputs, outputs)
 
-(-->) :: Type Row -> Type Row -> Origin -> Type Scalar
+(-->) :: Type Stack -> Type Stack -> Origin -> Type Scalar
 (a --> b) origin = hintedFunction a b origin
 
 addHint :: Type a -> Hint -> Type a
@@ -257,17 +257,17 @@ addHint type_ hint = case type_ of
   f :: Origin -> Origin
   f (Origin _hint loc) = Origin hint loc
 
--- | Adds a 'Hint' to each 'Type Scalar' along a 'Type Row'.
--- Shallow in scalars, deep in rows.
+-- | Adds a 'Hint' to each 'Type Scalar' along a 'Type Stack'.
+-- Shallow in scalars, deep in stacks.
 --
--- TODO(strager): mapRow
-addRowHint :: Type Row -> Hint -> Type Row
-addRowHint type_ hint = case type_ of
-  r :. t -> addRowHint r hint :. (t `addHint` hint)
+-- TODO(strager): mapStack
+addStackHint :: Type Stack -> Hint -> Type Stack
+addStackHint type_ hint = case type_ of
+  r :. t -> addStackHint r hint :. (t `addHint` hint)
   _ -> type_
 
--- | Gets the bottommost element of a row type.
-bottommost :: Type Row -> Type Row
+-- | Gets the bottommost element of a stack type.
+bottommost :: Type Stack -> Type Stack
 bottommost type_ = case type_ of
   (a :. _) -> bottommost a
   _ -> type_
@@ -275,8 +275,8 @@ bottommost type_ = case type_ of
 mono :: a -> Scheme a
 mono = Forall S.empty S.empty
 
-row :: Name -> TypeName Row
-row = TypeName
+stack :: Name -> TypeName Stack
+stack = TypeName
 
 scalar :: Name -> TypeName Scalar
 scalar = TypeName
