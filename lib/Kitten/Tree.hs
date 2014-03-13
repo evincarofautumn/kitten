@@ -80,10 +80,10 @@ data Value label a
   | Closed !Name !a  -- resolved
   | Closure !(Vector ClosedName) !(Term label a) !a  -- resolved
   | Float !Double !a
-  | Function !(Term label a) !a
   | Int !Int !a
   | Local !Name !a  -- resolved
   | String !Text !a
+  | Quotation !(Term label a) !a
   deriving (Eq)
 
 instance (ToText label) => ToText (Value label a) where
@@ -93,10 +93,10 @@ instance (ToText label) => ToText (Value label a) where
     Closed (Name index) _ -> "closure" <> showText index
     Closure{} -> "<closure>"
     Float value _ -> showText value
-    Function term _ -> T.concat ["{", toText term, "}"]
     Int value _ -> showText value
     Local (Name index) _ -> "local" <> showText index
     String value _ -> toText value
+    Quotation term _ -> T.concat ["{", toText term, "}"]
 
 instance (ToText label) => Show (Value label a) where
   show = T.unpack . toText

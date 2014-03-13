@@ -1,10 +1,10 @@
 module Kitten.Parse.Primitive
   ( bigWord
   , blocked
-  , functionName
   , grouped
   , littleWord
   , operator
+  , word
   ) where
 
 import Control.Applicative
@@ -19,9 +19,6 @@ blocked :: Parser a -> Parser a
 blocked = between
   (match (Token.BlockBegin Token.NormalBlockHint))
   (match Token.BlockEnd)
-
-functionName :: Parser Text
-functionName = littleWord <|> operator
 
 littleWord :: Parser Text
 littleWord = mapOne $ \token -> case token of
@@ -42,3 +39,6 @@ grouped :: Parser a -> Parser a
 grouped = between
   (match Token.GroupBegin)
   (match Token.GroupEnd)
+
+word :: Parser Text
+word = littleWord <|> operator

@@ -53,8 +53,10 @@ scopeValue stack value = case value of
   Closed{} -> value
   Closure{} -> value
   Float{} -> value
-
-  Function funTerm x
+  Int{} -> value
+  Local{} -> value
+  String{} -> value
+  Quotation body x
     -> Closure (ClosedName <$> capturedNames) capturedTerm x
     where
 
@@ -65,14 +67,10 @@ scopeValue stack value = case value of
       $ captureTerm scopedTerm
 
     scopedTerm :: ResolvedTerm
-    scopedTerm = scopeTerm stack' funTerm
+    scopedTerm = scopeTerm stack' body
 
     stack' :: [Int]
     stack' = 0 : stack
-
-  Int{} -> value
-  Local{} -> value
-  String{} -> value
 
 data Env = Env
   { envStack :: [Int]
@@ -153,10 +151,10 @@ captureValue value = case value of
     close original@(ReclosedName _) = return original
 
   Float{} -> return value
-  Function terms x -> let
-    inside env@Env{..} = env { envStack = 0 : envStack }
-    in Function <$> local inside (captureTerm terms) <*> pure x
   Int{} -> return value
+  Quotation terms x -> let
+    inside env@Env{..} = env { envStack = 0 : envStack }
+    in Quotation <$> local inside (captureTerm terms) <*> pure x
 
   Local name x -> do
     closed <- closeLocal name

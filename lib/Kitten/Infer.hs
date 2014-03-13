@@ -486,12 +486,12 @@ inferValue finalEnv value = getsEnv envOrigin >>= \origin -> case value of
     (term', type_) <- withClosure closedTypes (infer finalEnv term)
     ret loc type_ (Closure names term')
   Float val loc -> ret loc (Type.Float origin) (Float val)
-  Function{} -> error "'Function' appeared during type inference"
   Int val loc -> ret loc (Type.Int origin) (Int val)
   Local name@(Name index) loc -> do
     type_ <- getsEnv ((!! index) . envLocals)
     ret loc type_ (Local name)
   String val loc -> ret loc (Type.Vector (Type.Char origin) origin) (String val)
+  Quotation{} -> error "quotation appeared during type inference"
   where
   ret loc type_ constructor = return (constructor (loc, type_), type_)
 

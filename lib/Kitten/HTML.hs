@@ -127,10 +127,10 @@ flattenValue theValue = case theValue of
   Closed{} -> return ()
   Closure _closed term _ -> flattenTerm term
   Float{} -> return ()
-  Function{} -> return ()  -- ?
   Int{} -> return ()
   Local{} -> return ()
   String{} -> return ()
+  Quotation{} -> return ()  -- ?
 
 -- * Scanning and HTML generation.
 

@@ -96,13 +96,13 @@ resolveValue :: ParsedValue -> Resolution ResolvedValue
 resolveValue unresolved = case unresolved of
   Bool value loc -> return $ Bool value loc
   Char value loc -> return $ Char value loc
-  Float value loc -> return $ Float value loc
-  Function term loc -> Function <$> resolveTerm term <*> pure loc
-  Int value loc -> return $ Int value loc
-  String value loc -> return $ String value loc
   Closed{} -> error "FIXME 'Closed' appeared before resolution"
   Closure{} -> error "FIXME 'Closure' appeared before resolution"
+  Float value loc -> return $ Float value loc
+  Int value loc -> return $ Int value loc
   Local{} -> error "FIXME 'Local' appeared before resolution"
+  Quotation term loc -> Quotation <$> resolveTerm term <*> pure loc
+  String value loc -> return $ String value loc
 
 resolveName
   :: FixityHint

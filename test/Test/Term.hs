@@ -49,17 +49,17 @@ spec = do
     testTerm
       "{}"
       $ mempty { fragmentTerms = V.fromList
-        [push $ function []] }
+        [push $ quotation []] }
 
     testTerm
       "{3}"
       $ mempty { fragmentTerms = V.fromList
-        [push $ function [pushi 3]] }
+        [push $ quotation [pushi 3]] }
 
     testTerm
       "{ 1 (+) }"
       $ mempty { fragmentTerms = V.fromList
-        [push $ function [pushi 1, word "+"]] }
+        [push $ quotation [pushi 1, word "+"]] }
 
   describe "lambda" $ do
 
@@ -83,7 +83,7 @@ spec = do
     testTerm
       "{ ->x; ->y; x y (*) }"
       $ mempty { fragmentTerms = V.fromList
-        [ push $ function
+        [ push $ quotation
           [ lambda "x"
             [ lambda "y"
               [ word "x"
@@ -93,7 +93,7 @@ spec = do
     testTerm
       ": ->x; ->y; x y (*)"
       $ mempty { fragmentTerms = V.fromList
-        [ push $ function
+        [ push $ quotation
           [ lambda "x"
             [ lambda "y"
               [ word "x"
@@ -107,7 +107,7 @@ spec = do
       \  nextLine\n\
       \  anotherLine\n"
       $ mempty { fragmentTerms = V.fromList
-        [ push $ function
+        [ push $ quotation
           [ word "sameLine"
           , word "nextLine"
           , word "anotherLine"]] }
@@ -117,25 +117,25 @@ spec = do
       \    nextLine\n\
       \    anotherLine }\n"
       $ mempty { fragmentTerms = V.fromList
-        [ push $ function
-          [ push $ function
+        [ push $ quotation
+          [ push $ quotation
             [ word "sameLine"
             , word "nextLine"
             , word "anotherLine"]]] }
 
     testTerm "{ one : two three }"
       $ mempty { fragmentTerms = V.fromList
-        [ push $ function
+        [ push $ quotation
           [ word "one"
-          , push $ function
+          , push $ quotation
             [ word "two"
             , word "three"]]] }
 
     testTerm ": {one} {two}"
       $ mempty { fragmentTerms = V.fromList
-        [ push $ function
-          [ push $ function [word "one"]
-          , push $ function [word "two"]]] }
+        [ push $ quotation
+          [ push $ quotation [word "one"]
+          , push $ quotation [word "two"]]] }
 
     testTerm
       "\\option (0 some):\n\
@@ -144,8 +144,8 @@ spec = do
       \  noop\n"
       $ mempty { fragmentTerms = V.fromList
         [ compose [compose [pushi 0, call "some"]
-        , push $ function [call "drop"]
-        , push $ function [call "noop"]
+        , push $ quotation [call "drop"]
+        , push $ quotation [call "noop"]
         , word "option_else"]] }
 
     testTermFailure ":"
@@ -162,7 +162,7 @@ spec = do
       ": :\n\
       \  3\n"
       $ mempty { fragmentTerms = V.fromList
-        [push $ function [push $ function [pushi 3]]] }
+        [push $ quotation [push $ quotation [pushi 3]]] }
 
   describe "definition" $ do
 
@@ -204,7 +204,7 @@ spec = do
               (V.fromList [Anno.Int])]))
         $ compose
           [ lambda "x"
-            [ push $ function
+            [ push $ quotation
               [ lambda "y"
                 [word "x", word "y", word "+"]]]]] }
 
@@ -246,8 +246,8 @@ call name = Call PostfixHint name TestLocation
 compose :: [ParsedTerm] -> ParsedTerm
 compose terms = Compose StackAny (V.fromList terms) TestLocation
 
-function :: [ParsedTerm] -> ParsedValue
-function terms = Function
+quotation :: [ParsedTerm] -> ParsedValue
+quotation terms = Quotation
   (Compose StackAny (V.fromList terms) TestLocation) TestLocation
 
 int :: Int -> ParsedValue

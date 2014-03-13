@@ -214,10 +214,10 @@ yarnValue resolved = case resolved of
     index <- yarnClosure instructions
     return $ V.singleton (Act index names)
   Tree.Float x _ -> value $ Float x
-  Tree.Function{} -> error "'Function' appeared during conversion to IR"
   Tree.Int x _ -> value $ Int x
   Tree.Local (Name index) _ -> return $ V.singleton (Local index)
   Tree.String x _ -> value $ String x
+  Tree.Quotation{} -> error "quotation appeared during conversion to IR"
   where
   value :: Value -> Yarn (Vector Instruction)
   value = return . V.singleton . Push

@@ -183,7 +183,7 @@ term = nonblockTerm <|> blockTerm
     body <- blockTerm
     else_ <- optionMaybe $ match Token.Else *> choice
       [ try . locate $ Push
-        <$> locate (Function <$> locate doBody)
+        <$> locate (Quotation <$> locate doBody)
       , blockTerm
       ]
     let
@@ -235,7 +235,7 @@ term = nonblockTerm <|> blockTerm
 blockValue :: Parser ParsedValue
 blockValue = (<?> "function") . locate $ do
   terms <- block
-  return $ \loc -> Function (Compose StackAny terms loc) loc
+  return $ \loc -> Quotation (Compose StackAny terms loc) loc
 
 toLiteral :: Token -> Maybe (Location -> ParsedValue)
 toLiteral (Token.Bool x) = Just $ Bool x
@@ -314,7 +314,7 @@ rewriteInfix parsed@Fragment{..} = do
 
   rewriteInfixValue :: ParsedValue -> Either ErrorGroup ParsedValue
   rewriteInfixValue = \case
-    Function body loc -> Function <$> rewriteInfixTerm body <*> pure loc
+    Quotation body loc -> Quotation <$> rewriteInfixTerm body <*> pure loc
     -- TODO Exhaustivity/safety.
     other -> return other
 

@@ -76,23 +76,23 @@ interpretValue value = case value of
     values <- T.mapM getClosedName names
     pushData $ Activation values term
   Tree.Float x _ -> pushData $ Float x
-  Tree.Function{} -> error "'Function' appeared during interpretation"
   Tree.Int x _ -> pushData $ Int x
   Tree.Local name _ -> pushData =<< getLocal name
   Tree.String x _ -> pushData
     . Vector $ charsFromString (Text.unpack x)
+  Tree.Quotation{} -> error "quotation appeared during interpretation"
 
 getClosedName :: ClosedName -> InterpretM InterpreterValue
 getClosedName (ClosedName name) = getLocal name
 getClosedName (ReclosedName name) = getClosed name
 
-interpretFunction :: InterpreterValue -> Interpret
-interpretFunction function = case function of
+interpretQuotation :: InterpreterValue -> Interpret
+interpretQuotation quotation = case quotation of
   Activation values term
     -> withClosure values $ interpretTerm term
   _ -> do
     loc <- here
-    fail $ show loc ++ ": attempt to apply non-function"
+    fail $ show loc ++ ": attempt to apply non-quotation"
 
 interpretOverload :: Name -> Interpret
 interpretOverload (Name index) = do
@@ -101,7 +101,7 @@ interpretOverload (Name index) = do
     $ interpretTerm (Type.unScheme defTerm)
 
 apply :: Interpret
-apply = interpretFunction =<< popData
+apply = interpretQuotation =<< popData
 
 interpretBuiltin :: Builtin -> Interpret
 interpretBuiltin builtin = case builtin of
@@ -126,14 +126,14 @@ interpretBuiltin builtin = case builtin of
   Builtin.Choice -> do
     left <- popData
     Choice which value <- popData
-    unless which $ pushData value >> interpretFunction left
+    unless which $ pushData value >> interpretQuotation left
 
   Builtin.ChoiceElse -> do
     right <- popData
     left <- popData
     Choice which value <- popData
     pushData value
-    interpretFunction $ if which then right else left
+    interpretQuotation $ if which then right else left
 
   Builtin.Close -> do
     Handle a <- popData
@@ -188,13 +188,13 @@ interpretBuiltin builtin = case builtin of
   Builtin.If -> do
     true <- popData
     Bool test <- popData
-    when test $ interpretFunction true
+    when test $ interpretQuotation true
 
   Builtin.IfElse -> do
     false <- popData
     true <- popData
     Bool test <- popData
-    interpretFunction $ if test then true else false
+    interpretQuotation $ if test then true else false
 
   Builtin.Impure -> return ()
 
@@ -251,7 +251,7 @@ interpretBuiltin builtin = case builtin of
     some <- popData
     Option mValue <- popData
     case mValue of
-      Just value -> pushData value >> interpretFunction some
+      Just value -> pushData value >> interpretQuotation some
       Nothing -> return ()
 
   Builtin.OptionElse -> do
@@ -259,8 +259,8 @@ interpretBuiltin builtin = case builtin of
     some <- popData
     Option mValue <- popData
     case mValue of
-      Just value -> pushData value >> interpretFunction some
-      Nothing -> interpretFunction none
+      Just value -> pushData value >> interpretQuotation some
+      Nothing -> interpretQuotation none
 
   Builtin.Pair -> do
     b <- popData

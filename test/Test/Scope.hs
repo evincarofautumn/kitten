@@ -65,7 +65,7 @@ compose :: [ResolvedTerm] -> ResolvedTerm
 compose terms = Compose StackAny (V.fromList terms) TestLocation
 
 function :: [ResolvedTerm] -> ResolvedTerm
-function terms = push $ Function (compose terms) TestLocation
+function terms = push $ Quotation (compose terms) TestLocation
 
 local :: Int -> ResolvedValue
 local index = Local (Name index) TestLocation
