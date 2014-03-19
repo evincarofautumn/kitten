@@ -1,10 +1,4 @@
 // Applies a function to the stack.
-def @ (.r (.r -> .s) -> .s):
-  apply
-
-postfix 0 @
-
-// Applies a function to the stack.
 def apply (.r (.r -> .s) -> .s):
   __apply
 
@@ -48,13 +42,13 @@ def cond (
 ):
   -> x ps z;
   \option ps head: -> p;
-    x (p first)@ -> m;
+    x p first apply -> m;
     \option m:
-      p rest @
+      p rest apply
     else:
       x (ps tail) z cond
   else:
-    z@
+    z apply
 
 // 'cond' without a default.
 def cond1 (
@@ -65,22 +59,22 @@ def cond1 (
 ):
   -> x ps;
   ps head fromSome -> p;
-  x (p first)@ -> m;
+  x p first apply -> m;
   \option m:
-    p rest @
+    p rest apply
   else:
     x (ps tail) cond1
 
 // Repeats an action until a condition is false.
 def loopWhile ((-> Bool) ->):
   -> f;
-  \if f@: f loopWhile
+  \if f apply: f loopWhile
 
 // Iterates a function on a value until a predicate holds.
 def until (a (a -> a) (a -> Bool) -> a):
   -> x f p;
-  \if x p@:
+  \if x p apply:
     x
   else:
-    x f@
+    x f apply
     f p until

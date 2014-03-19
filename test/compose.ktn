@@ -1,8 +1,8 @@
 // Monadic
-5 {2 (*)} {3 (+)} compose @ sayInt
-5 {dup sayInt} {(++)} compose @ sayInt
-5 {(--)} {dup sayInt} compose @ sayInt
+5 {2 (*)} {3 (+)} compose apply sayInt
+5 ({dup sayInt} >>> {(++)}) apply sayInt
+5 ({(--)} >>> {dup sayInt}) apply sayInt
 
 // Polyadic
-123 456 {(+)} {(++)} compose @ sayInt
-123 456 {(--)} {(+)} compose @ sayInt
+123 456 {(+)} {(++)} compose apply sayInt
+123 456 ({(--)} >>> {(+)}) apply sayInt

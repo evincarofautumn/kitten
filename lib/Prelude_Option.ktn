@@ -1,3 +1,7 @@
+// Binds computations on option values.
+def bindOption (a? (a -> b?) -> b?):
+  {none} option_else
+
 // Safely gets a value from an option value.
 def fromOption (a? a -> a):
   -> m z;
@@ -25,7 +29,7 @@ def isSome (a? -> Bool):
 def liftOption (a? (a -> b) -> b?):
   -> f;
   \option:
-    f@ some
+    f apply some
   else:
     none
 
@@ -34,7 +38,7 @@ def liftOption2 (a? b? (a b -> c) -> c?):
   -> mx my f;
   \option mx: -> x;
     \option my: -> y;
-      x y f@ some
+      x y f apply some
     else: none
   else: none
 

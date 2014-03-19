@@ -1,7 +1,7 @@
 def test (a? (a -> [Char]) ->):
   -> x show;
   \option x:
-    show@ say
+    show apply say
   else:
     "(none)" say
 

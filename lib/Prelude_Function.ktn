@@ -1,7 +1,16 @@
-// Composes two unary functions with one result.
+// Composes two functions.
 def compose (.r (.s -> .t) (.t -> .u) -> .r (.s -> .u)):
   -> f g;
-  { f@ g@ }
+  { f apply g apply }
+
+// Operator alias for 'compose'.
+infix_right 9 >>>
+def >>> (.r (.s -> .t) (.t -> .u) -> .r (.s -> .u)):
+  compose
+
+infix_right 9 ∘
+def ∘ (.r (.s -> .t) (.t -> .u) -> .r (.s -> .u)):
+  compose
 
 // Wraps a value in a function.
 def function (a -> (-> a)):
@@ -16,20 +25,20 @@ def const (a -> (b -> a)):
 // Applies a unary function to two values.
 def toBoth (a a (a -> b) -> b b):
   -> x y f;
-  x f@ -> a;
-  y f@ -> b;
+  x f apply -> a;
+  y f apply -> b;
   a b
 
 // Applies two unary functions to one value.
 def bothTo (a (a -> b) (a -> c) -> b c):
   -> x f g;
-  x f@ -> a;
-  x g@ -> b;
+  x f apply -> a;
+  x g apply -> b;
   a b
 
 // Applies two unary functions to two values.
 def both (a b (a -> c) (b -> d) -> c d):
   -> x y f g;
-  x f@ -> a;
-  y g@ -> b;
+  x f apply -> a;
+  y g apply -> b;
   a b

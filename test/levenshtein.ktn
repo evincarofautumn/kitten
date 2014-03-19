@@ -11,29 +11,29 @@ def levenshtein ([Char] [Char] -> Int):
 
   // Distance from any first string to empty second string.
   \mapRange 0 rows: -> row;
-    row  row 0 (##=)
+    (row, 0) @@= row
 
   // Distance from any second string to empty first string.
   \mapRange 0 columns: -> column;
-    column  0 column (##=)
+    (0, column) @@= column
 
   \mapRange 1 rows: -> row;
     \mapRange 1 columns: -> distances column;
 
-      first #! row-- -> firstChar;
-      second #! column-- -> secondChar;
+      first @! row-- -> firstChar;
+      second @! column-- -> secondChar;
 
       distances
       \if firstChar secondChar eqChar:
-        distances row-- column-- (##!)
+        distances @@! (row--, column--)
       else:
-        distances row-- column   (##!)  // deletion
-        distances row   column-- (##!)  // insertion
-        distances row-- column-- (##!)  // substitution
+        distances @@! (row--, column);    // deletion
+        distances @@! (row,   column--);  // insertion
+        distances @@! (row--, column--);  // substitution
         minInt3 ++
-      row column (##=)
+      ((row, column) @@= _)
 
-  rows columns (##!)
+  (_ @@! (rows, columns))
  
 "kitten" "sitting" levenshtein sayInt
 "rosettacode" "raisethysword" levenshtein sayInt

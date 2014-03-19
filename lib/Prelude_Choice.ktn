@@ -42,7 +42,7 @@ def left (a -> a | b):
 def liftLeft ((a | b) (a -> c) -> c | b):
   -> f;
   \choice:
-    f@ left
+    f apply left
   else:
     right
 
@@ -52,7 +52,7 @@ def liftRight ((a | b) (b -> c) -> a | c):
   \choice:
     left
   else:
-    f@ right
+    f apply right
 
 // Constructs a right choice.
 def right (b -> a | b):

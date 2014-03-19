@@ -2,10 +2,10 @@
 // based on a given next and compare functions
 def rangeFor (Int Int (Int -> Int) (Int Int -> Bool) -> [Int]):
   -> start end next cmp;
-  \if start end cmp@:
+  \if start end cmp apply:
     []
   else:
-    start next@
+    start next apply
       end next cmp rangeFor
     start prepend
 

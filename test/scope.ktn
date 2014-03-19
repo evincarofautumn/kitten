@@ -7,8 +7,8 @@
   {
     -> b1;
     b1 + y1
-  }@
-}@
+  } apply
+} apply
 sayInt
 
 1000 -> x2;
@@ -20,6 +20,6 @@ sayInt
   {
     -> b2;
     b2 + x2
-  }@
-}@
+  } apply
+} apply
 sayInt

@@ -131,9 +131,9 @@ term = nonblockTerm <|> blockTerm
       function <- operator
       choice
         [ do
-          operand <- term
+          operand <- many1V term
           return $ \loc -> Compose StackAny (V.fromList
-            [ Compose Stack1 (V.singleton operand) loc
+            [ Compose Stack1 operand loc
             , Call PostfixHint function loc
             ]) loc
         , do
@@ -144,11 +144,11 @@ term = nonblockTerm <|> blockTerm
       function <- operator
       return $ Call PostfixHint function
     , do
-      operand <- term
+      operand <- many1V (notFollowedBy operator *> term)
       function <- operator
       void $ match Token.Ignore
-      return $ \loc -> Compose Stack1 (V.fromList
-        [ Compose Stack1 (V.singleton operand) loc
+      return $ \loc -> Compose StackAny (V.fromList
+        [ Compose Stack1 operand loc
         , swap loc
         , Call PostfixHint function loc
         ]) loc
@@ -252,14 +252,7 @@ blockContents :: Parser (Vector ParsedTerm)
 blockContents = locate $ do
   void $ optional semi
   groups <- many1V term `sepEndBy` semi
-  let _ = groups :: [Vector ParsedTerm]
-  return $ \loc -> case groups of
-    [] -> V.empty
-    _ -> let
-      (initExprs, lastExpr) = (init groups, last groups)
-      in V.fromList
-        $ map (\t -> Compose Stack0 t loc) initExprs
-        ++ [Compose StackAny lastExpr loc]
+  return $ \loc -> V.fromList $ map (\t -> Compose StackAny t loc) groups
   where semi = match Token.Semicolon
 
 ----------------------------------------
@@ -318,13 +311,21 @@ rewriteInfix parsed@Fragment{..} = do
     -- TODO Exhaustivity/safety.
     other -> return other
 
+  stack1 :: Location -> ParsedTerm -> ParsedTerm
+  stack1 loc x = Compose Stack1 (V.singleton x) loc
+
   binary :: Text -> Location -> ParsedTerm -> ParsedTerm -> ParsedTerm
-  binary name loc x y = Compose Stack1
-    (V.fromList [x, y, Call InfixHint name loc]) loc
+  binary name loc x y = Compose StackAny (V.fromList
+    [ stack1 loc x
+    , stack1 loc y
+    , Call InfixHint name loc
+    ]) loc
 
   unary :: Text -> Location -> ParsedTerm -> ParsedTerm
-  unary name loc x = Compose Stack1
-    (V.fromList [x, Call InfixHint name loc]) loc
+  unary name loc x = Compose StackAny (V.fromList
+    [ stack1 loc x
+    , Call InfixHint name loc
+    ]) loc
 
   binaryOp :: Text -> TermParser (ParsedTerm -> ParsedTerm -> ParsedTerm)
   binaryOp name = mapTerm $ \t -> case t of

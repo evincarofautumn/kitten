@@ -281,12 +281,12 @@ interpretBuiltin builtin = case builtin of
     pushData $ Choice True a
 
   Builtin.Set -> do
-    Int c <- popData
-    b <- popData
+    c <- popData
+    Int b <- popData
     Vector a <- popData
     pushData . Vector
-      $ let (before, after) = V.splitAt c a
-      in before <> V.singleton b <> V.drop 1 after
+      $ let (before, after) = V.splitAt b a
+      in before <> V.singleton c <> V.drop 1 after
 
   Builtin.ShowFloat -> do
     Float value <- popData

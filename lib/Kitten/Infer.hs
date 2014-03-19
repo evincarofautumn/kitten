@@ -320,7 +320,7 @@ infer finalEnv resolved = case resolved of
       -> (r :. b --> r :. a :| b) o
 
     Builtin.Set -> forAll $ \r a
-      -> (r :. Type.Vector a o :. a :. Type.Int o
+      -> (r :. Type.Vector a o :. Type.Int o :. a
       --> r :. Type.Vector a o) o
 
     Builtin.ShowFloat -> forAll $ \r
@@ -381,7 +381,17 @@ infer finalEnv resolved = case resolved of
         inferCompose a b c d)
       ((r --> r) origin)
       (V.toList types)
-    -- TODO Enforce 'StackHint'.
+    {-
+    case hint of
+      Stack0 -> do
+        s <- freshVarM
+        type_ === (s --> s) origin
+      Stack1 -> do
+        s <- freshVarM
+        a <- freshVarM
+        type_ === (s --> s :. a) origin
+      StackAny -> return ()
+    -}
     return (Compose hint typedTerms (loc, sub finalEnv type_), type_)
 
   Lambda name term loc -> withOrigin (Origin (Type.Local name) loc) $ do
