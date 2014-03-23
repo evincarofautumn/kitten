@@ -48,14 +48,14 @@ instantiateM scheme = do
   liftState $ state (instantiate origin scheme)
 
 instantiate :: Origin -> TypeScheme -> Env -> (Type Scalar, Env)
-instantiate origin (Forall stacks scalars type_) env
+instantiate origin@(Origin _ loc) (Forall stacks scalars type_) env
   = (sub renamed type_, env')
 
   where
   renamed :: Env
   env' :: Env
   (renamed, env') = flip runState env $ composeM
-    [renames stacks, renames scalars] emptyEnv
+    [renames stacks, renames scalars] (emptyEnv loc)
 
   renames
     :: (Declare a)
@@ -209,10 +209,10 @@ instance Free TypeScheme where
     in (stacks' \\ S.toList stacks, scalars' \\ S.toList scalars)
 
 normalize :: Origin -> Type Scalar -> Type Scalar
-normalize origin type_ = let
+normalize origin@(Origin _ loc) type_ = let
   (stacks, scalars) = freeVars type_
   stackCount = length stacks
-  env = emptyEnv
+  env = (emptyEnv loc)
     { envStacks = N.fromList
       $ zip (map unTypeName stacks) (map var [0..])
     , envScalars = N.fromList

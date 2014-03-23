@@ -11,7 +11,6 @@ module Kitten.Interpret.Monad
   , charsFromString
   , getClosed
   , getLocal
-  , here
   , popData
   , popLocal
   , pushData
@@ -19,7 +18,6 @@ module Kitten.Interpret.Monad
   , stringFromChars
   , typeOfValue
   , withClosure
-  , withLocation
   ) where
 
 import Control.Monad (liftM, liftM2)
@@ -49,7 +47,6 @@ data Env = Env
   , envLocals :: [InterpreterValue]
   , envDefs :: !(Vector (Def TypedTerm))
   , envClosure :: !(Vector InterpreterValue)
-  , envLocations :: [Location]
   }
 
 type Interpret = InterpretM ()
@@ -103,21 +100,13 @@ getLocal (Name index) = do
   locals <- gets envLocals
   return $ locals !! index
 
-here :: InterpretM Location
-here = do
-  locs <- gets envLocations
-  return $ case locs of
-    [] -> UnknownLocation
-    (loc : _) -> loc
-
 popData :: InterpretM InterpreterValue
 popData = do
   dataStack <- gets envData
   case dataStack of
     [] -> do
-      loc <- here
       lift $ do
-        hPutStrLn stderr $ show loc ++ ": stack underflow"
+        hPutStrLn stderr "stack underflow"
         exitFailure
     (top : down) -> do
       modify $ \env -> env { envData = down }
@@ -128,9 +117,8 @@ popLocal = do
   localStack <- gets envLocals
   case localStack of
     [] -> do
-      loc <- here
       lift $ do
-        hPutStrLn stderr $ show loc ++ ": local stack underflow"
+        hPutStrLn stderr "local stack underflow"
         exitFailure
     (_ : down) -> modify $ \env -> env { envLocals = down }
 
@@ -149,27 +137,31 @@ stringFromChars = V.toList . V.map fromChar
   fromChar (Char c) = c
   fromChar _ = error "stringFromChars: non-character"
 
-typeOfValue :: InterpreterValue -> NameGen -> (Type Type.Scalar, NameGen)
-typeOfValue = runState . typeOfValueM
+typeOfValue
+  :: Location -> InterpreterValue -> NameGen -> (Type Type.Scalar, NameGen)
+typeOfValue loc = runState . typeOfValueM loc
 
-typeOfValueM :: InterpreterValue -> State NameGen (Type Type.Scalar)
-typeOfValueM value = case value of
+typeOfValueM
+  :: Location -> InterpreterValue -> State NameGen (Type Type.Scalar)
+typeOfValueM loc value = case value of
   Activation _closed typed -> return $ Tree.typedType typed
   Bool _ -> return $ Type.Bool origin
   Char _ -> return $ Type.Char origin
-  Choice False x -> liftM2 (:|) (typeOfValueM x) freshVarM
-  Choice True y -> liftM2 (:|) freshVarM (typeOfValueM y)
+  Choice False x -> liftM2 (:|) (recur x) freshVarM
+  Choice True y -> liftM2 (:|) freshVarM (recur y)
   Float _ -> return $ Type.Float origin
   Handle _ -> return $ Type.Handle origin
   Int _ -> return $ Type.Int origin
-  Option (Just x) -> liftM (:?) (typeOfValueM x)
+  Option (Just x) -> liftM (:?) (recur x)
   Option Nothing -> liftM (:?) freshVarM
-  Pair x y -> liftM2 (:&) (typeOfValueM x) (typeOfValueM y)
+  Pair x y -> liftM2 (:&) (recur x) (recur y)
   Vector xs -> case V.safeHead xs of
     Nothing -> liftM2 Type.Vector freshVarM (return origin)
-    Just x -> liftM2 Type.Vector (typeOfValueM x) (return origin)
+    Just x -> liftM2 Type.Vector (recur x) (return origin)
 
   where
+  recur = typeOfValueM loc
+
   freshVarM :: State NameGen (Type a)
   freshVarM = do
     name <- state genName
@@ -177,7 +169,7 @@ typeOfValueM value = case value of
 
   -- TODO(strager): Type hint for stack elements.
   origin :: Type.Origin
-  origin = Type.Origin Type.NoHint UnknownLocation
+  origin = Type.Origin Type.NoHint loc
 
 withClosure :: Vector InterpreterValue -> InterpretM a -> InterpretM a
 withClosure values action = do
@@ -185,13 +177,4 @@ withClosure values action = do
   modify $ \env -> env { envClosure = values }
   result <- action
   modify $ \env -> env { envClosure = closure }
-  return result
-
-withLocation :: Location -> InterpretM a -> InterpretM a
-withLocation loc action = do
-  modify $ \env@Env{..} -> env
-    { envLocations = loc : envLocations }
-  result <- action
-  modify $ \env@Env{..} -> env
-    { envLocations = tail envLocations }
   return result

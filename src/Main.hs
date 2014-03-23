@@ -53,7 +53,9 @@ main = do
       , Compile.firstLine = 1
       , Compile.implicitPrelude = argsEnableImplicitPrelude arguments
       , Compile.inferConfig = Infer.Config
-        { Infer.enforceBottom = True }
+        { Infer.enforceBottom = True
+        , Infer.fragmentName = filename
+        }
       , Compile.libraryDirectories = argsLibraryDirectories arguments
       , Compile.name = filename
       , Compile.predefined = V.empty

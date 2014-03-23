@@ -74,6 +74,7 @@ instance Eq (Type a) where
   Function a b _ == Function c d _ = (a, b) == (c, d)
   Handle{} == Handle{} = True
   Int{} == Int{} = True
+  Quantified a _ == Quantified b _ = a == b
   Var a _ == Var b _ = a == b
   Vector a _ == Vector b _ = a == b
   _ == _ = False
@@ -190,6 +191,7 @@ data StackHint
   | Stack0
   | Stack1
 
+-- FIXME Derived 'Eq' instance may be too restrictive.
 data Scheme a = Forall
   (Set (TypeName Stack))
   (Set (TypeName Scalar))

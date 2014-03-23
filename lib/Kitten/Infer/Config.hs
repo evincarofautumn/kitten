@@ -4,4 +4,5 @@ module Kitten.Infer.Config
 
 data Config = Config
   { enforceBottom :: !Bool
+  , fragmentName :: String
   }

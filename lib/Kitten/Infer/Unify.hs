@@ -155,6 +155,6 @@ unifyVar var1 type_ env = case type_ of
   _ | occurs (unTypeName var1) env type_
     -> let loc = envLocation env in Left $ unificationError
       (Just "infinite") loc
-      (sub env (Var var1 (Origin NoHint UnknownLocation) :: Type a))
+      (sub env (Var var1 (Origin NoHint loc) :: Type a))
       (sub env type_)
   _ -> return $ declare var1 type_ env

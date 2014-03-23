@@ -14,6 +14,7 @@ module Kitten.Tree
   , TypedValue
   , defTypeScheme
   , termMetadata
+  , typedLocation
   , typedType
   ) where
 
@@ -124,6 +125,9 @@ termMetadata = \case
   PairTerm _ _ x -> x
   Push _ x -> x
   VectorTerm _ x -> x
+
+typedLocation :: TypedTerm -> Location
+typedLocation = fst . termMetadata
 
 typedType :: TypedTerm -> Type Scalar
 typedType = snd . termMetadata

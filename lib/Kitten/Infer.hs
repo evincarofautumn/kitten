@@ -16,8 +16,10 @@ import Control.Applicative hiding (some)
 import Control.Monad
 import Data.Monoid
 import Data.Vector (Vector)
+import Text.Parsec.Pos
 
 import qualified Data.Foldable as F
+import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
@@ -58,7 +60,12 @@ typeFragment config stackTypes fragment nameGen
   run = runInference config env
     $ inferFragment fragment stackTypes
   env :: Env
-  env = emptyEnv { envNameGen = nameGen }
+  env = (emptyEnv loc) { envNameGen = nameGen }
+  loc :: Location
+  loc = Location
+    { locationStart = initialPos (fragmentName config)
+    , locationIndent = 0
+    }
 
 inferFragment
   :: Fragment ResolvedTerm
@@ -86,38 +93,29 @@ inferFragment fragment stackTypes = mdo
             origin <- getsEnv envOrigin
             fmap mono . forAll $ \r s -> Type.Function r s origin
       saveDefWith (flip const) index inferredScheme
-
-      (stackConsts, scalarConsts, declared) <- skolemize declaredScheme
-      inferred <- instantiateM inferredScheme
-      declared === inferred
-      let
-        (escapedStacks, escapedScalars)
-          = free declaredScheme <> free inferredScheme
-        badStacks = filter (`elem` escapedStacks) stackConsts
-        badScalars = filter (`elem` escapedScalars) scalarConsts
-      unless (null badStacks && null badScalars) $ let
+      instanceCheck inferredScheme declaredScheme $ let
         item = CompileError (defLocation def)
-        in liftFailWriter . throwMany . (:[]) $ ErrorGroup
-          [ item Error $ T.unwords
-            [ "inferred type of"
-            , defName def
-            , "is not an instance of its declared type"
-            ]
-          , item Note $ T.unwords ["inferred", toText inferredScheme]
-          , item Note $ T.unwords ["declared", toText declaredScheme]
+        in ErrorGroup
+        [ item Error $ T.unwords
+          [ "inferred type of"
+          , defName def
+          , "is not an instance of its declared type"
           ]
-
+        , item Note $ T.unwords ["inferred", toText inferredScheme]
+        , item Note $ T.unwords ["declared", toText declaredScheme]
+        ]
       return def { defTerm = typedTerm <$ inferredScheme }
 
+  topLevel <- getsEnv envLocation
   (typedTerms, fragmentType) <- infer finalEnv
-    $ Compose Stack0 (fragmentTerms fragment) UnknownLocation
+    $ Compose StackAny (fragmentTerms fragment) topLevel
 
   -- Equate the bottom of the stack with stackTypes.
   do
     let Type.Function consumption _ _ = fragmentType
     bottom <- freshVarM
     enforce <- asksConfig enforceBottom
-    when enforce $ bottom === Type.Empty (Origin NoHint UnknownLocation)
+    when enforce $ bottom === Type.Empty (Origin NoHint topLevel)
     let stackType = F.foldl (:.) bottom stackTypes
     stackType === consumption
 
@@ -128,6 +126,34 @@ inferFragment fragment stackTypes = mdo
       }
 
   finalEnv <- getEnv
+
+  -- Check stack hints.
+  o <- getsEnv envOrigin
+  forM_ (envStackHints finalEnv) $ \ (type_, hint, loc) -> case hint of
+    Stack0 -> do
+      r <- freshNameM
+      instanceCheck type_
+        (Forall (S.singleton r) S.empty $ (Type.Var r o --> Type.Var r o) o)
+        $ ErrorGroup
+        [ CompileError loc Error $ T.unwords
+          [ toText type_
+          , "has a non-null stack effect"
+          ]
+        ]
+    Stack1 -> do
+      r <- freshNameM
+      a <- freshNameM
+      instanceCheck type_
+        (Forall (S.singleton r) S.empty  -- 'a' is not bound.
+          $ (Type.Var r o --> Type.Var r o :. Type.Var a o) o)
+        $ ErrorGroup
+        [ CompileError loc Error $ T.unwords
+          [ toText type_
+          , "has a non-unary stack effect"
+          ]
+        ]
+    StackAny -> return ()
+
   return (typedFragment, sub finalEnv fragmentType)
 
   where
@@ -161,6 +187,18 @@ inferFragment fragment stackTypes = mdo
     scheme <- fromAnno (AnnotatedDef (defName def)) (defAnno def)
     saveDecl index scheme
     saveDefWith const index scheme
+
+instanceCheck :: TypeScheme -> TypeScheme -> ErrorGroup -> Inferred ()
+instanceCheck inferredScheme declaredScheme errorGroup = do
+  inferredType <- instantiateM inferredScheme
+  (stackConsts, scalarConsts, declaredType) <- skolemize declaredScheme
+  inferredType === declaredType
+  let
+    (escapedStacks, escapedScalars) = free inferredScheme <> free declaredScheme
+    badStacks = filter (`elem` escapedStacks) stackConsts
+    badScalars = filter (`elem` escapedScalars) scalarConsts
+  unless (null badStacks && null badScalars)
+    $ liftFailWriter $ throwMany [errorGroup]
 
 -- Note [scheming defs]:
 --
@@ -374,24 +412,21 @@ infer finalEnv resolved = case resolved of
     (typedTerms, types) <- V.mapAndUnzipM recur terms
     r <- freshVarM
     origin <- getsEnv envOrigin
-    type_ <- foldM
-      (\x y -> do
-        Type.Function a b _ <- unquantify x
-        Type.Function c d _ <- unquantify y
-        inferCompose a b c d)
-      ((r --> r) origin)
-      (V.toList types)
-    {-
-    case hint of
-      Stack0 -> do
-        s <- freshVarM
-        type_ === (s --> s) origin
-      Stack1 -> do
-        s <- freshVarM
-        a <- freshVarM
-        type_ === (s --> s :. a) origin
-      StackAny -> return ()
-    -}
+    let
+      composed = foldM
+        (\x y -> do
+          Type.Function a b _ <- unquantify x
+          Type.Function c d _ <- unquantify y
+          inferCompose a b c d)
+        ((r --> r) origin)
+        (V.toList types)
+    (_, typeScheme) <- generalize $ (,) () <$> composed
+    type_ <- composed
+    modifyEnv $ \env -> env
+      { envStackHints
+        -- 'StackAny' hints are redundant.
+        = (case hint of StackAny -> id; _ -> ((typeScheme, hint, loc) :))
+        (envStackHints env) }
     return (Compose hint typedTerms (loc, sub finalEnv type_), type_)
 
   Lambda name term loc -> withOrigin (Origin (Type.Local name) loc) $ do

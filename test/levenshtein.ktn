@@ -7,7 +7,7 @@ def levenshtein ([Char] [Char] -> Int):
   // Levenshtein distance between the first i characters of
   // the first string and the first j characters of the
   // second string.
-  0 columns++ replicate rows++ replicate
+  0 (columns++) replicate (rows++) replicate
 
   // Distance from any first string to empty second string.
   \mapRange 0 rows: -> row;
@@ -30,7 +30,7 @@ def levenshtein ([Char] [Char] -> Int):
         distances @@! (row--, column);    // deletion
         distances @@! (row,   column--);  // insertion
         distances @@! (row--, column--);  // substitution
-        minInt3 ++
+        minInt3 (++)
       ((row, column) @@= _)
 
   (_ @@! (rows, columns))

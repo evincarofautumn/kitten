@@ -64,6 +64,7 @@ data Env = Env
   , envOrigin :: !Origin
   , envScalars :: !(NameMap (Type Scalar))
   , envStacks :: !(NameMap (Type Stack))
+  , envStackHints :: [(TypeScheme, StackHint, Location)]
   , envTypeDefs :: !(Map Text TypeScheme)
   }
 
@@ -82,16 +83,17 @@ instance Declare Scalar where
   declare (TypeName name) type_ env = env
     { envScalars = N.insert name type_ (envScalars env) }
 
-emptyEnv :: Env
-emptyEnv = Env
+emptyEnv :: Location -> Env
+emptyEnv loc = Env
   { envClosure = V.empty
   , envDefs = N.empty
   , envDecls = N.empty
   , envLocals = []
   , envNameGen = mkNameGen
-  , envOrigin = Origin NoHint UnknownLocation
+  , envOrigin = Origin NoHint loc
   , envScalars = N.empty
   , envStacks = N.empty
+  , envStackHints = []
   , envTypeDefs = M.empty
   }
 
@@ -134,7 +136,7 @@ fresh constructor origin env
   = let (typeName, env') = freshName env
   in (constructor typeName origin, env')
 
-freshConst :: Origin -> Env -> (Type Scalar, Env)
+freshConst :: Origin -> Env -> (Type a, Env)
 freshConst = fresh Const
 
 freshVar :: Origin -> Env -> (Type a, Env)
@@ -150,7 +152,7 @@ freshM action = do
   Origin hint loc <- getsEnv envOrigin
   liftState $ state (action (Origin hint loc))
 
-freshConstM :: Inferred (Type Scalar)
+freshConstM :: Inferred (Type a)
 freshConstM = freshM freshConst
 
 freshVarM :: forall (a :: Kind). Inferred (Type a)

@@ -42,27 +42,25 @@ interpret stack fragment = liftM envData $ execStateT
   , envLocals = []
   , envDefs = fragmentDefs fragment
   , envClosure = V.empty
-  , envLocations = []
   }              
 
 interpretTerm :: TypedTerm -> Interpret
 interpretTerm typed = case typed of
-  Tree.Builtin builtin (loc, _) -> withLocation loc $ interpretBuiltin builtin
-  Tree.Call _ name (loc, _) -> withLocation loc $ interpretOverload name
-  Tree.Compose _ terms (loc, _) -> withLocation loc
-    $ F.mapM_ interpretTerm terms
-  Tree.Lambda _ term (loc, _) -> withLocation loc $ do
+  Tree.Builtin builtin _ -> interpretBuiltin builtin
+  Tree.Call _ name _ -> interpretOverload name
+  Tree.Compose _ terms _ -> F.mapM_ interpretTerm terms
+  Tree.Lambda _ term _ -> do
     pushLocal =<< popData
     interpretTerm term
     popLocal
-  Tree.PairTerm a b (loc, _) -> withLocation loc $ do
+  Tree.PairTerm a b _ -> do
     interpretTerm a
     a' <- popData
     interpretTerm b
     b' <- popData
     pushData $ Pair a' b'
-  Tree.Push value (loc, _) -> withLocation loc $ interpretValue value
-  Tree.VectorTerm terms (loc, _) -> withLocation loc $ do
+  Tree.Push value _ -> interpretValue value
+  Tree.VectorTerm terms _ -> do
     F.mapM_ interpretTerm terms
     values <- V.fromList <$> replicateM (V.length terms) popData
     pushData $ Vector (V.reverse values)
@@ -90,15 +88,12 @@ interpretQuotation :: InterpreterValue -> Interpret
 interpretQuotation quotation = case quotation of
   Activation values term
     -> withClosure values $ interpretTerm term
-  _ -> do
-    loc <- here
-    fail $ show loc ++ ": attempt to apply non-quotation"
+  _ -> fail "attempt to apply non-quotation"
 
 interpretOverload :: Name -> Interpret
 interpretOverload (Name index) = do
   Def{..} <- gets ((! index) . envDefs)
-  withLocation defLocation . withClosure V.empty
-    $ interpretTerm (Type.unScheme defTerm)
+  withClosure V.empty $ interpretTerm (Type.unScheme defTerm)
 
 apply :: Interpret
 apply = interpretQuotation =<< popData

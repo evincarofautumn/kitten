@@ -6,5 +6,5 @@ def readInt ([Char] -> Int?):
     \if (c {'0' geChar} {'9' leChar} bothTo (&&)):
       drop;
       c '0' {charToInt} toBoth (-);
-      \option s init readInt: ((10 * _) + _)
+      \option s init readInt: 10 (*) (+)
       some

@@ -17,6 +17,7 @@ import Data.Set (Set)
 import Data.Text (Text)
 import Data.Vector (Vector)
 import System.Console.Haskeline
+import Text.Parsec.Pos
 
 import qualified Data.Set as S
 import qualified Data.Text as T
@@ -30,6 +31,7 @@ import Kitten.Error
 import Kitten.Fragment
 import Kitten.Interpret
 import Kitten.Interpret.Monad (InterpreterValue)
+import Kitten.Location
 import Kitten.Name (NameGen)
 import Kitten.Tree
 import Kitten.Type
@@ -169,7 +171,10 @@ compileConfig = do
     , Compile.dumpScoped = False
     , Compile.firstLine = replLine
     , Compile.implicitPrelude = True
-    , Compile.inferConfig = Infer.Config { enforceBottom = True }
+    , Compile.inferConfig = Infer.Config
+      { enforceBottom = True
+      , fragmentName = replName
+      }
     , Compile.libraryDirectories = []  -- TODO
     , Compile.name = replName
     , Compile.predefined = replDefs
@@ -195,7 +200,10 @@ typeOf :: ReplAction
 typeOf line = do
   mCompiled <- replCompile $ \config -> config
     { Compile.source = line
-    , Compile.inferConfig = Infer.Config { enforceBottom = False }
+    , Compile.inferConfig = Infer.Config
+      { enforceBottom = False
+      , fragmentName = Compile.name config
+      }
     }
   whenJust mCompiled $ \(_compiled, type_) -> liftIO $ print type_
   repl'
@@ -205,9 +213,14 @@ eval line = do
   mCompiled <- do
     nameGen <- lift $ gets replNameGen
     stackValues <- lift $ gets replStack
+    lineNumber <- lift $ gets replLine
     let
+      loc = Location
+        { locationStart = newPos "REPL" lineNumber 0
+        , locationIndent = -1
+        }
       (stackTypes, nameGen') = flip runState nameGen
-        $ mapM (state . Interpret.typeOfValue) stackValues
+        $ mapM (state . Interpret.typeOfValue loc) stackValues
     lift . modify $ \env -> env { replNameGen = nameGen' }
     replCompile $ \config -> config
       { Compile.source = line

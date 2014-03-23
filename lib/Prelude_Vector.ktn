@@ -224,7 +224,7 @@ def mapFrom ([a] (a -> a) Int -> [a]):
     vec
   else:
     vec(offset @~ function)
-    function offset++ mapFrom
+    function (offset++) mapFrom
 
 // Maps a function over a value for each integer in a range.
 def mapRange (a Int Int (a Int -> a) -> a):
@@ -259,7 +259,7 @@ def replicate (a Int -> [a]):
   \if count <= 0:
     []
   else:
-    value count-- replicate
+    value (count--) replicate
     value prepend
 
 // Reverses a vector.
@@ -331,7 +331,7 @@ def toss ([a] Int -> [a]):
   \if n <= 0 || xs isEmpty:
     xs
   else:
-    xs tail n-- toss
+    xs tail (n--) toss
 
 // Tosses elements of a vector while a predicate holds.
 def tossWhile ([a] (a -> Bool) -> [a]):

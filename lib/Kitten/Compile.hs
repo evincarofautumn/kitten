@@ -19,6 +19,7 @@ import System.FilePath
 import System.IO
 import System.IO.Error
 import Text.Parsec.Error
+import Text.Parsec.Pos
 
 import qualified Data.Set as S
 import qualified Data.Text as T
@@ -66,8 +67,10 @@ compile Compile.Config{..} nameGen
     (\fragment -> if implicitPrelude then fragment
       { fragmentImports = Import
         { importName = "Prelude"
-        -- FIXME Use a more semantically accurate location.
-        , importLocation = UnknownLocation
+        , importLocation = Location
+          { locationStart = initialPos "Prelude"
+          , locationIndent = 0
+          }
         } : fragmentImports fragment
       } else fragment)
     $ hoistEither (parseSource firstLine name source)

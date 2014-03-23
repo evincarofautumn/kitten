@@ -123,6 +123,7 @@ executable kitten
     directory,
     filepath,
     haskeline == 0.7.*,
+    parsec,
     text,
     transformers,
     vector

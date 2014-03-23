@@ -116,8 +116,8 @@ term = nonblockTerm <|> blockTerm
     , Call PostfixHint <$> littleWord
     , Call InfixHint <$> operator
     , try section
-    , try $ pair <$> tuple
-    , group <?> "grouped expression"
+    , try group <?> "grouped expression"
+    , pair <$> tuple
     , VectorTerm <$> vector
     , mapOne toBuiltin <?> "builtin"
     , lambda
@@ -220,7 +220,7 @@ term = nonblockTerm <|> blockTerm
 
   tuple :: Parser (Vector ParsedTerm)
   tuple = grouped
-    (locate (Compose Stack1 <$> many1V term)
+    (locate (Compose StackAny <$> many1V term)
       `sepEndBy1V` match Token.Comma)
     <?> "tuple"
 
@@ -228,7 +228,7 @@ term = nonblockTerm <|> blockTerm
   vector = between
     (match Token.VectorBegin)
     (match Token.VectorEnd)
-    (locate (Compose Stack1 <$> many1V term)
+    (locate (Compose StackAny <$> many1V term)
       `sepEndByV` match Token.Comma)
     <?> "vector"
 
