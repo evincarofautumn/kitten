@@ -64,7 +64,6 @@ data Env = Env
   , envOrigin :: !Origin
   , envScalars :: !(NameMap (Type Scalar))
   , envStacks :: !(NameMap (Type Stack))
-  , envStackHints :: [(TypeScheme, StackHint, Location)]
   , envTypeDefs :: !(Map Text TypeScheme)
   }
 
@@ -93,7 +92,6 @@ emptyEnv loc = Env
   , envOrigin = Origin NoHint loc
   , envScalars = N.empty
   , envStacks = N.empty
-  , envStackHints = []
   , envTypeDefs = M.empty
   }
 

@@ -1,4 +1,0 @@
-test/stack-effects.ktn:1:1: error: cannot solve stack type constraint .s1 (type of dup) t1 (type var a of dup) = .s2
-test/stack-effects.ktn:1:1: note: .s1 (type of dup) is from here
-test/stack-effects.ktn:1:1: note: t1 (type var a of dup) is from here
-test/stack-effects.ktn:1:1: note: .s2 is from here

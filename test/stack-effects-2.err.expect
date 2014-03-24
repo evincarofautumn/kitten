@@ -1,0 +1,4 @@
+test/stack-effects-2.ktn:1:6: error: cannot solve stack type constraint .s1 Int = .s2
+test/stack-effects-2.ktn:1:2: note: Int is from here
+test/stack-effects-2.ktn:1:6: note: .s1 is from here
+test/stack-effects-2.ktn:1:6: note: .s2 is from here

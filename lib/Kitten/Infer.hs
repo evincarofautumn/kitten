@@ -126,34 +126,6 @@ inferFragment fragment stackTypes = mdo
       }
 
   finalEnv <- getEnv
-
-  -- Check stack hints.
-  o <- getsEnv envOrigin
-  forM_ (envStackHints finalEnv) $ \ (type_, hint, loc) -> case hint of
-    Stack0 -> do
-      r <- freshNameM
-      instanceCheck type_
-        (Forall (S.singleton r) S.empty $ (Type.Var r o --> Type.Var r o) o)
-        $ ErrorGroup
-        [ CompileError loc Error $ T.unwords
-          [ toText type_
-          , "has a non-null stack effect"
-          ]
-        ]
-    Stack1 -> do
-      r <- freshNameM
-      a <- freshNameM
-      instanceCheck type_
-        (Forall (S.singleton r) S.empty  -- 'a' is not bound.
-          $ (Type.Var r o --> Type.Var r o :. Type.Var a o) o)
-        $ ErrorGroup
-        [ CompileError loc Error $ T.unwords
-          [ toText type_
-          , "has a non-unary stack effect"
-          ]
-        ]
-    StackAny -> return ()
-
   return (typedFragment, sub finalEnv fragmentType)
 
   where
@@ -420,13 +392,45 @@ infer finalEnv resolved = case resolved of
           inferCompose a b c d)
         ((r --> r) origin)
         (V.toList types)
+
+    -- We need the generalized type to check stack effects.
     (_, typeScheme) <- generalize $ (,) () <$> composed
     type_ <- composed
-    modifyEnv $ \env -> env
-      { envStackHints
-        -- 'StackAny' hints are redundant.
-        = (case hint of StackAny -> id; _ -> ((typeScheme, hint, loc) :))
-        (envStackHints env) }
+
+    -- Check stack effect hint.
+    case hint of
+      Stack0 -> do
+        s <- freshNameM
+        instanceCheck typeScheme
+          (Forall (S.singleton s) S.empty
+            $ (Type.Var s origin --> Type.Var s origin) origin)
+          $ ErrorGroup
+          [ CompileError loc Error $ T.unwords
+            [ toText typeScheme
+            , "has a non-null stack effect"
+            ]
+          ]
+      Stack1 -> do
+        s <- freshNameM
+        a <- freshNameM
+        -- Note that 'a' is not forall-bound. We want this effect hint
+        -- to match function types that produce a single result of any
+        -- type, and that operate on any input stack; but these two
+        -- notions of "any" are quite different. In the former case, we
+        -- care very much that the stack type is immaterial. In the
+        -- latter, we don't care what the type is at all.
+        instanceCheck typeScheme
+          (Forall (S.singleton s) S.empty
+            $ (Type.Var s origin
+              --> Type.Var s origin :. Type.Var a origin) origin)
+          $ ErrorGroup
+          [ CompileError loc Error $ T.unwords
+            [ toText typeScheme
+            , "has a non-unary stack effect"
+            ]
+          ]
+      StackAny -> return ()
+
     return (Compose hint typedTerms (loc, sub finalEnv type_), type_)
 
   Lambda name term loc -> withOrigin (Origin (Type.Local name) loc) $ do
