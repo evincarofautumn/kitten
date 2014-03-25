@@ -18,7 +18,7 @@ def function (a -> (-> a)):
   { x }
 
 // Wraps a value in a unary function.
-def const (a -> (b -> a)):
+def const (a -> b -> a):
   -> x;
   { drop x }
 

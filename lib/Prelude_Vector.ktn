@@ -231,7 +231,7 @@ def mapRange (a Int Int (a Int -> a) -> a):
   -> value start end function;
   \if start <= end:
     value start function apply;
-    start++ end function mapRange
+    (start++) end function mapRange
   else:
     value
 
@@ -416,14 +416,14 @@ def @~ ([a] Int (a -> a) -> [a]):
 // Gets a value from a 2D vector.
 def @@ ([[a]] (Int & Int) -> a?):
   -> p;
-  (_ @ (p first)) {(_ @ (p rest))} bindOption
+  (_ @ p first) {(_ @ p rest)} bindOption
 
 // Unsafely gets a value from a 2D vector.
 def @@! ([[a]] (Int & Int) -> a):
   -> p;
-  (_ @! (p first)) (_ @! (p rest))
+  (_ @! p first) (_ @! p rest)
 
 // Sets a value in a 2D vector.
 def @@= ([[a]] (Int & Int) a -> [[a]]):
   -> p x;
-  p first @~ {p rest @= x}
+  p first @~: p rest @= x

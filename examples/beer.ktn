@@ -4,14 +4,14 @@ def bottlesOfBeer (Int ->):
   -> x;
   x verse
   \if x > 1:
-    x-- bottlesOfBeer
+    (x--) bottlesOfBeer
 
 def verse (Int ->):
   -> x;
   x wall newline
   x beer newline
   take newline
-  x-- wall newline
+  (x--) wall newline
   newline
 
 def beer (Int ->):

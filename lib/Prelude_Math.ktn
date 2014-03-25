@@ -144,7 +144,7 @@ def %. (Float Float -> Float):
   __mod_float
 
 // Bitwise AND.
-infix_left 7 .&.
+infix_left 7 &
 def & (Int Int -> Int):
   __and_int
 
