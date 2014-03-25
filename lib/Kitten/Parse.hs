@@ -96,16 +96,21 @@ import_ = (<?> "import") . locate $ do
     }
 
 operatorDeclaration :: Parser Operator
-operatorDeclaration = (<?> "operator declaration") . locate $ Operator
+operatorDeclaration = (<?> "operator declaration") . locate $ uncurry Operator
   <$> choice
-    [ Infix <$ match Token.Infix
-    , InfixLeft <$ match Token.InfixLeft
-    , InfixRight <$ match Token.InfixRight
-    , Postfix <$ match Token.Postfix
-    , Prefix <$ match Token.Prefix
+    [ match Token.Infix *> ((,) Infix <$> precedence)
+    , match Token.InfixLeft *> ((,) InfixLeft <$> precedence)
+    , match Token.InfixRight *> ((,) InfixRight <$> precedence)
+    , (Postfix, 9) <$ match Token.Postfix
+    , (Prefix, 9) <$ match Token.Prefix
     ]
-  <*> mapOne (\case Token.Int value _ -> Just value; _ -> Nothing)
   <*> operator
+  where
+  precedence = (<?> "decimal integer precedence from 0 to 9")
+    $ mapOne $ \case
+      Token.Int value Token.DecimalHint
+        | value >= 0 && value <= 9 -> Just value
+      _ -> Nothing
 
 term :: Parser ParsedTerm
 term = nonblockTerm <|> blockTerm

@@ -1,0 +1,2 @@
+test/precedence-1.ktn:1:13: error: unexpected 42
+test/precedence-1.ktn:1:13: note: expecting decimal integer precedence from 0 to 9

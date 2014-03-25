@@ -73,11 +73,11 @@ def not (Bool -> Bool):
   __not_bool
 
 // Operator alias for 'not'.
-prefix 9 !
+prefix !
 def ! (Bool -> Bool):
   not
 
-prefix 9 ¬
+prefix ¬
 def ¬ (Bool -> Bool):
   not
 
@@ -186,12 +186,12 @@ def +. (Float Float -> Float):
   __add_float
 
 // Integer increment.
-postfix 9 ++
+postfix ++
 def ++ (Int -> Int):
   (_ + 1)
 
 // Floating-point increment.
-postfix 9 ++.
+postfix ++.
 def ++. (Float -> Float):
   (_ +. 1.0)
 
@@ -214,12 +214,12 @@ def −. (Float Float -> Float):
   __sub_float
 
 // Integer decrement.
-postfix 9 --
+postfix --
 def -- (Int -> Int):
   (_ - 1)
 
 // Floating-point decrement.
-postfix 9 --.
+postfix --.
 def --. (Float -> Float):
   (_ -. 1.0)
 
@@ -336,6 +336,6 @@ def ∨ (Bool Bool -> Bool):
   __or_bool
 
 // Bitwise NOT.
-prefix 9 ~
+prefix ~
 def ~ (Int -> Int):
   __not_int
