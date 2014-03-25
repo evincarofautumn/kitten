@@ -5,7 +5,7 @@ def dup (a -> a a):
 
 // Drops a value.
 def drop (a ->):
-  -> x;
+  -> _;
 
 // Swaps two values. Useful for changing argument order when
 // partially applying a function.

@@ -203,11 +203,17 @@ term = nonblockTerm <|> blockTerm
 
   lambda :: Parser (Location -> ParsedTerm)
   lambda = (<?> "lambda") $ match Token.Arrow *> do
-    names <- many1 littleWord
+    names <- many1 $ Just <$> littleWord <|> Nothing <$ match Token.Ignore
     void (match Token.Semicolon)
     terms <- blockContents
     return $ \loc -> foldr
-      (\lambdaName lambdaTerms -> Lambda lambdaName lambdaTerms loc)
+      (\mLambdaName lambdaTerms -> maybe
+        (Compose StackAny (V.fromList
+          [ Lambda "ignored" (Compose StackAny V.empty loc) loc
+          , lambdaTerms
+          ]) loc)
+        (\lambdaName -> Lambda lambdaName lambdaTerms loc)
+        mLambdaName)
       (Compose StackAny terms loc)
       (reverse names)
 
