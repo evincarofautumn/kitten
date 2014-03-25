@@ -125,7 +125,7 @@ unit :
 
 define EXAMPLE_RULE
 example-$1 : $(KITTEN) $(PRELUDE)
-	@$(KITTEN) --no-implicit-prelude --check "$1"
+	@$(KITTEN) --check "$1"
 $(call SOFT_DEP_RULE,example-$1,$(example_DEPS))
 example : example-$1
 endef

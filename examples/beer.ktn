@@ -1,5 +1,3 @@
-import Prelude
-
 99 bottlesOfBeer
 
 def bottlesOfBeer (Int ->):

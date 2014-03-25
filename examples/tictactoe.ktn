@@ -7,8 +7,6 @@
  *
  */
 
-import Prelude
-
 ticTacToe
 
 def ticTacToe (->):
