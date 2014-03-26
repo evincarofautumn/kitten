@@ -1,61 +1,61 @@
 // Character equality.
-def eqChar (Char Char -> Bool):
+def eqChar (char char -> bool):
   {charToInt} toBoth (=)
 
 // String equality.
-def eqString ([Char] [Char] -> Bool):
+def eqString ([char] [char] -> bool):
   {eqChar} eqVector
 
 // Character greater than or equal.
-def geChar (Char Char -> Bool):
+def geChar (char char -> bool):
   {charToInt} toBoth (>=)
 
 // Character greater than.
-def gtChar (Char Char -> Bool):
+def gtChar (char char -> bool):
   {charToInt} toBoth (>)
 
 // Character less than or equal.
-def leChar (Char Char -> Bool):
+def leChar (char char -> bool):
   {charToInt} toBoth (<=)
 
 // Character less than.
-def ltChar (Char Char -> Bool):
+def ltChar (char char -> bool):
   {charToInt} toBoth (<)
 
 // Character inequality.
-def neChar (Char Char -> Bool):
+def neChar (char char -> bool):
   {charToInt} toBoth (!=)
 
 // Shows a Boolean as a string.
-def showBool (Bool -> [Char]):
+def showBool (bool -> [char]):
   {"true"} {"false"} if_else
 
 // Shows a Boolean vector as a string.
-def showBools ([Bool] -> [Char]):
+def showBools ([bool] -> [char]):
   {showBool} showVector
 
 // Shows a string vector as a string.
-def showStrings ([[Char]] -> [Char]):
+def showStrings ([[char]] -> [char]):
   {} showVector
 
 // Shows a floating-point number as a string.
-def showFloat (Float -> [Char]):
+def showFloat (float -> [char]):
   __show_float
 
 // Shows a floating-point vector as a string.
-def showFloats ([Float] -> [Char]):
+def showFloats ([float] -> [char]):
   {showFloat} showVector
 
 // Shows an integer as a string.
-def showInt (Int -> [Char]):
+def showInt (int -> [char]):
   __show_int
 
 // Shows an integer vector as a string.
-def showInts ([Int] -> [Char]):
+def showInts ([int] -> [char]):
   {showInt} showVector
 
 // Shows a vector as a string.
-def showVector {a}([a] (a -> [Char]) -> [Char]):
+def showVector {a}([a] (a -> [char]) -> [char]):
   -> v f;
   [
     "[",

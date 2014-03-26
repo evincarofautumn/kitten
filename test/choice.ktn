@@ -1,4 +1,4 @@
-def sayIntOrString (Int | [Char] ->):
+def sayIntOrString (int | [char] ->):
   -> x;
   \choice x:
     sayInt
@@ -8,7 +8,7 @@ def sayIntOrString (Int | [Char] ->):
 11 left sayIntOrString
 "purr" right sayIntOrString
 
-def showNum (Int | Float -> [Char]):
+def showNum (int | float -> [char]):
   \choice:
     showInt
   else:

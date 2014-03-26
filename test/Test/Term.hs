@@ -172,17 +172,17 @@ spec = do
         [def "pi" $ compose [pushi 3]] }
 
     testTerm
-      "def inc (Int -> Int) {\n\
+      "def inc (int -> int) {\n\
       \  1 (+)\n\
       \}\n"
       $ mempty { fragmentDefs = V.fromList
         [def "inc" $ compose [pushi 1, word "+"]] }
 
     testTerm
-      "def inc (Int -> Int):\n\
+      "def inc (int -> int):\n\
       \  1 (+)\n\
       \\n\
-      \def dec (Int -> Int):\n\
+      \def dec (int -> int):\n\
       \  1 (-)\n\
       \\n"
       $ mempty { fragmentDefs = V.fromList
@@ -190,18 +190,18 @@ spec = do
         , def "dec" $ compose [pushi 1, word "-"]] }
 
   describe "type" $ testTerm
-    "def curriedAdd (Int -> Int -> Int) {\n\
+    "def curriedAdd (int -> int -> int) {\n\
     \  ->x;\n\
     \  { ->y; x y (+) }\n\
     \}"
     $ mempty { fragmentDefs = V.fromList
       [ defWithAnno "curriedAdd"
         (Anno.Function
-          (V.fromList [Anno.Int])
+          (V.fromList [Anno.Var "int"])
           (V.fromList
             [Anno.Function
-              (V.fromList [Anno.Int])
-              (V.fromList [Anno.Int])]))
+              (V.fromList [Anno.Var "int"])
+              (V.fromList [Anno.Var "int"])]))
         $ compose
           [ lambda "x"
             [ push $ quotation

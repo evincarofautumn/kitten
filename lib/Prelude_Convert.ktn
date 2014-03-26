@@ -1,7 +1,7 @@
 // Converts a character to an integer code point.
-def charToInt (Char -> Int):
+def charToInt (char -> int):
   __char_to_int
 
 // Converts an integer code point to a character.
-def intToChar (Int -> Char?):
+def intToChar (int -> char?):
   __int_to_char

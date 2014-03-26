@@ -97,16 +97,12 @@ tidyScalarType type_ = case type_ of
   t1 :& t2 -> (:&) <$> tidyScalarType t1 <*> tidyScalarType t2
   (:?) t -> (:?) <$> tidyScalarType t
   t1 :| t2 -> (:|) <$> tidyScalarType t1 <*> tidyScalarType t2
-  Bool{} -> pure type_
-  Char{} -> pure type_
   Const name loc -> Const <$> tidyScalar name <*> pure loc
-  Float{} -> pure type_
+  Ctor{} -> pure type_
   Function r1 r2 loc -> Function
     <$> tidyStackType r1
     <*> tidyStackType r2
     <*> pure loc
-  Handle{} -> pure type_
-  Int{} -> pure type_
   Quantified (Forall r s t) loc -> Quantified
     <$> (Forall
       <$> Set.mapM tidyStack r

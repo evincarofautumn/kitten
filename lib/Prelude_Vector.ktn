@@ -36,21 +36,21 @@ def each {a}([a] (a ->) ->):
 
 // Whether an element is present in a vector according to
 // the given equality predicate.
-def elem {a}([a] a (a a -> Bool) -> Bool):
+def elem {a}([a] a (a a -> bool) -> bool):
   -> xs x f;
   xs { x f apply } any
 
 // Whether a character is present in a string.
-def elemChar ([Char] Char -> Bool):
+def elemChar ([char] char -> bool):
   {eqChar} elem
 
 // Whether an integer is present in an integer vector.
-def elemInt ([Int] Int -> Bool):
+def elemInt ([int] int -> bool):
   {(=)} elem
 
 // Whether two vectors are equal according to the given
 // equality predicate.
-def eqVector {a}([a] [a] (a a -> Bool) -> Bool):
+def eqVector {a}([a] [a] (a a -> bool) -> bool):
   -> xs ys eq;
   \if xs length != ys length:
     false
@@ -58,7 +58,7 @@ def eqVector {a}([a] [a] (a a -> Bool) -> Bool):
     xs ys eq zipWith and
 
 // Filters a vector by a predicate.
-def filter {a}([a] (a -> Bool) -> [a]):
+def filter {a}([a] (a -> bool) -> [a]):
   -> v f;
   \option v head: -> x;
     \if x f apply:
@@ -70,7 +70,7 @@ def filter {a}([a] (a -> Bool) -> [a]):
     []
 
 // Finds the first element of a vector matching a predicate.
-def find {a}([a] (a -> Bool) -> a?):
+def find {a}([a] (a -> bool) -> a?):
   filter head
 
 // Folds elements of a vector right-associatively.
@@ -116,7 +116,7 @@ def unsafeFoldl1 {a}([a] (a a -> a) -> a):
   xs tail (xs unsafeHead) fn foldl
 
 // Gets multiple elements of a vector.
-def getAll {a}([a] [Int] -> [a?]):
+def getAll {a}([a] [int] -> [a?]):
   -> xs indices;
   indices {(xs @)} map
 
@@ -145,7 +145,7 @@ def insertEverywhere {a}([a] a -> [[a]]):
   else:
     [[n]]
 
-def insert {a}([a] a (a a -> Bool) -> [a]):
+def insert {a}([a] a (a a -> bool) -> [a]):
   -> xs n lt;
   \option xs head: -> x;
     \if x n lt apply:
@@ -166,7 +166,7 @@ def intersperse {a}([a] a -> [a]):
     []
 
 // Whether a vector is empty.
-def isEmpty {a}([a] -> Bool):
+def isEmpty {a}([a] -> bool):
   length (= 0)
 
 // Joins a vector with a separator.
@@ -174,7 +174,7 @@ def join {a}([[a]] [a] -> [a]):
   intersperse concat
 
 // Keeps the first n elements of a vector, tossing the rest.
-def keep {a}([a] Int -> [a]):
+def keep {a}([a] int -> [a]):
   -> xs n;
   \if n <= 0:
     []
@@ -185,7 +185,7 @@ def keep {a}([a] Int -> [a]):
     []
 
 // Keeps elements of a vector while a predicate holds.
-def keepWhile {a}([a] (a -> Bool) -> [a]):
+def keepWhile {a}([a] (a -> bool) -> [a]):
   -> xs f;
   []
   \option xs head: -> x;
@@ -200,7 +200,7 @@ def last {a}([a] -> a?):
   xs @ (xs length - 1)
 
 // Gets the length of a vector.
-def length {a}([a] -> Int):
+def length {a}([a] -> int):
   __length
 
 // Lifts a function on values to a function on vectors.
@@ -218,7 +218,7 @@ def mapConcat {a, b}([a] (a -> [b]) -> [b]):
   map concat
 
 // Maps a function over part of a vector.
-def mapFrom {a}([a] (a -> a) Int -> [a]):
+def mapFrom {a}([a] (a -> a) int -> [a]):
   -> vec function offset;
   \if vec isEmpty || offset >= vec length:
     vec
@@ -227,7 +227,7 @@ def mapFrom {a}([a] (a -> a) Int -> [a]):
     function (offset + 1) mapFrom
 
 // Maps a function over a value for each integer in a range.
-def mapRange {a}(a Int Int (a Int -> a) -> a):
+def mapRange {a}(a int int (a int -> a) -> a):
   -> value start end function;
   \if start <= end:
     value start function apply;
@@ -254,7 +254,7 @@ def prependToAll {a}([a] a -> [a]):
     []
 
 // Produces a vector with some number of copies of a value.
-def replicate {a}(a Int -> [a]):
+def replicate {a}(a int -> [a]):
   -> value count;
   \if count <= 0:
     []
@@ -306,17 +306,17 @@ def scanr1 {a}([a] (a a -> a) -> [a]):
   -> xs k;
   xs init (xs unsafeLast) k scanr
 
-def sort {a}([a] (a a -> Bool) -> [a]):
+def sort {a}([a] (a a -> bool) -> [a]):
   -> lt;
   [] {lt insert} foldl
 
-def span {a}([a] (a -> Bool) -> [a] [a]):
+def span {a}([a] (a -> bool) -> [a] [a]):
   -> xs f;
   xs f keepWhile
   xs f tossWhile
 
 // Splits a vector into two parts at the given index.
-def splitAt {a}([a] Int -> [a] [a]):
+def splitAt {a}([a] int -> [a] [a]):
   -> xs n;
   xs n keep
   xs n toss
@@ -326,7 +326,7 @@ def tail {a}([a] -> [a]):
   __tail
 
 // Tosses the first n elements of a vector, keeping the rest.
-def toss {a}([a] Int -> [a]):
+def toss {a}([a] int -> [a]):
   -> xs n;
   \if n <= 0 || xs isEmpty:
     xs
@@ -334,7 +334,7 @@ def toss {a}([a] Int -> [a]):
     xs tail (n - 1) toss
 
 // Tosses elements of a vector while a predicate holds.
-def tossWhile {a}([a] (a -> Bool) -> [a]):
+def tossWhile {a}([a] (a -> bool) -> [a]):
   -> xs f;
   xs
   \option xs head: -> x;
@@ -357,7 +357,7 @@ def transpose {a}([[a]] -> [[a]]):
 
 // Strips duplicate elements from a vector according the
 // given equality predicate.
-def unique {a}([a] (a a -> Bool) -> [a]):
+def unique {a}([a] (a a -> bool) -> [a]):
   -> xs eq;
   \option xs head: -> x;
     (xs tail {x (eq apply) not} filter) eq unique
@@ -393,19 +393,19 @@ def zipWith {a, b, c}([a] [b] (a b -> c) -> [c]):
       a b f apply; prepend
 
 // Gets an element of a vector.
-def @ {a}([a] Int -> a?):
+def @ {a}([a] int -> a?):
   __get
 
 // Unsafely gets an element of a vector.
-def @! {a}([a] Int -> a):
+def @! {a}([a] int -> a):
   (@) fromSome
 
 // Sets the value at an index in a vector.
-def @= {a}([a] Int a -> [a]):
+def @= {a}([a] int a -> [a]):
   __set
 
 // Maps a function over an element of a vector.
-def @~ {a}([a] Int (a -> a) -> [a]):
+def @~ {a}([a] int (a -> a) -> [a]):
   -> vec offset function;
   \option vec @ offset:
     function apply -> value;
@@ -414,16 +414,16 @@ def @~ {a}([a] Int (a -> a) -> [a]):
     vec
 
 // Gets a value from a 2D vector.
-def @@ {a}([[a]] (Int & Int) -> a?):
+def @@ {a}([[a]] (int & int) -> a?):
   -> p;
   (@ p first) {(@ p rest)} bindOption
 
 // Unsafely gets a value from a 2D vector.
-def @@! {a}([[a]] (Int & Int) -> a):
+def @@! {a}([[a]] (int & int) -> a):
   -> p;
   (@! p first) (@! p rest)
 
 // Sets a value in a 2D vector.
-def @@= {a}([[a]] (Int & Int) a -> [[a]]):
+def @@= {a}([[a]] (int & int) a -> [[a]]):
   -> p x;
   p first @~: p rest @= x

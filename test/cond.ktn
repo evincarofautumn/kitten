@@ -1,4 +1,4 @@
-def test (Int? ->):
+def test (int? ->):
   { ->x; x * 2 + 5 } liftOption
   {dup sayInt} liftOption drop
 

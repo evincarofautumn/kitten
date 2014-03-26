@@ -24,7 +24,7 @@ def game (->):
 
   finalBoard printBoard
 
-def gameLoop ([Char] Char -> [Char] Char):
+def gameLoop ([char] char -> [char] char):
   -> board player;
 
   board getWinner -> winner;
@@ -34,7 +34,7 @@ def gameLoop ([Char] Char -> [Char] Char):
     board player askTurn
     player nextPlayer gameLoop
 
-def askTurn ([Char] Char -> [Char]):
+def askTurn ([char] char -> [char]):
   -> board player;
 
   board printBoard
@@ -60,11 +60,11 @@ def askTurn ([Char] Char -> [Char]):
     cat say
     board player askTurn
 
-def nextPlayer (Char -> Char):
+def nextPlayer (char -> char):
   -> p;
   \if p 'x' eqChar: 'o' else: 'x'
 
-def checkSets (-> [[Int]]):
+def checkSets (-> [[int]]):
   [
     [0, 1, 2], [3, 4, 5], [6, 7, 8],  // Rows
     [0, 3, 6], [1, 4, 7], [2, 5, 8],  // Columns
@@ -72,7 +72,7 @@ def checkSets (-> [[Int]]):
   ]
 
 // ' ', 'x', or 'o'
-def getCheckSetWinner ([Char] [Int] -> Char):
+def getCheckSetWinner ([char] [int] -> char):
   getAll -> players;
   \if (players { {'x' eqChar} {false} option_else } all):
     'x'
@@ -82,7 +82,7 @@ def getCheckSetWinner ([Char] [Int] -> Char):
     ' '
 
 // ' ', 'x', 'o', or '*'
-def getWinner ([Char] -> Char):
+def getWinner ([char] -> char):
   -> board;
 
   board
@@ -106,7 +106,7 @@ def getWinner ([Char] -> Char):
     else:
       '*'
 
-def playAgain (-> Bool):
+def playAgain (-> bool):
   "Play another game? [yN] " prompt -> input;
   \if input isYes:
     newline true
@@ -115,21 +115,21 @@ def playAgain (-> Bool):
   else:
     playAgain
 
-def isYes ([Char] -> Bool): { "yY" swap elemChar } any
-def isNo ([Char] -> Bool): { "nN" swap elemChar } any
+def isYes ([char] -> bool): { "yY" swap elemChar } any
+def isNo ([char] -> bool): { "nN" swap elemChar } any
 
 // Board
 
-def newBoard (-> [Char]): ' ' 9 replicate
+def newBoard (-> [char]): ' ' 9 replicate
 
-def editBoard ([Char] Int Char -> [Char]):
+def editBoard ([char] int char -> [char]):
   -> number player;
   number cellNumberToIndex @= player
 
-def printBoard ([Char] ->):
+def printBoard ([char] ->):
   showBoard print
 
-def showBoard ([Char] -> [Char]):
+def showBoard ([char] -> [char]):
   -> board;
   "  --+-+--\n" -> divider;
   "   A B C\n" -> heading;
@@ -139,7 +139,7 @@ def showBoard ([Char] -> [Char]):
     divider, "3 ", board 2 showBoardRow, "\n",
   ] concat
 
-def showBoardRow ([Char] Int -> [Char]):
+def showBoardRow ([char] int -> [char]):
   -> board rowIndex;
   rowIndex * 3 -> index;
   [
@@ -148,24 +148,24 @@ def showBoardRow ([Char] Int -> [Char]):
     '|', board (2 + index) showBoardCellAt,
   ]
 
-def showBoardCellAt ([Char] Int -> Char):
+def showBoardCellAt ([char] int -> char):
   cellNumberToIndex (@!) showBoardCell
 
-def cellNumberToIndex (Int -> Int):
+def cellNumberToIndex (int -> int):
   (8 -)
 
-def showBoardCell (Char -> Char) {}
+def showBoardCell (char -> char) {}
 
 // Input
 
-def readMoveLine ([Char] -> (Int & Int)?):
+def readMoveLine ([char] -> (int & int)?):
   -> chars;
   \if chars length = 2:
     (chars @! 0) (chars @! 1) readXY
   else:
     none
 
-def readXY (Char Char -> (Int & Int)?):
+def readXY (char char -> (int & int)?):
   -> x y;
   x y readXY_ -> mxy;
   \option mxy:
@@ -173,25 +173,25 @@ def readXY (Char Char -> (Int & Int)?):
   else:
     y x readXY_
 
-def readXY_ (Char Char -> (Int & Int)?):
+def readXY_ (char char -> (int & int)?):
   readX -> mx;
   readY -> my;
   mx my {pair} liftOption2
 
-def readX (Char -> Int?):
+def readX (char -> int?):
   -> c;
   \if "aA" c elemChar: 0 some
   else if "bB" c elemChar: 1 some
   else if "cC" c elemChar: 2 some
   else: none
 
-def readY (Char -> Int?):
+def readY (char -> int?):
   -> c;
   \if "1!" c elemChar: 0 some
   else if "2@" c elemChar: 1 some
   else if "3#" c elemChar: 2 some
   else: none
 
-def xyToCellNumber (Int Int -> Int):
+def xyToCellNumber (int int -> int):
   -> x y;
   y * 3 + x

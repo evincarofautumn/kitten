@@ -60,12 +60,7 @@ functionType = (<?> "function type") $ choice
 baseType :: Parser Type
 baseType = (<?> "base type") $ do
   prefix <- choice
-    [ Anno.Bool <$ match (Token.Word "Bool")
-    , Anno.Char <$ match (Token.Word "Char")
-    , Anno.Float <$ match (Token.Word "Float")
-    , Anno.Handle <$ match (Token.Word "Handle")
-    , Anno.Int <$ match (Token.Word "Int")
-    , Anno.Var <$> word
+    [ Anno.Var <$> word
     , vector
     , try $ grouped type_
     ]

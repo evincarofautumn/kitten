@@ -35,7 +35,7 @@ import Kitten.Location
 import Kitten.Name
 import Kitten.Tree as Tree
 import Kitten.Type (Type((:&), (:.), (:?), (:|)))
-import Kitten.Type hiding (Type(..), Local)
+import Kitten.Type hiding (Ctor(..), Type(..), Local)
 import Kitten.Util.FailWriter
 import Kitten.Util.Monad
 import Kitten.Util.Text (toText)
@@ -198,19 +198,19 @@ infer finalEnv resolved = case resolved of
       -> (r :. Type.Vector a o :. Type.Vector a o
       --> r :. Type.Vector a o) o
 
-    Builtin.AddFloat -> binary (Type.Float o) o
+    Builtin.AddFloat -> binary (Type.float o) o
 
-    Builtin.AddInt -> binary (Type.Int o) o
+    Builtin.AddInt -> binary (Type.int o) o
 
-    Builtin.AndBool -> binary (Type.Bool o) o
+    Builtin.AndBool -> binary (Type.bool o) o
 
-    Builtin.AndInt -> binary (Type.Int o) o
+    Builtin.AndInt -> binary (Type.int o) o
 
     Builtin.Apply -> forAll $ \r s
       -> Type.Function (r :. Type.Function r s o) s o
 
     Builtin.CharToInt -> forAll $ \r
-      -> (r :. Type.Char o --> r :. Type.Int o) o
+      -> (r :. Type.char o --> r :. Type.int o) o
 
     Builtin.Choice -> forAll $ \r a b -> Type.Function
       (r :. (a :| b) :. Type.Function (r :. a) r o) r o
@@ -222,16 +222,16 @@ infer finalEnv resolved = case resolved of
       s o
 
     Builtin.Close -> forAll $ \r
-      -> (r :. Type.Handle o --> r) o
+      -> (r :. Type.handle o --> r) o
 
-    Builtin.DivFloat -> binary (Type.Float o) o
-    Builtin.DivInt -> binary (Type.Int o) o
+    Builtin.DivFloat -> binary (Type.float o) o
+    Builtin.DivInt -> binary (Type.int o) o
 
-    Builtin.EqFloat -> relational (Type.Float o) o
-    Builtin.EqInt -> relational (Type.Int o) o
+    Builtin.EqFloat -> relational (Type.float o) o
+    Builtin.EqInt -> relational (Type.int o) o
 
     Builtin.Exit -> forAll $ \r s
-      -> (r :. Type.Int o --> s) o
+      -> (r :. Type.int o --> s) o
 
     Builtin.First -> forAll $ \r a b
       -> (r :. a :& b --> r :. a) o
@@ -245,23 +245,23 @@ infer finalEnv resolved = case resolved of
     Builtin.FromSome -> forAll $ \r a
       -> (r :. (a :?) --> r :. a) o
 
-    Builtin.GeFloat -> relational (Type.Float o) o
-    Builtin.GeInt -> relational (Type.Int o) o
+    Builtin.GeFloat -> relational (Type.float o) o
+    Builtin.GeInt -> relational (Type.int o) o
 
     Builtin.Get -> forAll $ \r a
-      -> (r :. Type.Vector a o :. Type.Int o --> r :. (a :?)) o
+      -> (r :. Type.Vector a o :. Type.int o --> r :. (a :?)) o
 
     Builtin.GetLine -> forAll $ \r
-      -> (r :. Type.Handle o --> r :. string o) o
+      -> (r :. Type.handle o --> r :. string o) o
 
-    Builtin.GtFloat -> relational (Type.Float o) o
-    Builtin.GtInt -> relational (Type.Int o) o
+    Builtin.GtFloat -> relational (Type.float o) o
+    Builtin.GtInt -> relational (Type.int o) o
 
     Builtin.If -> forAll $ \r -> Type.Function
-      (r :. Type.Bool o :. Type.Function r r o) r o
+      (r :. Type.bool o :. Type.Function r r o) r o
 
     Builtin.IfElse -> forAll $ \r s -> Type.Function
-      (r :. Type.Bool o
+      (r :. Type.bool o
         :. Type.Function r s o
         :. Type.Function r s o)
       s o
@@ -273,43 +273,43 @@ infer finalEnv resolved = case resolved of
       -> (r :. Type.Vector a o --> r :. Type.Vector a o) o
 
     Builtin.IntToChar -> forAll $ \r
-      -> (r :. Type.Int o --> r :. (Type.Char o :?)) o
+      -> (r :. Type.int o --> r :. (Type.char o :?)) o
 
-    Builtin.LeFloat -> relational (Type.Float o) o
-    Builtin.LeInt -> relational (Type.Int o) o
+    Builtin.LeFloat -> relational (Type.float o) o
+    Builtin.LeInt -> relational (Type.int o) o
 
     Builtin.Left -> forAll $ \r a b
       -> (r :. a --> r :. a :| b) o
 
     Builtin.Length -> forAll $ \r a
-      -> (r :. Type.Vector a o --> r :. Type.Int o) o
+      -> (r :. Type.Vector a o --> r :. Type.int o) o
 
-    Builtin.LtFloat -> relational (Type.Float o) o
-    Builtin.LtInt -> relational (Type.Int o) o
+    Builtin.LtFloat -> relational (Type.float o) o
+    Builtin.LtInt -> relational (Type.int o) o
 
-    Builtin.ModFloat -> binary (Type.Float o) o
-    Builtin.ModInt -> binary (Type.Int o) o
+    Builtin.ModFloat -> binary (Type.float o) o
+    Builtin.ModInt -> binary (Type.int o) o
 
-    Builtin.MulFloat -> binary (Type.Float o) o
-    Builtin.MulInt -> binary (Type.Int o) o
+    Builtin.MulFloat -> binary (Type.float o) o
+    Builtin.MulInt -> binary (Type.int o) o
 
-    Builtin.NeFloat -> relational (Type.Float o) o
-    Builtin.NeInt -> relational (Type.Int o) o
+    Builtin.NeFloat -> relational (Type.float o) o
+    Builtin.NeInt -> relational (Type.int o) o
 
-    Builtin.NegFloat -> unary (Type.Float o) o
-    Builtin.NegInt -> unary (Type.Int o) o
+    Builtin.NegFloat -> unary (Type.float o) o
+    Builtin.NegInt -> unary (Type.int o) o
 
     Builtin.None -> forAll $ \r a
       -> (r --> r :. (a :?)) o
 
-    Builtin.NotBool -> unary (Type.Bool o) o
-    Builtin.NotInt -> unary (Type.Int o) o
+    Builtin.NotBool -> unary (Type.bool o) o
+    Builtin.NotInt -> unary (Type.int o) o
 
     Builtin.OpenIn -> forAll $ \r
-      -> (r :. string o --> r :. Type.Handle o) o
+      -> (r :. string o --> r :. Type.handle o) o
 
     Builtin.OpenOut -> forAll $ \r
-      -> (r :. string o --> r :. Type.Handle o) o
+      -> (r :. string o --> r :. Type.handle o) o
 
     Builtin.Option -> forAll $ \r a -> Type.Function
       (r :. (a :?) :. Type.Function (r :. a) r o) r o
@@ -320,8 +320,8 @@ infer finalEnv resolved = case resolved of
         :. Type.Function r s o)
       s o
 
-    Builtin.OrBool -> binary (Type.Bool o) o
-    Builtin.OrInt -> binary (Type.Int o) o
+    Builtin.OrBool -> binary (Type.bool o) o
+    Builtin.OrInt -> binary (Type.int o) o
 
     Builtin.Rest -> forAll $ \r a b
       -> (r :. a :& b --> r :. b) o
@@ -330,33 +330,33 @@ infer finalEnv resolved = case resolved of
       -> (r :. b --> r :. a :| b) o
 
     Builtin.Set -> forAll $ \r a
-      -> (r :. Type.Vector a o :. Type.Int o :. a
+      -> (r :. Type.Vector a o :. Type.int o :. a
       --> r :. Type.Vector a o) o
 
     Builtin.ShowFloat -> forAll $ \r
-      -> (r :. Type.Float o --> r :. string o) o
+      -> (r :. Type.float o --> r :. string o) o
 
     Builtin.ShowInt -> forAll $ \r
-      -> (r :. Type.Int o --> r :. string o) o
+      -> (r :. Type.int o --> r :. string o) o
 
     Builtin.Some -> forAll $ \r a
       -> (r :. a --> r :. (a :?)) o
 
     Builtin.Stderr -> forAll $ \r
-      -> (r --> r :. Type.Handle o) o
+      -> (r --> r :. Type.handle o) o
     Builtin.Stdin -> forAll $ \r
-      -> (r --> r :. Type.Handle o) o
+      -> (r --> r :. Type.handle o) o
     Builtin.Stdout -> forAll $ \r
-      -> (r --> r :. Type.Handle o) o
+      -> (r --> r :. Type.handle o) o
 
-    Builtin.SubFloat -> binary (Type.Float o) o
-    Builtin.SubInt -> binary (Type.Int o) o
+    Builtin.SubFloat -> binary (Type.float o) o
+    Builtin.SubInt -> binary (Type.int o) o
 
     Builtin.Pair -> forAll $ \r a b
       -> (r :. a :. b --> r :. a :& b) o
 
     Builtin.Print -> forAll $ \r
-      -> (r :. string o :. Type.Handle o --> r) o
+      -> (r :. string o :. Type.handle o --> r) o
 
     Builtin.Tail -> forAll $ \r a
       -> (r :. Type.Vector a o --> r :. Type.Vector a o) o
@@ -364,8 +364,8 @@ infer finalEnv resolved = case resolved of
     Builtin.UnsafePurify11 -> forAll $ \r s a b
       -> (r :. (s :. a --> s :. b) o --> r :. (s :. a --> s :. b) o) o
 
-    Builtin.XorBool -> binary (Type.Bool o) o
-    Builtin.XorInt -> binary (Type.Int o) o
+    Builtin.XorBool -> binary (Type.bool o) o
+    Builtin.XorInt -> binary (Type.int o) o
 
     where
     o :: Origin
@@ -494,14 +494,14 @@ binary a origin = forAll
 
 relational :: Type Scalar -> Origin -> Inferred (Type Scalar)
 relational a origin = forAll
-  $ \r -> (r :. a :. a --> r :. Type.Bool origin) origin
+  $ \r -> (r :. a :. a --> r :. Type.bool origin) origin
 
 unary :: Type Scalar -> Origin -> Inferred (Type Scalar)
 unary a origin = forAll
   $ \r -> (r :. a --> r :. a) origin
 
 string :: Origin -> Type Scalar
-string origin = Type.Vector (Type.Char origin) origin
+string origin = Type.Vector (Type.char origin) origin
 
 local :: Type Scalar -> Inferred a -> Inferred a
 local type_ action = do
@@ -525,8 +525,8 @@ getClosedName name = case name of
 
 inferValue :: Env -> ResolvedValue -> Inferred (TypedValue, Type Scalar)
 inferValue finalEnv value = getsEnv envOrigin >>= \origin -> case value of
-  Bool val loc -> ret loc (Type.Bool origin) (Bool val)
-  Char val loc -> ret loc (Type.Char origin) (Char val)
+  Bool val loc -> ret loc (Type.bool origin) (Bool val)
+  Char val loc -> ret loc (Type.char origin) (Char val)
   Closed name@(Name index) loc -> do
     type_ <- getsEnv ((V.! index) . envClosure)
     ret loc type_ (Closed name)
@@ -534,12 +534,12 @@ inferValue finalEnv value = getsEnv envOrigin >>= \origin -> case value of
     closedTypes <- V.mapM getClosedName names
     (term', type_) <- withClosure closedTypes (infer finalEnv term)
     ret loc type_ (Closure names term')
-  Float val loc -> ret loc (Type.Float origin) (Float val)
-  Int val loc -> ret loc (Type.Int origin) (Int val)
+  Float val loc -> ret loc (Type.float origin) (Float val)
+  Int val loc -> ret loc (Type.int origin) (Int val)
   Local name@(Name index) loc -> do
     type_ <- getsEnv ((!! index) . envLocals)
     ret loc type_ (Local name)
-  String val loc -> ret loc (Type.Vector (Type.Char origin) origin) (String val)
+  String val loc -> ret loc (Type.Vector (Type.char origin) origin) (String val)
   Quotation{} -> error "quotation appeared during type inference"
   where
   ret loc type_ constructor = return (constructor (loc, type_), type_)

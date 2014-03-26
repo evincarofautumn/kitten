@@ -1,3 +1,3 @@
-test/instance-checks-5.ktn:1:1: error: cannot solve scalar type constraint t1 (type var b of example) = t2 (type var a of example)
-test/instance-checks-5.ktn:1:1: note: t1 (type var b of example) is from here
-test/instance-checks-5.ktn:1:1: note: t2 (type var a of example) is from here
+test/instance-checks-5.ktn:1:1: error: cannot solve scalar type constraint t1 (from example) = t2 (from example)
+test/instance-checks-5.ktn:1:1: note: t1 (from example) is from here
+test/instance-checks-5.ktn:1:1: note: t2 (from example) is from here

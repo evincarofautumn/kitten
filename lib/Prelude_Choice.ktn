@@ -21,14 +21,14 @@ def getRight {a, b}((a | b) -> b?):
     some
 
 // Whether a choice is left.
-def isLeft {a, b}(a | b -> Bool):
+def isLeft {a, b}(a | b -> bool):
   \choice:
     drop true
   else:
     drop false
 
 // Whether a choice is right.
-def isRight {a, b}(a | b -> Bool):
+def isRight {a, b}(a | b -> bool):
   \choice:
     drop false
   else:

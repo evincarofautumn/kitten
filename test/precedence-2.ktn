@@ -1,2 +1,2 @@
 infix_right 0x01 ***
-def *** (a a -> a): drop
+def *** {a}(a a -> a): drop

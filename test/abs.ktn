@@ -1,4 +1,4 @@
-def test (Int Int ->):
+def test (int int ->):
   -> input expected;
   input absInt -> actual;
   \if actual != expected:

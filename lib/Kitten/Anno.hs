@@ -21,12 +21,7 @@ instance Eq Anno where
 
 data Type
   = Function !(Vector Type) !(Vector Type)
-  | Bool
-  | Char
   | Choice !Type !Type
-  | Float
-  | Handle
-  | Int
   | Option !Type
   | Pair !Type !Type
   | Quantified !(Vector Text) !(Vector Text) !Type

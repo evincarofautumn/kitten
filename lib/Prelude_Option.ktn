@@ -12,14 +12,14 @@ def fromSome {a}(a? -> a):
   __from_some
 
 // Whether an option is empty.
-def isNone {a}(a? -> Bool):
+def isNone {a}(a? -> bool):
   \option:
     drop false
   else:
     true
 
 // Whether an option contains a value.
-def isSome {a}(a? -> Bool):
+def isSome {a}(a? -> bool):
   \option:
     drop true
   else:

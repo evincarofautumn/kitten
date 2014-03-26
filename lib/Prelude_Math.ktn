@@ -1,5 +1,5 @@
 // Absolute value of an integer.
-def absInt (Int -> Int):
+def absInt (int -> int):
   -> x;
   \if x < 0:
     x negInt
@@ -7,7 +7,7 @@ def absInt (Int -> Int):
     x
 
 // Absolute value of a floating-point number.
-def absFloat (Float -> Float):
+def absFloat (float -> float):
   -> x;
   \if x <. 0.0:
     x negFloat
@@ -15,297 +15,297 @@ def absFloat (Float -> Float):
     x
 
 // Whether all elements of a vector satisfy a predicate.
-def all {a}([a] (a -> Bool) -> Bool):
+def all {a}([a] (a -> bool) -> bool):
   map and
 
 // Whether all elements of a vector are true.
-def and ([Bool] -> Bool):
+def and ([bool] -> bool):
   true {(&&)} foldl
 
 // Whether any element of a vector satisfies a predicate.
-def any {a}([a] (a -> Bool) -> Bool):
+def any {a}([a] (a -> bool) -> bool):
   map or
 
 // Whether a floating-point number is even.
-def evenFloat (Float -> Bool):
+def evenFloat (float -> bool):
   -> x; x %. 2.0 =. 0.0
 
 // Whether an integer is even.
-def evenInt (Int -> Bool):
+def evenInt (int -> bool):
   -> x; x % 2 = 0
 
 // The maximum of two integers.
-def maxInt (Int Int -> Int):
+def maxInt (int int -> int):
   -> a b;
   \if a > b: a else: b
 
 // The maximum of three integers.
-def maxInt3 (Int Int Int -> Int):
+def maxInt3 (int int int -> int):
   maxInt maxInt
 
 // The maximum of a vector of integers.
-def maxInts ([Int] -> Int?):
+def maxInts ([int] -> int?):
   {maxInt} foldl1
 
 // The minimum of two integers.
-def minInt (Int Int -> Int):
+def minInt (int int -> int):
   -> a b;
   \if a < b: a else: b
 
 // The minimum of three integers.
-def minInt3 (Int Int Int -> Int):
+def minInt3 (int int int -> int):
   minInt minInt
 
 // The minimum of a vector of integers.
-def minInts ([Int] -> Int?):
+def minInts ([int] -> int?):
   {minInt} foldl1
 
 // Floating-point negation.
-def negFloat (Float -> Float):
+def negFloat (float -> float):
   __neg_float
 
 // Integer negation.
-def negInt (Int -> Int):
+def negInt (int -> int):
   __neg_int
 
 // Logical NOT.
-def not (Bool -> Bool):
+def not (bool -> bool):
   __not_bool
 
 // Whether a floating-point number is odd.
-def oddFloat (Float -> Bool):
+def oddFloat (float -> bool):
   evenFloat not
 
 // Whether an integer is odd.
-def oddInt (Int -> Bool):
+def oddInt (int -> bool):
   evenInt not
 
 // Whether any element of a vector is true.
-def or ([Bool] -> Bool):
+def or ([bool] -> bool):
   false {(||)} foldl
 
 // The ratio of a circle's circumference to its diameter.
-def pi (-> Float): 3.141592653589793
+def pi (-> float): 3.141592653589793
 
 // The product of a vector of floating-point numbers.
-def productFloats ([Float] -> Float):
+def productFloats ([float] -> float):
   1.0 {(*.)} foldl
 
 // The product of a vector of integers.
-def productInts ([Int] -> Int):
+def productInts ([int] -> int):
   1 {(*)} foldl
 
 // The sum of a vector of floating-point numbers.
-def sumFloats ([Float] -> Float):
+def sumFloats ([float] -> float):
   0.0 {(+.)} foldl
 
 // The sum of a vector of integers.
-def sumInts ([Int] -> Int):
+def sumInts ([int] -> int):
   0 {(+)} foldl
 
 // The ratio of a circle's circumference to its radius.
-def tau (-> Float): 6.283185307179586
+def tau (-> float): 6.283185307179586
 
 // Integer inequality.
 infix 4 !=
-def != (Int Int -> Bool):
+def != (int int -> bool):
   __ne_int
 
 infix 4 ≠
-def ≠ (Int Int -> Bool):
+def ≠ (int int -> bool):
   __ne_int
 
 // Floating-point inequality.
 infix 4 !=.
-def !=. (Float Float -> Bool):
+def !=. (float float -> bool):
   __ne_float
 
 infix 4 ≠.
-def ≠. (Float Float -> Bool):
+def ≠. (float float -> bool):
   __ne_float
 
 // Integer modulus.
 infix_left 7 %
-def % (Int Int -> Int):
+def % (int int -> int):
   __mod_int
 
 // Floating-point modulus.
 infix_left 7 %.
-def %. (Float Float -> Float):
+def %. (float float -> float):
   __mod_float
 
 // Bitwise AND.
 infix_left 7 &
-def & (Int Int -> Int):
+def & (int int -> int):
   __and_int
 
 // Logical AND.
 infix_right 3 &&
-def && (Bool Bool -> Bool):
+def && (bool bool -> bool):
   __and_bool
 
 infix_right 3 ∧
-def ∧ (Bool Bool -> Bool):
+def ∧ (bool bool -> bool):
   __and_bool
 
 // Integer multiplication.
 infix_left 7 *
-def * (Int Int -> Int):
+def * (int int -> int):
   __mul_int
 
 infix_left 7 ×
-def × (Int Int -> Int):
+def × (int int -> int):
   __mul_int
 
 // Floating-point multiplication.
 infix_left 7 *.
-def *. (Float Float -> Float):
+def *. (float float -> float):
   __mul_float
 
 infix_left 7 ×.
-def ×. (Float Float -> Float):
+def ×. (float float -> float):
   __mul_float
 
 // Integer addition.
 infix_right 6 +
-def + (Int Int -> Int):
+def + (int int -> int):
   __add_int
 
 // Floating-point addition.
 infix_left 6 +.
-def +. (Float Float -> Float):
+def +. (float float -> float):
   __add_float
 
 // Integer subtraction.
 infix_left 6 -
-def - (Int Int -> Int):
+def - (int int -> int):
   __sub_int
 
 infix_left 6 −
-def − (Int Int -> Int):
+def − (int int -> int):
   __sub_int
 
 // Floating-point subtraction.
 infix_left 6 -.
-def -. (Float Float -> Float):
+def -. (float float -> float):
   __sub_float
 
 infix_left 6 −.
-def −. (Float Float -> Float):
+def −. (float float -> float):
   __sub_float
 
 // Integer division.
 infix_left 7 /
-def / (Int Int -> Int):
+def / (int int -> int):
   __div_int
 
 infix_left 7 ÷
-def ÷ (Int Int -> Int):
+def ÷ (int int -> int):
   __div_int
 
 // Floating-point division.
 infix_left 7 /.
-def /. (Float Float -> Float):
+def /. (float float -> float):
   __div_float
 
 infix_left 7 ÷.
-def ÷. (Float Float -> Float):
+def ÷. (float float -> float):
   __div_float
 
 // Integer less than.
 infix 4 <
-def < (Int Int -> Bool):
+def < (int int -> bool):
   __lt_int
 
 // Floating-point less than.
 infix 4 <.
-def <. (Float Float -> Bool):
+def <. (float float -> bool):
   __lt_float
 
 // Integer less than or equal.
 infix 4 <=
-def <= (Int Int -> Bool):
+def <= (int int -> bool):
   __le_int
 
 infix 4 ≤
-def ≤ (Int Int -> Bool):
+def ≤ (int int -> bool):
   __le_int
 
 // Floating-point less than or equal.
 infix 4 <=.
-def <=. (Float Float -> Bool):
+def <=. (float float -> bool):
   __le_float
 
 infix 4 ≤.
-def ≤. (Float Float -> Bool):
+def ≤. (float float -> bool):
   __le_float
 
 // Integer equality.
 infix 4 =
-def = (Int Int -> Bool):
+def = (int int -> bool):
   __eq_int
 
 // Floating-point equality.
 infix 4 =.
-def =. (Float Float -> Bool):
+def =. (float float -> bool):
   __eq_float
 
 // Integer greater than.
 infix 4 >
-def > (Int Int -> Bool):
+def > (int int -> bool):
   __gt_int
 
 // Floating-point greater than.
 infix 4 >.
-def >. (Float Float -> Bool):
+def >. (float float -> bool):
   __gt_float
 
 // Integer greater than or equal.
 infix 4 >=
-def >= (Int Int -> Bool):
+def >= (int int -> bool):
   __ge_int
 
 infix 4 ≥
-def ≥ (Int Int -> Bool):
+def ≥ (int int -> bool):
   __ge_int
 
 // Floating-point greater than or equal.
 infix 4 >=.
-def >=. (Float Float -> Bool):
+def >=. (float float -> bool):
   __ge_float
 
 infix 4 ≥.
-def ≥. (Float Float -> Bool):
+def ≥. (float float -> bool):
   __ge_float
 
 // Bitwise XOR.
 infix_left 6 ^
-def ^ (Int Int -> Int):
+def ^ (int int -> int):
   __xor_int
 
 // Boolean XOR.
 infix_right 2 ^^
-def ^^ (Bool Bool -> Bool):
+def ^^ (bool bool -> bool):
   __xor_bool
 
 infix_right 2 ⊻
-def ⊻ (Bool Bool -> Bool):
+def ⊻ (bool bool -> bool):
   __xor_bool
 
 // Bitwise OR.
 infix_left 5 |
-def | (Int Int -> Int):
+def | (int int -> int):
   __or_int
 
 // Logical OR.
 infix_right 2 ||
-def || (Bool Bool -> Bool):
+def || (bool bool -> bool):
   __or_bool
 
 infix_right 2 ∨
-def ∨ (Bool Bool -> Bool):
+def ∨ (bool bool -> bool):
   __or_bool
 
 // Bitwise NOT.
-def ~ (Int -> Int):
+def ~ (int -> int):
   __not_int

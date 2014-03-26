@@ -12,6 +12,7 @@
 module Kitten.Type
   ( module Kitten.Kind
   , Annotated(..)
+  , Ctor(..)
   , Hint(..)
   , Origin(..)
   , Scheme(..)
@@ -21,7 +22,12 @@ module Kitten.Type
   , TypeScheme
   , (-->)
   , addHint
+  , bool
   , bottommost
+  , char
+  , float
+  , handle
+  , int
   , mono
   , scalar
   , stack
@@ -49,31 +55,50 @@ data Type (a :: Kind) where
   (:.) :: !(Type Stack) -> !(Type Scalar) -> Type Stack
   (:?) :: !(Type Scalar) -> Type Scalar
   (:|) :: !(Type Scalar) -> !(Type Scalar) -> Type Scalar
-  Bool :: !Origin -> Type Scalar
-  Char :: !Origin -> Type Scalar
   Const :: !(TypeName a) -> !Origin -> Type a
+  Ctor :: !Ctor -> !Origin -> Type Scalar
   Empty :: !Origin -> Type Stack
-  Float :: !Origin -> Type Scalar
   Function :: !(Type Stack) -> !(Type Stack) -> !Origin -> Type Scalar
-  Handle :: !Origin -> Type Scalar
-  Int :: !Origin -> Type Scalar
   Quantified :: !TypeScheme -> !Origin -> Type Scalar
   Var :: !(TypeName a) -> !Origin -> Type a
   Vector :: !(Type Scalar) -> !Origin -> Type Scalar
+
+data Ctor
+  = Bool
+  | Char
+  | Float
+  | Handle
+  | Int
+  deriving (Eq)
+
+bool, char, float, handle, int
+  :: Origin -> Type Scalar
+bool = Ctor Bool
+char = Ctor Char
+float = Ctor Float
+handle = Ctor Handle
+int = Ctor Int
+
+instance ToText Ctor where
+  toText = \case
+    Bool -> "bool"
+    Char -> "char"
+    Float -> "float"
+    Handle -> "handle"
+    Int -> "int"
+
+instance Show Ctor where
+  show = T.unpack . toText
 
 instance Eq (Type a) where
   (a :& b) == (c :& d) = (a, b) == (c, d)
   (a :. b) == (c :. d) = (a, b) == (c, d)
   (:?) a == (:?) b = a == b
   (a :| b) == (c :| d) = (a, b) == (c, d)
-  Bool{} == Bool{} = True
-  Char{} == Char{} = True
   Const a _ == Const b _ = a == b
+  Ctor a _ == Ctor b _ = a == b
   Empty{} == Empty{} = True
-  Float{} == Float{} = True
   Function a b _ == Function c d _ = (a, b) == (c, d)
-  Handle{} == Handle{} = True
-  Int{} == Int{} = True
   Quantified a _ == Quantified b _ = a == b
   Var a _ == Var b _ = a == b
   Vector a _ == Vector b _ = a == b
@@ -91,17 +116,13 @@ instance ToText (Type Scalar) where
     t1 :& t2 -> T.concat ["(", toText t1, " & ", toText t2, ")"]
     (:?) t -> toText t <> "?"
     t1 :| t2 -> T.concat ["(", toText t1, " | ", toText t2, ")"]
-    Bool o -> "Bool" <> suffix o
-    Char o -> "Char" <> suffix o
     Const (TypeName (Name index)) o
       -> "t" <> showText index <> suffix o  -- TODO Show differently?
-    Float o -> "Float" <> suffix o
+    Ctor name o -> toText name <> suffix o
     Function r1 r2 o -> T.concat
       [ "(", T.unwords [toText r1, "->", toText r2], ")"
       , suffix o
       ]
-    Handle o -> "Handle" <> suffix o
-    Int o -> "Int" <> suffix o
     Quantified scheme _ -> toText scheme
     Var (TypeName (Name index)) o
       -> "t" <> showText index <> suffix o
@@ -121,8 +142,8 @@ suffix (Origin hint _) = case hint of
   Local name -> " (type of " <> name <> ")"
   AnnoType annotated
     -> " (type of " <> toText annotated <> ")"
-  AnnoVar name annotated
-    -> " (type var " <> name <> " of " <> toText annotated <> ")"
+  AnnoVar _ annotated
+    -> " (from " <> toText annotated <> ")"
   AnnoFunctionInput annotated
     -> " (input to " <> toText annotated <> ")"
   AnnoFunctionOutput annotated
@@ -245,13 +266,9 @@ addHint type_ hint = case type_ of
   (:?) _ -> type_
   _ :| _ -> type_
   Empty o -> Empty (f o)
-  Bool o -> Bool (f o)
-  Char o -> Char (f o)
   Const name o -> Const name (f o)
-  Float o -> Float (f o)
+  Ctor name o -> Ctor name (f o)
   Function r1 r2 o -> Function r1 r2 (f o)
-  Handle o -> Handle (f o)
-  Int o -> Int (f o)
   Quantified scheme o -> Quantified scheme o
   Var name o -> Var name (f o)
   Vector t o -> Vector t (f o)

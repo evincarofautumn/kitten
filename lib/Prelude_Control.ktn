@@ -11,11 +11,11 @@ def choice_else {.r, .s, a, b}(.r (a | b) (.r a -> .s) (.r b -> .s) -> .s):
   __choice_else
 
 // Applies a function if a condition is met.
-def if {.r}(.r Bool (.r -> .r) -> .r):
+def if {.r}(.r bool (.r -> .r) -> .r):
   __if
 
 // Applies one of two functions according to a condition.
-def if_else {.r, .s}(.r Bool (.r -> .s) (.r -> .s) -> .s):
+def if_else {.r, .s}(.r bool (.r -> .s) (.r -> .s) -> .s):
   __if_else
 
 // Applies a function to the value of some option.
@@ -66,12 +66,12 @@ def cond1 {a, b, c}(
     x (ps tail) cond1
 
 // Repeats an action until a condition is false.
-def loopWhile ((-> Bool) ->):
+def loopWhile ((-> bool) ->):
   -> f;
   \if f apply: f loopWhile
 
 // Iterates a function on a value until a predicate holds.
-def until {a}(a (a -> a) (a -> Bool) -> a):
+def until {a}(a (a -> a) (a -> bool) -> a):
   -> x f p;
   \if x p apply:
     x

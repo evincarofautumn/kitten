@@ -2,5 +2,5 @@
 
 def myAddVector {a}([a] [a] -> [a]): __add_vector
 
-def bar {a}([a] [Char] -> Int):
+def bar {a}([a] [char] -> int):
   ->x; [x] myAddVector

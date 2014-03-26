@@ -1,4 +1,4 @@
 // TODO(strager): Improve error reporting.
 
-def baz {a}([a] [Char] -> Int):
+def baz {a}([a] [char] -> int):
   ->x; [x] __add_vector

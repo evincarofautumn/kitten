@@ -145,13 +145,13 @@ typeOfValueM
   :: Location -> InterpreterValue -> State NameGen (Type Type.Scalar)
 typeOfValueM loc value = case value of
   Activation _closed typed -> return $ Tree.typedType typed
-  Bool _ -> return $ Type.Bool origin
-  Char _ -> return $ Type.Char origin
+  Bool _ -> return $ Type.bool origin
+  Char _ -> return $ Type.char origin
   Choice False x -> liftM2 (:|) (recur x) freshVarM
   Choice True y -> liftM2 (:|) freshVarM (recur y)
-  Float _ -> return $ Type.Float origin
-  Handle _ -> return $ Type.Handle origin
-  Int _ -> return $ Type.Int origin
+  Float _ -> return $ Type.float origin
+  Handle _ -> return $ Type.handle origin
+  Int _ -> return $ Type.int origin
   Option (Just x) -> liftM (:?) (recur x)
   Option Nothing -> liftM (:?) freshVarM
   Pair x y -> liftM2 (:&) (recur x) (recur y)

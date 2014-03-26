@@ -1,4 +1,4 @@
-def levenshtein ([Char] [Char] -> Int):
+def levenshtein ([char] [char] -> int):
   -> first second;
   first length -> rows;
   second length -> columns;

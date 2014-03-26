@@ -191,12 +191,8 @@ instance Free (Type Scalar) where
     (:?) a -> free a
     a :| b -> free a <> free b
     Function a b _ -> free a <> free b
-    Bool{} -> mempty
-    Char{} -> mempty
     Const name _ -> ([], [name])
-    Float{} -> mempty
-    Handle{} -> mempty
-    Int{} -> mempty
+    Ctor{} -> mempty
     Quantified (Forall r s t) _
       -> let (stacks, scalars) = free t
       in (stacks \\ S.toList r, scalars \\ S.toList s)
@@ -246,14 +242,10 @@ instance Occurrences Scalar where
     (:?) a -> occurrences name env a
     a :| b -> occurrences name env a + occurrences name env b
     Function a b _ -> occurrences name env a + occurrences name env b
-    Bool{} -> 0
-    Char{} -> 0
     Const typeName@(TypeName name') _ -> case retrieve env typeName of
       Left{} -> if name == name' then 1 else 0  -- See Note [Var Kinds].
       Right type' -> occurrences name env type'
-    Float{} -> 0
-    Handle{} -> 0
-    Int{} -> 0
+    Ctor{} -> 0
     Var typeName@(TypeName name') _ -> case retrieve env typeName of
       Left{} -> if name == name' then 1 else 0  -- See Note [Var Kinds].
       Right type' -> occurrences name env type'
@@ -309,12 +301,8 @@ instance Substitute Scalar where
     a :& b -> sub env a :& sub env b
     (:?) a -> (sub env a :?)
     a :| b -> sub env a :| sub env b
-    Bool{} -> type_
-    Char{} -> type_
     Const{} -> type_  -- See Note [Constant Substitution].
-    Float{} -> type_
-    Int{} -> type_
-    Handle{} -> type_
+    Ctor{} -> type_
     Quantified (Forall r s t) loc
       -> Quantified (Forall r s (sub env t)) loc
     Var name (Origin hint _loc)

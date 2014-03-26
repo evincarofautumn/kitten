@@ -64,8 +64,6 @@ fromAnno annotated (Anno annoType annoLoc) = do
 
   fromAnnoType' :: Hint -> Anno.Type -> Converted (Type Scalar)
   fromAnnoType' hint = \case
-    Anno.Bool -> return (Bool origin)
-    Anno.Char -> return (Char origin)
     Anno.Choice a b -> (:|)
       <$> fromAnnoType' NoHint a
       <*> fromAnnoType' NoHint b
@@ -75,9 +73,6 @@ fromAnno annotated (Anno annoType annoLoc) = do
       scheme <- Forall (S.singleton r) S.empty
         <$> makeFunction origin rVar a rVar b
       return $ Quantified scheme origin
-    Anno.Float -> return (Float origin)
-    Anno.Handle -> return (Handle origin)
-    Anno.Int -> return (Int origin)
     Anno.Option a -> (:?)
       <$> fromAnnoType' NoHint a
     Anno.Pair a b -> (:&)
@@ -134,8 +129,15 @@ scalarVar
 scalarVar name loc annotated = do
   existing <- gets $ M.lookup name . envScalars
   case existing of
-    Just var -> return $ Var var (Origin (AnnoVar name annotated) loc)
-    Nothing -> unknown name loc
+    Just var -> return $ Var var origin
+    Nothing -> case name of
+      "bool" -> return $ Ctor Bool origin
+      "char" -> return $ Ctor Char origin
+      "float" -> return $ Ctor Float origin
+      "handle" -> return $ Ctor Handle origin
+      "int" -> return $ Ctor Int origin
+      _ -> unknown name loc
+  where origin = Origin (AnnoVar name annotated) loc
 
 -- | Gets a stack variable by name from the environment.
 stackVar
