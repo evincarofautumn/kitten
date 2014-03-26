@@ -1,43 +1,43 @@
 // Composes two functions.
-def compose (.r (.s -> .t) (.t -> .u) -> .r (.s -> .u)):
+def compose {.r, .s, .t, .u}(.r (.s -> .t) (.t -> .u) -> .r (.s -> .u)):
   -> f g;
   { f apply g apply }
 
 // Operator alias for 'compose'.
 infix_right 9 >>>
-def >>> (.r (.s -> .t) (.t -> .u) -> .r (.s -> .u)):
+def >>> {.r, .s, .t, .u}(.r (.s -> .t) (.t -> .u) -> .r (.s -> .u)):
   compose
 
 infix_right 9 ∘
-def ∘ (.r (.s -> .t) (.t -> .u) -> .r (.s -> .u)):
+def ∘ {.r, .s, .t, .u}(.r (.s -> .t) (.t -> .u) -> .r (.s -> .u)):
   compose
 
 // Wraps a value in a function.
-def function (a -> (-> a)):
+def function {a}(a -> (-> a)):
   -> x;
   { x }
 
 // Wraps a value in a unary function.
-def const (a -> b -> a):
+def const {a, b}(a -> b -> a):
   -> x;
   { drop x }
 
 // Applies a unary function to two values.
-def toBoth (a a (a -> b) -> b b):
+def toBoth {a, b}(a a (a -> b) -> b b):
   -> x y f;
   x f apply -> a;
   y f apply -> b;
   a b
 
 // Applies two unary functions to one value.
-def bothTo (a (a -> b) (a -> c) -> b c):
+def bothTo {a, b, c}(a (a -> b) (a -> c) -> b c):
   -> x f g;
   x f apply -> a;
   x g apply -> b;
   a b
 
 // Applies two unary functions to two values.
-def both (a b (a -> c) (b -> d) -> c d):
+def both {a, b, c, d}(a b (a -> c) (b -> d) -> c d):
   -> x y f g;
   x f apply -> a;
   y g apply -> b;

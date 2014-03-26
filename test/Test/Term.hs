@@ -167,7 +167,7 @@ spec = do
   describe "definition" $ do
 
     testTerm
-      "def pi (Float): 3"
+      "def pi (-> Float): 3"
       $ mempty { fragmentDefs = V.fromList
         [def "pi" $ compose [pushi 3]] }
 

@@ -1,9 +1,8 @@
 module Kitten.Parse.Primitive
-  ( bigWord
-  , blocked
+  ( blocked
   , grouped
-  , littleWord
-  , operator
+  , named
+  , symbolic
   , word
   ) where
 
@@ -20,19 +19,9 @@ blocked = between
   (match (Token.BlockBegin Token.NormalBlockHint))
   (match Token.BlockEnd)
 
-littleWord :: Parser Text
-littleWord = mapOne $ \token -> case token of
-  Token.LittleWord name -> Just name
-  _ -> Nothing
-
-operator :: Parser Text
-operator = mapOne $ \token -> case token of
+symbolic :: Parser Text
+symbolic = mapOne $ \token -> case token of
   Token.Operator name -> Just name
-  _ -> Nothing
-
-bigWord :: Parser Text
-bigWord = mapOne $ \token -> case token of
-  Token.BigWord name -> Just name
   _ -> Nothing
 
 grouped :: Parser a -> Parser a
@@ -40,5 +29,10 @@ grouped = between
   (match Token.GroupBegin)
   (match Token.GroupEnd)
 
+named :: Parser Text
+named = mapOne $ \token -> case token of
+  Token.Word name -> Just name
+  _ -> Nothing
+
 word :: Parser Text
-word = littleWord <|> operator
+word = named <|> symbolic

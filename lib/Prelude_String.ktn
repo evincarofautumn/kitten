@@ -55,7 +55,7 @@ def showInts ([Int] -> [Char]):
   {showInt} showVector
 
 // Shows a vector as a string.
-def showVector ([a] (a -> [Char]) -> [Char]):
+def showVector {a}([a] (a -> [Char]) -> [Char]):
   -> v f;
   [
     "[",

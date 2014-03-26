@@ -15,7 +15,7 @@ def absFloat (Float -> Float):
     x
 
 // Whether all elements of a vector satisfy a predicate.
-def all ([a] (a -> Bool) -> Bool):
+def all {a}([a] (a -> Bool) -> Bool):
   map and
 
 // Whether all elements of a vector are true.
@@ -23,7 +23,7 @@ def and ([Bool] -> Bool):
   true {(&&)} foldl
 
 // Whether any element of a vector satisfies a predicate.
-def any ([a] (a -> Bool) -> Bool):
+def any {a}([a] (a -> Bool) -> Bool):
   map or
 
 // Whether a floating-point number is even.
@@ -94,7 +94,7 @@ def or ([Bool] -> Bool):
   false {(||)} foldl
 
 // The ratio of a circle's circumference to its diameter.
-def pi (Float): 3.141592653589793
+def pi (-> Float): 3.141592653589793
 
 // The product of a vector of floating-point numbers.
 def productFloats ([Float] -> Float):
@@ -113,7 +113,7 @@ def sumInts ([Int] -> Int):
   0 {(+)} foldl
 
 // The ratio of a circle's circumference to its radius.
-def tau (Float): 6.283185307179586
+def tau (-> Float): 6.283185307179586
 
 // Integer inequality.
 infix 4 !=

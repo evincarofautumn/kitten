@@ -1,21 +1,21 @@
-def ↔ (a b → b a):
+def ↔ {a, b}(a b → b a):
   swap
 
 1 2 ↔ − sayInt
 
-def latter (α β → β):
+def latter {α, β}(α β → β):
   swap drop
 
 3 4 latter sayInt
 
 // In reality, former.
-def latter' (γ δ → γ):
+def latter' {γ, δ}(γ δ → γ):
   drop
 
 5 6 latter' sayInt
 
 // With a real prime.
-def latter′ (ε ζ → ζ):
+def latter′ {ε, ζ}(ε ζ → ζ):
   latter
 
 7 8 latter′ sayInt

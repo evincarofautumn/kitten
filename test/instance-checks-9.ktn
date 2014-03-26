@@ -1,1 +1,1 @@
-def example (Int a -> a a): ->x y; x y
+def example {a}(Int a -> a a): ->x y; x y

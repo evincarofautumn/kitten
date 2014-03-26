@@ -28,7 +28,6 @@ data BaseHint
 
 data Token
   = Arrow
-  | BigWord Text
   | BlockBegin BlockTypeHint
   | BlockEnd
   | Bool Bool
@@ -48,7 +47,6 @@ data Token
   | InfixRight
   | Int Int BaseHint
   | Layout
-  | LittleWord Text
   | Operator Text
   | Postfix
   | Prefix
@@ -57,10 +55,10 @@ data Token
   | Type
   | VectorBegin
   | VectorEnd
+  | Word Text
 
 instance Eq Token where
   Arrow        == Arrow        = True
-  BigWord a    == BigWord b    = a == b
   -- BlockBegins are equal regardless of BlockTypeHint.
   BlockBegin{} == BlockBegin{} = True
   BlockEnd     == BlockEnd     = True
@@ -82,7 +80,6 @@ instance Eq Token where
   -- Ints are equal regardless of BaseHint.
   Int a _      == Int b _      = a == b
   Layout       == Layout       = True
-  LittleWord a == LittleWord b = a == b
   Operator a   == Operator b   = a == b
   Postfix      == Postfix      = True
   Prefix       == Prefix       = True
@@ -91,12 +88,12 @@ instance Eq Token where
   Type         == Type         = True
   VectorBegin  == VectorBegin  = True
   VectorEnd    == VectorEnd    = True
+  Word a       == Word b       = a == b
   _            == _            = False
 
 instance Show Token where
   show t = case t of
     Arrow -> "->"
-    BigWord word -> T.unpack word
     BlockBegin NormalBlockHint -> "{"
     BlockBegin LayoutBlockHint -> ":"
     BlockEnd -> "}"
@@ -124,7 +121,6 @@ instance Show Token where
         DecimalHint -> (10, "", ['0'..'9'])
         HexadecimalHint -> (16, "0x", ['0'..'9'] ++ ['A'..'F'])
     Layout -> ":"
-    LittleWord word -> T.unpack word
     Operator word -> T.unpack word
     Postfix -> "postfix"
     Prefix -> "prefix"
@@ -133,6 +129,7 @@ instance Show Token where
     Type -> "type"
     VectorBegin -> "["
     VectorEnd -> "]"
+    Word word -> T.unpack word
 
 data Located = Located
   { locatedToken :: Token

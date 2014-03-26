@@ -6,6 +6,7 @@ module Kitten.Parse.Type
   ) where
 
 import Control.Applicative
+import Data.Either
 import Data.Text (Text)
 import Data.Vector (Vector)
 
@@ -15,6 +16,7 @@ import Kitten.Anno (Anno(..), Type)
 import Kitten.Parse.Monad
 import Kitten.Parsec
 import Kitten.Parse.Primitive
+import Kitten.Token (Token)
 import Kitten.Util.Parsec
 
 import qualified Kitten.Anno as Anno
@@ -22,11 +24,8 @@ import qualified Kitten.Token as Token
 
 signature :: Parser Anno
 signature = (<?> "type signature") . locate
-  $ Anno <$> choice
-  [ try . grouped $ Anno.Function V.empty
-    <$> (V.singleton <$> baseType)
-  , grouped functionType
-  ]
+  $ Anno <$> (quantified sig <|> sig)
+  where sig = grouped functionType
 
 typeDefType :: Parser Anno
 typeDefType = locate $ Anno <$> baseType
@@ -34,29 +33,39 @@ typeDefType = locate $ Anno <$> baseType
 type_ :: Parser Type
 type_ = (<?> "type") $ try functionType <|> baseType
 
+quantified :: Parser Type -> Parser Type
+quantified thing = do
+  (stacks, scalars) <- partitionEithers <$> between
+    (match $ Token.BlockBegin Token.NormalBlockHint)
+    (match Token.BlockEnd)
+    (variable `sepEndBy1` match Token.Comma)
+  Anno.Quantified (V.fromList stacks) (V.fromList scalars) <$> thing
+  where
+  variable :: Parser (Either Text Text)
+  variable = Left <$> (dot *> word) <|> Right <$> word
+
+dot :: Parser Token
+dot = match (Token.Operator ".")
+
 functionType :: Parser Type
 functionType = (<?> "function type") $ choice
-  [ Anno.Function <$> left <*> right
-  , Anno.StackFunction <$> stack <*> left <*> stack <*> right
+  [ Anno.StackFunction <$> (dot *> word) <*> left <*> (dot *> word) <*> right
+  , Anno.Function <$> left <*> right
   ]
   where
-
   left, right :: Parser (Vector Type)
   left = manyV baseType <* match Token.Arrow
   right = manyV type_
 
-  stack :: Parser Text
-  stack = match (Token.Operator ".") *> littleWord
-
 baseType :: Parser Type
 baseType = (<?> "base type") $ do
   prefix <- choice
-    [ Anno.Bool <$ match (Token.BigWord "Bool")
-    , Anno.Char <$ match (Token.BigWord "Char")
-    , Anno.Float <$ match (Token.BigWord "Float")
-    , Anno.Handle <$ match (Token.BigWord "Handle")
-    , Anno.Int <$ match (Token.BigWord "Int")
-    , Anno.Var <$> littleWord
+    [ Anno.Bool <$ match (Token.Word "Bool")
+    , Anno.Char <$ match (Token.Word "Char")
+    , Anno.Float <$ match (Token.Word "Float")
+    , Anno.Handle <$ match (Token.Word "Handle")
+    , Anno.Int <$ match (Token.Word "Int")
+    , Anno.Var <$> word
     , vector
     , try $ grouped type_
     ]

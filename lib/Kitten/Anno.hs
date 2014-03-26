@@ -29,6 +29,7 @@ data Type
   | Int
   | Option !Type
   | Pair !Type !Type
+  | Quantified !(Vector Text) !(Vector Text) !Type
   | StackFunction !Text !(Vector Type) !Text !(Vector Type)
   | Var !Text
   | Vector !Type

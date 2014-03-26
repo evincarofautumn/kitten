@@ -1,4 +1,4 @@
-def test (a? (a -> [Char]) ->):
+def test {a}(a? (a -> [Char]) ->):
   -> x show;
   \option x:
     show apply say

@@ -1,30 +1,30 @@
 // Applies a function to the stack.
-def apply (.r (.r -> .s) -> .s):
+def apply {.r, .s}(.r (.r -> .s) -> .s):
   __apply
 
 // Applies a function to the left branch of a choice.
-def choice (.r (a | b) (.r a -> .r) -> .r):
+def choice {.r, a, b}(.r (a | b) (.r a -> .r) -> .r):
   __choice
 
 // Applies one of two functions to the branches of a choice.
-def choice_else (.r (a | b) (.r a -> .s) (.r b -> .s) -> .s):
+def choice_else {.r, .s, a, b}(.r (a | b) (.r a -> .s) (.r b -> .s) -> .s):
   __choice_else
 
 // Applies a function if a condition is met.
-def if (.r Bool (.r -> .r) -> .r):
+def if {.r}(.r Bool (.r -> .r) -> .r):
   __if
 
 // Applies one of two functions according to a condition.
-def if_else (.r Bool (.r -> .s) (.r -> .s) -> .s):
+def if_else {.r, .s}(.r Bool (.r -> .s) (.r -> .s) -> .s):
   __if_else
 
 // Applies a function to the value of some option.
-def option (.r a? (.r a -> .r) -> .r):
+def option {.r, a}(.r a? (.r a -> .r) -> .r):
   __option
 
 // Applies a function to the value of some option, or else a
 // default function.
-def option_else (.r a? (.r a -> .s) (.r -> .s) -> .s):
+def option_else {.r, .s, a}(.r a? (.r a -> .s) (.r -> .s) -> .s):
   __option_else
 
 // 'cond' accepts a value, a vector of patterns, and a
@@ -33,8 +33,8 @@ def option_else (.r a? (.r a -> .s) (.r -> .s) -> .s):
 // in turn; the body corresponding to the first match to
 // return 'some' value is evaluated. If all of the matches
 // returned 'none', then 'cond' evaluates the default.
-def cond (
-  a                          // Matched value
+def cond {a, b, c}(
+  a                       // Matched value
   [(a -> b?) & (b -> c)]  // (pattern, function) pairs
   (-> c)                  // default function
   ->
@@ -51,7 +51,7 @@ def cond (
     z apply
 
 // 'cond' without a default.
-def cond1 (
+def cond1 {a, b, c}(
   a
   [(a -> b?) & (b -> c)]
   ->
@@ -71,7 +71,7 @@ def loopWhile ((-> Bool) ->):
   \if f apply: f loopWhile
 
 // Iterates a function on a value until a predicate holds.
-def until (a (a -> a) (a -> Bool) -> a):
+def until {a}(a (a -> a) (a -> Bool) -> a):
   -> x f p;
   \if x p apply:
     x

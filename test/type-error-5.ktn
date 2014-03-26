@@ -1,6 +1,6 @@
 // TODO(strager): Improve error reporting.
 
-def myAddVector ([a] [a] -> [a]): __add_vector
+def myAddVector {a}([a] [a] -> [a]): __add_vector
 
-def bar ([a] [Char] -> Int):
+def bar {a}([a] [Char] -> Int):
   ->x; [x] myAddVector

@@ -92,9 +92,9 @@ spec = do
     testTokens "__apply" [Builtin Builtin.Apply]
 
   describe "tokenize word" $ do
-    testTokens "not_a_keyword" [LittleWord "not_a_keyword"]
-    testTokens "alsoNot" [LittleWord "alsoNot"]
-    testTokens "thisThat123" [LittleWord "thisThat123"]
+    testTokens "not_a_keyword" [Word "not_a_keyword"]
+    testTokens "alsoNot" [Word "alsoNot"]
+    testTokens "thisThat123" [Word "thisThat123"]
     testTokens "+-" [Operator "+-"]
     testTokens "<=>" [Operator "<=>"]
     testTokens "!#$%&*+-./<=>?@^|~"

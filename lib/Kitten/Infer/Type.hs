@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Infer.Type
   ( fromAnno
@@ -19,9 +20,11 @@ import qualified Data.Set as S
 import qualified Data.Vector as V
 
 import Kitten.Anno (Anno(..))
-import Kitten.Infer.Monad (Inferred, freshNameM)
+import Kitten.Error
+import Kitten.Infer.Monad (Inferred, freshNameM, liftFailWriter)
 import Kitten.Location
 import Kitten.Type
+import Kitten.Util.FailWriter
 
 import qualified Kitten.Anno as Anno
 
@@ -80,6 +83,25 @@ fromAnno annotated (Anno annoType annoLoc) = do
     Anno.Pair a b -> (:&)
       <$> fromAnnoType' NoHint a
       <*> fromAnnoType' NoHint b
+    Anno.Quantified stacks scalars type_ -> do
+      stackVars <- V.mapM declareStack stacks
+      scalarVars <- V.mapM declareScalar scalars
+      scheme <- Forall
+        (S.fromList (V.toList stackVars))
+        (S.fromList (V.toList scalarVars))
+        <$> fromAnnoType' NoHint type_
+      return $ Quantified scheme origin
+      where
+      declareScalar name = do
+        var <- lift freshNameM
+        modify $ \env -> env
+          { envScalars = M.insert name var (envScalars env) }
+        return var
+      declareStack name = do
+        var <- lift freshNameM
+        modify $ \env -> env
+          { envStacks = M.insert name var (envStacks env) }
+        return var
     Anno.StackFunction leftStack leftScalars rightStack rightScalars -> do
       leftStackVar <- stackVar leftStack loc annotated
       rightStackVar <- stackVar rightStack loc annotated
@@ -107,36 +129,25 @@ fromAnno annotated (Anno annoType annoLoc) = do
 fromAnno _ TestAnno = error "cannot make type from test annotation"
 
 -- | Gets a scalar variable by name from the environment.
-scalarVar :: Text -> Location -> Annotated -> Converted (Type Scalar)
-scalarVar = annoVar
-  (\name -> M.lookup name . envScalars)
-  (\name var env -> env
-    { envScalars = M.insert name var (envScalars env) })
+scalarVar
+  :: Text -> Location -> Annotated -> Converted (Type Scalar)
+scalarVar name loc annotated = do
+  existing <- gets $ M.lookup name . envScalars
+  case existing of
+    Just var -> return $ Var var (Origin (AnnoVar name annotated) loc)
+    Nothing -> unknown name loc
 
 -- | Gets a stack variable by name from the environment.
-stackVar :: Text -> Location -> Annotated -> Converted (Type Stack)
-stackVar = annoVar
-  (\name -> M.lookup name . envStacks)
-  (\name var env -> env
-    { envStacks = M.insert name var (envStacks env) })
+stackVar
+  :: Text -> Location -> Annotated -> Converted (Type Stack)
+stackVar name loc annotated = do
+  existing <- gets $ M.lookup name . envStacks
+  case existing of
+    Just var -> return $ Var var (Origin (AnnoVar name annotated) loc)
+    Nothing -> unknown name loc
 
--- | Gets a variable by name from the environment, creating
--- it if it does not exist.
-annoVar
-  :: (Text -> Env -> Maybe (TypeName a))
-  -> (Text -> TypeName a -> Env -> Env)
-  -> Text
-  -> Location
-  -> Annotated
-  -> Converted (Type a)
-annoVar retrieve save name loc annotated = do
-  mExisting <- gets $ retrieve name
-  case mExisting of
-    Just existing -> return (Var existing origin)
-    Nothing -> do
-      var <- lift freshNameM
-      modify $ save name var
-      return (Var var origin)
-  where
-  origin :: Origin
-  origin = Origin (AnnoVar name annotated) loc
+unknown :: Text -> Location -> Converted a
+unknown name loc = lift . liftFailWriter . throwMany . (:[]) $ ErrorGroup
+  [ CompileError loc Error
+    $ "unknown type or undeclared type variable " <> name
+  ]

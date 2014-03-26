@@ -1,3 +1,3 @@
 // Exits the program with an implementation-defined status code.
-def exit (.r Int -> .s):
+def exit {.r, .s}(.r Int -> .s):
   __exit

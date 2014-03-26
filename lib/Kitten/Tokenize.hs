@@ -132,10 +132,9 @@ token = (<?> "token") . located $ choice
       "prefix" -> Prefix
       "true" -> Bool True
       "type" -> Type
-      (T.unpack -> first : _) | isUpper first -> BigWord name
       _ -> case Builtin.fromText name of
         Just builtin -> Builtin builtin
-        _ -> LittleWord name
+        _ -> Word name
     , ffor symbolic $ \name -> case name of
       "\\" -> Do
       _ | Just builtin <- Builtin.fromText name -> Builtin builtin

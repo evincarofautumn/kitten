@@ -72,8 +72,8 @@ def :: Parser (Def ParsedTerm)
 def = (<?> "definition") . locate $ do
   void (match Token.Def)
   (hint, name) <- choice
-    [ (,) PostfixHint <$> littleWord
-    , (,) InfixHint <$> operator
+    [ (,) PostfixHint <$> named
+    , (,) InfixHint <$> symbolic
     ] <?> "definition name"
   anno <- signature
   bodyTerm <- locate (Compose StackAny <$> block)
@@ -89,7 +89,7 @@ def = (<?> "definition") . locate $ do
 import_ :: Parser Import
 import_ = (<?> "import") . locate $ do
   void (match Token.Import)
-  name <- bigWord
+  name <- named
   return $ \loc -> Import
     { importName = name
     , importLocation = loc
@@ -104,7 +104,7 @@ operatorDeclaration = (<?> "operator declaration") . locate $ uncurry Operator
     , (Postfix, 9) <$ match Token.Postfix
     , (Prefix, 9) <$ match Token.Prefix
     ]
-  <*> operator
+  <*> symbolic
   where
   precedence = (<?> "decimal integer precedence from 0 to 9")
     $ mapOne $ \case
@@ -118,8 +118,8 @@ term = nonblockTerm <|> blockTerm
   nonblockTerm :: Parser ParsedTerm
   nonblockTerm = locate $ choice
     [ try $ Push <$> locate (mapOne toLiteral <?> "literal")
-    , Call PostfixHint <$> littleWord
-    , Call InfixHint <$> operator
+    , Call PostfixHint <$> named
+    , Call InfixHint <$> symbolic
     , try section
     , try group <?> "grouped expression"
     , pair <$> tuple
@@ -133,7 +133,7 @@ term = nonblockTerm <|> blockTerm
   section = (<?> "operator section") $ grouped $ choice
     [ do
       void $ match Token.Ignore
-      function <- operator
+      function <- symbolic
       choice
         [ do
           operand <- many1V term
@@ -146,11 +146,11 @@ term = nonblockTerm <|> blockTerm
           return $ Call PostfixHint function
         ]
     , do
-      function <- operator
+      function <- symbolic
       return $ Call PostfixHint function
     , do
-      operand <- many1V (notFollowedBy operator *> term)
-      function <- operator
+      operand <- many1V (notFollowedBy symbolic *> term)
+      function <- symbolic
       void $ match Token.Ignore
       return $ \loc -> Compose StackAny (V.fromList
         [ Compose Stack1 operand loc
@@ -177,7 +177,7 @@ term = nonblockTerm <|> blockTerm
   toFunctionOrBuiltin :: Token -> Maybe Text
   toFunctionOrBuiltin token = case token of
     Token.Builtin name -> Just (Builtin.toText name)
-    Token.LittleWord name -> Just name
+    Token.Word name -> Just name
     Token.Operator name -> Just name
     _ -> Nothing
 
@@ -208,7 +208,7 @@ term = nonblockTerm <|> blockTerm
 
   lambda :: Parser (Location -> ParsedTerm)
   lambda = (<?> "lambda") $ match Token.Arrow *> do
-    names <- many1 $ Just <$> littleWord <|> Nothing <$ match Token.Ignore
+    names <- many1 $ Just <$> named <|> Nothing <$ match Token.Ignore
     void (match Token.Semicolon)
     terms <- blockContents
     return $ \loc -> foldr
