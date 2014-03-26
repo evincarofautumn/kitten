@@ -13,17 +13,17 @@ def rangeFor (Int Int (Int -> Int) (Int Int -> Bool) -> [Int]):
 def rangeTo (Int Int -> [Int]):
   -> start end;
   \if start < end:
-    start end {(++)} {(>)} rangeFor
+    start end {(+ 1)} {(>)} rangeFor
   else:
-    start end {(--)} {(<)} rangeFor
+    start end {(- 1)} {(<)} rangeFor
 
 // Non-inclusive range
 def rangeUntil (Int Int -> [Int]):
   -> start end;
   \if start < end:
-    start end {(++)} {(>=)} rangeFor
+    start end {(+ 1)} {(>=)} rangeFor
   else:
-    start end {(--)} {(<=)} rangeFor
+    start end {(- 1)} {(<=)} rangeFor
 
 // Inclusive range (shorthand)
 def .. (Int Int -> [Int]) { rangeTo }

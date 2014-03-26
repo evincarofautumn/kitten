@@ -128,8 +128,6 @@ token = (<?> "token") . located $ choice
       "infix_left" -> InfixLeft
       "infix_right" -> InfixRight
       "import" -> Import
-      "postfix" -> Postfix
-      "prefix" -> Prefix
       "true" -> Bool True
       "type" -> Type
       _ -> case Builtin.fromText name of

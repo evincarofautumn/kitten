@@ -38,7 +38,7 @@ import Kitten.Util.Text (ToText(..), showText)
 -- TODO Add pretty 'Show' instance for 'Term's.
 data Term label a
   = Builtin !Builtin !a
-  | Call !FixityHint !label !a
+  | Call !Fixity !label !a
   | Compose !StackHint !(Vector (Term label a)) !a
   | Lambda !Text !(Term label a) !a
   | PairTerm !(Term label a) !(Term label a) !a

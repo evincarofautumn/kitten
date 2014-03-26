@@ -18,12 +18,12 @@ def iii ((Int Int -> Int) ->):
 
 {(+)} iii
 {(&)} iii
-{(--)} ii
+{(- 1)} ii
 {(/)} iii
 {(=)} iib
 {(>=)} iib
 {(>)} iib
-{(++)} ii
+{(+ 1)} ii
 {(<=)} iib
 {(<)} iib
 {(%)} iii

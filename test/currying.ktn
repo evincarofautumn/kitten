@@ -15,7 +15,7 @@ def curriedImpure (Int -> Int -> Int):
   ->x;
   { ->y; (x + y) dup sayInt }
 
-32 42 curriedImpure apply ++ sayInt
+32 42 curriedImpure apply (+ 1) sayInt
 
 // Impure function returning pure function.
 def curriedImpure2 (Int -> (Int -> Int)):

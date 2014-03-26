@@ -2,5 +2,5 @@
 
 v {evenInt} filter sayInts
 v {oddInt} filter sayInts
-v {(_ > 2)} filter sayInts
-v {(_ <= 2)} filter sayInts
+v {(> 2)} filter sayInts
+v {(<= 2)} filter sayInts

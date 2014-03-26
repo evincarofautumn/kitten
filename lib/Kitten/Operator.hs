@@ -1,8 +1,8 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Kitten.Operator
-  ( Fixity(..)
-  , FixityHint(..)
+  ( Associativity(..)
+  , Fixity(..)
   , Operator(..)
   ) where
 
@@ -12,21 +12,19 @@ import qualified Data.Text as T
 
 import Kitten.Location
 
--- | The actual fixity of an operator.
-data Fixity
-  = Infix
-  | InfixLeft
-  | InfixRight
-  | Postfix
-  | Prefix
+-- | The associativity of an infix operator.
+data Associativity
+  = NonAssociative
+  | LeftAssociative
+  | RightAssociative
   deriving (Eq, Show)
 
 -- | Whether a call is to a word that was originally postfix or infix.
-data FixityHint = PostfixHint | InfixHint
+data Fixity = Postfix | Infix
   deriving (Eq, Show)
 
 data Operator = Operator
-  { operatorFixity :: !Fixity
+  { operatorAssociativity :: !Associativity
   , operatorPrecedence :: !Precedence
   , operatorName :: !Text
   , operatorLocation :: !Location
@@ -35,11 +33,9 @@ data Operator = Operator
 instance Show Operator where
   show (Operator fixity precedence name _) = unwords
     [ case fixity of
-      Infix -> "infix"
-      InfixLeft -> "infix_left"
-      InfixRight -> "infix_right"
-      Postfix -> "postfix"
-      Prefix -> "prefix"
+      NonAssociative -> "infix"
+      LeftAssociative -> "infix_left"
+      RightAssociative -> "infix_right"
     , show precedence
     , T.unpack name
     ]

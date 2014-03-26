@@ -2,4 +2,4 @@ def applyAB {a, b}(a (a -> b) -> b): apply
 def applyA {a}(a (a -> a) -> a): applyAB
 
 'A' {charToInt} applyAB sayInt
-64 {(++)} applyA sayInt
+64 {(+ 1)} applyA sayInt

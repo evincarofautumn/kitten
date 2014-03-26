@@ -71,16 +71,16 @@ element = choice
 def :: Parser (Def ParsedTerm)
 def = (<?> "definition") . locate $ do
   void (match Token.Def)
-  (hint, name) <- choice
-    [ (,) PostfixHint <$> named
-    , (,) InfixHint <$> symbolic
+  (fixity, name) <- choice
+    [ (,) Postfix <$> named
+    , (,) Infix <$> symbolic
     ] <?> "definition name"
   anno <- signature
   bodyTerm <- locate (Compose StackAny <$> block)
     <?> "definition body"
   return $ \loc -> Def
     { defAnno = anno
-    , defFixityHint = hint
+    , defFixity = fixity
     , defLocation = loc
     , defName = name
     , defTerm = mono bodyTerm
@@ -98,11 +98,9 @@ import_ = (<?> "import") . locate $ do
 operatorDeclaration :: Parser Operator
 operatorDeclaration = (<?> "operator declaration") . locate $ uncurry Operator
   <$> choice
-    [ match Token.Infix *> ((,) Infix <$> precedence)
-    , match Token.InfixLeft *> ((,) InfixLeft <$> precedence)
-    , match Token.InfixRight *> ((,) InfixRight <$> precedence)
-    , (Postfix, 9) <$ match Token.Postfix
-    , (Prefix, 9) <$ match Token.Prefix
+    [ match Token.Infix *> ((,) NonAssociative <$> precedence)
+    , match Token.InfixLeft *> ((,) LeftAssociative <$> precedence)
+    , match Token.InfixRight *> ((,) RightAssociative <$> precedence)
     ]
   <*> symbolic
   where
@@ -118,8 +116,8 @@ term = nonblockTerm <|> blockTerm
   nonblockTerm :: Parser ParsedTerm
   nonblockTerm = locate $ choice
     [ try $ Push <$> locate (mapOne toLiteral <?> "literal")
-    , Call PostfixHint <$> named
-    , Call InfixHint <$> symbolic
+    , Call Postfix <$> named
+    , Call Infix <$> symbolic
     , try section
     , try group <?> "grouped expression"
     , pair <$> tuple
@@ -132,37 +130,30 @@ term = nonblockTerm <|> blockTerm
   section :: Parser (Location -> ParsedTerm)
   section = (<?> "operator section") $ grouped $ choice
     [ do
-      void $ match Token.Ignore
       function <- symbolic
       choice
         [ do
           operand <- many1V term
           return $ \loc -> Compose StackAny (V.fromList
             [ Compose Stack1 operand loc
-            , Call PostfixHint function loc
+            , Call Postfix function loc
             ]) loc
-        , do
-          void $ match Token.Ignore
-          return $ Call PostfixHint function
+        , return $ Call Postfix function
         ]
-    , do
-      function <- symbolic
-      return $ Call PostfixHint function
     , do
       operand <- many1V (notFollowedBy symbolic *> term)
       function <- symbolic
-      void $ match Token.Ignore
       return $ \loc -> Compose StackAny (V.fromList
         [ Compose Stack1 operand loc
         , swap loc
-        , Call PostfixHint function loc
+        , Call Postfix function loc
         ]) loc
     ]
     where
     swap loc = Lambda "right operand" (Lambda "left operand"
       (Compose StackAny (V.fromList
-        [ Call PostfixHint "right operand" loc
-        , Call PostfixHint "left operand" loc
+        [ Call Postfix "right operand" loc
+        , Call Postfix "left operand" loc
         ]) loc) loc) loc
 
   blockTerm :: Parser ParsedTerm
@@ -197,7 +188,7 @@ term = nonblockTerm <|> blockTerm
         Just elseBody -> (name <> "_else", V.singleton elseBody)
       name'' = case Builtin.fromText name' of
         Just builtin -> Builtin builtin
-        _ -> Call PostfixHint name'
+        _ -> Call Postfix name'
     return $ \loc -> let
       whole = V.concat
         [ V.fromList [Compose StackAny (V.fromList open) loc, body]
@@ -329,24 +320,13 @@ rewriteInfix parsed@Fragment{..} = do
   binary name loc x y = Compose StackAny (V.fromList
     [ stack1 loc x
     , stack1 loc y
-    , Call InfixHint name loc
-    ]) loc
-
-  unary :: Text -> Location -> ParsedTerm -> ParsedTerm
-  unary name loc x = Compose StackAny (V.fromList
-    [ stack1 loc x
-    , Call InfixHint name loc
+    , Call Infix name loc
     ]) loc
 
   binaryOp :: Text -> TermParser (ParsedTerm -> ParsedTerm -> ParsedTerm)
   binaryOp name = mapTerm $ \t -> case t of
-    Call InfixHint name' loc
+    Call Infix name' loc
       | name == name' -> Just (binary name loc)
-    _ -> Nothing
-
-  unaryOp :: Text -> TermParser (ParsedTerm -> ParsedTerm)
-  unaryOp name = mapTerm $ \case
-    Call InfixHint name' loc | name == name' -> Just (unary name loc)
     _ -> Nothing
 
   expression :: TermParser ParsedTerm
@@ -355,7 +335,7 @@ rewriteInfix parsed@Fragment{..} = do
     where
     operand :: TermParser ParsedTerm
     operand = satisfyTerm $ \case
-      Call InfixHint _ _ -> False  -- An operator is not an operand.
+      Call Infix _ _ -> False  -- An operator is not an operand.
       Lambda{} -> False  -- Nor is a bare lambda.
       _ -> True
 
@@ -365,20 +345,18 @@ rewriteInfix parsed@Fragment{..} = do
   rawTable :: [[Operator]]
   rawTable = let
     -- TODO Make smarter than a linear search.
-    useDefault op = defFixityHint op == InfixHint
+    useDefault op = defFixity op == Infix
       && not (any ((defName op ==) . operatorName) fragmentOperators)
     flat = fragmentOperators
-      ++ map (\Def{..} -> Operator InfixLeft 6 defName defLocation)
+      ++ map (\Def{..} -> Operator LeftAssociative 6 defName defLocation)
         (filter useDefault (V.toList fragmentDefs))
     in for [9,8..0] $ \p -> filter ((p ==) . operatorPrecedence) flat
 
   toOp :: Operator -> E.Operator [ParsedTerm] () Identity ParsedTerm
   toOp (Operator fixity _ name _) = case fixity of
-    Infix -> E.Infix (binaryOp name) E.AssocNone
-    InfixLeft -> E.Infix (binaryOp name) E.AssocLeft
-    InfixRight -> E.Infix (binaryOp name) E.AssocRight
-    Prefix -> E.Prefix (unaryOp name)
-    Postfix -> E.Postfix (unaryOp name)
+    NonAssociative -> E.Infix (binaryOp name) E.AssocNone
+    LeftAssociative -> E.Infix (binaryOp name) E.AssocLeft
+    RightAssociative -> E.Infix (binaryOp name) E.AssocRight
 
 mapTerm :: (ParsedTerm -> Maybe a) -> TermParser a
 mapTerm = tokenPrim show advanceTerm

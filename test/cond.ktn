@@ -6,7 +6,7 @@ def test (Int? ->):
 5 some test
 none test
 
-0 left {(++)} liftLeft
+0 left {(+ 1)} liftLeft
   getLeft
   {dup sayInt} liftOption drop
 

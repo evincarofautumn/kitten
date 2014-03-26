@@ -48,8 +48,6 @@ data Token
   | Int Int BaseHint
   | Layout
   | Operator Text
-  | Postfix
-  | Prefix
   | Semicolon
   | Text Text
   | Type
@@ -81,8 +79,6 @@ instance Eq Token where
   Int a _      == Int b _      = a == b
   Layout       == Layout       = True
   Operator a   == Operator b   = a == b
-  Postfix      == Postfix      = True
-  Prefix       == Prefix       = True
   Semicolon    == Semicolon    = True
   Text a       == Text b       = a == b
   Type         == Type         = True
@@ -122,8 +118,6 @@ instance Show Token where
         HexadecimalHint -> (16, "0x", ['0'..'9'] ++ ['A'..'F'])
     Layout -> ":"
     Operator word -> T.unpack word
-    Postfix -> "postfix"
-    Prefix -> "prefix"
     Semicolon -> ";"
     Text value -> show value
     Type -> "type"

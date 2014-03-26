@@ -80,4 +80,4 @@ scoped :: [ResolvedTerm] -> ResolvedTerm
 scoped terms = Lambda "testvar" (compose terms) TestLocation
 
 word :: Int -> ResolvedTerm
-word index = Call PostfixHint (Name index) TestLocation
+word index = Call Postfix (Name index) TestLocation

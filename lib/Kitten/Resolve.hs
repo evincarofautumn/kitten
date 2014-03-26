@@ -76,7 +76,7 @@ resolveDefs = guardMapM resolveDef
 resolveTerm :: ParsedTerm -> Resolution ResolvedTerm
 resolveTerm unresolved = case unresolved of
   Builtin name loc -> return $ Builtin name loc
-  Call hint name loc -> resolveName hint name loc
+  Call fixity name loc -> resolveName fixity name loc
   Compose hint terms loc -> Compose hint
     <$> guardMapM resolveTerm terms
     <*> pure loc
@@ -105,11 +105,11 @@ resolveValue unresolved = case unresolved of
   String value loc -> return $ String value loc
 
 resolveName
-  :: FixityHint
+  :: Fixity
   -> Text
   -> Location
   -> Resolution ResolvedTerm
-resolveName hint name loc = do
+resolveName fixity name loc = do
   mLocalIndex <- getsEnv $ localIndex name
   case mLocalIndex of
     Just index -> return $ Push (Local (Name index) loc) loc
@@ -119,6 +119,6 @@ resolveName hint name loc = do
         [index] -> return index
         [] -> err ["undefined word '", name, "'"]
         _ -> err ["ambiguous word '", name, "'"]
-      return $ Call hint (Name index) loc
+      return $ Call fixity (Name index) loc
   where
   err = compileError . oneError . CompileError loc Error . T.concat

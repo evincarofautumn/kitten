@@ -1,6 +1,6 @@
 def test ([Int] [Int] ->):
   -> actual expected;
-  \if !(actual expected {(=)} eqVector):
+  \if (actual expected {(=)} eqVector) not:
     "Expected " print expected sayInts
     "But got  " print actual sayInts
     1 exit

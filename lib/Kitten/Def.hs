@@ -17,7 +17,7 @@ import Kitten.Type (Scheme)
 
 data Def a = Def
   { defAnno :: !Anno
-  , defFixityHint :: !FixityHint
+  , defFixity :: !Fixity
   , defLocation :: !Location
   , defName :: !Text
   , defTerm :: !(Scheme a)

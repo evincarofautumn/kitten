@@ -7,7 +7,7 @@ def levenshtein ([Char] [Char] -> Int):
   // Levenshtein distance between the first i characters of
   // the first string and the first j characters of the
   // second string.
-  0 (columns++) replicate (rows++) replicate
+  0 (columns + 1) replicate (rows + 1) replicate
 
   // Distance from any first string to empty second string.
   \mapRange 0 rows: -> row;
@@ -20,20 +20,20 @@ def levenshtein ([Char] [Char] -> Int):
   \mapRange 1 rows: -> row;
     \mapRange 1 columns: -> distances column;
 
-      first @! row-- -> firstChar;
-      second @! column-- -> secondChar;
+      first @! (row - 1) -> firstChar;
+      second @! (column - 1) -> secondChar;
 
       distances
       \if firstChar secondChar eqChar:
-        distances @@! (row--, column--)
+        distances @@! (row - 1, column - 1)
       else:
-        distances @@! (row--, column);    // deletion
-        distances @@! (row,   column--);  // insertion
-        distances @@! (row--, column--);  // substitution
-        minInt3 (++)
-      ((row, column) @@= _)
+        distances @@! (row - 1, column);      // deletion
+        distances @@! (row,     column - 1);  // insertion
+        distances @@! (row - 1, column - 1);  // substitution
+        minInt3 (+ 1)
+      ((row, column) @@=)
 
-  (_ @@! (rows, columns))
+  (@@! (rows, columns))
  
 "kitten" "sitting" levenshtein sayInt
 "rosettacode" "raisethysword" levenshtein sayInt

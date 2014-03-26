@@ -72,15 +72,6 @@ def negInt (Int -> Int):
 def not (Bool -> Bool):
   __not_bool
 
-// Operator alias for 'not'.
-prefix !
-def ! (Bool -> Bool):
-  not
-
-prefix ¬
-def ¬ (Bool -> Bool):
-  not
-
 // Whether a floating-point number is odd.
 def oddFloat (Float -> Bool):
   evenFloat not
@@ -185,16 +176,6 @@ infix_left 6 +.
 def +. (Float Float -> Float):
   __add_float
 
-// Integer increment.
-postfix ++
-def ++ (Int -> Int):
-  (_ + 1)
-
-// Floating-point increment.
-postfix ++.
-def ++. (Float -> Float):
-  (_ +. 1.0)
-
 // Integer subtraction.
 infix_left 6 -
 def - (Int Int -> Int):
@@ -212,16 +193,6 @@ def -. (Float Float -> Float):
 infix_left 6 −.
 def −. (Float Float -> Float):
   __sub_float
-
-// Integer decrement.
-postfix --
-def -- (Int -> Int):
-  (_ - 1)
-
-// Floating-point decrement.
-postfix --.
-def --. (Float -> Float):
-  (_ -. 1.0)
 
 // Integer division.
 infix_left 7 /
@@ -336,6 +307,5 @@ def ∨ (Bool Bool -> Bool):
   __or_bool
 
 // Bitwise NOT.
-prefix ~
 def ~ (Int -> Int):
   __not_int

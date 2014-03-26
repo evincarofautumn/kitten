@@ -230,7 +230,7 @@ parsed = mapLeft parseError . tokenize 1 "test"
 def :: Text -> a -> Def a
 def name term = Def
   { defAnno = TestAnno
-  , defFixityHint = PostfixHint
+  , defFixity = Postfix
   , defLocation = TestLocation
   , defName = name
   , defTerm = mono term
@@ -241,7 +241,7 @@ defWithAnno name anno term = (def name term)
   { defAnno = Anno anno TestLocation }
 
 call :: Text -> ParsedTerm
-call name = Call PostfixHint name TestLocation
+call name = Call Postfix name TestLocation
 
 compose :: [ParsedTerm] -> ParsedTerm
 compose terms = Compose StackAny (V.fromList terms) TestLocation
@@ -264,4 +264,4 @@ push :: ParsedValue -> ParsedTerm
 push value = Push value TestLocation
 
 word :: Text -> ParsedTerm
-word value = Call PostfixHint value TestLocation
+word value = Call Postfix value TestLocation
