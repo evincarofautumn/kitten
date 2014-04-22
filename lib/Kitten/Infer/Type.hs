@@ -21,7 +21,7 @@ import qualified Data.Vector as V
 
 import Kitten.Anno (Anno(..))
 import Kitten.Error
-import Kitten.Infer.Monad (Inferred, freshNameM, liftFailWriter)
+import Kitten.Infer.Monad (Inferred, freshIdM, liftFailWriter)
 import Kitten.Location
 import Kitten.Type
 import Kitten.Util.FailWriter
@@ -29,15 +29,15 @@ import Kitten.Util.FailWriter
 import qualified Kitten.Anno as Anno
 
 data Env = Env
-  { envAnonStacks :: [TypeName Stack]
+  { envAnonStacks :: [TypeId Stack]
   -- ^ Anonymous stacks implicit on both sides of an
   -- 'Anno.Function' constructor.
 
-  , envStacks :: !(Map Text (TypeName Stack))
+  , envStacks :: !(Map Text (TypeId Stack))
   -- ^ Map from stack variable names to stack variables
   -- themselves.
 
-  , envScalars :: !(Map Text (TypeName Scalar))
+  , envScalars :: !(Map Text (TypeId Scalar))
   -- ^ Map from scalar variable names to scalar variables
   -- themselves.
   }
@@ -68,7 +68,7 @@ fromAnno annotated (Anno annoType annoLoc) = do
       <$> fromAnnoType' NoHint a
       <*> fromAnnoType' NoHint b
     Anno.Function a b -> do
-      r <- lift freshNameM
+      r <- lift freshIdM
       let rVar = Var r origin
       scheme <- Forall (S.singleton r) S.empty
         <$> makeFunction origin rVar a rVar b
@@ -88,12 +88,12 @@ fromAnno annotated (Anno annoType annoLoc) = do
       return $ Quantified scheme origin
       where
       declareScalar name = do
-        var <- lift freshNameM
+        var <- lift freshIdM
         modify $ \env -> env
           { envScalars = M.insert name var (envScalars env) }
         return var
       declareStack name = do
-        var <- lift freshNameM
+        var <- lift freshIdM
         modify $ \env -> env
           { envStacks = M.insert name var (envStacks env) }
         return var

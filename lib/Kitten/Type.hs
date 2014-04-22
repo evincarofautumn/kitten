@@ -18,7 +18,7 @@ module Kitten.Type
   , Scheme(..)
   , StackHint(..)
   , Type(..)
-  , TypeName(..)
+  , TypeId(..)
   , TypeScheme
   , (-->)
   , addHint
@@ -43,9 +43,9 @@ import Data.Traversable (Traversable)
 import qualified Data.Set as S
 
 import Kitten.Builtin (Builtin)
+import Kitten.Id
 import Kitten.Kind
 import Kitten.Location
-import Kitten.Name
 import Kitten.Util.Text (ToText(..), showText)
 
 import qualified Kitten.Util.Text as T
@@ -55,12 +55,12 @@ data Type (a :: Kind) where
   (:.) :: !(Type Stack) -> !(Type Scalar) -> Type Stack
   (:?) :: !(Type Scalar) -> Type Scalar
   (:|) :: !(Type Scalar) -> !(Type Scalar) -> Type Scalar
-  Const :: !(TypeName a) -> !Origin -> Type a
+  Const :: !(TypeId a) -> !Origin -> Type a
   Ctor :: !Ctor -> !Origin -> Type Scalar
   Empty :: !Origin -> Type Stack
   Function :: !(Type Stack) -> !(Type Stack) -> !Origin -> Type Scalar
   Quantified :: !TypeScheme -> !Origin -> Type Scalar
-  Var :: !(TypeName a) -> !Origin -> Type a
+  Var :: !(TypeId a) -> !Origin -> Type a
   Vector :: !(Type Scalar) -> !Origin -> Type Scalar
 
 data Ctor
@@ -116,26 +116,26 @@ instance ToText (Type Scalar) where
     t1 :& t2 -> T.concat ["(", toText t1, " & ", toText t2, ")"]
     (:?) t -> toText t <> "?"
     t1 :| t2 -> T.concat ["(", toText t1, " | ", toText t2, ")"]
-    Const (TypeName (Name index)) o
-      -> "t" <> showText index <> suffix o  -- TODO Show differently?
+    Const (TypeId (Id i)) o
+      -> "t" <> showText i <> suffix o  -- TODO Show differently?
     Ctor name o -> toText name <> suffix o
     Function r1 r2 o -> T.concat
       [ "(", T.unwords [toText r1, "->", toText r2], ")"
       , suffix o
       ]
     Quantified scheme _ -> toText scheme
-    Var (TypeName (Name index)) o
-      -> "t" <> showText index <> suffix o
+    Var (TypeId (Id i)) o
+      -> "t" <> showText i <> suffix o
     Vector t o -> T.concat ["[", toText t, "]", suffix o]
 
 instance ToText (Type Stack) where
   toText = \case
     t1 :. t2 -> T.unwords [toText t1, toText t2]
-    Const (TypeName (Name index)) o
-      -> ".s" <> showText index <> suffix o
+    Const (TypeId (Id i)) o
+      -> ".s" <> showText i <> suffix o  -- TODO Show differently?
     Empty o -> "<empty>" <> suffix o
-    Var (TypeName (Name index)) o
-      -> ".s" <> showText index <> suffix o
+    Var (TypeId (Id i)) o
+      -> ".s" <> showText i <> suffix o
 
 suffix :: Origin -> Text
 suffix (Origin hint _) = case hint of
@@ -150,14 +150,14 @@ suffix (Origin hint _) = case hint of
     -> " (output of " <> toText annotated <> ")"
   NoHint -> ""
 
-newtype TypeName (a :: Kind) = TypeName { unTypeName :: Name }
+newtype TypeId (a :: Kind) = TypeId { unTypeId :: Id }
   deriving (Eq, Ord)
 
-instance Show (TypeName a) where
+instance Show (TypeId a) where
   show = T.unpack . toText
 
-instance ToText (TypeName a) where
-  toText = toText . unTypeName
+instance ToText (TypeId a) where
+  toText = toText . unTypeId
 
 data Annotated
   = AnnotatedDef !Text
@@ -214,8 +214,8 @@ data StackHint
 
 -- FIXME Derived 'Eq' instance may be too restrictive.
 data Scheme a = Forall
-  (Set (TypeName Stack))
-  (Set (TypeName Scalar))
+  (Set (TypeId Stack))
+  (Set (TypeId Scalar))
   a
   deriving (Eq, Foldable, Functor, Traversable)
 
@@ -231,7 +231,7 @@ instance (ToText a) => ToText (Scheme a) where
     variables :: [Text]
     variables = wordSetText stacks ++ wordSetText scalars
 
-    wordSetText :: Set (TypeName a) -> [Text]
+    wordSetText :: Set (TypeId a) -> [Text]
     wordSetText = map toText . S.toList
 
 type TypeScheme = Scheme (Type Scalar)
@@ -266,11 +266,11 @@ addHint type_ hint = case type_ of
   (:?) _ -> type_
   _ :| _ -> type_
   Empty o -> Empty (f o)
-  Const name o -> Const name (f o)
+  Const i o -> Const i (f o)
   Ctor name o -> Ctor name (f o)
   Function r1 r2 o -> Function r1 r2 (f o)
   Quantified scheme o -> Quantified scheme o
-  Var name o -> Var name (f o)
+  Var i o -> Var i (f o)
   Vector t o -> Vector t (f o)
   where
   f :: Origin -> Origin
@@ -294,11 +294,11 @@ bottommost type_ = case type_ of
 mono :: a -> Scheme a
 mono = Forall S.empty S.empty
 
-stack :: Name -> TypeName Stack
-stack = TypeName
+stack :: Id -> TypeId Stack
+stack = TypeId
 
-scalar :: Name -> TypeName Scalar
-scalar = TypeName
+scalar :: Id -> TypeId Scalar
+scalar = TypeId
 
 unScheme :: Scheme a -> a
 unScheme (Forall _ _ x) = x

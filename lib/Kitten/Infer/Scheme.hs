@@ -35,12 +35,12 @@ import Data.Set (Set)
 
 import qualified Data.Set as S
 
+import Kitten.Id
 import Kitten.Infer.Monad
-import Kitten.Name
 import Kitten.Type
 import Kitten.Util.Monad
 
-import qualified Kitten.NameMap as N
+import qualified Kitten.IdMap as Id
 
 instantiateM :: TypeScheme -> Inferred (Type Scalar)
 instantiateM scheme = do
@@ -59,14 +59,14 @@ instantiate origin@(Origin _ loc) (Forall stacks scalars type_) env
 
   renames
     :: (Declare a)
-    => Set (TypeName a)
+    => Set (TypeId a)
     -> Env
     -> State Env Env
   renames = flip (foldrM rename) . S.toList
 
   rename
     :: (Declare a)
-    => TypeName a
+    => TypeId a
     -> Env
     -> State Env Env
   rename name localEnv = do
@@ -83,11 +83,11 @@ generalize action = do
     substituted :: Type Scalar
     substituted = sub after type_
 
-    dependent :: (Occurrences a, Unbound a) => TypeName a -> Bool
+    dependent :: (Occurrences a, Unbound a) => TypeId a -> Bool
     dependent = dependentBetween before after
 
-    scalars :: [TypeName Scalar]
-    stacks :: [TypeName Stack]
+    scalars :: [TypeId Scalar]
+    stacks :: [TypeId Stack]
     (stacks, scalars) = (filter dependent *** filter dependent)
       (freeVars substituted)
 
@@ -102,32 +102,32 @@ dependentBetween
   :: forall a. (Occurrences a, Unbound a)
   => Env
   -> Env
-  -> TypeName a
+  -> TypeId a
   -> Bool
 dependentBetween before after name
   = any (bound after) (unbound before)
   where
-  bound :: Env -> TypeName a -> Bool
-  bound env name' = occurs (unTypeName name) env
+  bound :: Env -> TypeId a -> Bool
+  bound env name' = occurs (unTypeId name) env
     (Var name' (envOrigin env) :: Type a)
 
 -- | Enumerates those type variables in an environment that
 -- are allocated but not yet bound to a type.
 class Unbound (a :: Kind) where
-  unbound :: Env -> [TypeName a]
+  unbound :: Env -> [TypeId a]
 
 instance Unbound Scalar where
-  unbound env = map TypeName $ filter (`N.notMember` envScalars env)
-    [Name 0 .. envMaxName env]
+  unbound env = map TypeId $ filter (`Id.notMember` envScalars env)
+    [Id 0 .. envMaxName env]
 
 instance Unbound Stack where
-  unbound env = map TypeName $ filter (`N.notMember` envStacks env)
-    [Name 0 .. envMaxName env]
+  unbound env = map TypeId $ filter (`Id.notMember` envStacks env)
+    [Id 0 .. envMaxName env]
 
 -- | The last allocated name in an environment. Relies on
 -- the fact that 'NameGen' allocates names sequentially.
-envMaxName :: Env -> Name
-envMaxName = pred . fst . genName . envNameGen
+envMaxName :: Env -> Id
+envMaxName = pred . fst . genId . envIdGen
 
 data TypeLevel = TopLevel | NonTopLevel
   deriving (Eq)
@@ -137,7 +137,7 @@ regeneralize env (Forall stacks scalars wholeType) = let
   (type_, vars) = runWriter $ regeneralize' TopLevel wholeType
   in Forall (foldr S.delete stacks vars) scalars type_
   where
-  regeneralize' :: TypeLevel -> Type a -> Writer [TypeName Stack] (Type a)
+  regeneralize' :: TypeLevel -> Type a -> Writer [TypeId Stack] (Type a)
   regeneralize' level type_ = case type_ of
     Function a b loc
       | level == NonTopLevel
@@ -148,7 +148,7 @@ regeneralize env (Forall stacks scalars wholeType) = let
         -- If this is the only mention of this type variable, then it
         -- can simply be removed from the outer quantifier. Otherwise,
         -- it should be renamed in the inner quantifier.
-        when (occurrences (unTypeName c) env wholeType == 2)
+        when (occurrences (unTypeId c) env wholeType == 2)
           $ tell [c]
         return $ Quantified
           (Forall (S.singleton c) S.empty type_)
@@ -170,13 +170,13 @@ regeneralize env (Forall stacks scalars wholeType) = let
 freeVars
   :: (Free (Type a))
   => Type a
-  -> ([TypeName Stack], [TypeName Scalar])
+  -> ([TypeId Stack], [TypeId Scalar])
 freeVars type_
   = let (stacks, scalars) = free type_
   in (nub stacks, nub scalars)
 
 class Free a where
-  free :: a -> ([TypeName Stack], [TypeName Scalar])
+  free :: a -> ([TypeId Stack], [TypeId Scalar])
 
 instance Free (Type Stack) where
   free type_ = case type_ of
@@ -209,30 +209,30 @@ normalize origin@(Origin _ loc) type_ = let
   (stacks, scalars) = freeVars type_
   stackCount = length stacks
   env = (emptyEnv loc)
-    { envStacks = N.fromList
-      $ zip (map unTypeName stacks) (map var [0..])
-    , envScalars = N.fromList
-      $ zip (map unTypeName scalars) (map var [stackCount..])
+    { envStacks = Id.fromList
+      $ zip (map unTypeId stacks) (map var [0..])
+    , envScalars = Id.fromList
+      $ zip (map unTypeId scalars) (map var [stackCount..])
     }
   in sub env type_
   where
   var :: Int -> Type a
-  var index = Var (TypeName (Name index)) origin
+  var index = Var (TypeId (Id index)) origin
 
-occurs :: (Occurrences a) => Name -> Env -> Type a -> Bool
+occurs :: (Occurrences a) => Id -> Env -> Type a -> Bool
 occurs = (((> 0) .) .) . occurrences
 
 class Occurrences a where
-  occurrences :: Name -> Env -> Type a -> Int
+  occurrences :: Id -> Env -> Type a -> Int
 
 instance Occurrences Stack where
   occurrences name env type_ = case type_ of
     a :. b -> occurrences name env a + occurrences name env b
-    Const typeName@(TypeName name') _ -> case retrieve env typeName of
+    Const typeName@(TypeId name') _ -> case retrieve env typeName of
       Left{} -> if name == name' then 1 else 0  -- See Note [Var Kinds].
       Right type' -> occurrences name env type'
     Empty{} -> 0
-    Var typeName@(TypeName name') _ -> case retrieve env typeName of
+    Var typeName@(TypeId name') _ -> case retrieve env typeName of
       Left{} -> if name == name' then 1 else 0  -- See Note [Var Kinds].
       Right type' -> occurrences name env type'
 
@@ -242,15 +242,15 @@ instance Occurrences Scalar where
     (:?) a -> occurrences name env a
     a :| b -> occurrences name env a + occurrences name env b
     Function a b _ -> occurrences name env a + occurrences name env b
-    Const typeName@(TypeName name') _ -> case retrieve env typeName of
+    Const typeName@(TypeId name') _ -> case retrieve env typeName of
       Left{} -> if name == name' then 1 else 0  -- See Note [Var Kinds].
       Right type' -> occurrences name env type'
     Ctor{} -> 0
-    Var typeName@(TypeName name') _ -> case retrieve env typeName of
+    Var typeName@(TypeId name') _ -> case retrieve env typeName of
       Left{} -> if name == name' then 1 else 0  -- See Note [Var Kinds].
       Right type' -> occurrences name env type'
     Quantified (Forall _ s t) _
-      -> if TypeName name `S.member` s then 0 else occurrences name env t
+      -> if TypeId name `S.member` s then 0 else occurrences name env t
     Vector a _ -> occurrences name env a
 
 -- Note [Var Kinds]:
@@ -324,18 +324,18 @@ instance Substitute Scalar where
 -- constants and the skolemized type.
 skolemize
   :: TypeScheme
-  -> Inferred ([TypeName Stack], [TypeName Scalar], Type Scalar)
+  -> Inferred ([TypeId Stack], [TypeId Scalar], Type Scalar)
 skolemize (Forall stackVars scalarVars type_) = do
   origin <- getsEnv envOrigin
   let
     declares
       :: (Declare a)
-      => Set (TypeName a) -> [TypeName a] -> Env -> Env
+      => Set (TypeId a) -> [TypeId a] -> Env -> Env
     declares vars consts env0
       = foldr (uncurry declare) env0
       $ zip (S.toList vars) (map (\name -> Const name origin) consts)
-  stackConsts <- replicateM (S.size stackVars) freshNameM
-  scalarConsts <- replicateM (S.size scalarVars) freshNameM
+  stackConsts <- replicateM (S.size stackVars) freshIdM
+  scalarConsts <- replicateM (S.size scalarVars) freshIdM
   env <- getsEnv
     $ declares scalarVars scalarConsts
     . declares stackVars stackConsts
@@ -344,7 +344,7 @@ skolemize (Forall stackVars scalarVars type_) = do
 
 skolemizeType
   :: Type a
-  -> Inferred ([TypeName Stack], [TypeName Scalar], Type a)
+  -> Inferred ([TypeId Stack], [TypeId Scalar], Type a)
 skolemizeType = \case
   Function a b origin -> do
     (stackConsts, scalarConsts, b') <- skolemizeType b

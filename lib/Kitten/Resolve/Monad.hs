@@ -30,6 +30,7 @@ import Kitten.Def
 import Kitten.Error
 import Kitten.Tree
 import Kitten.Util.FailWriter (FailWriterT, runFailWriterT)
+import Kitten.Yarn
 
 import qualified Kitten.Util.FailWriter as FailWriter
 
@@ -39,6 +40,7 @@ newtype Resolution a = Resolution
 
 data Env = Env
   { envDefs :: !(Vector (Def ParsedTerm))
+  , envProgram :: !Program
   , envScope :: [Text]
   }
 

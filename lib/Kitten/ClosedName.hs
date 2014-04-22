@@ -2,9 +2,7 @@ module Kitten.ClosedName
   ( ClosedName(..)
   ) where
 
-import Kitten.Name
-
 data ClosedName
-  = ClosedName Name
-  | ReclosedName Name
+  = ClosedName !Int
+  | ReclosedName !Int
   deriving (Eq, Show)

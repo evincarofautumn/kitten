@@ -16,16 +16,16 @@ module Kitten.Type.Tidy
 import Control.Applicative hiding (Const)
 import Control.Monad.Trans.State
 
-import Kitten.Name
-import Kitten.NameMap (NameMap)
+import Kitten.Id
+import Kitten.IdMap (IdMap)
 import Kitten.Type
 
-import qualified Kitten.NameMap as NameMap
+import qualified Kitten.IdMap as Id
 import qualified Kitten.Util.Set as Set
 
 data TidyKindState a = TidyKindState
-  { names :: !(NameMap (TypeName a))
-  , nameGen :: !NameGen
+  { ids :: !(IdMap (TypeId a))
+  , idGen :: !IdGen
   }
 
 data TidyState = TidyState
@@ -47,8 +47,8 @@ instance TidyType Stack where
 
 emptyKindState :: TidyKindState a
 emptyKindState = TidyKindState
-  { names = NameMap.empty
-  , nameGen = mkNameGenFrom (Name 1)
+  { ids = Id.empty
+  , idGen = mkIdGenFrom (Id 1)
   }
 
 runTidy :: Tidy a -> a
@@ -57,39 +57,39 @@ runTidy (Tidy m) = evalState m TidyState
   , stacks = emptyKindState
   }
 
-tidyName
-  :: TypeName a
+tidyId
+  :: TypeId a
   -> TidyKindState a
-  -> (TypeName a, TidyKindState a)
-tidyName (TypeName name) kindState
-  = case NameMap.lookup name (names kindState) of
-    Just typeName -> (typeName, kindState)
-    Nothing -> (TypeName name', kindState')
+  -> (TypeId a, TidyKindState a)
+tidyId (TypeId i) kindState
+  = case Id.lookup i (ids kindState) of
+    Just typeId -> (typeId, kindState)
+    Nothing -> (TypeId i', kindState')
       where
-      (name', gen') = genName (nameGen kindState)
+      (i', gen') = genId (idGen kindState)
       kindState' = kindState
-        { names = NameMap.insert name
-          (TypeName name') (names kindState)
-        , nameGen = gen'
+        { ids = Id.insert i
+          (TypeId i') (ids kindState)
+        , idGen = gen'
         }
 
-tidyNameM
+tidyIdM
   :: (TidyState -> TidyKindState a)               -- ^ Get.
   -> (TidyKindState a -> TidyState -> TidyState)  -- ^ Put.
-  -> TypeName a
-  -> Tidy (TypeName a)
-tidyNameM getKindState putKindState typeName = Tidy $ do
+  -> TypeId a
+  -> Tidy (TypeId a)
+tidyIdM getKindState putKindState typeId = Tidy $ do
   kindState <- gets getKindState
-  let (typeName', kindState') = tidyName typeName kindState
+  let (typeId', kindState') = tidyId typeId kindState
   modify (putKindState kindState')
-  return typeName'
+  return typeId'
 
-tidyScalar :: TypeName Scalar -> Tidy (TypeName Scalar)
-tidyScalar = tidyNameM scalars
+tidyScalar :: TypeId Scalar -> Tidy (TypeId Scalar)
+tidyScalar = tidyIdM scalars
   (\scalars' s -> s { scalars = scalars' })
 
-tidyStack :: TypeName Stack -> Tidy (TypeName Stack)
-tidyStack = tidyNameM stacks
+tidyStack :: TypeId Stack -> Tidy (TypeId Stack)
+tidyStack = tidyIdM stacks
   (\stacks' s -> s { stacks = stacks' })
 
 tidyScalarType :: Type Scalar -> Tidy (Type Scalar)
@@ -97,7 +97,7 @@ tidyScalarType type_ = case type_ of
   t1 :& t2 -> (:&) <$> tidyScalarType t1 <*> tidyScalarType t2
   (:?) t -> (:?) <$> tidyScalarType t
   t1 :| t2 -> (:|) <$> tidyScalarType t1 <*> tidyScalarType t2
-  Const name loc -> Const <$> tidyScalar name <*> pure loc
+  Const i loc -> Const <$> tidyScalar i <*> pure loc
   Ctor{} -> pure type_
   Function r1 r2 loc -> Function
     <$> tidyStackType r1
@@ -109,12 +109,12 @@ tidyScalarType type_ = case type_ of
       <*> Set.mapM tidyScalar s
       <*> tidyScalarType t)
     <*> pure loc
-  Var name loc -> Var <$> tidyScalar name <*> pure loc
+  Var i loc -> Var <$> tidyScalar i <*> pure loc
   Vector t loc -> Vector <$> tidyScalarType t <*> pure loc
 
 tidyStackType :: Type Stack -> Tidy (Type Stack)
 tidyStackType type_ = case type_ of
   t1 :. t2 -> (:.) <$> tidyStackType t1 <*> tidyScalarType t2
-  Const name loc -> Const <$> tidyStack name <*> pure loc
+  Const i loc -> Const <$> tidyStack i <*> pure loc
   Empty{} -> pure type_
-  Var name loc -> Var <$> tidyStack name <*> pure loc
+  Var i loc -> Var <$> tidyStack i <*> pure loc

@@ -28,6 +28,7 @@ library
     parsec == 3.1.*,
     text == 0.11.*,
     transformers == 0.3.*,
+    unordered-containers == 0.2.*,
     vector == 0.10.*
 
   ghc-options:
@@ -56,6 +57,8 @@ library
     Kitten.Fragment,
     Kitten.HTML,
     Kitten.Import,
+    Kitten.Id,
+    Kitten.IdMap,
     Kitten.Infer,
     Kitten.Infer.Config,
     Kitten.Infer.Locations,
@@ -66,8 +69,6 @@ library
     Kitten.Interpret,
     Kitten.Kind,
     Kitten.Location,
-    Kitten.Name,
-    Kitten.NameMap,
     Kitten.Operator,
     Kitten.Parse,
     Kitten.Parse.Element,
@@ -111,7 +112,7 @@ executable kitten
     -Wall
 
   if flag(prof)
-    ghc-options: -auto-all
+    ghc-options: -auto-all -prof -rtsopts
 
   build-depends:
     kitten,

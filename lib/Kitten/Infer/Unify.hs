@@ -145,14 +145,14 @@ unifyVar
   , TidyType a
   , ToText (Type a)
   )
-  => TypeName a
+  => TypeId a
   -> Type a
   -> Env
   -> Either [ErrorGroup] Env
 unifyVar var1 type_ env = case type_ of
   Var var2 _ | var1 == var2 -> return env
   Var{} -> return $ declare var1 type_ env
-  _ | occurs (unTypeName var1) env type_
+  _ | occurs (unTypeId var1) env type_
     -> let loc = envLocation env in Left $ unificationError
       (Just "infinite") loc
       (sub env (Var var1 (Origin NoHint loc) :: Type a))

@@ -30,22 +30,21 @@ import Kitten.Builtin (Builtin)
 import Kitten.ClosedName
 import Kitten.Def
 import Kitten.Location
-import Kitten.Name
 import Kitten.Operator
 import Kitten.Type (Kind(..), StackHint(..), Type, TypeScheme, unScheme)
 import Kitten.Util.Text (ToText(..), showText)
 
 -- TODO Add pretty 'Show' instance for 'Term's.
-data Term label a
+data Term a
   = Builtin !Builtin !a
-  | Call !Fixity !label !a
-  | Compose !StackHint !(Vector (Term label a)) !a
-  | Lambda !Text !(Term label a) !a
-  | PairTerm !(Term label a) !(Term label a) !a
-  | Push !(Value label a) !a
-  | VectorTerm !(Vector (Term label a)) !a
+  | Call !Fixity !Text !a
+  | Compose !StackHint !(Vector (Term a)) !a
+  | Lambda !Text !(Term a) !a
+  | PairTerm !(Term a) !(Term a) !a
+  | Push !(Value a) !a
+  | VectorTerm !(Vector (Term a)) !a
 
-instance (Eq label, Eq a) => Eq (Term label a) where
+instance (Eq a) => Eq (Term a) where
   Builtin a b == Builtin c d = (a, b) == (c, d)
   -- Calls are equal regardless of 'FixityHint'.
   Call _ a b == Call _ c d = (a, b) == (c, d)
@@ -60,7 +59,7 @@ instance (Eq label, Eq a) => Eq (Term label a) where
   VectorTerm a b == VectorTerm c d = (a, b) == (c, d)
   _ == _ = False
 
-instance (ToText label) => ToText (Term label a) where
+instance ToText (Term a) where
   toText = \case
     Builtin builtin _ -> toText builtin
     Call _ label _ -> toText label
@@ -72,51 +71,51 @@ instance (ToText label) => ToText (Term label a) where
     VectorTerm terms _ -> T.concat
       ["[", T.intercalate ", " (V.toList (V.map toText terms)), "]"]
 
-instance (ToText label) => Show (Term label a) where
+instance Show (Term a) where
   show = T.unpack . toText
 
-data Value label a
+data Value a
   = Bool !Bool !a
   | Char !Char !a
-  | Closed !Name !a  -- resolved
-  | Closure !(Vector ClosedName) !(Term label a) !a  -- resolved
+  | Closed !Int !a  -- resolved
+  | Closure !(Vector ClosedName) !(Term a) !a  -- resolved
   | Float !Double !a
   | Int !Int !a
-  | Local !Name !a  -- resolved
+  | Local !Int !a  -- resolved
   | String !Text !a
-  | Quotation !(Term label a) !a
+  | Quotation !(Term a) !a
   deriving (Eq)
 
-instance (ToText label) => ToText (Value label a) where
+instance ToText (Value a) where
   toText = \case
     Bool value _ -> if value then "true" else "false"
     Char value _ -> showText value
-    Closed (Name index) _ -> "closure" <> showText index
+    Closed index _ -> "closure" <> showText index
     Closure{} -> "<closure>"
     Float value _ -> showText value
     Int value _ -> showText value
-    Local (Name index) _ -> "local" <> showText index
+    Local index _ -> "local" <> showText index
     String value _ -> toText value
     Quotation term _ -> T.concat ["{", toText term, "}"]
 
-instance (ToText label) => Show (Value label a) where
+instance Show (Value a) where
   show = T.unpack . toText
 
-type ParsedTerm = Term Text Location
-type ParsedValue = Value Text Location
+type ParsedTerm = Term Location
+type ParsedValue = Value Location
 
-type ResolvedTerm = Term Name Location
-type ResolvedValue = Value Name Location
+type ResolvedTerm = Term Location
+type ResolvedValue = Value Location
 
-type TypedTerm = Term Name (Location, Type Scalar)
-type TypedValue = Value Name (Location, Type Scalar)
+type TypedTerm = Term (Location, Type Scalar)
+type TypedValue = Value (Location, Type Scalar)
 
 defTypeScheme :: Def TypedTerm -> TypeScheme
 defTypeScheme def = type_ <$ defTerm def
   where
   type_ = typedType $ unScheme (defTerm def)
 
-termMetadata :: Term label a -> a
+termMetadata :: Term a -> a
 termMetadata = \case
   Builtin _ x -> x
   Call _ _ x -> x

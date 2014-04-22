@@ -12,6 +12,7 @@ import Data.Text (Text)
 import Data.Vector (Vector)
 import GHC.Exts
 
+import qualified Data.HashMap.Strict as H
 import qualified Data.Text as T
 import qualified Data.Traversable as T
 import qualified Data.Vector as V
@@ -20,18 +21,20 @@ import Kitten.Def
 import Kitten.Error
 import Kitten.Fragment
 import Kitten.Location
-import Kitten.Name
 import Kitten.Operator
 import Kitten.Resolve.Monad
 import Kitten.Tree
 import Kitten.Util.Function
+import Kitten.Util.Monad
+import Kitten.Yarn (Program(..))
 
 resolve
   :: Fragment ParsedTerm
+  -> Program
   -> Either [ErrorGroup] (Fragment ResolvedTerm)
-resolve fragment = do
+resolve fragment program = do
   case reportDuplicateDefs allNamesAndLocs of
-    [] -> return ()
+    [] -> noop
     errors -> Left errors
   evalResolution emptyEnv $ guardLiftM2
     (\defs terms -> fragment
@@ -44,6 +47,7 @@ resolve fragment = do
   allNamesAndLocs = namesAndLocs (fragmentDefs fragment)
   emptyEnv = Env
     { envDefs = fragmentDefs fragment
+    , envProgram = program
     , envScope = []
     }
 
@@ -112,13 +116,17 @@ resolveName
 resolveName fixity name loc = do
   mLocalIndex <- getsEnv $ localIndex name
   case mLocalIndex of
-    Just index -> return $ Push (Local (Name index) loc) loc
+    Just index -> return $ Push (Local index loc) loc
     Nothing -> do
       indices <- getsEnv $ defIndices name
-      index <- case V.toList indices of
-        [index] -> return index
-        [] -> err ["undefined word '", name, "'"]
+      case V.length indices of
+        1 -> succeed
+        0 -> do
+          program <- getsEnv envProgram
+          if H.member name (programSymbols program)
+            then succeed
+            else err ["undefined word '", name, "'"]
         _ -> err ["ambiguous word '", name, "'"]
-      return $ Call fixity (Name index) loc
   where
+  succeed = return $ Call fixity name loc
   err = compileError . oneError . CompileError loc Error . T.concat

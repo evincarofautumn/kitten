@@ -12,6 +12,7 @@ import Test.Util
 import Kitten.Location
 import Kitten.Token
 import Kitten.Tokenize
+import Kitten.Util.Monad
 
 import qualified Kitten.Builtin as Builtin
 
@@ -123,7 +124,7 @@ loc line column = Location
 testComment :: Text -> Assertion
 testComment source = case tokenize 1 "test" source of
   Left message -> assertFailure $ show message
-  Right [] -> return ()
+  Right [] -> noop
   Right actual -> expectedButGot "[]" (showLocated actual)
 
 testInt :: Text -> Int -> Spec
@@ -131,7 +132,7 @@ testInt source expected = it ("int " ++ show source)
   $ case tokenize 1 "test" source of
     Left message -> assertFailure $ show message
     Right [Located (Int actual _) _]
-      | actual == expected -> return ()
+      | actual == expected -> noop
     Right actual -> expectedButGot
       (show expected) (showLocated actual)
 
@@ -147,7 +148,7 @@ testLocated extract firstLine source expected = it (show source)
   $ case tokenize firstLine "test" source of
     Left message -> assertFailure $ show message
     Right actual
-      | map extract actual == expected -> return ()
+      | map extract actual == expected -> noop
       | otherwise -> expectedButGot
         (showLines expected) (showLines actual')
       where actual' = map extract actual

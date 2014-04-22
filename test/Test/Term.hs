@@ -21,6 +21,7 @@ import Kitten.Tokenize
 import Kitten.Tree
 import Kitten.Type (StackHint(..), mono)
 import Kitten.Util.Either
+import Kitten.Util.Monad
 import Test.Util
 
 import qualified Kitten.Anno as Anno
@@ -213,14 +214,14 @@ testTerm source expected = it (show source)
   $ case parsed source of
     Left message -> assertFailure $ show message
     Right actual
-      | expected == actual -> return ()
+      | expected == actual -> noop
       | otherwise -> expectedButGot
         (show expected) (show actual)
 
 testTermFailure :: Text -> Spec
 testTermFailure source = it ("should fail: " ++ show source)
   $ case parsed source of
-    Left _ -> return ()
+    Left _ -> noop
     Right actual -> assertFailure $ show actual
 
 parsed :: Text -> Either ErrorGroup (Fragment ParsedTerm)

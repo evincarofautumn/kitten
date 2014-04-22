@@ -13,8 +13,8 @@ module Kitten.Infer.Monad
   , asksConfig
   , emptyEnv
   , envLocation
-  , freshNameM
   , freshConst
+  , freshIdM
   , freshVar
   , freshConstM
   , freshVarM
@@ -35,10 +35,12 @@ import Control.Monad.Fix
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State.Strict
+import Data.HashMap.Strict (HashMap)
 import Data.Map (Map)
 import Data.Text (Text)
 import Data.Vector (Vector)
 
+import qualified Data.HashMap.Strict as H
 import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -46,24 +48,24 @@ import qualified Data.Vector as V
 import Kitten.Error
 import Kitten.Infer.Config
 import Kitten.Location
-import Kitten.Name
-import Kitten.NameMap (NameMap)
+import Kitten.Id
+import Kitten.IdMap (IdMap)
 import Kitten.Type
 import Kitten.Util.FailWriter
 import Kitten.Util.Maybe
 import Kitten.Util.Text (ToText(..))
 
-import qualified Kitten.NameMap as N
+import qualified Kitten.IdMap as Id
 
 data Env = Env
   { envClosure :: !(Vector (Type Scalar))
-  , envDefs :: !(NameMap TypeScheme)
-  , envDecls :: !(NameMap TypeScheme)
+  , envDefs :: !(HashMap Text TypeScheme)
+  , envDecls :: !(HashMap Text TypeScheme)
+  , envIdGen :: !IdGen
   , envLocals :: [Type Scalar]
-  , envNameGen :: !NameGen
   , envOrigin :: !Origin
-  , envScalars :: !(NameMap (Type Scalar))
-  , envStacks :: !(NameMap (Type Stack))
+  , envScalars :: !(IdMap (Type Scalar))
+  , envStacks :: !(IdMap (Type Stack))
   , envTypeDefs :: !(Map Text TypeScheme)
   }
 
@@ -72,43 +74,43 @@ newtype Inferred a = Inferred
   } deriving (Applicative, Functor, Monad, MonadFix)
 
 class Declare a where
-  declare :: TypeName a -> Type a -> Env -> Env
+  declare :: TypeId a -> Type a -> Env -> Env
 
 instance Declare Stack where
-  declare (TypeName name) type_ env = env
-    { envStacks = N.insert name type_ (envStacks env) }
+  declare (TypeId i) type_ env = env
+    { envStacks = Id.insert i type_ (envStacks env) }
 
 instance Declare Scalar where
-  declare (TypeName name) type_ env = env
-    { envScalars = N.insert name type_ (envScalars env) }
+  declare (TypeId i) type_ env = env
+    { envScalars = Id.insert i type_ (envScalars env) }
 
 emptyEnv :: Location -> Env
 emptyEnv loc = Env
   { envClosure = V.empty
-  , envDefs = N.empty
-  , envDecls = N.empty
+  , envDefs = H.empty
+  , envDecls = H.empty
+  , envIdGen = mkIdGen
   , envLocals = []
-  , envNameGen = mkNameGen
   , envOrigin = Origin NoHint loc
-  , envScalars = N.empty
-  , envStacks = N.empty
+  , envScalars = Id.empty
+  , envStacks = Id.empty
   , envTypeDefs = M.empty
   }
 
 class Retrieve a where
-  retrieve :: Env -> TypeName a -> Either ErrorGroup (Type a)
+  retrieve :: Env -> TypeId a -> Either ErrorGroup (Type a)
 
 instance Retrieve Stack where
-  retrieve Env{..} (TypeName name)
-    = flip maybeToEither (N.lookup name envStacks)
+  retrieve Env{..} (TypeId name)
+    = flip maybeToEither (Id.lookup name envStacks)
     $ nonexistent "stack" envOrigin name
 
 instance Retrieve Scalar where
-  retrieve Env{..} (TypeName name)
-    = flip maybeToEither (N.lookup name envScalars)
+  retrieve Env{..} (TypeId name)
+    = flip maybeToEither (Id.lookup name envScalars)
     $ nonexistent "scalar" envOrigin name
 
-nonexistent :: Text -> Origin -> Name -> ErrorGroup
+nonexistent :: Text -> Origin -> Id -> ErrorGroup
 nonexistent kind (Origin _ loc) name
   = oneError $ CompileError loc Error $ T.concat
   [ "nonexistent ", kind, " variable '"
@@ -122,17 +124,17 @@ asksConfig = Inferred . lift . asks
 envLocation :: Env -> Location
 envLocation env = let Origin _ loc = envOrigin env in loc
 
-freshName :: Env -> (TypeName a, Env)
-freshName env
-  = let (name, gen') = genName (envNameGen env)
-  in (TypeName name, env { envNameGen = gen' })
+freshId :: Env -> (TypeId a, Env)
+freshId env
+  = let (name, gen') = genId (envIdGen env)
+  in (TypeId name, env { envIdGen = gen' })
 
 fresh
-  :: forall a (b :: Kind -> *). (TypeName a -> Origin -> b a)
+  :: forall a (b :: Kind -> *). (TypeId a -> Origin -> b a)
   -> Origin -> Env -> (b a, Env)
 fresh constructor origin env
-  = let (typeName, env') = freshName env
-  in (constructor typeName origin, env')
+  = let (typeId, env') = freshId env
+  in (constructor typeId origin, env')
 
 freshConst :: Origin -> Env -> (Type a, Env)
 freshConst = fresh Const
@@ -140,8 +142,8 @@ freshConst = fresh Const
 freshVar :: Origin -> Env -> (Type a, Env)
 freshVar = fresh Var
 
-freshNameM :: Inferred (TypeName a)
-freshNameM = liftState $ state freshName
+freshIdM :: Inferred (TypeId a)
+freshIdM = liftState $ state freshId
 
 freshM
   :: forall a (b :: Kind -> *). (Origin -> Env -> (b a, Env))

@@ -11,8 +11,6 @@ import qualified Data.Vector as V
 import Kitten.ClosedName
 import Kitten.Fragment
 import Kitten.Location
-import Kitten.Operator
-import Kitten.Name
 import Kitten.Scope
 import Kitten.Tree
 import Kitten.Type (StackHint(..))
@@ -28,15 +26,15 @@ spec = do
 
   describe "non-nested closure" $ testScope
     mempty { fragmentTerms = V.fromList [scoped [function [push $ local 0]]] }
-    mempty { fragmentTerms = V.fromList [scoped [closure [closedName 0] [push $ closed 0]]] }
+    mempty { fragmentTerms = V.fromList [scoped [closure [ClosedName 0] [push $ closed 0]]] }
 
   describe "nested closure" $ testScope
     mempty { fragmentTerms = V.fromList [scoped [function [scoped [function [push $ local 1, push $ local 0, biAdd]]]]] }
     mempty { fragmentTerms = V.fromList
       [scoped
-        [ closure [closedName 0]
+        [ closure [ClosedName 0]
           [ scoped
-            [ closure [reclosedName 0, closedName 0]
+            [ closure [ReclosedName 0, ClosedName 0]
               [ push $ closed 0
               , push $ closed 1
               , biAdd]]]]] }
@@ -52,10 +50,7 @@ biAdd :: ResolvedTerm
 biAdd = Builtin Builtin.AddInt TestLocation
 
 closed :: Int -> ResolvedValue
-closed index = Closed (Name index) TestLocation
-
-closedName :: Int -> ClosedName
-closedName = ClosedName . Name
+closed index = Closed index TestLocation
 
 closure :: [ClosedName] -> [ResolvedTerm] -> ResolvedTerm
 closure names terms = push $ Closure
@@ -68,16 +63,10 @@ function :: [ResolvedTerm] -> ResolvedTerm
 function terms = push $ Quotation (compose terms) TestLocation
 
 local :: Int -> ResolvedValue
-local index = Local (Name index) TestLocation
+local index = Local index TestLocation
 
 push :: ResolvedValue -> ResolvedTerm
 push value = Push value TestLocation
 
-reclosedName :: Int -> ClosedName
-reclosedName = ReclosedName . Name
-
 scoped :: [ResolvedTerm] -> ResolvedTerm
 scoped terms = Lambda "testvar" (compose terms) TestLocation
-
-word :: Int -> ResolvedTerm
-word index = Call Postfix (Name index) TestLocation

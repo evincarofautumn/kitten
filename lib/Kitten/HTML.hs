@@ -27,6 +27,7 @@ import Data.Map (Map)
 import Data.Monoid
 import Data.Text (Text)
 
+import qualified Data.Foldable as Foldable
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.Vector as V
@@ -37,6 +38,7 @@ import Kitten.Fragment
 import Kitten.Location
 import Kitten.Tree
 import Kitten.Type (Kind(..), Type, unScheme)
+import Kitten.Util.Monad
 import Kitten.Util.Text (toText)
 
 type LocMap = UnionMap FilePath (UnionMap Pos [Node])
@@ -92,7 +94,7 @@ fromFragmentsM lookUpSource fragments = do
 
 flattenFragment :: Fragment TypedTerm -> Writer LocMap ()
 flattenFragment fragment = do
-  V.mapM_ flattenDef (fragmentDefs fragment)
+  Foldable.mapM_ flattenDef (fragmentDefs fragment)
   V.mapM_ flattenTerm (fragmentTerms fragment)
 
 flattenDef :: Def TypedTerm -> Writer LocMap ()
@@ -122,15 +124,15 @@ flattenTerm theTerm = case theTerm of
 
 flattenValue :: TypedValue -> Writer LocMap ()
 flattenValue theValue = case theValue of
-  Bool{} -> return ()
-  Char{} -> return ()
-  Closed{} -> return ()
+  Bool{} -> noop
+  Char{} -> noop
+  Closed{} -> noop
   Closure _closed term _ -> flattenTerm term
-  Float{} -> return ()
-  Int{} -> return ()
-  Local{} -> return ()
-  String{} -> return ()
-  Quotation{} -> return ()  -- ?
+  Float{} -> noop
+  Int{} -> noop
+  Local{} -> noop
+  String{} -> noop
+  Quotation{} -> noop  -- ?
 
 -- * Scanning and HTML generation.
 
@@ -214,7 +216,7 @@ scanChar c = do
   pos <- gets envPos
   nodeMap <- gets envNodeMap
   case Map.lookup pos nodeMap of
-    Nothing -> return ()
+    Nothing -> noop
     Just nodes -> do
       lift . mapM_ closeNode =<< gets envOpened
       lift $ mapM_ openNode nodes
@@ -276,7 +278,7 @@ tellNode location node = case locationPos location of
   Just (path, pos) -> tell
     . UnionMap . Map.singleton path
     . UnionMap $ Map.singleton pos [node]
-  Nothing -> return ()
+  Nothing -> noop
 
 -- | Advances a 'Pos' by a character, a la
 -- Text.Parsec.Pos.updatePosChar.

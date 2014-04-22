@@ -31,7 +31,6 @@ import Kitten.Fragment
 import Kitten.Import
 import Kitten.Infer
 import Kitten.Location
-import Kitten.Name (NameGen)
 import Kitten.Operator
 import Kitten.Parse
 import Kitten.Resolve
@@ -41,8 +40,10 @@ import Kitten.Tree
 import Kitten.Type
 import Kitten.Util.Either
 import Kitten.Util.Monad
+import Kitten.Yarn
 
 import qualified Kitten.Compile.Config as Compile
+import qualified Kitten.IdMap as Id
 import qualified Kitten.Util.Text as T
 
 liftParseError :: Either ParseError a -> Either [ErrorGroup] a
@@ -59,9 +60,9 @@ parseSource line name source = do
 
 compile
   :: Compile.Config
-  -> NameGen
-  -> IO (Either [ErrorGroup] (NameGen, Fragment TypedTerm, Type Scalar))
-compile Compile.Config{..} nameGen
+  -> Program
+  -> IO (Either [ErrorGroup] (Program, Int, Type Scalar))
+compile Compile.Config{..} program
   = liftM (mapLeft sort) . runEitherT $ do
   parsed <- fmap
     (\fragment -> if implicitPrelude then fragment
@@ -81,17 +82,21 @@ compile Compile.Config{..} nameGen
   -- Applicative rewriting must take place after imports have been
   -- substituted, so that all operator declarations are in scope.
   postfix <- hoistEither . mapLeft (:[]) $ rewriteInfix substituted
-  resolved <- hoistEither $ resolve postfix
+  resolved <- hoistEither $ resolve postfix program
 
   when dumpResolved . lift $ hPrint stderr resolved
 
   let scoped = scope resolved
   when dumpScoped . lift $ hPrint stderr scoped
 
-  (nameGen', typed, type_) <- hoistEither
-    $ typeFragment inferConfig stackTypes scoped nameGen
+  (idGen', typed, type_) <- hoistEither
+    $ typeFragment inferConfig stackTypes scoped (programIdGen program)
 
-  return (nameGen', typed, type_)
+  return
+    ( yarn typed program { programIdGen = idGen' }
+    , maybe 0 V.length $ Id.lookup entryName (programBlocks program)
+    , type_
+    )
 
 locateImport
   :: [FilePath]

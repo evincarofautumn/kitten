@@ -15,10 +15,12 @@ module Kitten.Infer
 import Control.Applicative hiding (some)
 import Control.Monad
 import Data.Monoid
+import Data.Text (Text)
 import Data.Vector (Vector)
 import Text.Parsec.Pos
 
 import qualified Data.Foldable as F
+import qualified Data.HashMap.Strict as H
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -32,7 +34,7 @@ import Kitten.Infer.Scheme
 import Kitten.Infer.Type
 import Kitten.Infer.Unify
 import Kitten.Location
-import Kitten.Name
+import Kitten.Id
 import Kitten.Tree as Tree
 import Kitten.Type (Type((:&), (:.), (:?), (:|)))
 import Kitten.Type hiding (Ctor(..), Type(..), Local)
@@ -41,7 +43,6 @@ import Kitten.Util.Monad
 import Kitten.Util.Text (toText)
 
 import qualified Kitten.Builtin as Builtin
-import qualified Kitten.NameMap as N
 import qualified Kitten.Type as Type
 import qualified Kitten.Util.Vector as V
 
@@ -49,18 +50,18 @@ typeFragment
   :: Config
   -> Vector (Type Scalar)
   -> Fragment ResolvedTerm
-  -> NameGen
-  -> Either [ErrorGroup] (NameGen, Fragment TypedTerm, Type Scalar)
+  -> IdGen
+  -> Either [ErrorGroup] (IdGen, Fragment TypedTerm, Type Scalar)
 typeFragment config stackTypes fragment nameGen
   = case run of
     (Left err, _) -> Left err
-    (Right (typed, type_), env') -> Right (envNameGen env', typed, type_)
+    (Right (typed, type_), env') -> Right (envIdGen env', typed, type_)
   where
   run :: (Either [ErrorGroup] (Fragment TypedTerm, Type Scalar), Env)
   run = runInference config env
     $ inferFragment fragment stackTypes
   env :: Env
-  env = (emptyEnv loc) { envNameGen = nameGen }
+  env = (emptyEnv loc) { envIdGen = nameGen }
   loc :: Location
   loc = Location
     { locationStart = initialPos (fragmentName config)
@@ -79,20 +80,20 @@ inferFragment fragment stackTypes = mdo
   -- Use previously-inferred types (i.e. defTypeScheme def). We cannot
   -- right now because effects are not inferred properly (e.g. for the
   -- effects of the 'map' prelude function).
-  _ <- iforFragmentDefs save
+  _ <- V.mapM save (fragmentDefs fragment)
 
-  typedDefs <- iforFragmentDefs $ \index def
+  typedDefs <- flip V.mapM (fragmentDefs fragment) $ \def
     -> withOrigin (defOrigin def) $ do
       (typedTerm, inferredScheme) <- generalize
         (infer finalEnv (unScheme (defTerm def)))  -- See note [scheming defs].
       declaredScheme <- do
         decls <- getsEnv envDecls
-        case N.lookup (Name index) decls of
+        case H.lookup (defName def) decls of
           Just decl -> return decl
           Nothing -> do
             origin <- getsEnv envOrigin
             fmap mono . forAll $ \r s -> Type.Function r s origin
-      saveDefWith (flip const) index inferredScheme
+      saveDefWith (flip const) (defName def) inferredScheme
       instanceCheck inferredScheme declaredScheme $ let
         item = CompileError (defLocation def)
         in ErrorGroup
@@ -134,31 +135,23 @@ inferFragment fragment stackTypes = mdo
     (AnnoType (AnnotatedDef (defName def)))
     (defLocation def)
 
-  iforFragmentDefs
-    :: (Int -> Def ResolvedTerm -> Inferred a)
-    -> Inferred (Vector a)
-  iforFragmentDefs f = liftM V.fromList $ zipWithM f
-    [0..]
-    (V.toList (fragmentDefs fragment))
-
-  saveDecl :: Int -> TypeScheme -> Inferred ()
-  saveDecl index scheme = modifyEnv $ \env -> env
-    { envDecls = N.insert (Name index) scheme (envDecls env) }
+  saveDecl :: Text -> TypeScheme -> Inferred ()
+  saveDecl name scheme = modifyEnv $ \env -> env
+    { envDecls = H.insert name scheme (envDecls env) }
 
   saveDefWith
     :: (TypeScheme -> TypeScheme -> TypeScheme)
-    -> Int
+    -> Text
     -> TypeScheme
     -> Inferred ()
-  saveDefWith f index scheme = modifyEnv $ \env -> env
-    { envDefs = N.insertWith f
-      (Name index) scheme (envDefs env) }
+  saveDefWith f name scheme = modifyEnv $ \env -> env
+    { envDefs = H.insertWith f name scheme (envDefs env) }
 
-  save :: Int -> Def a -> Inferred ()
-  save index def = do
+  save :: Def a -> Inferred ()
+  save def = do
     scheme <- fromAnno (AnnotatedDef (defName def)) (defAnno def)
-    saveDecl index scheme
-    saveDefWith const index scheme
+    saveDecl (defName def) scheme
+    saveDefWith const (defName def) scheme
 
 instanceCheck :: TypeScheme -> TypeScheme -> ErrorGroup -> Inferred ()
 instanceCheck inferredScheme declaredScheme errorGroup = do
@@ -376,9 +369,9 @@ infer finalEnv resolved = case resolved of
     where
     declOrDef = do
       decls <- getsEnv envDecls
-      case N.lookup name decls of
+      case H.lookup name decls of
         Just decl -> return decl
-        Nothing -> getsEnv ((N.! name) . envDefs)
+        Nothing -> getsEnv ((H.! name) . envDefs)
 
   Compose hint terms loc -> withLocation loc $ do
     (typedTerms, types) <- V.mapAndUnzipM recur terms
@@ -400,7 +393,7 @@ infer finalEnv resolved = case resolved of
     -- Check stack effect hint.
     case hint of
       Stack0 -> do
-        s <- freshNameM
+        s <- freshIdM
         instanceCheck typeScheme
           (Forall (S.singleton s) S.empty
             $ (Type.Var s origin --> Type.Var s origin) origin)
@@ -411,8 +404,8 @@ infer finalEnv resolved = case resolved of
             ]
           ]
       Stack1 -> do
-        s <- freshNameM
-        a <- freshNameM
+        s <- freshIdM
+        a <- freshIdM
         -- Note that 'a' is not forall-bound. We want this effect hint
         -- to match function types that produce a single result of any
         -- type, and that operate on any input stack; but these two
@@ -429,7 +422,7 @@ infer finalEnv resolved = case resolved of
             , "has a non-unary stack effect"
             ]
           ]
-      StackAny -> return ()
+      StackAny -> noop
 
     return (Compose hint typedTerms (loc, sub finalEnv type_), type_)
 
@@ -520,25 +513,25 @@ withClosure types action = do
 
 getClosedName :: ClosedName -> Inferred (Type Scalar)
 getClosedName name = case name of
-  ClosedName (Name index) -> getsEnv $ (!! index) . envLocals
-  ReclosedName (Name index) -> getsEnv $ (V.! index) . envClosure
+  ClosedName index -> getsEnv $ (!! index) . envLocals
+  ReclosedName index -> getsEnv $ (V.! index) . envClosure
 
 inferValue :: Env -> ResolvedValue -> Inferred (TypedValue, Type Scalar)
 inferValue finalEnv value = getsEnv envOrigin >>= \origin -> case value of
   Bool val loc -> ret loc (Type.bool origin) (Bool val)
   Char val loc -> ret loc (Type.char origin) (Char val)
-  Closed name@(Name index) loc -> do
+  Closed index loc -> do
     type_ <- getsEnv ((V.! index) . envClosure)
-    ret loc type_ (Closed name)
+    ret loc type_ (Closed index)
   Closure names term loc -> do
     closedTypes <- V.mapM getClosedName names
     (term', type_) <- withClosure closedTypes (infer finalEnv term)
     ret loc type_ (Closure names term')
   Float val loc -> ret loc (Type.float origin) (Float val)
   Int val loc -> ret loc (Type.int origin) (Int val)
-  Local name@(Name index) loc -> do
+  Local index loc -> do
     type_ <- getsEnv ((!! index) . envLocals)
-    ret loc type_ (Local name)
+    ret loc type_ (Local index)
   String val loc -> ret loc (Type.Vector (Type.char origin) origin) (String val)
   Quotation{} -> error "quotation appeared during type inference"
   where

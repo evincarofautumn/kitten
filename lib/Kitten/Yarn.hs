@@ -1,10 +1,19 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
+{-# OPTIONS_GHC -w #-}
+
 module Kitten.Yarn
-  ( Instruction(..)
-  , Label
+  ( Block
+  , FlattenedProgram(..)
+  , Instruction(..)
+  , Program(..)
   , Value(..)
+  , declareBlock
+  , emptyProgram
+  , entryName
+  , flattenProgram
   , yarn
   ) where
 
@@ -12,12 +21,16 @@ import Control.Applicative hiding (some)
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
+import Data.HashMap.Strict (HashMap)
+import Data.List
 import Data.Monoid
 import Data.Text (Text)
 import Data.Vector (Vector)
 import System.IO
 
 import qualified Data.Char as Char
+import qualified Data.Foldable as F
+import qualified Data.HashMap.Strict as H
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
@@ -25,59 +38,53 @@ import Kitten.Builtin (Builtin)
 import Kitten.ClosedName
 import Kitten.Def
 import Kitten.Fragment
-import Kitten.Name
+import Kitten.Id
+import Kitten.IdMap (IdMap)
 import Kitten.Tree (TypedTerm, TypedValue)
+import Kitten.Type (Kind(..), Type)
 import Kitten.Util.Monad
 import Kitten.Util.Text (ToText(..), showText)
+import Kitten.Util.Tuple
 
 import qualified Kitten.Builtin as Builtin
-import qualified Kitten.Type as Type
+import qualified Kitten.IdMap as Id
 import qualified Kitten.Tree as Tree
+import qualified Kitten.Type as Type
 
 type Label = Int
 type Offset = Int
 type Index = Int
 
 data Instruction
-  = Act !Label !(Vector ClosedName)
+  = Act !Id !(Vector ClosedName) !(Type Scalar)
   | Builtin !Builtin
-  | Call !Label
+  | Call !Id
   | Closure !Index
   | Comment !Text
   | Enter
-  | EntryLabel
-  | Jump !Offset
-  | JumpIfFalse !Offset
-  | JumpIfNone !Offset
-  | JumpIfRight !Offset
   | Leave
-  | Label !Label
   | Local !Index
   | MakeVector !Int
   | Push !Value
   | Return
 
+type Block = Vector Instruction
+
 instance Show Instruction where
   show instruction = T.unpack . T.unwords $ case instruction of
-    Act label names
-      -> "act" : showText label : map showClosedName (V.toList names)
+    Act target names _
+      -> "act" : showText target : map showClosedName (V.toList names)
       where
       showClosedName :: ClosedName -> Text
-      showClosedName (ClosedName (Name index)) = "local:" <> showText index
-      showClosedName (ReclosedName (Name index)) = "closure:" <> showText index
+      showClosedName (ClosedName index) = "local:" <> showText index
+      showClosedName (ReclosedName index) = "closure:" <> showText index
 
     Builtin builtin -> ["builtin", toText builtin]
-    Call label -> ["call", showText label]
+    Call target -> ["call", showText target]
     Closure index -> ["closure", showText index]
     Comment comment -> ["\n;", comment]
     Enter -> ["enter"]
-    EntryLabel -> ["\nentry"]
-    Jump offset -> ["jmp", showText offset]
-    JumpIfFalse offset -> ["jf", showText offset]
-    JumpIfNone offset -> ["jn", showText offset]
-    JumpIfRight offset -> ["jr", showText offset]
     Leave -> ["leave"]
-    Label label -> ["\nlabel", showText label]
     Local index -> ["local", showText index]
     MakeVector size -> ["vector", showText size]
     Push value -> ["push", showText value]
@@ -92,7 +99,6 @@ data Value
   | Int !Int
   | Option !(Maybe Value)
   | Pair !Value !Value
-  | Unit
   | String !Text
 
 instance Show Value where
@@ -122,70 +128,33 @@ instance ToText Value where
       : showText (T.length string)
       : map (\char -> "char " <> showText (Char.ord char))
         (T.unpack string)
-    Unit -> ["unit"]
 
-data Env = Env
-  { envClosures :: [Vector Instruction]
-  }
+type Yarn a = State Program a
 
-type Yarn a = ReaderT Int (State Env) a
+yarn :: Fragment TypedTerm -> Program -> Program
+yarn Fragment{..} program = flip execState program $ do
+  F.mapM_ yarnDef fragmentDefs
+  yarnEntry fragmentTerms
 
-yarn
-  :: Fragment TypedTerm
-  -> Vector Instruction
-yarn Fragment{..}
-  = collectClosures . withClosureOffset $ (<>)
-    <$> yarnEntry fragmentTerms
-    <*> concatMapM (uncurry yarnDef)
-      (V.zip fragmentDefs (V.fromList [0..V.length fragmentDefs]))
+yarnDef :: Def TypedTerm -> Yarn ()
+yarnDef Def{..} = do
+  defId <- getDefM defName
+  block <- terminated <$> yarnTerm (Type.unScheme defTerm)
+  modify $ \program@Program{..} -> program
+    { programBlocks = Id.insert defId block programBlocks }
 
-  where
-  closureOffset :: Int
-  closureOffset = V.length fragmentDefs
-
-  withClosureOffset
-    :: Yarn a
-    -> State Env a
-  withClosureOffset = flip runReaderT closureOffset
-
-  collectClosures
-    :: State Env (Vector Instruction)
-    -> Vector Instruction
-  collectClosures action = let
-    (instructions, Env{..}) = runState action Env { envClosures = [] }
-    in instructions <> V.concatMap (uncurry collectClosure)
-      (V.fromList (zip [closureOffset..] (reverse envClosures)))
-
-  collectClosure
-    :: Int
-    -> Vector Instruction
-    -> Vector Instruction
-  collectClosure index instructions
-    = V.singleton (Label index) <> instructions <> V.singleton Return
-
-yarnDef
-  :: Def TypedTerm
-  -> Int
-  -> Yarn (Vector Instruction)
-yarnDef Def{..} index = do
-  instructions <- yarnTerm (Type.unScheme defTerm)
-  return
-    $ V.fromList [Comment defName, Label index]
-    <> instructions
-    <> V.singleton Return
-
-yarnEntry :: Vector TypedTerm -> Yarn (Vector Instruction)
+yarnEntry :: Vector TypedTerm -> Yarn ()
 yarnEntry terms = do
   instructions <- concatMapM yarnTerm terms
-  return
-    $ V.singleton EntryLabel
-    <> instructions
-    <> V.singleton Return
+  modify $ \program@Program{..} -> program
+    { programBlocks = Id.adjust (<> instructions) entryName programBlocks }
 
-yarnTerm :: TypedTerm -> Yarn (Vector Instruction)
+yarnTerm :: TypedTerm -> Yarn Block
 yarnTerm term = case term of
   Tree.Builtin builtin _ -> return $ V.singleton (Builtin builtin)
-  Tree.Call _ (Name index) _ -> return $ V.singleton (Call index)
+  Tree.Call _ target _ -> do
+    target' <- getDefM target
+    return $ V.singleton (Call target')
   Tree.Compose _ terms _ -> concatMapM yarnTerm terms
   Tree.Lambda _ terms _ -> do
     instructions <- yarnTerm terms
@@ -199,30 +168,86 @@ yarnTerm term = case term of
     values' <- concatMapM yarnTerm values
     return $ values' <> (V.singleton . MakeVector $ V.length values)
 
-yarnValue
-  :: TypedValue
-  -> Yarn (Vector Instruction)
+yarnValue :: TypedValue -> Yarn Block
 yarnValue resolved = case resolved of
   Tree.Bool x _ -> value $ Bool x
   Tree.Char x _ -> value $ Char x
-  Tree.Closed (Name index) _ -> return $ V.singleton (Closure index)
-  Tree.Closure names terms _ -> do
+  Tree.Closed index _ -> return $ V.singleton (Closure index)
+  Tree.Closure names terms (loc, type_) -> do
     instructions <- yarnTerm terms
-    index <- yarnClosure instructions
-    return $ V.singleton (Act index names)
+    target <- declareBlockM (Just $ "closure from " <> toText loc) (terminated instructions)
+    return $ V.singleton (Act target names type_)
   Tree.Float x _ -> value $ Float x
   Tree.Int x _ -> value $ Int x
-  Tree.Local (Name index) _ -> return $ V.singleton (Local index)
+  Tree.Local index _ -> return $ V.singleton (Local index)
   Tree.String x _ -> value $ String x
   Tree.Quotation{} -> error "quotation appeared during conversion to IR"
   where
-  value :: Value -> Yarn (Vector Instruction)
+  value :: Value -> Yarn Block
   value = return . V.singleton . Push
 
-yarnClosure :: Vector Instruction -> Yarn Label
-yarnClosure terms = do
-  closureOffset <- ask
-  label <- lift . gets $ length . envClosures
-  lift . modify $ \env@Env{..} -> env
-    { envClosures = terms : envClosures }
-  return $ label + closureOffset
+terminated :: Block -> Block
+terminated = (<> V.singleton Return)
+
+data Program = Program
+  { programBlocks :: !(IdMap Block)
+  , programIdGen :: IdGen
+  , programSymbols :: !(HashMap Text Id)
+  }
+
+entryName :: Id
+entryName = Id 0
+
+emptyProgram :: Program
+emptyProgram = Program
+  { programBlocks = Id.singleton entryName V.empty
+  , programIdGen = mkIdGenFrom $ succ entryName
+  , programSymbols = H.empty
+  }
+
+data FlattenedProgram = FlattenedProgram
+  { flattenedBlock :: !Block
+  , flattenedNames :: !(IdMap Int)
+  , flattenedSymbols :: !(IdMap [Text])
+  }
+
+declareBlockM :: Maybe Text -> Block -> Yarn Id
+declareBlockM = (state .) . declareBlock
+
+declareBlock :: Maybe Text -> Block -> Program -> (Id, Program)
+declareBlock mSymbol block program@Program{..} = let
+  (i, idGen') = genId programIdGen
+  in (,) i program
+    { programBlocks = Id.insert i block programBlocks
+    , programIdGen = idGen'
+    , programSymbols = maybe id (`H.insert` i) mSymbol programSymbols
+    }
+
+getDefM :: Text -> Yarn Id
+getDefM = state . getDef
+
+getDef :: Text -> Program -> (Id, Program)
+getDef name program@Program{..} = case H.lookup name programSymbols of
+  Just id' -> (id', program)
+  Nothing -> let
+    (id', idGen') = genId programIdGen
+    in (,) id' program
+      { programIdGen = idGen'
+      , programSymbols = H.insert name id' programSymbols
+      }
+
+flattenProgram :: Program -> FlattenedProgram
+flattenProgram Program{..} = FlattenedProgram{..}
+  where
+  (flattenedBlock, flattenedNames) = foldl' go mempty (Id.toList instructions)
+  flattenedSymbols
+    = foldl' (\symbols (symbol, name)
+      -> Id.insertWith (++) name [symbol] symbols) Id.empty
+    $ H.toList programSymbols
+
+  go :: (Block, IdMap Int) -> (Id, Block) -> (Block, IdMap Int)
+  go (blocks, names) (name, block)
+    = (blocks <> block, Id.insert name (V.length blocks) names)
+
+  instructions :: IdMap Block
+  instructions = Id.adjust terminated entryName programBlocks

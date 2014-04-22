@@ -17,7 +17,6 @@ import qualified Data.Vector as V
 import Kitten.ClosedName
 import Kitten.Def
 import Kitten.Fragment
-import Kitten.Name
 import Kitten.Tree
 import Kitten.Util.List
 
@@ -61,10 +60,8 @@ scopeValue stack value = case value of
     where
 
     capturedTerm :: ResolvedTerm
-    capturedNames :: Vector Name
-    (capturedTerm, capturedNames)
-      = runCapture stack'
-      $ captureTerm scopedTerm
+    capturedNames :: Vector Int
+    (capturedTerm, capturedNames) = runCapture stack' $ captureTerm scopedTerm
 
     scopedTerm :: ResolvedTerm
     scopedTerm = scopeTerm stack' body
@@ -77,21 +74,21 @@ data Env = Env
   , envDepth :: Int
   }
 
-type Capture a = ReaderT Env (State (Vector Name)) a
+type Capture a = ReaderT Env (State (Vector Int)) a
 
-runCapture :: [Int] -> Capture a -> (a, Vector Name)
+runCapture :: [Int] -> Capture a -> (a, Vector Int)
 runCapture stack
   = flip runState V.empty
   . flip runReaderT Env { envStack = stack, envDepth = 0 }
 
-addName :: Name -> Capture Name
+addName :: Int -> Capture Int
 addName name = do
   names <- lift get
   case V.elemIndex name names of
-    Just existing -> return $ Name existing
+    Just existing -> return existing
     Nothing -> do
       lift $ put (names <> V.singleton name)
-      return . Name $ V.length names
+      return $ V.length names
 
 captureTerm :: ResolvedTerm -> Capture ResolvedTerm
 captureTerm typed = case typed of
@@ -122,14 +119,14 @@ captureTerm typed = case typed of
     <$> T.mapM captureTerm items
     <*> pure loc
 
-closeLocal :: Name -> Capture (Maybe Name)
-closeLocal (Name index) = do
+closeLocal :: Int -> Capture (Maybe Int)
+closeLocal index = do
   stack <- asks envStack
   depth <- asks envDepth
   case stack of
     (here : _)
       | index >= here
-      -> Just <$> addName (Name $ index - depth)
+      -> Just <$> addName (index - depth)
     _ -> return Nothing
 
 captureValue :: ResolvedValue -> Capture ResolvedValue

@@ -4,36 +4,44 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module Kitten.Interpret
-  ( interpret
+  ( InterpreterValue(..)
+  , interpret
+  , typeOf
   ) where
 
 import Control.Applicative hiding (some)
 import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
+import Control.Monad.Trans.State.Strict
 import Data.Bits
 import Data.Fixed
 import Data.Function
-import Data.IntMap (IntMap)
 import Data.IORef
+import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
 import Data.Vector (Vector, (!))
 import System.Exit
 import System.IO
 
-import qualified Data.IntMap as I
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
 import Kitten.Builtin (Builtin)
 import Kitten.ClosedName
+import Kitten.Id
 import Kitten.Location
-import Kitten.Name
+import Kitten.IdMap (IdMap)
+import Kitten.Util.Monad
 import Kitten.Util.Text (ToText(..), showText)
-import Kitten.Yarn (Instruction)
+import Kitten.Yarn (FlattenedProgram(..), Instruction)
+import Kitten.Type (Kind(..), Type((:&), (:?), (:|)))
 
 import qualified Kitten.Builtin as Builtin
+import qualified Kitten.IdMap as Id
+import qualified Kitten.Type as Type
+import qualified Kitten.Util.Vector as V
 import qualified Kitten.Yarn as Y
 
 data Env = Env
@@ -42,39 +50,34 @@ data Env = Env
   , envData :: !(IORef [InterpreterValue])
   , envInstructions :: !(Vector Instruction)
   , envIp :: !(IORef Ip)
-  , envLabels :: !(IntMap Int)
+  , envNames :: !(IdMap Int)
   , envLocation :: !(IORef Location)
+  , envSymbols :: !(IdMap [Text])
   }
 
 data Call = Call !CallType !Int | Local !InterpreterValue
 data CallType = WithoutClosure | WithClosure
 type Interpret a = ReaderT Env IO a
 type Ip = Int
-type Offset = Ip -> Ip
+type Offset = Maybe (Ip -> Ip)
 
 interpret
-  :: [InterpreterValue]
-  -> Vector Instruction
+  :: Maybe Int
+  -> FlattenedProgram
+  -> [InterpreterValue]
   -> IO [InterpreterValue]
-interpret stack instructions = do
+interpret mIp (FlattenedProgram envInstructions envNames envSymbols) stack = do
   envCalls <- newIORef []
   envClosures <- newIORef []
   envData <- newIORef stack
-  let
-    envInstructions = instructions
-    (envLabels, entryIndex) = let
-      go index instruction (labels, entry) = case instruction of
-        Y.Label label -> (I.insert label index labels, entry)
-        Y.EntryLabel -> (labels, index)
-        _ -> (labels, entry)
-      in V.ifoldr go (I.empty, error "Missing entry point.") instructions
-  envIp <- newIORef entryIndex
+  envIp <- newIORef $ (envNames Id.! Y.entryName) + fromMaybe 0 mIp
   envLocation <- newIORef (newLocation "interpreter" 0 0)
   let env0 = Env{..}
-  _ <- fix $ \loop -> do
+  fix $ \loop -> do
     offset <- runReaderT interpretInstruction env0
-    modifyIORef' envIp offset
-    loop
+    case offset of
+      Just offset' -> modifyIORef' envIp offset' >> loop
+      Nothing -> noop
   readIORef envData
 
 interpretInstruction :: Interpret Offset
@@ -94,32 +97,26 @@ interpretInstruction = do
       else return (instructions ! ip)
 
   case instruction of
-    Y.Act label closure -> do
+    Y.Act label closure type_ -> do
       values <- V.mapM getClosedName closure
-      pushData (Activation label values)
-      return succ
+      pushData (Activation label values type_)
+      proceed
     Y.Builtin builtin -> interpretBuiltin builtin
     Y.Call label -> call label Nothing
     Y.Closure index -> do
       pushData =<< getClosed index
-      return succ
-    Y.Comment{} -> return succ
+      proceed
+    Y.Comment{} -> proceed
     Y.Enter -> do
       pushLocal =<< popData
-      return succ
-    Y.EntryLabel -> return succ
-    Y.Jump offset -> return (+ offset)
-    Y.JumpIfFalse _offset -> error "TODO jf"
-    Y.JumpIfNone _offset -> error "TODO jn"
-    Y.JumpIfRight _offset -> error "TODO jr"
-    Y.Leave -> popLocal >> return succ
-    Y.Label _label -> return succ
-    Y.Local index -> (pushData =<< getLocal index) >> return succ
+      proceed
+    Y.Leave -> popLocal >> proceed
+    Y.Local index -> (pushData =<< getLocal index) >> proceed
     Y.MakeVector size -> do
       pushData . Vector . V.reverse . V.fromList
         =<< replicateM size popData
-      return succ
-    Y.Push value -> pushData (interpreterValue value) >> return succ
+      proceed
+    Y.Push value -> pushData (interpreterValue value) >> proceed
     Y.Return -> fix $ \loop -> do
       calls <- asksIO envCalls
       case calls of
@@ -130,9 +127,9 @@ interpretInstruction = do
           envCalls =: rest
           case type_ of
             WithClosure -> envClosures ~: tail
-            _ -> return ()
-          return succ
-        [] -> lift exitSuccess
+            _ -> noop
+          proceed
+        [] -> return Nothing
 
 interpreterValue :: Y.Value -> InterpreterValue
 interpreterValue value = case value of
@@ -144,27 +141,26 @@ interpreterValue value = case value of
   Y.Int x -> Int x
   Y.Option x -> Option (interpreterValue <$> x)
   Y.Pair x y -> Pair (interpreterValue x) (interpreterValue y)
-  Y.Unit -> Unit
   Y.String x -> Vector . V.fromList $ map Char (T.unpack x)
 
 getClosedName :: ClosedName -> Interpret InterpreterValue
-getClosedName (ClosedName (Name name)) = getLocal name
-getClosedName (ReclosedName (Name name)) = getClosed name
+getClosedName (ClosedName index) = getLocal index
+getClosedName (ReclosedName index) = getClosed index
 
 interpretQuotation :: InterpreterValue -> Interpret Offset
-interpretQuotation (Activation label closure) = call label (Just closure)
+interpretQuotation (Activation target closure _) = call target (Just closure)
 interpretQuotation _ = error "Attempt to call non-function."
 
-call :: Y.Label -> Maybe (Vector InterpreterValue) -> Interpret Offset
-call label mClosure = do
-  destination <- (I.! label) <$> asks envLabels
+call :: Id -> Maybe (Vector InterpreterValue) -> Interpret Offset
+call target mClosure = do
+  destination <- (Id.! target) <$> asks envNames
   ip <- asksIO envIp
   case mClosure of
     Nothing -> envCalls ~: (Call WithoutClosure ip :)
     Just closure -> do
       envClosures ~: (closure :)
       envCalls ~: (Call WithClosure ip :)
-  return (const destination)
+  return $ Just (const destination)
 
 interpretBuiltin :: Builtin -> Interpret Offset
 interpretBuiltin builtin = case builtin of
@@ -175,7 +171,7 @@ interpretBuiltin builtin = case builtin of
     Vector b <- popData
     Vector a <- popData
     pushData $ Vector (a <> b)
-    return succ
+    proceed
 
   Builtin.AndBool -> boolsToBool (&&)
 
@@ -186,12 +182,12 @@ interpretBuiltin builtin = case builtin of
   Builtin.CharToInt -> do
     Char a <- popData
     pushData $ Int (fromEnum a)
-    return succ
+    proceed
 
   Builtin.Choice -> do
     left <- popData
     Choice which value <- popData
-    if which then return succ
+    if which then proceed
       else pushData value >> interpretQuotation left
 
   Builtin.ChoiceElse -> do
@@ -204,7 +200,7 @@ interpretBuiltin builtin = case builtin of
   Builtin.Close -> do
     Handle a <- popData
     lift $ hClose a
-    return succ
+    proceed
 
   Builtin.DivFloat -> floatsToFloat (/)
   Builtin.DivInt -> intsToInt div
@@ -221,22 +217,22 @@ interpretBuiltin builtin = case builtin of
   Builtin.First -> do
     Pair a _ <- popData
     pushData a
-    return succ
+    proceed
 
   Builtin.FromLeft -> do
     Choice False a <- popData
     pushData a
-    return succ
+    proceed
 
   Builtin.FromRight -> do
     Choice True a <- popData
     pushData a
-    return succ
+    proceed
 
   Builtin.FromSome -> do
     Option (Just a) <- popData
     pushData a
-    return succ
+    proceed
 
   Builtin.GeFloat -> floatsToBool (>=)
   Builtin.GeInt -> intsToBool (>=)
@@ -247,13 +243,13 @@ interpretBuiltin builtin = case builtin of
     pushData . Option $ if b >= 0 && b < V.length a
       then Just (a ! b)
       else Nothing
-    return succ
+    proceed
 
   Builtin.GetLine -> do
     Handle a <- popData
     line <- lift $ hGetLine a
     pushData $ Vector (charsFromString line)
-    return succ
+    proceed
 
   Builtin.GtFloat -> floatsToBool (>)
   Builtin.GtInt -> intsToBool (>)
@@ -261,7 +257,7 @@ interpretBuiltin builtin = case builtin of
   Builtin.If -> do
     true <- popData
     Bool test <- popData
-    if test then interpretQuotation true else return succ
+    if test then interpretQuotation true else proceed
 
   Builtin.IfElse -> do
     false <- popData
@@ -269,21 +265,21 @@ interpretBuiltin builtin = case builtin of
     Bool test <- popData
     interpretQuotation $ if test then true else false
 
-  Builtin.Impure -> return succ
+  Builtin.Impure -> proceed
 
   Builtin.Init -> do
     Vector a <- popData
     pushData . Vector $ if V.null a
       then V.empty
       else V.init a
-    return succ
+    proceed
 
   Builtin.IntToChar -> do
     Int a <- popData
     pushData . Option $ if a >= 0 && a <= 0x10FFFF
       then Just $ Char (toEnum a)
       else Nothing
-    return succ
+    proceed
 
   Builtin.LeFloat -> floatsToBool (<=)
   Builtin.LeInt -> intsToBool (<=)
@@ -291,12 +287,12 @@ interpretBuiltin builtin = case builtin of
   Builtin.Left -> do
     a <- popData
     pushData $ Choice False a
-    return succ
+    proceed
 
   Builtin.Length -> do
     Vector a <- popData
     pushData . Int $ V.length a
-    return succ
+    proceed
 
   Builtin.LtFloat -> floatsToBool (<)
   Builtin.LtInt -> intsToBool (<)
@@ -313,7 +309,7 @@ interpretBuiltin builtin = case builtin of
   Builtin.NegFloat -> floatToFloat negate
   Builtin.NegInt -> intToInt negate
 
-  Builtin.None -> pushData (Option Nothing) >> return succ
+  Builtin.None -> pushData (Option Nothing) >> proceed
 
   Builtin.NotBool -> boolToBool not
   Builtin.NotInt -> intToInt complement
@@ -329,7 +325,7 @@ interpretBuiltin builtin = case builtin of
     Option mValue <- popData
     case mValue of
       Just value -> pushData value >> interpretQuotation some
-      Nothing -> return succ
+      Nothing -> proceed
 
   Builtin.OptionElse -> do
     none <- popData
@@ -343,23 +339,23 @@ interpretBuiltin builtin = case builtin of
     b <- popData
     a <- popData
     pushData $ Pair a b
-    return succ
+    proceed
 
   Builtin.Print -> do
     Handle b <- popData
     Vector a <- popData
     lift $ hPutStr b (stringFromChars a) >> hFlush b
-    return succ
+    proceed
 
   Builtin.Rest -> do
     Pair _ b <- popData
     pushData b
-    return succ
+    proceed
 
   Builtin.Right -> do
     a <- popData
     pushData $ Choice True a
-    return succ
+    proceed
 
   Builtin.Set -> do
     c <- popData
@@ -368,26 +364,26 @@ interpretBuiltin builtin = case builtin of
     pushData . Vector
       $ let (before, after) = V.splitAt b a
       in before <> V.singleton c <> V.drop 1 after
-    return succ
+    proceed
 
   Builtin.ShowFloat -> do
     Float value <- popData
     pushData $ Vector (charsFromString $ show value)
-    return succ
+    proceed
 
   Builtin.ShowInt -> do
     Int value <- popData
     pushData $ Vector (charsFromString $ show value)
-    return succ
+    proceed
 
   Builtin.Some -> do
     a <- popData
     pushData $ Option (Just a)
-    return succ
+    proceed
 
-  Builtin.Stderr -> pushData (Handle stderr) >> return succ
-  Builtin.Stdin -> pushData (Handle stdin) >> return succ
-  Builtin.Stdout -> pushData (Handle stdout) >> return succ
+  Builtin.Stderr -> pushData (Handle stderr) >> proceed
+  Builtin.Stdin -> pushData (Handle stdin) >> proceed
+  Builtin.Stdout -> pushData (Handle stdout) >> proceed
 
   Builtin.SubFloat -> floatsToFloat (-)
   Builtin.SubInt -> intsToInt (-)
@@ -397,9 +393,9 @@ interpretBuiltin builtin = case builtin of
     pushData . Vector $ if V.null a
       then V.empty
       else V.tail a
-    return succ
+    proceed
 
-  Builtin.UnsafePurify11 -> return succ
+  Builtin.UnsafePurify11 -> proceed
 
   Builtin.XorBool -> boolsToBool (/=)
 
@@ -411,54 +407,54 @@ interpretBuiltin builtin = case builtin of
   boolToBool f = do
     Bool a <- popData
     pushData $ Bool (f a)
-    return succ
+    proceed
 
   boolsToBool :: (Bool -> Bool -> Bool) -> Interpret Offset
   boolsToBool f = do
     Bool b <- popData
     Bool a <- popData
     pushData $ Bool (f a b)
-    return succ
+    proceed
 
   floatToFloat :: (Double -> Double) -> Interpret Offset
   floatToFloat f = do
     Float a <- popData
     pushData $ Float (f a)
-    return succ
+    proceed
 
   floatsToBool :: (Double -> Double -> Bool) -> Interpret Offset
   floatsToBool f = do
     Float b <- popData
     Float a <- popData
     pushData $ Bool (f a b)
-    return succ
+    proceed
 
   floatsToFloat :: (Double -> Double -> Double) -> Interpret Offset
   floatsToFloat f = do
     Float b <- popData
     Float a <- popData
     pushData $ Float (f a b)
-    return succ
+    proceed
 
   intToInt :: (Int -> Int) -> Interpret Offset
   intToInt f = do
     Int a <- popData
     pushData $ Int (f a)
-    return succ
+    proceed
 
   intsToBool :: (Int -> Int -> Bool) -> Interpret Offset
   intsToBool f = do
     Int b <- popData
     Int a <- popData
     pushData $ Bool (f a b)
-    return succ
+    proceed
 
   intsToInt :: (Int -> Int -> Int) -> Interpret Offset
   intsToInt f = do
     Int b <- popData
     Int a <- popData
     pushData $ Int (f a b)
-    return succ
+    proceed
 
   openFilePushHandle :: IOMode -> Interpret Offset
   openFilePushHandle ioMode = do
@@ -466,10 +462,13 @@ interpretBuiltin builtin = case builtin of
     let fileName = stringFromChars a
     handle <- lift $ openFile fileName ioMode
     pushData $ Handle handle
-    return succ
+    proceed
+
+proceed :: Interpret Offset
+proceed = return (Just succ)
 
 data InterpreterValue
-  = Activation !Y.Label !(Vector InterpreterValue)
+  = Activation !Id !(Vector InterpreterValue) !(Type Scalar)
   | Bool !Bool
   | Char !Char
   | Choice !Bool !InterpreterValue
@@ -478,16 +477,14 @@ data InterpreterValue
   | Int !Int
   | Option !(Maybe InterpreterValue)
   | Pair !InterpreterValue !InterpreterValue
-  | Unit
   | Vector !(Vector InterpreterValue)
-  | Wrapped !Text !InterpreterValue
 
 instance Show InterpreterValue where
   show = T.unpack . toText
 
 instance ToText InterpreterValue where
   toText value = case value of
-    Activation label _ -> "<function@" <> showText label <> ">"
+    Activation label _ _ -> "<function@" <> showText label <> ">"
     Bool b -> if b then "true" else "false"
     Char c -> showText c
     Choice which v -> T.unwords
@@ -497,14 +494,12 @@ instance ToText InterpreterValue where
     Int i -> showText i
     Option m -> maybe "none" ((<> " some") . toText) m
     Pair a b -> T.concat ["(", toText a, ", ", toText b, ")"]
-    Unit -> "()"
     Vector v@(V.toList -> (Char _ : _)) -> showText (stringFromChars v)
     Vector v -> T.concat
       [ "["
       , T.intercalate ", " (V.toList (V.map toText v))
       , "]"
       ]
-    Wrapped name v -> T.unwords [toText v, "to", name]
 
 charsFromString :: String -> Vector InterpreterValue
 charsFromString = V.fromList . map Char
@@ -564,3 +559,34 @@ stringFromChars = V.toList . V.map fromChar
   fromChar :: InterpreterValue -> Char
   fromChar (Char c) = c
   fromChar _ = error "stringFromChars: non-character"
+
+typeOf :: Location -> InterpreterValue -> IdGen -> (Type Scalar, IdGen)
+typeOf loc = runState . typeOfM loc
+
+typeOfM :: Location -> InterpreterValue -> State IdGen (Type Scalar)
+typeOfM loc value = case value of
+  Activation _ _ type_ -> return type_
+  Bool _ -> return $ Type.bool origin
+  Char _ -> return $ Type.char origin
+  Choice False x -> liftM2 (:|) (recur x) freshVarM
+  Choice True y -> liftM2 (:|) freshVarM (recur y)
+  Float _ -> return $ Type.float origin
+  Handle _ -> return $ Type.handle origin
+  Int _ -> return $ Type.int origin
+  Option (Just x) -> liftM (:?) (recur x)
+  Option Nothing -> liftM (:?) freshVarM
+  Pair x y -> liftM2 (:&) (recur x) (recur y)
+  Vector xs -> case V.safeHead xs of
+    Nothing -> liftM2 Type.Vector freshVarM (return origin)
+    Just x -> liftM2 Type.Vector (recur x) (return origin)
+  where
+  recur = typeOfM loc
+
+  freshVarM :: State IdGen (Type a)
+  freshVarM = do
+    i <- state genId
+    return $ Type.Var (Type.TypeId i) origin
+
+  -- TODO(strager): Type hint for stack elements.
+  origin :: Type.Origin
+  origin = Type.Origin Type.NoHint loc
