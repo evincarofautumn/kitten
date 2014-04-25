@@ -137,11 +137,11 @@ eval input = do
       }
 
   whenJust mCompiled $ \ (compiled, ip, _type) -> do
-    stack <- lift $ gets envStack
-    stack' <- liftIO $ interpret (Just ip) (flattenProgram compiled) stack
+    stackState <- lift $ gets envStack
+    stackState' <- liftIO $ interpret (Just ip) (flattenProgram compiled) stackState
     lift . modify $ \s -> s
       { envLine = envLine s + T.count "\n" input + 1
-      , envStack = stack'
+      , envStack = stackState'
       }
 
   interact'
@@ -169,7 +169,7 @@ interactiveCompile update = do
     liftIO $ compile (update config) program
   case mCompiled of
     Left errors -> liftIO (printCompileErrors errors) >> return Nothing
-    Right result@(program', ip, _) -> do
+    Right result@(program', _, _) -> do
       lift . modify $ \env -> env { envProgram = program' }
       return (Just result)
 
