@@ -24,34 +24,33 @@ import qualified Data.Text as T
 import Kitten.Error
 import Kitten.Location
 import Kitten.Id
-import Kitten.K
-import Kitten.Type
+import Kitten.Types
 import Kitten.Util.Maybe
 import Kitten.Util.Text (ToText(..))
 
 import qualified Kitten.IdMap as Id
 
 class Declare a where
-  declare :: TypeId a -> Type a -> Inference -> Inference
+  declare :: KindedId a -> Type a -> Program -> Program
 
 instance Declare Stack where
-  declare (TypeId i) type_ env = env
-    { inferenceStacks = Id.insert i type_ (inferenceStacks env) }
+  declare (KindedId i) type_ program = program
+    { inferenceStacks = Id.insert i type_ (inferenceStacks program) }
 
 instance Declare Scalar where
-  declare (TypeId i) type_ env = env
-    { inferenceScalars = Id.insert i type_ (inferenceScalars env) }
+  declare (KindedId i) type_ program = program
+    { inferenceScalars = Id.insert i type_ (inferenceScalars program) }
 
 class Retrieve a where
-  retrieve :: Inference -> TypeId a -> Either ErrorGroup (Type a)
+  retrieve :: Program -> KindedId a -> Either ErrorGroup (Type a)
 
 instance Retrieve Stack where
-  retrieve Inference{..} (TypeId name)
+  retrieve Program{..} (KindedId name)
     = flip maybeToEither (Id.lookup name inferenceStacks)
     $ nonexistent "stack" inferenceOrigin name
 
 instance Retrieve Scalar where
-  retrieve Inference{..} (TypeId name)
+  retrieve Program{..} (KindedId name)
     = flip maybeToEither (Id.lookup name inferenceScalars)
     $ nonexistent "scalar" inferenceOrigin name
 
@@ -64,34 +63,34 @@ nonexistent kind (Origin _ loc) name
   ]
 
 fresh
-  :: forall a (b :: Kind -> *) block
-  . (TypeId a -> Origin -> b a)
+  :: forall a (b :: Kind -> *)
+  . (KindedId a -> Origin -> b a)
   -> Origin
-  -> Program block
-  -> (b a, Program block)
-fresh constructor origin env
-  = let (typeId, env') = freshTypeId env
-  in (constructor (TypeId typeId) origin, env')
+  -> Program
+  -> (b a, Program)
+fresh constructor origin program
+  = let (typeId, program') = freshTypeId program
+  in (constructor (KindedId typeId) origin, program')
 
-freshConst :: Origin -> Program block -> (Type a, Program block)
-freshConst = fresh Const
+freshConst :: Origin -> Program -> (Type a, Program)
+freshConst = fresh TyConst
 
-freshVar :: Origin -> Program block -> (Type a, Program block)
-freshVar = fresh Var
+freshVar :: Origin -> Program -> (Type a, Program)
+freshVar = fresh TyVar
 
-freshConstM :: K block (Type a)
+freshConstM :: K (Type a)
 freshConstM = freshM freshConst
 
-freshVarM :: forall (a :: Kind) block. K block (Type a)
+freshVarM :: forall (a :: Kind). K (Type a)
 freshVarM = freshM freshVar
 
-withLocation :: Location -> K block a -> K block a
-withLocation here = withOrigin (Origin NoHint here)
+withLocation :: Location -> K a -> K a
+withLocation here = withOrigin (Origin HiNone here)
 
-withOrigin :: Origin -> K block a -> K block a
+withOrigin :: Origin -> K a -> K a
 withOrigin here action = do
-  there <- getsProgram (inferenceOrigin . programInference)
-  modifyInference $ \env -> env { inferenceOrigin = here }
+  there <- getsProgram inferenceOrigin
+  modifyProgram $ \program -> program { inferenceOrigin = here }
   result <- action
-  modifyInference $ \env -> env { inferenceOrigin = there }
+  modifyProgram $ \program -> program { inferenceOrigin = there }
   return result

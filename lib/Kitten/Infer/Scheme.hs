@@ -37,62 +37,59 @@ import qualified Data.Set as S
 
 import Kitten.Id
 import Kitten.Infer.Monad
-import Kitten.K
-import Kitten.Type
+import Kitten.Types
 import Kitten.Util.Monad
 
 import qualified Kitten.IdMap as Id
 
-instantiateM :: TypeScheme -> K block (Type Scalar)
+instantiateM :: TypeScheme -> K (Type Scalar)
 instantiateM scheme = do
-  origin <- getsInference inferenceOrigin
+  origin <- getsProgram inferenceOrigin
   liftState $ state (instantiate origin scheme)
 
 instantiate
   :: Origin
   -> TypeScheme
-  -> Inference
-  -> (Type Scalar, Inference)
-instantiate origin@(Origin _ loc) (Forall stacks scalars type_) env
-  = (sub renamed type_, env')
+  -> Program
+  -> (Type Scalar, Program)
+instantiate origin@(Origin _ _) (Forall stacks scalars type_) program
+  = (sub renamed type_, program')
 
   where
-  renamed :: Inference
-  env' :: Inference
-  (renamed, env') = flip runState env $ composeM
-    [renames stacks, renames scalars] emptyInference
+  (renamed, program') = flip runState program
+    $ composeM [renames stacks, renames scalars] emptyProgram
 
   renames
     :: (Declare a)
-    => Set (TypeId a)
-    -> Inference
-    -> State Inference Inference
+    => Set (KindedId a)
+    -> Program
+    -> State Program Program
   renames = flip (foldrM rename) . S.toList
 
   rename
     :: (Declare a)
-    => TypeId a
-    -> Inference
-    -> State Inference Inference
-  rename name localEnv = do
+    => KindedId a
+    -> Program
+    -> State Program Program
+  rename name local = do
     var <- state (freshVar origin)
-    return (declare name var localEnv)
+    return (declare name var local)
 
-generalize :: K block (a, Type Scalar) -> K block (a, TypeScheme)
+generalize :: K (a, Type Scalar) -> K (a, TypeScheme)
 generalize action = do
-  before <- getInference
+  before <- getProgram
   (extra, type_) <- action  -- HACK To preserve effect ordering.
-  after <- getInference
+  after <- getProgram
 
   let
     substituted :: Type Scalar
     substituted = sub after type_
 
-    dependent :: (Occurrences a, Unbound a) => TypeId a -> Bool
+    dependent :: (Occurrences a, Unbound a) => KindedId a -> Bool
     dependent = dependentBetween before after
 
-    scalars :: [TypeId Scalar]
-    stacks :: [TypeId Stack]
+    scalars :: [KindedId Scalar]
+    stacks :: [KindedId Stack]
     (stacks, scalars) = (filter dependent *** filter dependent)
       (freeVars substituted)
 
@@ -105,60 +102,60 @@ generalize action = do
 -- environment states.
 dependentBetween
   :: forall a. (Occurrences a, Unbound a)
-  => Inference
-  -> Inference
-  -> TypeId a
+  => Program
+  -> Program
+  -> KindedId a
   -> Bool
 dependentBetween before after name
   = any (bound after) (unbound before)
   where
-  bound :: Inference -> TypeId a -> Bool
-  bound env name' = occurs (unTypeId name) env
-    (Var name' (inferenceOrigin env) :: Type a)
+  bound :: Program -> KindedId a -> Bool
+  bound env name' = occurs (unkinded name) env
+    (TyVar name' (inferenceOrigin env) :: Type a)
 
 -- | Enumerates those type variables in an environment that
 -- are allocated but not yet bound to a type.
 class Unbound (a :: Kind) where
-  unbound :: Inference -> [TypeId a]
+  unbound :: Program -> [KindedId a]
 
 instance Unbound Scalar where
-  unbound env = map TypeId $ filter (`Id.notMember` inferenceScalars env)
+  unbound env = map KindedId $ filter (`Id.notMember` inferenceScalars env)
     [Id 0 .. envMaxName env]
 
 instance Unbound Stack where
-  unbound env = map TypeId $ filter (`Id.notMember` inferenceStacks env)
+  unbound env = map KindedId $ filter (`Id.notMember` inferenceStacks env)
     [Id 0 .. envMaxName env]
 
 -- | The last allocated name in an environment. Relies on
 -- the fact that 'NameGen' allocates names sequentially.
-envMaxName :: Program block -> Id TypeSpace
+envMaxName :: Program -> Id TypeSpace
 envMaxName = pred . fst . genId . programTypeIdGen
 
 data TypeLevel = TopLevel | NonTopLevel
   deriving (Eq)
 
-regeneralize :: Inference -> TypeScheme -> TypeScheme
-regeneralize env (Forall stacks scalars wholeType) = let
+regeneralize :: Program -> TypeScheme -> TypeScheme
+regeneralize program (Forall stacks scalars wholeType) = let
   (type_, vars) = runWriter $ regeneralize' TopLevel wholeType
   in Forall (foldr S.delete stacks vars) scalars type_
   where
-  regeneralize' :: TypeLevel -> Type a -> Writer [TypeId Stack] (Type a)
+  regeneralize' :: TypeLevel -> Type a -> Writer [KindedId Stack] (Type a)
   regeneralize' level type_ = case type_ of
-    Function a b loc
+    TyFunction a b loc
       | level == NonTopLevel
-      , Var c _ <- bottommost a
-      , Var d _ <- bottommost b
+      , TyVar c _ <- bottommost a
+      , TyVar d _ <- bottommost b
       , c == d
       -> do
         -- If this is the only mention of this type variable, then it
         -- can simply be removed from the outer quantifier. Otherwise,
         -- it should be renamed in the inner quantifier.
-        when (occurrences (unTypeId c) env wholeType == 2)
+        when (occurrences (unkinded c) program wholeType == 2)
           $ tell [c]
-        return $ Quantified
+        return $ TyQuantified
           (Forall (S.singleton c) S.empty type_)
           loc
-    Function a b loc -> Function
+    TyFunction a b loc -> TyFunction
       <$> regeneralize' NonTopLevel a
       <*> regeneralize' NonTopLevel b
       <*> pure loc
@@ -175,34 +172,34 @@ regeneralize env (Forall stacks scalars wholeType) = let
 freeVars
   :: (Free (Type a))
   => Type a
-  -> ([TypeId Stack], [TypeId Scalar])
+  -> ([KindedId Stack], [KindedId Scalar])
 freeVars type_
   = let (stacks, scalars) = free type_
   in (nub stacks, nub scalars)
 
 class Free a where
-  free :: a -> ([TypeId Stack], [TypeId Scalar])
+  free :: a -> ([KindedId Stack], [KindedId Scalar])
 
 instance Free (Type Stack) where
   free type_ = case type_ of
     a :. b -> free a <> free b
-    Const name _ -> ([name], [])
-    Empty{} -> mempty
-    Var name _ -> ([name], [])
+    TyConst name _ -> ([name], [])
+    TyEmpty{} -> mempty
+    TyVar name _ -> ([name], [])
 
 instance Free (Type Scalar) where
   free type_ = case type_ of
     a :& b -> free a <> free b
     (:?) a -> free a
     a :| b -> free a <> free b
-    Function a b _ -> free a <> free b
-    Const name _ -> ([], [name])
-    Ctor{} -> mempty
-    Quantified (Forall r s t) _
+    TyFunction a b _ -> free a <> free b
+    TyConst name _ -> ([], [name])
+    TyCtor{} -> mempty
+    TyQuantified (Forall r s t) _
       -> let (stacks, scalars) = free t
       in (stacks \\ S.toList r, scalars \\ S.toList s)
-    Var name _ -> ([], [name])
-    Vector a _ -> free a
+    TyVar name _ -> ([], [name])
+    TyVector a _ -> free a
 
 instance Free TypeScheme where
   free (Forall stacks scalars type_) = let
@@ -210,53 +207,53 @@ instance Free TypeScheme where
     in (stacks' \\ S.toList stacks, scalars' \\ S.toList scalars)
 
 normalize :: Origin -> Type Scalar -> Type Scalar
-normalize origin@(Origin _ loc) type_ = let
+normalize origin@(Origin _ _) type_ = let
   (stacks, scalars) = freeVars type_
   stackCount = length stacks
-  env = emptyInference
+  program = emptyProgram
     { inferenceStacks = Id.fromList
-      $ zip (map unTypeId stacks) (map var [0..])
+      $ zip (map unkinded stacks) (map var [0..])
     , inferenceScalars = Id.fromList
-      $ zip (map unTypeId scalars) (map var [stackCount..])
+      $ zip (map unkinded scalars) (map var [stackCount..])
     }
-  in sub env type_
+  in sub program type_
   where
   var :: Int -> Type a
-  var index = Var (TypeId (Id index)) origin
+  var index = TyVar (KindedId (Id index)) origin
 
-occurs :: (Occurrences a) => Id TypeSpace -> Inference -> Type a -> Bool
+occurs :: (Occurrences a) => Id TypeSpace -> Program -> Type a -> Bool
 occurs = (((> 0) .) .) . occurrences
 
 class Occurrences a where
-  occurrences :: Id TypeSpace -> Inference -> Type a -> Int
+  occurrences :: Id TypeSpace -> Program -> Type a -> Int
 
 instance Occurrences Stack where
-  occurrences name env type_ = case type_ of
-    a :. b -> occurrences name env a + occurrences name env b
-    Const typeName@(TypeId name') _ -> case retrieve env typeName of
+  occurrences name program type_ = case type_ of
+    a :. b -> occurrences name program a + occurrences name program b
+    TyConst typeName@(KindedId name') _ -> case retrieve program typeName of
       Left{} -> if name == name' then 1 else 0  -- See Note [Var Kinds].
-      Right type' -> occurrences name env type'
-    Empty{} -> 0
-    Var typeName@(TypeId name') _ -> case retrieve env typeName of
+      Right type' -> occurrences name program type'
+    TyEmpty{} -> 0
+    TyVar typeName@(KindedId name') _ -> case retrieve program typeName of
       Left{} -> if name == name' then 1 else 0  -- See Note [Var Kinds].
-      Right type' -> occurrences name env type'
+      Right type' -> occurrences name program type'
 
 instance Occurrences Scalar where
-  occurrences name env type_ = case type_ of
-    a :& b -> occurrences name env a + occurrences name env b
-    (:?) a -> occurrences name env a
-    a :| b -> occurrences name env a + occurrences name env b
-    Function a b _ -> occurrences name env a + occurrences name env b
-    Const typeName@(TypeId name') _ -> case retrieve env typeName of
+  occurrences name program type_ = case type_ of
+    a :& b -> occurrences name program a + occurrences name program b
+    (:?) a -> occurrences name program a
+    a :| b -> occurrences name program a + occurrences name program b
+    TyFunction a b _ -> occurrences name program a + occurrences name program b
+    TyConst typeName@(KindedId name') _ -> case retrieve program typeName of
       Left{} -> if name == name' then 1 else 0  -- See Note [Var Kinds].
-      Right type' -> occurrences name env type'
-    Ctor{} -> 0
-    Var typeName@(TypeId name') _ -> case retrieve env typeName of
+      Right type' -> occurrences name program type'
+    TyCtor{} -> 0
+    TyVar typeName@(KindedId name') _ -> case retrieve program typeName of
       Left{} -> if name == name' then 1 else 0  -- See Note [Var Kinds].
-      Right type' -> occurrences name env type'
-    Quantified (Forall _ s t) _
-      -> if TypeId name `S.member` s then 0 else occurrences name env t
-    Vector a _ -> occurrences name env a
+      Right type' -> occurrences name program type'
+    TyQuantified (Forall _ s t) _
+      -> if KindedId name `S.member` s then 0 else occurrences name program t
+    TyVector a _ -> occurrences name program a
 
 -- Note [Var Kinds]:
 --
@@ -267,55 +264,55 @@ instance Occurrences Scalar where
 -- variables ('Var').
 
 class Simplify a where
-  simplify :: Inference -> Type a -> Type a
+  simplify :: Program -> Type a -> Type a
 
 instance Simplify Stack where
-  simplify env type_ = case type_ of
-    Var name (Origin hint _loc)
-      | Right type' <- retrieve env name
-      -> simplify env type' `addHint` hint
+  simplify program type_ = case type_ of
+    TyVar name (Origin hint _loc)
+      | Right type' <- retrieve program name
+      -> simplify program type' `addHint` hint
     _ -> type_
 
 instance Simplify Scalar where
-  simplify env type_ = case type_ of
-    Var name (Origin hint _loc)
-      | Right type' <- retrieve env name
-      -> simplify env type' `addHint` hint
+  simplify program type_ = case type_ of
+    TyVar name (Origin hint _loc)
+      | Right type' <- retrieve program name
+      -> simplify program type' `addHint` hint
     _ -> type_
 
 class Substitute a where
-  sub :: Inference -> Type a -> Type a
+  sub :: Program -> Type a -> Type a
 
 instance Substitute Stack where
-  sub env type_ = case type_ of
-    a :. b -> sub env a :. sub env b
-    Const{} -> type_  -- See Note [Constant Substitution].
-    Empty{} -> type_
-    Var name (Origin hint _loc)
-      | Right type' <- retrieve env name
-      -> sub env type' `addHint` hint
+  sub program type_ = case type_ of
+    a :. b -> sub program a :. sub program b
+    TyConst{} -> type_  -- See Note [Constant Substitution].
+    TyEmpty{} -> type_
+    TyVar name (Origin hint _loc)
+      | Right type' <- retrieve program name
+      -> sub program type' `addHint` hint
       | otherwise
       -> type_
 
 instance Substitute Scalar where
-  sub env type_ = case type_ of
-    Function a b origin -> Function
-      (sub env a)
-      (sub env b)
+  sub program type_ = case type_ of
+    TyFunction a b origin -> TyFunction
+      (sub program a)
+      (sub program b)
       origin
-    a :& b -> sub env a :& sub env b
-    (:?) a -> (sub env a :?)
-    a :| b -> sub env a :| sub env b
-    Const{} -> type_  -- See Note [Constant Substitution].
-    Ctor{} -> type_
-    Quantified (Forall r s t) loc
-      -> Quantified (Forall r s (sub env t)) loc
-    Var name (Origin hint _loc)
-      | Right type' <- retrieve env name
-      -> sub env type' `addHint` hint
+    a :& b -> sub program a :& sub program b
+    (:?) a -> (sub program a :?)
+    a :| b -> sub program a :| sub program b
+    TyConst{} -> type_  -- See Note [Constant Substitution].
+    TyCtor{} -> type_
+    TyQuantified (Forall r s t) loc
+      -> TyQuantified (Forall r s (sub program t)) loc
+    TyVar name (Origin hint _loc)
+      | Right type' <- retrieve program name
+      -> sub program type' `addHint` hint
       | otherwise
       -> type_
-    Vector a origin -> Vector (sub env a) origin
+    TyVector a origin -> TyVector (sub program a) origin
 
 -- Note [Constant Substitution]:
 --
@@ -329,30 +326,30 @@ instance Substitute Scalar where
 -- constants and the skolemized type.
 skolemize
   :: TypeScheme
-  -> K block ([TypeId Stack], [TypeId Scalar], Type Scalar)
+  -> K ([KindedId Stack], [KindedId Scalar], Type Scalar)
 skolemize (Forall stackVars scalarVars type_) = do
-  origin <- getsInference inferenceOrigin
+  origin <- getsProgram inferenceOrigin
   let
     declares
       :: (Declare a)
-      => Set (TypeId a) -> [TypeId a] -> Inference -> Inference
-    declares vars consts env0
-      = foldr (uncurry declare) env0
-      $ zip (S.toList vars) (map (\name -> Const name origin) consts)
-  stackConsts <- replicateM (S.size stackVars) freshTypeIdM
-  scalarConsts <- replicateM (S.size scalarVars) freshTypeIdM
-  env <- getsInference
+      => Set (KindedId a) -> [KindedId a] -> Program -> Program
+    declares vars consts program0
+      = foldr (uncurry declare) program0
+      $ zip (S.toList vars) (map (\name -> TyConst name origin) consts)
+  stackConsts <- replicateM (S.size stackVars) freshKindedIdM
+  scalarConsts <- replicateM (S.size scalarVars) freshKindedIdM
+  program <- getsProgram
     $ declares scalarVars scalarConsts
     . declares stackVars stackConsts
-  (stackConsts', scalarConsts', type') <- skolemizeType (sub env type_)
+  (stackConsts', scalarConsts', type') <- skolemizeType (sub program type_)
   return (stackConsts ++ stackConsts', scalarConsts ++ scalarConsts', type')
 
 skolemizeType
   :: Type a
-  -> K block ([TypeId Stack], [TypeId Scalar], Type a)
+  -> K ([KindedId Stack], [KindedId Scalar], Type a)
 skolemizeType = \case
-  Function a b origin -> do
+  TyFunction a b origin -> do
     (stackConsts, scalarConsts, b') <- skolemizeType b
-    return (stackConsts, scalarConsts, Function a b' origin)
-  Quantified scheme _ -> skolemize scheme
+    return (stackConsts, scalarConsts, TyFunction a b' origin)
+  TyQuantified scheme _ -> skolemize scheme
   type_ -> return ([], [], type_)

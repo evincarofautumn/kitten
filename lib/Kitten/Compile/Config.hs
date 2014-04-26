@@ -7,9 +7,7 @@ module Kitten.Compile.Config
 import Data.Text (Text)
 import Data.Vector (Vector)
 
-import Kitten.Def
-import Kitten.Tree
-import Kitten.Type
+import Kitten.Types
 
 data Config = Config
   { dumpResolved :: !Bool

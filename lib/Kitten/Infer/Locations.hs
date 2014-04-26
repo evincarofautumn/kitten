@@ -6,8 +6,8 @@ module Kitten.Infer.Locations
   ) where
 
 import Kitten.Location
-import Kitten.Type
 import Kitten.Util.Text (Textable(..), ToText)
+import Kitten.Types
 
 -- | A list of locations and associated types, suitable for
 -- presenting to the end user for diagnostic purposes (e.g.
@@ -19,13 +19,13 @@ diagnosticLocations type_ = case type_ of
   a :. b -> locations a ++ locations b
   (:?) a -> locations a
   a :| b -> locations a ++ locations b
-  Const _ loc -> yield loc
-  Ctor _ loc -> yield loc
-  Empty loc -> yield loc
-  Function r s loc -> yield loc ++ locations r ++ locations s
-  Quantified _ loc -> yield loc
-  Var _ loc -> yield loc
-  Vector a loc -> yield loc ++ locationsIfUnhinted loc a
+  TyConst _ loc -> yield loc
+  TyCtor _ loc -> yield loc
+  TyEmpty loc -> yield loc
+  TyFunction r s loc -> yield loc ++ locations r ++ locations s
+  TyQuantified _ loc -> yield loc
+  TyVar _ loc -> yield loc
+  TyVector a loc -> yield loc ++ locationsIfUnhinted loc a
 
   where
   yield :: Origin -> [(Location, Textable)]
@@ -37,5 +37,5 @@ diagnosticLocations type_ = case type_ of
 
   locationsIfUnhinted
     :: (ToText (Type a)) => Origin -> Type a -> [(Location, Textable)]
-  locationsIfUnhinted (Origin NoHint _) = locations
+  locationsIfUnhinted (Origin HiNone _) = locations
   locationsIfUnhinted (Origin _ _) = const []

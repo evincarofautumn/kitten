@@ -20,13 +20,11 @@ import Text.Parsec.Text ()
 import qualified Data.Text as T
 import qualified Text.Parsec as Parsec
 
-import Kitten.Parsec
 import Kitten.Location
-import Kitten.Token
+import Kitten.Parsec
+import Kitten.Types
 import Kitten.Util.Applicative
 import Kitten.Util.Parsec
-
-import qualified Kitten.Builtin as Builtin
 
 type Parser a = ParsecT Text Column Identity a
 
@@ -54,19 +52,19 @@ tokens = token `sepEndBy` silence
 
 token :: Parser Located
 token = (<?> "token") . located $ choice
-  [ BlockBegin NormalBlockHint <$ char '{'
-  , BlockEnd <$ char '}'
-  , Char <$> (char '\'' *> character '\'' <* char '\'')
-  , Comma <$ char ','
-  , GroupBegin <$ char '('
-  , GroupEnd <$ char ')'
-  , Layout <$ char ':'
-  , VectorBegin <$ char '['
-  , VectorEnd <$ char ']'
-  , Semicolon <$ char ';'
-  , Text <$> between (char '"') (char '"') text
+  [ TkBlockBegin NormalBlockHint <$ char '{'
+  , TkBlockEnd <$ char '}'
+  , TkChar <$> (char '\'' *> character '\'' <* char '\'')
+  , TkComma <$ char ','
+  , TkGroupBegin <$ char '('
+  , TkGroupEnd <$ char ')'
+  , TkLayout <$ char ':'
+  , TkVectorBegin <$ char '['
+  , TkVectorEnd <$ char ']'
+  , TkSemicolon <$ char ';'
+  , TkText <$> between (char '"') (char '"') text
   , try number
-  , try $ Arrow <$ (string "->" <|> string "\x2192")
+  , try $ TkArrow <$ (string "->" <|> string "\x2192")
     <* notFollowedBy symbolCharacter
   , word
   ]
@@ -80,7 +78,7 @@ token = (<?> "token") . located $ choice
       applySign = if sign == Just '-' then negate else id
 
     choice
-      [ try . fmap (\(hint, value) -> Int (applySign value) hint)
+      [ try . fmap (\(hint, value) -> TkInt (applySign value) hint)
         $ char '0' *> choice
         [ base 'b' "01" readBin BinaryHint "binary"
         , base 'o' ['0'..'7'] readOct' OctalHint "octal"
@@ -91,8 +89,8 @@ token = (<?> "token") . located $ choice
         integer <- many1 digit
         mFraction <- optionMaybe $ (:) <$> char '.' <*> many1 digit
         return $ case mFraction of
-          Just fraction -> Float . applySign . read $ integer ++ fraction
-          Nothing -> Int (applySign $ read integer) DecimalHint
+          Just fraction -> TkFloat . applySign . read $ integer ++ fraction
+          Nothing -> TkInt (applySign $ read integer) DecimalHint
       ]
 
   base prefix digits readBase hint desc = fmap ((,) hint . readBase)
@@ -120,23 +118,23 @@ token = (<?> "token") . located $ choice
   word :: Parser Token
   word = choice
     [ ffor alphanumeric $ \name -> case name of
-      "_" -> Ignore
-      "def" -> Def
-      "else" -> Else
-      "false" -> Bool False
-      "infix" -> Infix
-      "infix_left" -> InfixLeft
-      "infix_right" -> InfixRight
-      "import" -> Import
-      "true" -> Bool True
-      "type" -> Type
-      _ -> case Builtin.fromText name of
-        Just builtin -> Builtin builtin
-        _ -> Word name
+      "_" -> TkIgnore
+      "def" -> TkDef
+      "else" -> TkElse
+      "false" -> TkBool False
+      "infix" -> TkInfix
+      "infix_left" -> TkInfixLeft
+      "infix_right" -> TkInfixRight
+      "import" -> TkImport
+      "true" -> TkBool True
+      "type" -> TkType
+      _ -> case intrinsicFromText name of
+        Just intrinsic -> TkIntrinsic intrinsic
+        _ -> TkWord name
     , ffor symbolic $ \name -> case name of
-      "\\" -> Do
-      _ | Just builtin <- Builtin.fromText name -> Builtin builtin
-        | otherwise -> Operator name
+      "\\" -> TkDo
+      _ | Just intrinsic <- intrinsicFromText name -> TkIntrinsic intrinsic
+        | otherwise -> TkOperator name
     ]
     where
 

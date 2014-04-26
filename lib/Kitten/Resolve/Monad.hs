@@ -23,10 +23,8 @@ import Data.List
 import Data.Text (Text)
 import Data.Traversable (Traversable)
 
-import Kitten.Def
 import Kitten.Error
 import Kitten.IR
-import Kitten.Tree
 import Kitten.Util.FailWriter (FailWriterT, runFailWriterT)
 
 import qualified Kitten.Util.FailWriter as FailWriter

@@ -15,12 +15,11 @@ import qualified Data.HashMap.Strict as H
 import qualified Data.Traversable as T
 import qualified Data.Vector as V
 
-import Kitten.ClosedName
-import Kitten.Def
-import Kitten.Fragment
-import Kitten.Tree
+import Kitten.Types
 import Kitten.Util.List
 
+-- Converts quotations containing references to local variables in enclosing
+-- scopes into explicit closures.
 scope :: Fragment ResolvedTerm -> Fragment ResolvedTerm
 scope fragment@Fragment{..} = fragment
   { fragmentDefs = H.map scopeDef fragmentDefs
@@ -32,15 +31,15 @@ scopeDef def@Def{..} = def { defTerm = scopeTerm [0] <$> defTerm }
 
 scopeTerm :: [Int] -> ResolvedTerm -> ResolvedTerm
 scopeTerm stack typed = case typed of
-  Builtin{} -> typed
-  Call{} -> typed
-  Compose hint terms loc -> Compose hint (recur <$> terms) loc
-  Lambda name term loc -> Lambda name
+  TrCall{} -> typed
+  TrCompose hint terms loc -> TrCompose hint (recur <$> terms) loc
+  TrIntrinsic{} -> typed
+  TrLambda name term loc -> TrLambda name
     (scopeTerm (mapHead succ stack) term)
     loc
-  PairTerm as bs loc -> PairTerm (recur as) (recur bs) loc
-  Push value loc -> Push (scopeValue stack value) loc
-  VectorTerm items loc -> VectorTerm (recur <$> items) loc
+  TrMakePair as bs loc -> TrMakePair (recur as) (recur bs) loc
+  TrPush value loc -> TrPush (scopeValue stack value) loc
+  TrMakeVector items loc -> TrMakeVector (recur <$> items) loc
 
   where
   recur :: ResolvedTerm -> ResolvedTerm
@@ -48,27 +47,24 @@ scopeTerm stack typed = case typed of
 
 scopeValue :: [Int] -> ResolvedValue -> ResolvedValue
 scopeValue stack value = case value of
-  Bool{} -> value
-  Char{} -> value
-  Closed{} -> value
-  Closure{} -> value
-  Float{} -> value
-  Int{} -> value
-  Local{} -> value
-  String{} -> value
-  Quotation body x
-    -> Closure (ClosedName <$> capturedNames) capturedTerm x
+  TrBool{} -> value
+  TrChar{} -> value
+  TrClosed{} -> value
+  TrClosure{} -> value
+  TrFloat{} -> value
+  TrInt{} -> value
+  TrLocal{} -> value
+  TrQuotation body x
+    -> TrClosure (ClosedName <$> capturedNames) capturedTerm x
     where
-
     capturedTerm :: ResolvedTerm
     capturedNames :: Vector Int
     (capturedTerm, capturedNames) = runCapture stack' $ captureTerm scopedTerm
-
     scopedTerm :: ResolvedTerm
     scopedTerm = scopeTerm stack' body
-
     stack' :: [Int]
     stack' = 0 : stack
+  TrText{} -> value
 
 data Env = Env
   { envStack :: [Int]
@@ -93,30 +89,25 @@ addName name = do
 
 captureTerm :: ResolvedTerm -> Capture ResolvedTerm
 captureTerm typed = case typed of
-  Builtin{} -> return typed
-  Call{} -> return typed
-
-  Compose hint terms loc -> Compose hint
+  TrCall{} -> return typed
+  TrCompose hint terms loc -> TrCompose hint
     <$> T.mapM captureTerm terms
     <*> pure loc
-
-  Lambda name terms loc -> let
+  TrIntrinsic{} -> return typed
+  TrLambda name terms loc -> let
     inside env@Env{..} = env
       { envStack = mapHead succ envStack
       , envDepth = succ envDepth
       }
-    in Lambda name
+    in TrLambda name
       <$> local inside (captureTerm terms)
       <*> pure loc
-
-  PairTerm a b loc -> PairTerm
+  TrMakePair a b loc -> TrMakePair
     <$> captureTerm a
     <*> captureTerm b
     <*> pure loc
-
-  Push value loc -> Push <$> captureValue value <*> pure loc
-
-  VectorTerm items loc -> VectorTerm
+  TrPush value loc -> TrPush <$> captureValue value <*> pure loc
+  TrMakeVector items loc -> TrMakeVector
     <$> T.mapM captureTerm items
     <*> pure loc
 
@@ -132,10 +123,10 @@ closeLocal index = do
 
 captureValue :: ResolvedValue -> Capture ResolvedValue
 captureValue value = case value of
-  Bool{} -> return value
-  Char{} -> return value
-  Closed{} -> return value
-  Closure names term x -> Closure
+  TrBool{} -> return value
+  TrChar{} -> return value
+  TrClosed{} -> return value
+  TrClosure names term x -> TrClosure
     <$> T.mapM close names
     <*> pure term
     <*> pure x
@@ -147,17 +138,14 @@ captureValue value = case value of
         Nothing -> original
         Just closedLocal -> ReclosedName closedLocal
     close original@(ReclosedName _) = return original
-
-  Float{} -> return value
-  Int{} -> return value
-  Quotation terms x -> let
+  TrFloat{} -> return value
+  TrInt{} -> return value
+  TrQuotation terms x -> let
     inside env@Env{..} = env { envStack = 0 : envStack }
-    in Quotation <$> local inside (captureTerm terms) <*> pure x
-
-  Local name x -> do
+    in TrQuotation <$> local inside (captureTerm terms) <*> pure x
+  TrLocal name x -> do
     closed <- closeLocal name
     return $ case closed of
       Nothing -> value
-      Just closedName -> Closed closedName x
-
-  String{} -> return value
+      Just closedName -> TrClosed closedName x
+  TrText{} -> return value

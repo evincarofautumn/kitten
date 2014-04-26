@@ -10,11 +10,7 @@ import Control.Arrow
 import qualified Data.HashMap.Strict as H
 import qualified Data.Vector as V
 
-import Kitten.Def
-import Kitten.Fragment
-import Kitten.Import
-import Kitten.Operator
-import Kitten.Tree
+import Kitten.Types
 
 data Element
   = DefElement (Def ParsedTerm)

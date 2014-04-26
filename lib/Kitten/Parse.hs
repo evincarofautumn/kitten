@@ -22,28 +22,20 @@ import qualified Data.Vector as V
 import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Expr as E
 
-import Kitten.Def
 import Kitten.Error
-import Kitten.Fragment
-import Kitten.Import
 import Kitten.Location
-import Kitten.Operator
 import Kitten.Parsec
 import Kitten.Parse.Element
 import Kitten.Parse.Layout
 import Kitten.Parse.Monad
 import Kitten.Parse.Primitive
 import Kitten.Parse.Type
-import Kitten.Token (Located(..), Token)
-import Kitten.Tree
-import Kitten.Type (StackHint(..), mono)
+import Kitten.Types
 import Kitten.Util.Either
 import Kitten.Util.Function
 import Kitten.Util.Maybe
 import Kitten.Util.Parsec
-
-import qualified Kitten.Builtin as Builtin
-import qualified Kitten.Token as Token
+import Kitten.Util.Text (toText)
 
 parse
   :: String
@@ -60,7 +52,7 @@ setInitialPosition _ (Located{..} : _)
 
 fragment :: Parser (Fragment ParsedTerm)
 fragment = fmap (partitionElements . concat)
-  $ many element `sepEndBy` match Token.Semicolon <* eof
+  $ many element `sepEndBy` match TkSemicolon <* eof
 
 element :: Parser Element
 element = choice
@@ -72,13 +64,13 @@ element = choice
 
 def :: Parser (Def ParsedTerm)
 def = (<?> "definition") . locate $ do
-  void (match Token.Def)
+  void (match TkDef)
   (fixity, name) <- choice
     [ (,) Postfix <$> named
     , (,) Infix <$> symbolic
     ] <?> "definition name"
   anno <- signature
-  bodyTerm <- locate (Compose StackAny <$> block)
+  bodyTerm <- locate (TrCompose StackAny <$> block)
     <?> "definition body"
   return $ \loc -> Def
     { defAnno = anno
@@ -90,7 +82,7 @@ def = (<?> "definition") . locate $ do
 
 import_ :: Parser Import
 import_ = (<?> "import") . locate $ do
-  void (match Token.Import)
+  void (match TkImport)
   name <- named
   return $ \loc -> Import
     { importName = name
@@ -100,15 +92,15 @@ import_ = (<?> "import") . locate $ do
 operatorDeclaration :: Parser Operator
 operatorDeclaration = (<?> "operator declaration") . locate $ uncurry Operator
   <$> choice
-    [ match Token.Infix *> ((,) NonAssociative <$> precedence)
-    , match Token.InfixLeft *> ((,) LeftAssociative <$> precedence)
-    , match Token.InfixRight *> ((,) RightAssociative <$> precedence)
+    [ match TkInfix *> ((,) NonAssociative <$> precedence)
+    , match TkInfixLeft *> ((,) LeftAssociative <$> precedence)
+    , match TkInfixRight *> ((,) RightAssociative <$> precedence)
     ]
   <*> symbolic
   where
   precedence = (<?> "decimal integer precedence from 0 to 9")
     $ mapOne $ \case
-      Token.Int value Token.DecimalHint
+      TkInt value DecimalHint
         | value >= 0 && value <= 9 -> Just value
       _ -> Nothing
 
@@ -117,14 +109,14 @@ term = nonblockTerm <|> blockTerm
   where
   nonblockTerm :: Parser ParsedTerm
   nonblockTerm = locate $ choice
-    [ try $ Push <$> locate (mapOne toLiteral <?> "literal")
-    , Call Postfix <$> named
-    , Call Infix <$> symbolic
+    [ try $ TrPush <$> locate (mapOne toLiteral <?> "literal")
+    , TrCall Postfix <$> named
+    , TrCall Infix <$> symbolic
     , try section
     , try group <?> "grouped expression"
     , pair <$> tuple
-    , VectorTerm <$> vector
-    , mapOne toBuiltin <?> "builtin"
+    , TrMakeVector <$> vector
+    , mapOne toIntrinsic <?> "intrinsic"
     , lambda
     , doElse
     ]
@@ -136,117 +128,117 @@ term = nonblockTerm <|> blockTerm
       choice
         [ do
           operand <- many1V term
-          return $ \loc -> Compose StackAny (V.fromList
-            [ Compose Stack1 operand loc
-            , Call Postfix function loc
+          return $ \loc -> TrCompose StackAny (V.fromList
+            [ TrCompose Stack1 operand loc
+            , TrCall Postfix function loc
             ]) loc
-        , return $ Call Postfix function
+        , return $ TrCall Postfix function
         ]
     , do
       operand <- many1V (notFollowedBy symbolic *> term)
       function <- symbolic
-      return $ \loc -> Compose StackAny (V.fromList
-        [ Compose Stack1 operand loc
+      return $ \loc -> TrCompose StackAny (V.fromList
+        [ TrCompose Stack1 operand loc
         , swap loc
-        , Call Postfix function loc
+        , TrCall Postfix function loc
         ]) loc
     ]
     where
-    swap loc = Lambda "right operand" (Lambda "left operand"
-      (Compose StackAny (V.fromList
-        [ Call Postfix "right operand" loc
-        , Call Postfix "left operand" loc
+    swap loc = TrLambda "right operand" (TrLambda "left operand"
+      (TrCompose StackAny (V.fromList
+        [ TrCall Postfix "right operand" loc
+        , TrCall Postfix "left operand" loc
         ]) loc) loc) loc
 
   blockTerm :: Parser ParsedTerm
-  blockTerm = locate $ Push <$> blockValue
+  blockTerm = locate $ TrPush <$> blockValue
 
   group :: Parser (Location -> ParsedTerm)
-  group = (<?> "group") $ Compose StackAny <$> grouped (many1V term)
+  group = (<?> "group") $ TrCompose StackAny <$> grouped (many1V term)
 
   doElse :: Parser (Location -> ParsedTerm)
-  doElse = (<?> "do block") $ match Token.Do *> doBody
+  doElse = (<?> "do block") $ match TkDo *> doBody
 
-  toFunctionOrBuiltin :: Token -> Maybe Text
-  toFunctionOrBuiltin token = case token of
-    Token.Builtin name -> Just (Builtin.toText name)
-    Token.Word name -> Just name
-    Token.Operator name -> Just name
+  toFunctionOrIntrinsic :: Token -> Maybe Text
+  toFunctionOrIntrinsic token = case token of
+    TkIntrinsic name -> Just (toText name)
+    TkWord name -> Just name
+    TkOperator name -> Just name
     _ -> Nothing
 
   doBody :: Parser (Location -> ParsedTerm)
   doBody = (<?> "do body") $ do
-    name <- mapOne toFunctionOrBuiltin
+    name <- mapOne toFunctionOrIntrinsic
     open <- many nonblockTerm
     body <- blockTerm
-    else_ <- optionMaybe $ match Token.Else *> choice
-      [ try . locate $ Push
-        <$> locate (Quotation <$> locate doBody)
+    else_ <- optionMaybe $ match TkElse *> choice
+      [ try . locate $ TrPush
+        <$> locate (TrQuotation <$> locate doBody)
       , blockTerm
       ]
     let
       (name', else') = case else_ of
         Nothing -> (name, V.empty)
         Just elseBody -> (name <> "_else", V.singleton elseBody)
-      name'' = case Builtin.fromText name' of
-        Just builtin -> Builtin builtin
-        _ -> Call Postfix name'
+      name'' = case intrinsicFromText name' of
+        Just intrinsic -> TrIntrinsic intrinsic
+        Nothing -> TrCall Postfix name'
     return $ \loc -> let
       whole = V.concat
-        [ V.fromList [Compose StackAny (V.fromList open) loc, body]
+        [ V.fromList [TrCompose StackAny (V.fromList open) loc, body]
         , else'
         , V.singleton (name'' loc)
         ]
-      in Compose StackAny whole loc
+      in TrCompose StackAny whole loc
 
   lambda :: Parser (Location -> ParsedTerm)
-  lambda = (<?> "lambda") $ match Token.Arrow *> do
-    names <- many1 $ Just <$> named <|> Nothing <$ match Token.Ignore
-    void (match Token.Semicolon)
+  lambda = (<?> "lambda") $ match TkArrow *> do
+    names <- many1 $ Just <$> named <|> Nothing <$ match TkIgnore
+    void (match TkSemicolon)
     terms <- blockContents
     return $ \loc -> foldr
       (\mLambdaName lambdaTerms -> maybe
-        (Compose StackAny (V.fromList
-          [ Lambda "ignored" (Compose StackAny V.empty loc) loc
+        (TrCompose StackAny (V.fromList
+          [ TrLambda "ignored" (TrCompose StackAny V.empty loc) loc
           , lambdaTerms
           ]) loc)
-        (\lambdaName -> Lambda lambdaName lambdaTerms loc)
+        (\lambdaName -> TrLambda lambdaName lambdaTerms loc)
         mLambdaName)
-      (Compose StackAny terms loc)
+      (TrCompose StackAny terms loc)
       (reverse names)
 
   pair :: Vector ParsedTerm -> Location -> ParsedTerm
-  pair values loc = V.foldr1 (\x y -> PairTerm x y loc) values
+  pair values loc = V.foldr1 (\x y -> TrMakePair x y loc) values
 
-  toBuiltin :: Token -> Maybe (Location -> ParsedTerm)
-  toBuiltin (Token.Builtin name) = Just $ Builtin name
-  toBuiltin _ = Nothing
+  toIntrinsic :: Token -> Maybe (Location -> ParsedTerm)
+  toIntrinsic (TkIntrinsic name) = Just $ TrIntrinsic name
+  toIntrinsic _ = Nothing
 
   tuple :: Parser (Vector ParsedTerm)
   tuple = grouped
-    (locate (Compose StackAny <$> many1V term)
-      `sepEndBy1V` match Token.Comma)
+    (locate (TrCompose StackAny <$> many1V term)
+      `sepEndBy1V` match TkComma)
     <?> "tuple"
 
   vector :: Parser (Vector ParsedTerm)
   vector = between
-    (match Token.VectorBegin)
-    (match Token.VectorEnd)
-    (locate (Compose StackAny <$> many1V term)
-      `sepEndByV` match Token.Comma)
+    (match TkVectorBegin)
+    (match TkVectorEnd)
+    (locate (TrCompose StackAny <$> many1V term)
+      `sepEndByV` match TkComma)
     <?> "vector"
 
 blockValue :: Parser ParsedValue
 blockValue = (<?> "function") . locate $ do
   terms <- block
-  return $ \loc -> Quotation (Compose StackAny terms loc) loc
+  return $ \loc -> TrQuotation (TrCompose StackAny terms loc) loc
 
 toLiteral :: Token -> Maybe (Location -> ParsedValue)
-toLiteral (Token.Bool x) = Just $ Bool x
-toLiteral (Token.Char x) = Just $ Char x
-toLiteral (Token.Float x) = Just $ Float x
-toLiteral (Token.Int x _) = Just $ Int x
-toLiteral (Token.Text x) = Just $ String x
+toLiteral (TkBool x) = Just $ TrBool x
+toLiteral (TkChar x) = Just $ TrChar x
+toLiteral (TkFloat x) = Just $ TrFloat x
+toLiteral (TkInt x _) = Just $ TrInt x
+toLiteral (TkText x) = Just $ TrText x
 toLiteral _ = Nothing
 
 block :: Parser (Vector ParsedTerm)
@@ -256,8 +248,8 @@ blockContents :: Parser (Vector ParsedTerm)
 blockContents = locate $ do
   void $ optional semi
   groups <- many1V term `sepEndBy` semi
-  return $ \loc -> V.fromList $ map (\t -> Compose StackAny t loc) groups
-  where semi = match Token.Semicolon
+  return $ \loc -> V.fromList $ map (\t -> TrCompose StackAny t loc) groups
+  where semi = match TkSemicolon
 
 ----------------------------------------
 
@@ -277,68 +269,68 @@ rewriteInfix parsed@Fragment{..} = do
   where
   rewriteInfixTerm :: ParsedTerm -> Either ErrorGroup ParsedTerm
   rewriteInfixTerm = \case
-    x@Builtin{} -> return x
-    x@Call{} -> return x
-    Compose hint terms loc -> do
+    x@TrCall{} -> return x
+    TrCompose hint terms loc -> do
       terms' <- V.toList <$> V.mapM rewriteInfixTerm terms
       let
         expression' = between (setPositionTerm loc terms') eof infixExpression
-        infixExpression = Compose hint
+        infixExpression = TrCompose hint
           <$> manyV (expression <|> lambdaTerm)
           <*> pure loc
           <?> "infix expression"
       case Parsec.parse expression' [] terms' of
         Left message -> Left $ parseError message
         Right parseResult -> Right parseResult
-    Lambda name body loc -> do
+    x@TrIntrinsic{} -> return x
+    TrLambda name body loc -> do
       body' <- rewriteInfixTerm body
-      return $ Lambda name body' loc
-    PairTerm a b loc -> do
+      return $ TrLambda name body' loc
+    TrMakePair a b loc -> do
       a' <- rewriteInfixTerm a
       b' <- rewriteInfixTerm b
-      return $ PairTerm a' b' loc
-    Push value loc -> do
+      return $ TrMakePair a' b' loc
+    TrPush value loc -> do
       value' <- rewriteInfixValue value
-      return $ Push value' loc
-    VectorTerm terms loc -> do
+      return $ TrPush value' loc
+    TrMakeVector terms loc -> do
       terms' <- V.mapM rewriteInfixTerm terms
-      return $ VectorTerm terms' loc
+      return $ TrMakeVector terms' loc
 
   lambdaTerm :: TermParser ParsedTerm
   lambdaTerm = satisfyTerm $ \case
-    Lambda{} -> True
+    TrLambda{} -> True
     _ -> False
 
   rewriteInfixValue :: ParsedValue -> Either ErrorGroup ParsedValue
   rewriteInfixValue = \case
-    Quotation body loc -> Quotation <$> rewriteInfixTerm body <*> pure loc
+    TrQuotation body loc -> TrQuotation <$> rewriteInfixTerm body <*> pure loc
     -- TODO Exhaustivity/safety.
     other -> return other
 
   stack1 :: Location -> ParsedTerm -> ParsedTerm
-  stack1 loc x = Compose Stack1 (V.singleton x) loc
+  stack1 loc x = TrCompose Stack1 (V.singleton x) loc
 
   binary :: Text -> Location -> ParsedTerm -> ParsedTerm -> ParsedTerm
-  binary name loc x y = Compose StackAny (V.fromList
+  binary name loc x y = TrCompose StackAny (V.fromList
     [ stack1 loc x
     , stack1 loc y
-    , Call Infix name loc
+    , TrCall Infix name loc
     ]) loc
 
   binaryOp :: Text -> TermParser (ParsedTerm -> ParsedTerm -> ParsedTerm)
   binaryOp name = mapTerm $ \t -> case t of
-    Call Infix name' loc
+    TrCall Infix name' loc
       | name == name' -> Just (binary name loc)
     _ -> Nothing
 
   expression :: TermParser ParsedTerm
   expression = E.buildExpressionParser opTable
-    (locate (Compose StackAny <$> many1V operand) <?> "operand")
+    (locate (TrCompose StackAny <$> many1V operand) <?> "operand")
     where
     operand :: TermParser ParsedTerm
     operand = satisfyTerm $ \case
-      Call Infix _ _ -> False  -- An operator is not an operand.
-      Lambda{} -> False  -- Nor is a bare lambda.
+      TrCall Infix _ _ -> False  -- An operator is not an operand.
+      TrLambda{} -> False  -- Nor is a bare lambda.
       _ -> True
 
   -- TODO Detect/report duplicates.

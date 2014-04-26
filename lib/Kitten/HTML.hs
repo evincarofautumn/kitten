@@ -33,11 +33,8 @@ import qualified Data.Text as Text
 import qualified Data.Vector as V
 import qualified Text.Parsec.Pos as ParsecPos
 
-import Kitten.Def
-import Kitten.Fragment
 import Kitten.Location
-import Kitten.Tree
-import Kitten.Type (Kind(..), Type, unScheme)
+import Kitten.Types
 import Kitten.Util.Monad
 import Kitten.Util.Text (toText)
 
@@ -100,39 +97,39 @@ flattenFragment fragment = do
 flattenDef :: Def TypedTerm -> Writer LocMap ()
 flattenDef def = do
   tellNode (defLocation def) $ Definition (defName def)
-  flattenTerm $ unScheme (defTerm def)
+  flattenTerm $ unscheme (defTerm def)
 
 flattenTerm :: TypedTerm -> Writer LocMap ()
 flattenTerm theTerm = case theTerm of
-  Builtin _builtin (loc, type_) -> tellNode loc $ ScalarType type_
-  Call _ _ (loc, type_) -> tellNode loc $ ScalarType type_
-  Compose _ terms (loc, type_) -> do
+  TrCall _ _ (loc, type_) -> tellNode loc $ ScalarType type_
+  TrCompose _ terms (loc, type_) -> do
     tellNode loc $ ScalarType type_
     V.mapM_ flattenTerm terms
-  Lambda _name term (loc, type_) -> do
+  TrIntrinsic _intrinsic (loc, type_) -> tellNode loc $ ScalarType type_
+  TrLambda _name term (loc, type_) -> do
     tellNode loc $ ScalarType type_
     flattenTerm term
-  PairTerm a b (loc, type_) -> do
+  TrMakePair a b (loc, type_) -> do
     tellNode loc $ ScalarType type_
     flattenTerm a >> flattenTerm b
-  Push value (loc, type_) -> do
+  TrPush value (loc, type_) -> do
     tellNode loc $ ScalarType type_
     flattenValue value
-  VectorTerm terms (loc, type_) -> do
+  TrMakeVector terms (loc, type_) -> do
     tellNode loc $ ScalarType type_
     V.mapM_ flattenTerm terms
 
 flattenValue :: TypedValue -> Writer LocMap ()
 flattenValue theValue = case theValue of
-  Bool{} -> noop
-  Char{} -> noop
-  Closed{} -> noop
-  Closure _closed term _ -> flattenTerm term
-  Float{} -> noop
-  Int{} -> noop
-  Local{} -> noop
-  String{} -> noop
-  Quotation{} -> noop  -- ?
+  TrBool{} -> noop
+  TrChar{} -> noop
+  TrClosed{} -> noop
+  TrClosure _closed term _ -> flattenTerm term
+  TrFloat{} -> noop
+  TrInt{} -> noop
+  TrLocal{} -> noop
+  TrQuotation{} -> noop  -- ?
+  TrText{} -> noop
 
 -- * Scanning and HTML generation.
 

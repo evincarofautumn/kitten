@@ -26,20 +26,14 @@ import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
-import Kitten.Def
 import Kitten.Error
-import Kitten.Fragment
-import Kitten.Import
 import Kitten.Infer
 import Kitten.IR
 import Kitten.Location
-import Kitten.Operator
 import Kitten.Parse
 import Kitten.Resolve
 import Kitten.Scope
 import Kitten.Tokenize
-import Kitten.Tree
-import Kitten.Type
 import Kitten.Util.Either
 import Kitten.Util.Monad
 

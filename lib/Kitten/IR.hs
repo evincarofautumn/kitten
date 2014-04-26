@@ -5,11 +5,7 @@
 {-# OPTIONS_GHC -w #-}
 
 module Kitten.IR
-  ( Block
-  , FlattenedProgram(..)
-  , Instruction(..)
-  , Program(..)
-  , Value(..)
+  ( FlattenedProgram(..)
   , declareBlock
   , emptyProgram
   , entryId
@@ -20,7 +16,7 @@ module Kitten.IR
 import Control.Applicative hiding (some)
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
-import Control.Monad.Trans.State
+import Control.Monad.Trans.State.Strict
 import Data.HashMap.Strict (HashMap)
 import Data.List
 import Data.Monoid
@@ -34,191 +30,101 @@ import qualified Data.HashMap.Strict as H
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
-import Kitten.Builtin (Builtin)
-import Kitten.ClosedName
-import Kitten.Def
-import Kitten.Fragment
+import Kitten.Error
 import Kitten.Id
-import Kitten.IdMap (IdMap)
-import Kitten.Tree (TypedTerm, TypedValue)
-import Kitten.Type (Kind(..), Type)
+import Kitten.IdMap (DefIdMap)
+import Kitten.Types
 import Kitten.Util.Monad
 import Kitten.Util.Text (ToText(..), showText)
 import Kitten.Util.Tuple
 
-import qualified Kitten.Builtin as Builtin
 import qualified Kitten.IdMap as Id
-import qualified Kitten.Tree as Tree
-import qualified Kitten.Type as Type
 
-type Label = Int
-type Offset = Int
-type Index = Int
-
-data Instruction
-  = Act !Id !(Vector ClosedName) !(Type Scalar)
-  | Builtin !Builtin
-  | Call !Id
-  | Closure !Index
-  | Comment !Text
-  | Enter
-  | Leave
-  | Local !Index
-  | MakeVector !Int
-  | Push !Value
-  | Return
-
-type Block = Vector Instruction
-
-instance Show Instruction where
-  show instruction = T.unpack . T.unwords $ case instruction of
-    Act target names _
-      -> "act" : showText target : map showClosedName (V.toList names)
-      where
-      showClosedName :: ClosedName -> Text
-      showClosedName (ClosedName index) = "local:" <> showText index
-      showClosedName (ReclosedName index) = "closure:" <> showText index
-
-    Builtin builtin -> ["builtin", toText builtin]
-    Call target -> ["call", showText target]
-    Closure index -> ["closure", showText index]
-    Comment comment -> ["\n;", comment]
-    Enter -> ["enter"]
-    Leave -> ["leave"]
-    Local index -> ["local", showText index]
-    MakeVector size -> ["vector", showText size]
-    Push value -> ["push", showText value]
-    Return -> ["ret"]
-
-data Value
-  = Bool !Bool
-  | Char !Char
-  | Choice !Bool !Value
-  | Float !Double
-  | Handle !Handle
-  | Int !Int
-  | Option !(Maybe Value)
-  | Pair !Value !Value
-  | String !Text
-
-instance Show Value where
-  show = T.unpack . toText
-
-instance ToText Value where
-  toText value = T.unwords $ case value of
-    Bool bool -> ["bool", if bool then "1" else "0"]
-    Char char -> ["char", showText (Char.ord char)]
-    Choice which choice
-      -> [if which then "right" else "left", toText choice]
-    Float float -> ["float", showText float]
-
-    -- FIXME Unnecessary?
-    Handle handle -> (:[]) $ case () of
-      _ | handle == stderr -> "handle 2"
-        | handle == stdin -> "handle 0"
-        | handle == stdout -> "handle 1"
-        | otherwise -> "handle 0"
-
-    Int int -> ["int", showText int]
-    Option Nothing -> ["none"]
-    Option (Just option) -> ["some", toText option]
-    Pair a b -> ["pair", toText a, toText b]
-    String string
-      -> "vector"
-      : showText (T.length string)
-      : map (\char -> "char " <> showText (Char.ord char))
-        (T.unpack string)
-
-type IR a = State Program a
-
-ir :: Fragment TypedTerm -> Program -> Program
-ir Fragment{..} program = flip execState program $ do
+ir :: Fragment TypedTerm -> Program -> (Either [ErrorGroup] (), Program)
+ir Fragment{..} program = runK program $ do
   F.mapM_ irDef fragmentDefs
   irEntry fragmentTerms
 
-irDef :: Def TypedTerm -> IR ()
+irDef :: Def TypedTerm -> K ()
 irDef Def{..} = do
   defId <- getDefM defName
-  block <- terminated <$> irTerm (Type.unScheme defTerm)
-  modify $ \program@Program{..} -> program
+  block <- terminated <$> irTerm (unscheme defTerm)
+  modifyProgram $ \program@Program{..} -> program
     { programBlocks = Id.insert defId block programBlocks }
 
-irEntry :: Vector TypedTerm -> IR ()
+irEntry :: Vector TypedTerm -> K ()
 irEntry terms = do
   instructions <- concatMapM irTerm terms
-  modify $ \program@Program{..} -> program
+  modifyProgram $ \program@Program{..} -> program
     { programBlocks = Id.adjust (<> instructions) entryId programBlocks }
 
-irTerm :: TypedTerm -> IR Block
+irTerm :: TypedTerm -> K IrBlock
 irTerm term = case term of
-  Tree.Builtin builtin _ -> return $ V.singleton (Builtin builtin)
-  Tree.Call _ target _ -> do
+  TrCall _ target _ -> do
     target' <- getDefM target
-    return $ V.singleton (Call target')
-  Tree.Compose _ terms _ -> concatMapM irTerm terms
-  Tree.Lambda _ terms _ -> do
+    return $ V.singleton (IrCall target')
+  TrCompose _ terms _ -> concatMapM irTerm terms
+  TrIntrinsic intrinsic _ -> return $ V.singleton (IrIntrinsic intrinsic)
+  TrLambda _ terms _ -> do
     instructions <- irTerm terms
-    return $ V.singleton Enter <> instructions <> V.singleton Leave
-  Tree.PairTerm a b _ -> do
+    return $ V.singleton IrEnter <> instructions <> V.singleton IrLeave
+  TrMakePair a b _ -> do
     a' <- irTerm a
     b' <- irTerm b
-    return $ a' <> b' <> V.singleton (Builtin Builtin.Pair)
-  Tree.Push value _ -> irValue value
-  Tree.VectorTerm values _ -> do
+    return $ a' <> b' <> V.singleton (IrIntrinsic InPair)
+  TrPush value _ -> irValue value
+  TrMakeVector values _ -> do
     values' <- concatMapM irTerm values
-    return $ values' <> (V.singleton . MakeVector $ V.length values)
+    return $ values' <> (V.singleton . IrMakeVector $ V.length values)
 
-irValue :: TypedValue -> IR Block
+irValue :: TypedValue -> K IrBlock
 irValue resolved = case resolved of
-  Tree.Bool x _ -> value $ Bool x
-  Tree.Char x _ -> value $ Char x
-  Tree.Closed index _ -> return $ V.singleton (Closure index)
-  Tree.Closure names terms (loc, type_) -> do
+  TrBool x _ -> value $ IrBool x
+  TrChar x _ -> value $ IrChar x
+  TrClosed index _ -> return $ V.singleton (IrClosure index)
+  TrClosure names terms (loc, type_) -> do
     instructions <- irTerm terms
     target <- declareBlockM (Just $ "closure from " <> toText loc) (terminated instructions)
-    return $ V.singleton (Act target names type_)
-  Tree.Float x _ -> value $ Float x
-  Tree.Int x _ -> value $ Int x
-  Tree.Local index _ -> return $ V.singleton (Local index)
-  Tree.String x _ -> value $ String x
-  Tree.Quotation{} -> error "quotation appeared during conversion to IR"
+    return $ V.singleton (IrAct target names type_)
+  TrFloat x _ -> value $ IrFloat x
+  TrInt x _ -> value $ IrInt x
+  TrLocal index _ -> return $ V.singleton (IrLocal index)
+  TrQuotation{} -> error "quotation appeared during conversion to IR"
+  TrText x _ -> value $ IrString x
   where
-  value :: Value -> IR Block
-  value = return . V.singleton . Push
+  value :: IrValue -> K IrBlock
+  value = return . V.singleton . IrPush
 
-terminated :: Block -> Block
-terminated = (<> V.singleton Return)
+terminated :: IrBlock -> IrBlock
+terminated = (<> V.singleton IrReturn)
 
 data FlattenedProgram = FlattenedProgram
-  { flattenedBlock :: !Block
-  , flattenedNames :: !(IdMap Int)
-  , flattenedSymbols :: !(IdMap [Text])
+  { flattenedBlock :: !IrBlock
+  , flattenedNames :: !(DefIdMap Int)
+  , flattenedSymbols :: !(DefIdMap [Text])
   }
 
-declareBlockM :: Maybe Text -> Block -> IR Id
-declareBlockM = (state .) . declareBlock
+declareBlockM :: Maybe Text -> IrBlock -> K DefId
+declareBlockM name block = liftState $ state (declareBlock name block)
 
-declareBlock :: Maybe Text -> Block -> Program -> (Id, Program)
+declareBlock :: Maybe Text -> IrBlock -> Program -> (DefId, Program)
 declareBlock mSymbol block program@Program{..} = let
-  (i, idGen') = genId programIdGen
-  in (,) i program
+  (i, program') = freshDefId program
+  in (,) i program'
     { programBlocks = Id.insert i block programBlocks
-    , programIdGen = idGen'
     , programSymbols = maybe id (`H.insert` i) mSymbol programSymbols
     }
 
-getDefM :: Text -> IR Id
-getDefM = state . getDef
+getDefM :: Text -> K DefId
+getDefM = liftState . state . getDef
 
-getDef :: Text -> Program -> (Id, Program)
+getDef :: Text -> Program -> (DefId, Program)
 getDef name program@Program{..} = case H.lookup name programSymbols of
   Just id' -> (id', program)
   Nothing -> let
-    (id', idGen') = genId programIdGen
-    in (,) id' program
-      { programIdGen = idGen'
-      , programSymbols = H.insert name id' programSymbols
-      }
+    (id', program') = freshDefId program
+    in (,) id' program'
+      { programSymbols = H.insert name id' programSymbols }
 
 flattenProgram :: Program -> FlattenedProgram
 flattenProgram Program{..} = FlattenedProgram{..}
@@ -229,9 +135,9 @@ flattenProgram Program{..} = FlattenedProgram{..}
       -> Id.insertWith (++) name [symbol] symbols) Id.empty
     $ H.toList programSymbols
 
-  go :: (Block, IdMap Int) -> (Id, Block) -> (Block, IdMap Int)
+  go :: (IrBlock, DefIdMap Int) -> (DefId, IrBlock) -> (IrBlock, DefIdMap Int)
   go (blocks, names) (name, block)
     = (blocks <> block, Id.insert name (V.length blocks) names)
 
-  instructions :: IdMap Block
+  instructions :: DefIdMap IrBlock
   instructions = Id.adjust terminated entryId programBlocks

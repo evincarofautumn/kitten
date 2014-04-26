@@ -8,10 +8,8 @@ import Control.Monad
 import Kitten.Location
 import Kitten.Parse.Monad
 import Kitten.Parsec
-import Kitten.Token (Located(..), Token)
+import Kitten.Types
 import Kitten.Util.List
-
-import qualified Kitten.Token as Token
 
 insertBraces :: Parser [Located]
 insertBraces = (concat <$> many unit) <* eof
@@ -25,19 +23,19 @@ insertBraces = (concat <$> many unit) <* eof
     return $ begin : inner ++ [end]
 
   doElse :: Parser [Located]
-  doElse = (:) <$> locatedMatch Token.Do <*> doBody
+  doElse = (:) <$> locatedMatch TkDo <*> doBody
 
   doBody :: Parser [Located]
   doBody = do
     name <- locatedSatisfy $ \(Located token _) -> case token of
-      Token.Builtin _ -> True
-      Token.Operator _ -> True
-      Token.Word _ -> True
+      TkIntrinsic{} -> True
+      TkOperator{} -> True
+      TkWord{} -> True
       _ -> False
     open <- many (unitWhere nonblock)
     body <- unit
     else_ <- option []
-      ((:) <$> locatedMatch Token.Else <*> (try doBody <|> unit))
+      ((:) <$> locatedMatch TkElse <*> (try doBody <|> unit))
     return $ name : concat [concat open, body, else_]
 
   unit :: Parser [Located]
@@ -46,9 +44,9 @@ insertBraces = (concat <$> many unit) <* eof
   unitWhere :: (Located -> Bool) -> Parser [Located]
   unitWhere predicate
     = try (lookAhead $ locatedSatisfy predicate) *> choice
-    [ bracket (Token.BlockBegin Token.NormalBlockHint) Token.BlockEnd
-    , bracket Token.GroupBegin Token.GroupEnd
-    , bracket Token.VectorBegin Token.VectorEnd
+    [ bracket (TkBlockBegin NormalBlockHint) TkBlockEnd
+    , bracket TkGroupBegin TkGroupEnd
+    , bracket TkVectorBegin TkVectorEnd
     , doElse
     , layout
     , list <$> locatedSatisfy nonbracket
@@ -62,18 +60,18 @@ insertBraces = (concat <$> many unit) <* eof
 
   brackets :: [Token]
   brackets = blockBrackets ++
-    [ Token.GroupBegin
-    , Token.GroupEnd
-    , Token.VectorBegin
-    , Token.VectorEnd
-    , Token.Else
+    [ TkGroupBegin
+    , TkGroupEnd
+    , TkVectorBegin
+    , TkVectorEnd
+    , TkElse
     ]
 
   blockBrackets :: [Token]
   blockBrackets =
-    [ Token.BlockBegin Token.NormalBlockHint
-    , Token.BlockEnd
-    , Token.Layout
+    [ TkBlockBegin NormalBlockHint
+    , TkBlockEnd
+    , TkLayout
     ]
 
   layout :: Parser [Located]
@@ -81,12 +79,12 @@ insertBraces = (concat <$> many unit) <* eof
     Located
       { locatedLocation = colonLoc@Location
         {locationIndent = colonIndent}
-      } <- locatedMatch Token.Layout
+      } <- locatedMatch TkLayout
     let
       inside (Located _ loc)
         = sourceColumn (locationStart loc) > colonIndent
     body <- concat <$> many (unitWhere inside)
     when (null body)
       $ fail "empty layout blocks are not allowed; use {} instead"
-    return $ Located (Token.BlockBegin Token.LayoutBlockHint) colonLoc
-      : body ++ [Located Token.BlockEnd colonLoc]
+    return $ Located (TkBlockBegin LayoutBlockHint) colonLoc
+      : body ++ [Located TkBlockEnd colonLoc]

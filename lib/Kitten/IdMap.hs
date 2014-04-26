@@ -3,7 +3,9 @@
 {-# LANGUAGE KindSignatures #-}
 
 module Kitten.IdMap
-  ( IdMap(..)
+  ( DefIdMap
+  , IdMap
+  , TypeIdMap
   , (!)
   , adjust
   , empty
@@ -30,6 +32,9 @@ import Kitten.Id
 
 newtype IdMap (n :: Namespace) a = IdMap (IntMap a)
   deriving (Monoid)
+
+type DefIdMap = IdMap DefSpace
+type TypeIdMap = IdMap TypeSpace
 
 (!) :: IdMap n a -> Id n -> a
 IdMap ids ! Id index = ids I.! index

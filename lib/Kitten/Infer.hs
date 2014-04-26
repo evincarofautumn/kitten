@@ -17,7 +17,6 @@ import Control.Monad
 import Data.Monoid
 import Data.Text (Text)
 import Data.Vector (Vector)
-import Text.Parsec.Pos
 
 import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as H
@@ -26,39 +25,30 @@ import qualified Data.Text as T
 import qualified Data.Traversable as T
 import qualified Data.Vector as V
 
-import Kitten.ClosedName
-import Kitten.Def
 import Kitten.Error
-import Kitten.Fragment
 import Kitten.Infer.Monad
 import Kitten.Infer.Scheme
 import Kitten.Infer.Type
 import Kitten.Infer.Unify
 import Kitten.Location
-import Kitten.Id
-import Kitten.Tree as Tree
-import Kitten.Type (Type((:&), (:.), (:?), (:|)))
-import Kitten.Type hiding (Ctor(..), Type(..), Local)
+import Kitten.Types
 import Kitten.Util.FailWriter
 import Kitten.Util.Monad
 import Kitten.Util.Text (toText)
 
-import qualified Kitten.Builtin as Builtin
-import qualified Kitten.Type as Type
 import qualified Kitten.Util.Vector as V
-import qualified Kitten.K as K
 
 typeFragment
   :: Vector (Type Scalar)
   -> Fragment ResolvedTerm
-  -> K (Either [ErrorGroup] (Fragment TypedTerm, Type Scalar))
+  -> K (Fragment TypedTerm, Type Scalar)
 typeFragment stackTypes fragment
-  = runEitherT $ inferFragment fragment stackTypes
+  = inferFragment stackTypes fragment
 
 inferFragment
   :: Vector (Type Scalar)
   -> Fragment ResolvedTerm
-  -> EitherT [ErrorGroup] K (Fragment TypedTerm, Type Scalar)
+  -> K (Fragment TypedTerm, Type Scalar)
 inferFragment stackTypes fragment = do
   rec
     -- Populate environment with definition types.
@@ -72,14 +62,14 @@ inferFragment stackTypes fragment = do
     typedDefs <- flip T.mapM (fragmentDefs fragment) $ \def
       -> withOrigin (defOrigin def) $ do
         (typedTerm, inferredScheme) <- generalize
-          (infer finalEnv (unScheme (defTerm def)))  -- See note [scheming defs].
+          (infer finalProgram (unscheme (defTerm def)))  -- See note [scheming defs].
         declaredScheme <- do
-          decls <- getsEnv envDecls
+          decls <- getsProgram inferenceDecls
           case H.lookup (defName def) decls of
             Just decl -> return decl
             Nothing -> do
-              origin <- getsEnv envOrigin
-              fmap mono . forAll $ \r s -> Type.Function r s origin
+              origin <- getsProgram inferenceOrigin
+              fmap mono . forAll $ \r s -> TyFunction r s origin
         saveDefWith (flip const) (defName def) inferredScheme
         instanceCheck inferredScheme declaredScheme $ let
           item = CompileError (defLocation def)
@@ -94,16 +84,17 @@ inferFragment stackTypes fragment = do
           ]
         return def { defTerm = typedTerm <$ inferredScheme }
 
-    topLevel <- getsEnv envLocation
-    (typedTerms, fragmentType) <- infer finalEnv
-      $ Compose StackAny (fragmentTerms fragment) topLevel
+    topLevel <- getsProgram (originLocation . inferenceOrigin)
+    (typedTerms, fragmentType) <- infer finalProgram
+      $ TrCompose StackAny (fragmentTerms fragment) topLevel
 
     -- Equate the bottom of the stack with stackTypes.
     do
-      let Type.Function consumption _ _ = fragmentType
+      let TyFunction consumption _ _ = fragmentType
       bottom <- freshVarM
-      enforce <- asksConfig enforceBottom
-      when enforce $ bottom === Type.Empty (Origin NoHint topLevel)
+      -- TODO Reinstate this check.
+      -- enforce <- asksConfig enforceBottom
+      -- when enforce $ bottom === TyEmpty (Origin NoHint topLevel)
       let stackType = F.foldl (:.) bottom stackTypes
       stackType === consumption
 
@@ -113,35 +104,35 @@ inferFragment stackTypes fragment = do
         , fragmentTerms = V.singleton typedTerms
         }
 
-    finalEnv <- getEnv
+    finalProgram <- getProgram
 
-  return (typedFragment, sub finalEnv fragmentType)
+  return (typedFragment, sub finalProgram fragmentType)
 
   where
   defOrigin :: Def a -> Origin
   defOrigin def = Origin
-    (AnnoType (AnnotatedDef (defName def)))
+    (HiType (AnDef (defName def)))
     (defLocation def)
 
-  saveDecl :: Text -> TypeScheme -> Inferred ()
-  saveDecl name scheme = modifyEnv $ \env -> env
-    { envDecls = H.insert name scheme (envDecls env) }
+  saveDecl :: Text -> TypeScheme -> K ()
+  saveDecl name scheme = modifyProgram $ \program -> program
+    { inferenceDecls = H.insert name scheme (inferenceDecls program) }
 
   saveDefWith
     :: (TypeScheme -> TypeScheme -> TypeScheme)
     -> Text
     -> TypeScheme
-    -> Inferred ()
-  saveDefWith f name scheme = modifyEnv $ \env -> env
-    { envDefs = H.insertWith f name scheme (envDefs env) }
+    -> K ()
+  saveDefWith f name scheme = modifyProgram $ \program -> program
+    { inferenceDefs = H.insertWith f name scheme (inferenceDefs program) }
 
-  save :: Def a -> Inferred ()
+  save :: Def a -> K ()
   save def = do
-    scheme <- fromAnno (AnnotatedDef (defName def)) (defAnno def)
+    scheme <- fromAnno (AnDef (defName def)) (defAnno def)
     saveDecl (defName def) scheme
     saveDefWith const (defName def) scheme
 
-instanceCheck :: TypeScheme -> TypeScheme -> ErrorGroup -> Inferred ()
+instanceCheck :: TypeScheme -> TypeScheme -> ErrorGroup -> K ()
 instanceCheck inferredScheme declaredScheme errorGroup = do
   inferredType <- instantiateM inferredScheme
   (stackConsts, scalarConsts, declaredType) <- skolemize declaredScheme
@@ -159,7 +150,7 @@ instanceCheck inferredScheme declaredScheme errorGroup = do
 -- inference, but they are always monomorphic beforehand.
 
 class ForAll a b where
-  forAll :: a -> Inferred (Type b)
+  forAll :: a -> K (Type b)
 
 instance ForAll a b => ForAll (Type c -> a) b where
   forAll f = do
@@ -170,206 +161,27 @@ instance ForAll (Type a) a where
   forAll = pure
 
 -- | Infers the type of a term.
-infer :: Env -> ResolvedTerm -> Inferred (TypedTerm, Type Scalar)
-infer finalEnv resolved = case resolved of
+infer :: Program -> ResolvedTerm -> K (TypedTerm, Type Scalar)
+infer finalProgram resolved = case resolved of
 
-  Tree.Builtin name loc -> asTyped (Tree.Builtin name) loc $ case name of
-
-    Builtin.AddVector -> forAll $ \r a
-      -> (r :. Type.Vector a o :. Type.Vector a o
-      --> r :. Type.Vector a o) o
-
-    Builtin.AddFloat -> binary (Type.float o) o
-
-    Builtin.AddInt -> binary (Type.int o) o
-
-    Builtin.AndBool -> binary (Type.bool o) o
-
-    Builtin.AndInt -> binary (Type.int o) o
-
-    Builtin.Apply -> forAll $ \r s
-      -> Type.Function (r :. Type.Function r s o) s o
-
-    Builtin.CharToInt -> forAll $ \r
-      -> (r :. Type.char o --> r :. Type.int o) o
-
-    Builtin.Choice -> forAll $ \r a b -> Type.Function
-      (r :. (a :| b) :. Type.Function (r :. a) r o) r o
-
-    Builtin.ChoiceElse -> forAll $ \r a b s -> Type.Function
-      (r :. (a :| b)
-        :. Type.Function (r :. a) s o
-        :. Type.Function (r :. b) s o)
-      s o
-
-    Builtin.Close -> forAll $ \r
-      -> (r :. Type.handle o --> r) o
-
-    Builtin.DivFloat -> binary (Type.float o) o
-    Builtin.DivInt -> binary (Type.int o) o
-
-    Builtin.EqFloat -> relational (Type.float o) o
-    Builtin.EqInt -> relational (Type.int o) o
-
-    Builtin.Exit -> forAll $ \r s
-      -> (r :. Type.int o --> s) o
-
-    Builtin.First -> forAll $ \r a b
-      -> (r :. a :& b --> r :. a) o
-
-    Builtin.FromLeft -> forAll $ \r a b
-      -> (r :. a :| b --> r :. a) o
-
-    Builtin.FromRight -> forAll $ \r a b
-      -> (r :. a :| b --> r :. b) o
-
-    Builtin.FromSome -> forAll $ \r a
-      -> (r :. (a :?) --> r :. a) o
-
-    Builtin.GeFloat -> relational (Type.float o) o
-    Builtin.GeInt -> relational (Type.int o) o
-
-    Builtin.Get -> forAll $ \r a
-      -> (r :. Type.Vector a o :. Type.int o --> r :. (a :?)) o
-
-    Builtin.GetLine -> forAll $ \r
-      -> (r :. Type.handle o --> r :. string o) o
-
-    Builtin.GtFloat -> relational (Type.float o) o
-    Builtin.GtInt -> relational (Type.int o) o
-
-    Builtin.If -> forAll $ \r -> Type.Function
-      (r :. Type.bool o :. Type.Function r r o) r o
-
-    Builtin.IfElse -> forAll $ \r s -> Type.Function
-      (r :. Type.bool o
-        :. Type.Function r s o
-        :. Type.Function r s o)
-      s o
-
-    Builtin.Impure -> forAll $ \r
-      -> (r --> r) o
-
-    Builtin.Init -> forAll $ \r a
-      -> (r :. Type.Vector a o --> r :. Type.Vector a o) o
-
-    Builtin.IntToChar -> forAll $ \r
-      -> (r :. Type.int o --> r :. (Type.char o :?)) o
-
-    Builtin.LeFloat -> relational (Type.float o) o
-    Builtin.LeInt -> relational (Type.int o) o
-
-    Builtin.Left -> forAll $ \r a b
-      -> (r :. a --> r :. a :| b) o
-
-    Builtin.Length -> forAll $ \r a
-      -> (r :. Type.Vector a o --> r :. Type.int o) o
-
-    Builtin.LtFloat -> relational (Type.float o) o
-    Builtin.LtInt -> relational (Type.int o) o
-
-    Builtin.ModFloat -> binary (Type.float o) o
-    Builtin.ModInt -> binary (Type.int o) o
-
-    Builtin.MulFloat -> binary (Type.float o) o
-    Builtin.MulInt -> binary (Type.int o) o
-
-    Builtin.NeFloat -> relational (Type.float o) o
-    Builtin.NeInt -> relational (Type.int o) o
-
-    Builtin.NegFloat -> unary (Type.float o) o
-    Builtin.NegInt -> unary (Type.int o) o
-
-    Builtin.None -> forAll $ \r a
-      -> (r --> r :. (a :?)) o
-
-    Builtin.NotBool -> unary (Type.bool o) o
-    Builtin.NotInt -> unary (Type.int o) o
-
-    Builtin.OpenIn -> forAll $ \r
-      -> (r :. string o --> r :. Type.handle o) o
-
-    Builtin.OpenOut -> forAll $ \r
-      -> (r :. string o --> r :. Type.handle o) o
-
-    Builtin.Option -> forAll $ \r a -> Type.Function
-      (r :. (a :?) :. Type.Function (r :. a) r o) r o
-
-    Builtin.OptionElse -> forAll $ \r a s -> Type.Function
-      (r :. (a :?)
-        :. Type.Function (r :. a) s o
-        :. Type.Function r s o)
-      s o
-
-    Builtin.OrBool -> binary (Type.bool o) o
-    Builtin.OrInt -> binary (Type.int o) o
-
-    Builtin.Rest -> forAll $ \r a b
-      -> (r :. a :& b --> r :. b) o
-
-    Builtin.Right -> forAll $ \r a b
-      -> (r :. b --> r :. a :| b) o
-
-    Builtin.Set -> forAll $ \r a
-      -> (r :. Type.Vector a o :. Type.int o :. a
-      --> r :. Type.Vector a o) o
-
-    Builtin.ShowFloat -> forAll $ \r
-      -> (r :. Type.float o --> r :. string o) o
-
-    Builtin.ShowInt -> forAll $ \r
-      -> (r :. Type.int o --> r :. string o) o
-
-    Builtin.Some -> forAll $ \r a
-      -> (r :. a --> r :. (a :?)) o
-
-    Builtin.Stderr -> forAll $ \r
-      -> (r --> r :. Type.handle o) o
-    Builtin.Stdin -> forAll $ \r
-      -> (r --> r :. Type.handle o) o
-    Builtin.Stdout -> forAll $ \r
-      -> (r --> r :. Type.handle o) o
-
-    Builtin.SubFloat -> binary (Type.float o) o
-    Builtin.SubInt -> binary (Type.int o) o
-
-    Builtin.Pair -> forAll $ \r a b
-      -> (r :. a :. b --> r :. a :& b) o
-
-    Builtin.Print -> forAll $ \r
-      -> (r :. string o :. Type.handle o --> r) o
-
-    Builtin.Tail -> forAll $ \r a
-      -> (r :. Type.Vector a o --> r :. Type.Vector a o) o
-
-    Builtin.UnsafePurify11 -> forAll $ \r s a b
-      -> (r :. (s :. a --> s :. b) o --> r :. (s :. a --> s :. b) o) o
-
-    Builtin.XorBool -> binary (Type.bool o) o
-    Builtin.XorInt -> binary (Type.int o) o
-
-    where
-    o :: Origin
-    o = Origin (AnnoType (Kitten.Type.Builtin name)) loc
-
-  Call hint name loc -> asTyped (Call hint name) loc
+  TrCall hint name loc -> asTyped (TrCall hint name) loc
     $ instantiateM =<< declOrDef
     where
     declOrDef = do
-      decls <- getsEnv envDecls
+      decls <- getsProgram inferenceDecls
       case H.lookup name decls of
         Just decl -> return decl
-        Nothing -> getsEnv ((H.! name) . envDefs)
+        Nothing -> getsProgram ((H.! name) . inferenceDefs)
 
-  Compose hint terms loc -> withLocation loc $ do
+  TrCompose hint terms loc -> withLocation loc $ do
     (typedTerms, types) <- V.mapAndUnzipM recur terms
     r <- freshVarM
-    origin <- getsEnv envOrigin
+    origin <- getsProgram inferenceOrigin
     let
       composed = foldM
         (\x y -> do
-          Type.Function a b _ <- unquantify x
-          Type.Function c d _ <- unquantify y
+          TyFunction a b _ <- unquantify x
+          TyFunction c d _ <- unquantify y
           inferCompose a b c d)
         ((r --> r) origin)
         (V.toList types)
@@ -381,10 +193,10 @@ infer finalEnv resolved = case resolved of
     -- Check stack effect hint.
     case hint of
       Stack0 -> do
-        s <- freshIdM
+        s <- freshKindedIdM
         instanceCheck typeScheme
           (Forall (S.singleton s) S.empty
-            $ (Type.Var s origin --> Type.Var s origin) origin)
+            $ (TyVar s origin --> TyVar s origin) origin)
           $ ErrorGroup
           [ CompileError loc Error $ T.unwords
             [ toText typeScheme
@@ -392,8 +204,8 @@ infer finalEnv resolved = case resolved of
             ]
           ]
       Stack1 -> do
-        s <- freshIdM
-        a <- freshIdM
+        s <- freshKindedIdM
+        a <- freshKindedIdM
         -- Note that 'a' is not forall-bound. We want this effect hint
         -- to match function types that produce a single result of any
         -- type, and that operate on any input stack; but these two
@@ -402,8 +214,8 @@ infer finalEnv resolved = case resolved of
         -- latter, we don't care what the type is at all.
         instanceCheck typeScheme
           (Forall (S.singleton s) S.empty
-            $ (Type.Var s origin
-              --> Type.Var s origin :. Type.Var a origin) origin)
+            $ (TyVar s origin
+              --> TyVar s origin :. TyVar a origin) origin)
           $ ErrorGroup
           [ CompileError loc Error $ T.unwords
             [ toText typeScheme
@@ -412,120 +224,293 @@ infer finalEnv resolved = case resolved of
           ]
       StackAny -> noop
 
-    return (Compose hint typedTerms (loc, sub finalEnv type_), type_)
+    return (TrCompose hint typedTerms (loc, sub finalProgram type_), type_)
 
-  Lambda name term loc -> withOrigin (Origin (Type.Local name) loc) $ do
+  TrIntrinsic name loc -> asTyped (TrIntrinsic name) loc $ case name of
+
+    InAddVector -> forAll $ \r a
+      -> (r :. TyVector a o :. TyVector a o
+      --> r :. TyVector a o) o
+
+    InAddFloat -> binary (tyFloat o) o
+
+    InAddInt -> binary (tyInt o) o
+
+    InAndBool -> binary (tyBool o) o
+
+    InAndInt -> binary (tyInt o) o
+
+    InApply -> forAll $ \r s
+      -> TyFunction (r :. TyFunction r s o) s o
+
+    InCharToInt -> forAll $ \r
+      -> (r :. tyChar o --> r :. tyInt o) o
+
+    InChoice -> forAll $ \r a b -> TyFunction
+      (r :. (a :| b) :. TyFunction (r :. a) r o) r o
+
+    InChoiceElse -> forAll $ \r a b s -> TyFunction
+      (r :. (a :| b)
+        :. TyFunction (r :. a) s o
+        :. TyFunction (r :. b) s o)
+      s o
+
+    InClose -> forAll $ \r
+      -> (r :. tyHandle o --> r) o
+
+    InDivFloat -> binary (tyFloat o) o
+    InDivInt -> binary (tyInt o) o
+
+    InEqFloat -> relational (tyFloat o) o
+    InEqInt -> relational (tyInt o) o
+
+    InExit -> forAll $ \r s
+      -> (r :. tyInt o --> s) o
+
+    InFirst -> forAll $ \r a b
+      -> (r :. a :& b --> r :. a) o
+
+    InFromLeft -> forAll $ \r a b
+      -> (r :. a :| b --> r :. a) o
+
+    InFromRight -> forAll $ \r a b
+      -> (r :. a :| b --> r :. b) o
+
+    InFromSome -> forAll $ \r a
+      -> (r :. (a :?) --> r :. a) o
+
+    InGeFloat -> relational (tyFloat o) o
+    InGeInt -> relational (tyInt o) o
+
+    InGet -> forAll $ \r a
+      -> (r :. TyVector a o :. tyInt o --> r :. (a :?)) o
+
+    InGetLine -> forAll $ \r
+      -> (r :. tyHandle o --> r :. string o) o
+
+    InGtFloat -> relational (tyFloat o) o
+    InGtInt -> relational (tyInt o) o
+
+    InIf -> forAll $ \r -> TyFunction
+      (r :. tyBool o :. TyFunction r r o) r o
+
+    InIfElse -> forAll $ \r s -> TyFunction
+      (r :. tyBool o
+        :. TyFunction r s o
+        :. TyFunction r s o)
+      s o
+
+    InInit -> forAll $ \r a
+      -> (r :. TyVector a o --> r :. TyVector a o) o
+
+    InIntToChar -> forAll $ \r
+      -> (r :. tyInt o --> r :. (tyChar o :?)) o
+
+    InLeFloat -> relational (tyFloat o) o
+    InLeInt -> relational (tyInt o) o
+
+    InLeft -> forAll $ \r a b
+      -> (r :. a --> r :. a :| b) o
+
+    InLength -> forAll $ \r a
+      -> (r :. TyVector a o --> r :. tyInt o) o
+
+    InLtFloat -> relational (tyFloat o) o
+    InLtInt -> relational (tyInt o) o
+
+    InModFloat -> binary (tyFloat o) o
+    InModInt -> binary (tyInt o) o
+
+    InMulFloat -> binary (tyFloat o) o
+    InMulInt -> binary (tyInt o) o
+
+    InNeFloat -> relational (tyFloat o) o
+    InNeInt -> relational (tyInt o) o
+
+    InNegFloat -> unary (tyFloat o) o
+    InNegInt -> unary (tyInt o) o
+
+    InNone -> forAll $ \r a
+      -> (r --> r :. (a :?)) o
+
+    InNotBool -> unary (tyBool o) o
+    InNotInt -> unary (tyInt o) o
+
+    InOpenIn -> forAll $ \r
+      -> (r :. string o --> r :. tyHandle o) o
+
+    InOpenOut -> forAll $ \r
+      -> (r :. string o --> r :. tyHandle o) o
+
+    InOption -> forAll $ \r a -> TyFunction
+      (r :. (a :?) :. TyFunction (r :. a) r o) r o
+
+    InOptionElse -> forAll $ \r a s -> TyFunction
+      (r :. (a :?)
+        :. TyFunction (r :. a) s o
+        :. TyFunction r s o)
+      s o
+
+    InOrBool -> binary (tyBool o) o
+    InOrInt -> binary (tyInt o) o
+
+    InRest -> forAll $ \r a b
+      -> (r :. a :& b --> r :. b) o
+
+    InRight -> forAll $ \r a b
+      -> (r :. b --> r :. a :| b) o
+
+    InSet -> forAll $ \r a
+      -> (r :. TyVector a o :. tyInt o :. a
+      --> r :. TyVector a o) o
+
+    InShowFloat -> forAll $ \r
+      -> (r :. tyFloat o --> r :. string o) o
+
+    InShowInt -> forAll $ \r
+      -> (r :. tyInt o --> r :. string o) o
+
+    InSome -> forAll $ \r a
+      -> (r :. a --> r :. (a :?)) o
+
+    InStderr -> forAll $ \r
+      -> (r --> r :. tyHandle o) o
+    InStdin -> forAll $ \r
+      -> (r --> r :. tyHandle o) o
+    InStdout -> forAll $ \r
+      -> (r --> r :. tyHandle o) o
+
+    InSubFloat -> binary (tyFloat o) o
+    InSubInt -> binary (tyInt o) o
+
+    InPair -> forAll $ \r a b
+      -> (r :. a :. b --> r :. a :& b) o
+
+    InPrint -> forAll $ \r
+      -> (r :. string o :. tyHandle o --> r) o
+
+    InTail -> forAll $ \r a
+      -> (r :. TyVector a o --> r :. TyVector a o) o
+
+    InXorBool -> binary (tyBool o) o
+    InXorInt -> binary (tyInt o) o
+
+    where
+    o :: Origin
+    o = Origin (HiType (AnIntrinsic name)) loc
+
+  TrLambda name term loc -> withOrigin (Origin (HiLocal name) loc) $ do
     a <- freshVarM
-    (term', Type.Function b c _) <- local a $ recur term
-    origin <- getsEnv envOrigin
-    let type_ = Type.Function (b :. a) c origin
-    return (Lambda name term' (loc, sub finalEnv type_), type_)
+    (term', TyFunction b c _) <- local a $ recur term
+    origin <- getsProgram inferenceOrigin
+    let type_ = TyFunction (b :. a) c origin
+    return (TrLambda name term' (loc, sub finalProgram type_), type_)
 
-  PairTerm x y loc -> withLocation loc $ do
+  TrMakePair x y loc -> withLocation loc $ do
     (x', a) <- secondM fromConstant =<< recur x
     (y', b) <- secondM fromConstant =<< recur y
-    origin <- getsEnv envOrigin
+    origin <- getsProgram inferenceOrigin
     type_ <- forAll $ \r -> (r --> r :. a :& b) origin
-    return (PairTerm x' y' (loc, sub finalEnv type_), type_)
+    return (TrMakePair x' y' (loc, sub finalProgram type_), type_)
 
-  Push value loc -> withLocation loc $ do
-    (value', a) <- inferValue finalEnv value
-    origin <- getsEnv envOrigin
+  TrPush value loc -> withLocation loc $ do
+    (value', a) <- inferValue finalProgram value
+    origin <- getsProgram inferenceOrigin
     type_ <- forAll $ \r -> (r --> r :. a) origin
-    return (Push value' (loc, sub finalEnv type_), type_)
+    return (TrPush value' (loc, sub finalProgram type_), type_)
 
-  VectorTerm values loc -> withLocation loc $ do
+  TrMakeVector values loc -> withLocation loc $ do
     (typedValues, types) <- mapAndUnzipM recur (V.toList values)
     elementType <- fromConstant =<< unifyEach types
-    origin <- getsEnv envOrigin
-    type_ <- forAll $ \r -> (r --> r :. Type.Vector elementType origin) origin
+    origin <- getsProgram inferenceOrigin
+    type_ <- forAll $ \r -> (r --> r :. TyVector elementType origin) origin
     return
-      ( VectorTerm (V.fromList typedValues) (loc, sub finalEnv type_)
+      ( TrMakeVector (V.fromList typedValues) (loc, sub finalProgram type_)
       , type_
       )
 
   where
-  recur = infer finalEnv
+  recur = infer finalProgram
 
   asTyped
     :: ((Location, Type Scalar) -> a)
     -> Location
-    -> Inferred (Type Scalar)
-    -> Inferred (a, Type Scalar)
+    -> K (Type Scalar)
+    -> K (a, Type Scalar)
   asTyped constructor loc action = do
     type_ <- withLocation loc action
-    return (constructor (loc, sub finalEnv type_), type_)
+    return (constructor (loc, sub finalProgram type_), type_)
 
 -- | Removes top-level quantifiers from a type.
-unquantify :: Type a -> Inferred (Type a)
-unquantify (Type.Quantified scheme _) = unquantify =<< instantiateM scheme
+unquantify :: Type a -> K (Type a)
+unquantify (TyQuantified scheme _) = unquantify =<< instantiateM scheme
 unquantify type_ = return type_
 
-fromConstant :: Type Scalar -> Inferred (Type Scalar)
+fromConstant :: Type Scalar -> K (Type Scalar)
 fromConstant type_ = do
   a <- freshVarM
   r <- freshVarM
-  origin <- getsEnv envOrigin
+  origin <- getsProgram inferenceOrigin
   type_ === (r --> r :. a) origin
   return a
 
-binary :: Type Scalar -> Origin -> Inferred (Type Scalar)
+binary :: Type Scalar -> Origin -> K (Type Scalar)
 binary a origin = forAll
   $ \r -> (r :. a :. a --> r :. a) origin
 
-relational :: Type Scalar -> Origin -> Inferred (Type Scalar)
+relational :: Type Scalar -> Origin -> K (Type Scalar)
 relational a origin = forAll
-  $ \r -> (r :. a :. a --> r :. Type.bool origin) origin
+  $ \r -> (r :. a :. a --> r :. tyBool origin) origin
 
-unary :: Type Scalar -> Origin -> Inferred (Type Scalar)
+unary :: Type Scalar -> Origin -> K (Type Scalar)
 unary a origin = forAll
   $ \r -> (r :. a --> r :. a) origin
 
 string :: Origin -> Type Scalar
-string origin = Type.Vector (Type.char origin) origin
+string origin = TyVector (tyChar origin) origin
 
-local :: Type Scalar -> Inferred a -> Inferred a
+local :: Type Scalar -> K a -> K a
 local type_ action = do
-  modifyEnv $ \env -> env { envLocals = type_ : envLocals env }
+  modifyProgram $ \program -> program { inferenceLocals = type_ : inferenceLocals program }
   result <- action
-  modifyEnv $ \env -> env { envLocals = tail $ envLocals env }
+  modifyProgram $ \program -> program { inferenceLocals = tail $ inferenceLocals program }
   return result
 
-withClosure :: Vector (Type Scalar) -> Inferred a -> Inferred a
+withClosure :: Vector (Type Scalar) -> K a -> K a
 withClosure types action = do
-  original <- getsEnv envClosure
-  modifyEnv $ \env -> env { envClosure = types }
+  original <- getsProgram inferenceClosure
+  modifyProgram $ \program -> program { inferenceClosure = types }
   result <- action
-  modifyEnv $ \env -> env { envClosure = original }
+  modifyProgram $ \program -> program { inferenceClosure = original }
   return result
 
-getClosedName :: ClosedName -> Inferred (Type Scalar)
+getClosedName :: ClosedName -> K (Type Scalar)
 getClosedName name = case name of
-  ClosedName index -> getsEnv $ (!! index) . envLocals
-  ReclosedName index -> getsEnv $ (V.! index) . envClosure
+  ClosedName index -> getsProgram $ (!! index) . inferenceLocals
+  ReclosedName index -> getsProgram $ (V.! index) . inferenceClosure
 
-inferValue :: Env -> ResolvedValue -> Inferred (TypedValue, Type Scalar)
-inferValue finalEnv value = getsEnv envOrigin >>= \origin -> case value of
-  Bool val loc -> ret loc (Type.bool origin) (Bool val)
-  Char val loc -> ret loc (Type.char origin) (Char val)
-  Closed index loc -> do
-    type_ <- getsEnv ((V.! index) . envClosure)
-    ret loc type_ (Closed index)
-  Closure names term loc -> do
+inferValue :: Program -> ResolvedValue -> K (TypedValue, Type Scalar)
+inferValue finalProgram value = getsProgram inferenceOrigin >>= \origin -> case value of
+  TrBool val loc -> ret loc (tyBool origin) (TrBool val)
+  TrChar val loc -> ret loc (tyChar origin) (TrChar val)
+  TrClosed index loc -> do
+    type_ <- getsProgram ((V.! index) . inferenceClosure)
+    ret loc type_ (TrClosed index)
+  TrClosure names term loc -> do
     closedTypes <- V.mapM getClosedName names
-    (term', type_) <- withClosure closedTypes (infer finalEnv term)
-    ret loc type_ (Closure names term')
-  Float val loc -> ret loc (Type.float origin) (Float val)
-  Int val loc -> ret loc (Type.int origin) (Int val)
-  Local index loc -> do
-    type_ <- getsEnv ((!! index) . envLocals)
-    ret loc type_ (Local index)
-  String val loc -> ret loc (Type.Vector (Type.char origin) origin) (String val)
-  Quotation{} -> error "quotation appeared during type inference"
+    (term', type_) <- withClosure closedTypes (infer finalProgram term)
+    ret loc type_ (TrClosure names term')
+  TrFloat val loc -> ret loc (tyFloat origin) (TrFloat val)
+  TrInt val loc -> ret loc (tyInt origin) (TrInt val)
+  TrLocal index loc -> do
+    type_ <- getsProgram ((!! index) . inferenceLocals)
+    ret loc type_ (TrLocal index)
+  TrQuotation{} -> error "quotation appeared during type inference"
+  TrText val loc -> ret loc (TyVector (tyChar origin) origin) (TrText val)
   where
   ret loc type_ constructor = return (constructor (loc, type_), type_)
 
-unifyEach :: [Type Scalar] -> Inferred (Type Scalar)
+unifyEach :: [Type Scalar] -> K (Type Scalar)
 unifyEach (x : y : zs) = x === y >> unifyEach (y : zs)
 unifyEach [x] = return x
 unifyEach [] = freshVarM
@@ -533,7 +518,7 @@ unifyEach [] = freshVarM
 inferCompose
   :: Type Stack -> Type Stack
   -> Type Stack -> Type Stack
-  -> Inferred (Type Scalar)
+  -> K (Type Scalar)
 inferCompose in1 out1 in2 out2 = do
   out1 === in2
-  Type.Function in1 out2 <$> getsEnv envOrigin
+  TyFunction in1 out2 <$> getsProgram inferenceOrigin

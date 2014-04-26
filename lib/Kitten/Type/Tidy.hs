@@ -18,13 +18,13 @@ import Control.Monad.Trans.State
 
 import Kitten.Id
 import Kitten.IdMap (IdMap)
-import Kitten.Type
+import Kitten.Types
 
 import qualified Kitten.IdMap as Id
 import qualified Kitten.Util.Set as Set
 
 data TidyKindState a = TidyKindState
-  { ids :: !(IdMap TypeSpace (TypeId a))
+  { ids :: !(IdMap TypeSpace (KindedId a))
   , idGen :: !(IdGen TypeSpace)
   }
 
@@ -58,37 +58,37 @@ runTidy (Tidy m) = evalState m TidyState
   }
 
 tidyId
-  :: TypeId a
+  :: KindedId a
   -> TidyKindState a
-  -> (TypeId a, TidyKindState a)
-tidyId (TypeId i) kindState
+  -> (KindedId a, TidyKindState a)
+tidyId (KindedId i) kindState
   = case Id.lookup i (ids kindState) of
     Just typeId -> (typeId, kindState)
-    Nothing -> (TypeId i', kindState')
+    Nothing -> (KindedId i', kindState')
       where
       (i', gen') = genId (idGen kindState)
       kindState' = kindState
         { ids = Id.insert i
-          (TypeId i') (ids kindState)
+          (KindedId i') (ids kindState)
         , idGen = gen'
         }
 
 tidyIdM
   :: (TidyState -> TidyKindState a)               -- ^ Get.
   -> (TidyKindState a -> TidyState -> TidyState)  -- ^ Put.
-  -> TypeId a
-  -> Tidy (TypeId a)
+  -> KindedId a
+  -> Tidy (KindedId a)
 tidyIdM getKindState putKindState typeId = Tidy $ do
   kindState <- gets getKindState
   let (typeId', kindState') = tidyId typeId kindState
   modify (putKindState kindState')
   return typeId'
 
-tidyScalar :: TypeId Scalar -> Tidy (TypeId Scalar)
+tidyScalar :: KindedId Scalar -> Tidy (KindedId Scalar)
 tidyScalar = tidyIdM scalars
   (\scalars' s -> s { scalars = scalars' })
 
-tidyStack :: TypeId Stack -> Tidy (TypeId Stack)
+tidyStack :: KindedId Stack -> Tidy (KindedId Stack)
 tidyStack = tidyIdM stacks
   (\stacks' s -> s { stacks = stacks' })
 
@@ -97,24 +97,24 @@ tidyScalarType type_ = case type_ of
   t1 :& t2 -> (:&) <$> tidyScalarType t1 <*> tidyScalarType t2
   (:?) t -> (:?) <$> tidyScalarType t
   t1 :| t2 -> (:|) <$> tidyScalarType t1 <*> tidyScalarType t2
-  Const i loc -> Const <$> tidyScalar i <*> pure loc
-  Ctor{} -> pure type_
-  Function r1 r2 loc -> Function
+  TyConst i loc -> TyConst <$> tidyScalar i <*> pure loc
+  TyCtor{} -> pure type_
+  TyFunction r1 r2 loc -> TyFunction
     <$> tidyStackType r1
     <*> tidyStackType r2
     <*> pure loc
-  Quantified (Forall r s t) loc -> Quantified
+  TyQuantified (Forall r s t) loc -> TyQuantified
     <$> (Forall
       <$> Set.mapM tidyStack r
       <*> Set.mapM tidyScalar s
       <*> tidyScalarType t)
     <*> pure loc
-  Var i loc -> Var <$> tidyScalar i <*> pure loc
-  Vector t loc -> Vector <$> tidyScalarType t <*> pure loc
+  TyVar i loc -> TyVar <$> tidyScalar i <*> pure loc
+  TyVector t loc -> TyVector <$> tidyScalarType t <*> pure loc
 
 tidyStackType :: Type Stack -> Tidy (Type Stack)
 tidyStackType type_ = case type_ of
   t1 :. t2 -> (:.) <$> tidyStackType t1 <*> tidyScalarType t2
-  Const i loc -> Const <$> tidyStack i <*> pure loc
-  Empty{} -> pure type_
-  Var i loc -> Var <$> tidyStack i <*> pure loc
+  TyConst i loc -> TyConst <$> tidyStack i <*> pure loc
+  TyEmpty{} -> pure type_
+  TyVar i loc -> TyVar <$> tidyStack i <*> pure loc

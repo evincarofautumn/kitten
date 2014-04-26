@@ -11,27 +11,26 @@ import Data.Text (Text)
 
 import Kitten.Parse.Monad
 import Kitten.Parsec
-
-import qualified Kitten.Token as Token
+import Kitten.Types
 
 blocked :: Parser a -> Parser a
 blocked = between
-  (match (Token.BlockBegin Token.NormalBlockHint))
-  (match Token.BlockEnd)
+  (match (TkBlockBegin NormalBlockHint))
+  (match TkBlockEnd)
 
 symbolic :: Parser Text
 symbolic = mapOne $ \token -> case token of
-  Token.Operator name -> Just name
+  TkOperator name -> Just name
   _ -> Nothing
 
 grouped :: Parser a -> Parser a
 grouped = between
-  (match Token.GroupBegin)
-  (match Token.GroupEnd)
+  (match TkGroupBegin)
+  (match TkGroupEnd)
 
 named :: Parser Text
 named = mapOne $ \token -> case token of
-  Token.Word name -> Just name
+  TkWord name -> Just name
   _ -> Nothing
 
 word :: Parser Text

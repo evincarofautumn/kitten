@@ -15,7 +15,7 @@ import Data.Functor.Identity
 
 import Kitten.Location
 import Kitten.Parsec
-import Kitten.Token (Located(..), Token)
+import Kitten.Types
 import Kitten.Util.Maybe
 
 type Parser a = ParsecT [Located] () Identity a
