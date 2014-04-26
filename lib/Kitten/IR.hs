@@ -4,7 +4,7 @@
 
 {-# OPTIONS_GHC -w #-}
 
-module Kitten.Yarn
+module Kitten.IR
   ( Block
   , FlattenedProgram(..)
   , Instruction(..)
@@ -14,7 +14,7 @@ module Kitten.Yarn
   , emptyProgram
   , entryId
   , flattenProgram
-  , yarn
+  , ir
   ) where
 
 import Control.Applicative hiding (some)
@@ -48,7 +48,6 @@ import Kitten.Util.Tuple
 
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.IdMap as Id
-import qualified Kitten.Infer.Monad as Infer
 import qualified Kitten.Tree as Tree
 import qualified Kitten.Type as Type
 
@@ -130,52 +129,52 @@ instance ToText Value where
       : map (\char -> "char " <> showText (Char.ord char))
         (T.unpack string)
 
-type Yarn a = State Program a
+type IR a = State Program a
 
-yarn :: Fragment TypedTerm -> Program -> Program
-yarn Fragment{..} program = flip execState program $ do
-  F.mapM_ yarnDef fragmentDefs
-  yarnEntry fragmentTerms
+ir :: Fragment TypedTerm -> Program -> Program
+ir Fragment{..} program = flip execState program $ do
+  F.mapM_ irDef fragmentDefs
+  irEntry fragmentTerms
 
-yarnDef :: Def TypedTerm -> Yarn ()
-yarnDef Def{..} = do
+irDef :: Def TypedTerm -> IR ()
+irDef Def{..} = do
   defId <- getDefM defName
-  block <- terminated <$> yarnTerm (Type.unScheme defTerm)
+  block <- terminated <$> irTerm (Type.unScheme defTerm)
   modify $ \program@Program{..} -> program
     { programBlocks = Id.insert defId block programBlocks }
 
-yarnEntry :: Vector TypedTerm -> Yarn ()
-yarnEntry terms = do
-  instructions <- concatMapM yarnTerm terms
+irEntry :: Vector TypedTerm -> IR ()
+irEntry terms = do
+  instructions <- concatMapM irTerm terms
   modify $ \program@Program{..} -> program
     { programBlocks = Id.adjust (<> instructions) entryId programBlocks }
 
-yarnTerm :: TypedTerm -> Yarn Block
-yarnTerm term = case term of
+irTerm :: TypedTerm -> IR Block
+irTerm term = case term of
   Tree.Builtin builtin _ -> return $ V.singleton (Builtin builtin)
   Tree.Call _ target _ -> do
     target' <- getDefM target
     return $ V.singleton (Call target')
-  Tree.Compose _ terms _ -> concatMapM yarnTerm terms
+  Tree.Compose _ terms _ -> concatMapM irTerm terms
   Tree.Lambda _ terms _ -> do
-    instructions <- yarnTerm terms
+    instructions <- irTerm terms
     return $ V.singleton Enter <> instructions <> V.singleton Leave
   Tree.PairTerm a b _ -> do
-    a' <- yarnTerm a
-    b' <- yarnTerm b
+    a' <- irTerm a
+    b' <- irTerm b
     return $ a' <> b' <> V.singleton (Builtin Builtin.Pair)
-  Tree.Push value _ -> yarnValue value
+  Tree.Push value _ -> irValue value
   Tree.VectorTerm values _ -> do
-    values' <- concatMapM yarnTerm values
+    values' <- concatMapM irTerm values
     return $ values' <> (V.singleton . MakeVector $ V.length values)
 
-yarnValue :: TypedValue -> Yarn Block
-yarnValue resolved = case resolved of
+irValue :: TypedValue -> IR Block
+irValue resolved = case resolved of
   Tree.Bool x _ -> value $ Bool x
   Tree.Char x _ -> value $ Char x
   Tree.Closed index _ -> return $ V.singleton (Closure index)
   Tree.Closure names terms (loc, type_) -> do
-    instructions <- yarnTerm terms
+    instructions <- irTerm terms
     target <- declareBlockM (Just $ "closure from " <> toText loc) (terminated instructions)
     return $ V.singleton (Act target names type_)
   Tree.Float x _ -> value $ Float x
@@ -184,27 +183,11 @@ yarnValue resolved = case resolved of
   Tree.String x _ -> value $ String x
   Tree.Quotation{} -> error "quotation appeared during conversion to IR"
   where
-  value :: Value -> Yarn Block
+  value :: Value -> IR Block
   value = return . V.singleton . Push
 
 terminated :: Block -> Block
 terminated = (<> V.singleton Return)
-
-data Program = Program
-  { programBlocks :: !(IdMap Block)
-  , programIdGen :: IdGen
-  , programSymbols :: !(HashMap Text Id)
-  }
-
-entryId :: Id
-entryId = Id 0
-
-emptyProgram :: Program
-emptyProgram = Program
-  { programBlocks = Id.singleton entryId V.empty
-  , programIdGen = mkIdGenFrom $ succ entryId
-  , programSymbols = H.empty
-  }
 
 data FlattenedProgram = FlattenedProgram
   { flattenedBlock :: !Block
@@ -212,7 +195,7 @@ data FlattenedProgram = FlattenedProgram
   , flattenedSymbols :: !(IdMap [Text])
   }
 
-declareBlockM :: Maybe Text -> Block -> Yarn Id
+declareBlockM :: Maybe Text -> Block -> IR Id
 declareBlockM = (state .) . declareBlock
 
 declareBlock :: Maybe Text -> Block -> Program -> (Id, Program)
@@ -224,7 +207,7 @@ declareBlock mSymbol block program@Program{..} = let
     , programSymbols = maybe id (`H.insert` i) mSymbol programSymbols
     }
 
-getDefM :: Text -> Yarn Id
+getDefM :: Text -> IR Id
 getDefM = state . getDef
 
 getDef :: Text -> Program -> (Id, Program)

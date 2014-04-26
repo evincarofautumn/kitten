@@ -24,8 +24,8 @@ import qualified Kitten.IdMap as Id
 import qualified Kitten.Util.Set as Set
 
 data TidyKindState a = TidyKindState
-  { ids :: !(IdMap (TypeId a))
-  , idGen :: !IdGen
+  { ids :: !(IdMap TypeSpace (TypeId a))
+  , idGen :: !(IdGen TypeSpace)
   }
 
 data TidyState = TidyState

@@ -37,47 +37,52 @@ import qualified Data.Set as S
 
 import Kitten.Id
 import Kitten.Infer.Monad
+import Kitten.K
 import Kitten.Type
 import Kitten.Util.Monad
 
 import qualified Kitten.IdMap as Id
 
-instantiateM :: TypeScheme -> Inferred (Type Scalar)
+instantiateM :: TypeScheme -> K block (Type Scalar)
 instantiateM scheme = do
-  origin <- getsEnv envOrigin
+  origin <- getsInference inferenceOrigin
   liftState $ state (instantiate origin scheme)
 
-instantiate :: Origin -> TypeScheme -> Env -> (Type Scalar, Env)
+instantiate
+  :: Origin
+  -> TypeScheme
+  -> Inference
+  -> (Type Scalar, Inference)
 instantiate origin@(Origin _ loc) (Forall stacks scalars type_) env
   = (sub renamed type_, env')
 
   where
-  renamed :: Env
-  env' :: Env
+  renamed :: Inference
+  env' :: Inference
   (renamed, env') = flip runState env $ composeM
-    [renames stacks, renames scalars] (emptyEnv loc)
+    [renames stacks, renames scalars] emptyInference
 
   renames
     :: (Declare a)
     => Set (TypeId a)
-    -> Env
-    -> State Env Env
+    -> Inference
+    -> State Inference Inference
   renames = flip (foldrM rename) . S.toList
 
   rename
     :: (Declare a)
     => TypeId a
-    -> Env
-    -> State Env Env
+    -> Inference
+    -> State Inference Inference
   rename name localEnv = do
     var <- state (freshVar origin)
     return (declare name var localEnv)
 
-generalize :: Inferred (a, Type Scalar) -> Inferred (a, TypeScheme)
+generalize :: K block (a, Type Scalar) -> K block (a, TypeScheme)
 generalize action = do
-  before <- getEnv
+  before <- getInference
   (extra, type_) <- action  -- HACK To preserve effect ordering.
-  after <- getEnv
+  after <- getInference
 
   let
     substituted :: Type Scalar
@@ -100,39 +105,39 @@ generalize action = do
 -- environment states.
 dependentBetween
   :: forall a. (Occurrences a, Unbound a)
-  => Env
-  -> Env
+  => Inference
+  -> Inference
   -> TypeId a
   -> Bool
 dependentBetween before after name
   = any (bound after) (unbound before)
   where
-  bound :: Env -> TypeId a -> Bool
+  bound :: Inference -> TypeId a -> Bool
   bound env name' = occurs (unTypeId name) env
-    (Var name' (envOrigin env) :: Type a)
+    (Var name' (inferenceOrigin env) :: Type a)
 
 -- | Enumerates those type variables in an environment that
 -- are allocated but not yet bound to a type.
 class Unbound (a :: Kind) where
-  unbound :: Env -> [TypeId a]
+  unbound :: Inference -> [TypeId a]
 
 instance Unbound Scalar where
-  unbound env = map TypeId $ filter (`Id.notMember` envScalars env)
+  unbound env = map TypeId $ filter (`Id.notMember` inferenceScalars env)
     [Id 0 .. envMaxName env]
 
 instance Unbound Stack where
-  unbound env = map TypeId $ filter (`Id.notMember` envStacks env)
+  unbound env = map TypeId $ filter (`Id.notMember` inferenceStacks env)
     [Id 0 .. envMaxName env]
 
 -- | The last allocated name in an environment. Relies on
 -- the fact that 'NameGen' allocates names sequentially.
-envMaxName :: Env -> Id
-envMaxName = pred . fst . genId . envIdGen
+envMaxName :: Program block -> Id TypeSpace
+envMaxName = pred . fst . genId . programTypeIdGen
 
 data TypeLevel = TopLevel | NonTopLevel
   deriving (Eq)
 
-regeneralize :: Env -> TypeScheme -> TypeScheme
+regeneralize :: Inference -> TypeScheme -> TypeScheme
 regeneralize env (Forall stacks scalars wholeType) = let
   (type_, vars) = runWriter $ regeneralize' TopLevel wholeType
   in Forall (foldr S.delete stacks vars) scalars type_
@@ -208,10 +213,10 @@ normalize :: Origin -> Type Scalar -> Type Scalar
 normalize origin@(Origin _ loc) type_ = let
   (stacks, scalars) = freeVars type_
   stackCount = length stacks
-  env = (emptyEnv loc)
-    { envStacks = Id.fromList
+  env = emptyInference
+    { inferenceStacks = Id.fromList
       $ zip (map unTypeId stacks) (map var [0..])
-    , envScalars = Id.fromList
+    , inferenceScalars = Id.fromList
       $ zip (map unTypeId scalars) (map var [stackCount..])
     }
   in sub env type_
@@ -219,11 +224,11 @@ normalize origin@(Origin _ loc) type_ = let
   var :: Int -> Type a
   var index = Var (TypeId (Id index)) origin
 
-occurs :: (Occurrences a) => Id -> Env -> Type a -> Bool
+occurs :: (Occurrences a) => Id TypeSpace -> Inference -> Type a -> Bool
 occurs = (((> 0) .) .) . occurrences
 
 class Occurrences a where
-  occurrences :: Id -> Env -> Type a -> Int
+  occurrences :: Id TypeSpace -> Inference -> Type a -> Int
 
 instance Occurrences Stack where
   occurrences name env type_ = case type_ of
@@ -262,7 +267,7 @@ instance Occurrences Scalar where
 -- variables ('Var').
 
 class Simplify a where
-  simplify :: Env -> Type a -> Type a
+  simplify :: Inference -> Type a -> Type a
 
 instance Simplify Stack where
   simplify env type_ = case type_ of
@@ -279,7 +284,7 @@ instance Simplify Scalar where
     _ -> type_
 
 class Substitute a where
-  sub :: Env -> Type a -> Type a
+  sub :: Inference -> Type a -> Type a
 
 instance Substitute Stack where
   sub env type_ = case type_ of
@@ -324,19 +329,19 @@ instance Substitute Scalar where
 -- constants and the skolemized type.
 skolemize
   :: TypeScheme
-  -> Inferred ([TypeId Stack], [TypeId Scalar], Type Scalar)
+  -> K block ([TypeId Stack], [TypeId Scalar], Type Scalar)
 skolemize (Forall stackVars scalarVars type_) = do
-  origin <- getsEnv envOrigin
+  origin <- getsInference inferenceOrigin
   let
     declares
       :: (Declare a)
-      => Set (TypeId a) -> [TypeId a] -> Env -> Env
+      => Set (TypeId a) -> [TypeId a] -> Inference -> Inference
     declares vars consts env0
       = foldr (uncurry declare) env0
       $ zip (S.toList vars) (map (\name -> Const name origin) consts)
-  stackConsts <- replicateM (S.size stackVars) freshIdM
-  scalarConsts <- replicateM (S.size scalarVars) freshIdM
-  env <- getsEnv
+  stackConsts <- replicateM (S.size stackVars) freshTypeIdM
+  scalarConsts <- replicateM (S.size scalarVars) freshTypeIdM
+  env <- getsInference
     $ declares scalarVars scalarConsts
     . declares stackVars stackConsts
   (stackConsts', scalarConsts', type') <- skolemizeType (sub env type_)
@@ -344,7 +349,7 @@ skolemize (Forall stackVars scalarVars type_) = do
 
 skolemizeType
   :: Type a
-  -> Inferred ([TypeId Stack], [TypeId Scalar], Type a)
+  -> K block ([TypeId Stack], [TypeId Scalar], Type a)
 skolemizeType = \case
   Function a b origin -> do
     (stackConsts, scalarConsts, b') <- skolemizeType b

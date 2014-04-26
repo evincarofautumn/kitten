@@ -1,8 +1,11 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Id
   ( Id(..)
+  , Namespace(..)
   , IdGen
   , genId
   , mkIdGen
@@ -15,22 +18,26 @@ import qualified Data.Text as T
 
 import Kitten.Util.Text
 
-newtype Id = Id Int
+data Namespace
+  = DefSpace
+  | TypeSpace
+
+newtype Id (n :: Namespace) = Id Int
   deriving (Enum, Eq, Ord)
 
-instance Show Id where
+instance Show (Id n) where
   show = T.unpack . toText
 
-instance ToText Id where
+instance ToText (Id n) where
   toText (Id i) = "_" <> showText i
 
-newtype IdGen = IdGen Id
+newtype IdGen (n :: Namespace) = IdGen (Id n)
 
-genId :: IdGen -> (Id, IdGen)
+genId :: IdGen n -> (Id n, IdGen n)
 genId (IdGen i) = (i, IdGen (succ i))
 
-mkIdGen :: IdGen
+mkIdGen :: IdGen n
 mkIdGen = mkIdGenFrom (Id 0)
 
-mkIdGenFrom :: Id -> IdGen
+mkIdGenFrom :: Id n -> IdGen n
 mkIdGenFrom = IdGen

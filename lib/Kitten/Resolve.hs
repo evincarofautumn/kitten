@@ -19,13 +19,13 @@ import qualified Data.Traversable as T
 import Kitten.Def
 import Kitten.Error
 import Kitten.Fragment
+import Kitten.IR (Program(..))
 import Kitten.Location
 import Kitten.Operator
 import Kitten.Resolve.Monad
 import Kitten.Tree
 import Kitten.Util.Function
 import Kitten.Util.Monad
-import Kitten.Yarn (Program(..))
 
 resolve
   :: Fragment ParsedTerm

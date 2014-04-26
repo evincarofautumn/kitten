@@ -46,88 +46,75 @@ import Kitten.Util.Text (toText)
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.Type as Type
 import qualified Kitten.Util.Vector as V
+import qualified Kitten.K as K
 
 typeFragment
-  :: Config
-  -> Vector (Type Scalar)
+  :: Vector (Type Scalar)
   -> Fragment ResolvedTerm
-  -> IdGen
-  -> Either [ErrorGroup] (IdGen, Fragment TypedTerm, Type Scalar)
-typeFragment config stackTypes fragment nameGen
-  = case run of
-    (Left err, _) -> Left err
-    (Right (typed, type_), env') -> Right (envIdGen env', typed, type_)
-  where
-  run :: (Either [ErrorGroup] (Fragment TypedTerm, Type Scalar), Env)
-  run = runInference config env
-    $ inferFragment fragment stackTypes
-  env :: Env
-  env = (emptyEnv loc) { envIdGen = nameGen }
-  loc :: Location
-  loc = Location
-    { locationStart = initialPos (fragmentName config)
-    , locationIndent = 0
-    }
+  -> K (Either [ErrorGroup] (Fragment TypedTerm, Type Scalar))
+typeFragment stackTypes fragment
+  = runEitherT $ inferFragment fragment stackTypes
 
 inferFragment
-  :: Fragment ResolvedTerm
-  -> Vector (Type Scalar)
-  -> Inferred (Fragment TypedTerm, Type Scalar)
-inferFragment fragment stackTypes = mdo
+  :: Vector (Type Scalar)
+  -> Fragment ResolvedTerm
+  -> EitherT [ErrorGroup] K (Fragment TypedTerm, Type Scalar)
+inferFragment stackTypes fragment = do
+  rec
+    -- Populate environment with definition types.
+    --
+    -- FIXME(strager):
+    -- Use previously-inferred types (i.e. defTypeScheme def). We cannot
+    -- right now because effects are not inferred properly (e.g. for the
+    -- effects of the 'map' prelude function).
+    _ <- T.mapM save (fragmentDefs fragment)
 
-  -- Populate environment with definition types.
-  --
-  -- FIXME(strager):
-  -- Use previously-inferred types (i.e. defTypeScheme def). We cannot
-  -- right now because effects are not inferred properly (e.g. for the
-  -- effects of the 'map' prelude function).
-  _ <- T.mapM save (fragmentDefs fragment)
-
-  typedDefs <- flip T.mapM (fragmentDefs fragment) $ \def
-    -> withOrigin (defOrigin def) $ do
-      (typedTerm, inferredScheme) <- generalize
-        (infer finalEnv (unScheme (defTerm def)))  -- See note [scheming defs].
-      declaredScheme <- do
-        decls <- getsEnv envDecls
-        case H.lookup (defName def) decls of
-          Just decl -> return decl
-          Nothing -> do
-            origin <- getsEnv envOrigin
-            fmap mono . forAll $ \r s -> Type.Function r s origin
-      saveDefWith (flip const) (defName def) inferredScheme
-      instanceCheck inferredScheme declaredScheme $ let
-        item = CompileError (defLocation def)
-        in ErrorGroup
-        [ item Error $ T.unwords
-          [ "inferred type of"
-          , defName def
-          , "is not an instance of its declared type"
+    typedDefs <- flip T.mapM (fragmentDefs fragment) $ \def
+      -> withOrigin (defOrigin def) $ do
+        (typedTerm, inferredScheme) <- generalize
+          (infer finalEnv (unScheme (defTerm def)))  -- See note [scheming defs].
+        declaredScheme <- do
+          decls <- getsEnv envDecls
+          case H.lookup (defName def) decls of
+            Just decl -> return decl
+            Nothing -> do
+              origin <- getsEnv envOrigin
+              fmap mono . forAll $ \r s -> Type.Function r s origin
+        saveDefWith (flip const) (defName def) inferredScheme
+        instanceCheck inferredScheme declaredScheme $ let
+          item = CompileError (defLocation def)
+          in ErrorGroup
+          [ item Error $ T.unwords
+            [ "inferred type of"
+            , defName def
+            , "is not an instance of its declared type"
+            ]
+          , item Note $ T.unwords ["inferred", toText inferredScheme]
+          , item Note $ T.unwords ["declared", toText declaredScheme]
           ]
-        , item Note $ T.unwords ["inferred", toText inferredScheme]
-        , item Note $ T.unwords ["declared", toText declaredScheme]
-        ]
-      return def { defTerm = typedTerm <$ inferredScheme }
+        return def { defTerm = typedTerm <$ inferredScheme }
 
-  topLevel <- getsEnv envLocation
-  (typedTerms, fragmentType) <- infer finalEnv
-    $ Compose StackAny (fragmentTerms fragment) topLevel
+    topLevel <- getsEnv envLocation
+    (typedTerms, fragmentType) <- infer finalEnv
+      $ Compose StackAny (fragmentTerms fragment) topLevel
 
-  -- Equate the bottom of the stack with stackTypes.
-  do
-    let Type.Function consumption _ _ = fragmentType
-    bottom <- freshVarM
-    enforce <- asksConfig enforceBottom
-    when enforce $ bottom === Type.Empty (Origin NoHint topLevel)
-    let stackType = F.foldl (:.) bottom stackTypes
-    stackType === consumption
+    -- Equate the bottom of the stack with stackTypes.
+    do
+      let Type.Function consumption _ _ = fragmentType
+      bottom <- freshVarM
+      enforce <- asksConfig enforceBottom
+      when enforce $ bottom === Type.Empty (Origin NoHint topLevel)
+      let stackType = F.foldl (:.) bottom stackTypes
+      stackType === consumption
 
-  let
-    typedFragment = fragment
-      { fragmentDefs = typedDefs
-      , fragmentTerms = V.singleton typedTerms
-      }
+    let
+      typedFragment = fragment
+        { fragmentDefs = typedDefs
+        , fragmentTerms = V.singleton typedTerms
+        }
 
-  finalEnv <- getEnv
+    finalEnv <- getEnv
+
   return (typedFragment, sub finalEnv fragmentType)
 
   where

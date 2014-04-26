@@ -31,18 +31,18 @@ import qualified Data.Vector as V
 import Kitten.Builtin (Builtin)
 import Kitten.ClosedName
 import Kitten.Id
+import Kitten.IR (FlattenedProgram(..), Instruction)
 import Kitten.Location
 import Kitten.IdMap (IdMap)
 import Kitten.Util.Monad
 import Kitten.Util.Text (ToText(..), showText)
-import Kitten.Yarn (FlattenedProgram(..), Instruction)
 import Kitten.Type (Kind(..), Type((:&), (:?), (:|)))
 
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.IdMap as Id
+import qualified Kitten.IR as IR
 import qualified Kitten.Type as Type
 import qualified Kitten.Util.Vector as V
-import qualified Kitten.Yarn as Y
 
 data Env = Env
   { envCalls :: !(IORef [Call])

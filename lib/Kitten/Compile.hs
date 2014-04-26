@@ -31,6 +31,7 @@ import Kitten.Error
 import Kitten.Fragment
 import Kitten.Import
 import Kitten.Infer
+import Kitten.IR
 import Kitten.Location
 import Kitten.Operator
 import Kitten.Parse
@@ -41,7 +42,6 @@ import Kitten.Tree
 import Kitten.Type
 import Kitten.Util.Either
 import Kitten.Util.Monad
-import Kitten.Yarn
 
 import qualified Kitten.Compile.Config as Compile
 import qualified Kitten.IdMap as Id

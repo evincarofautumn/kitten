@@ -150,7 +150,7 @@ suffix (Origin hint _) = case hint of
     -> " (output of " <> toText annotated <> ")"
   NoHint -> ""
 
-newtype TypeId (a :: Kind) = TypeId { unTypeId :: Id }
+newtype TypeId (a :: Kind) = TypeId { unTypeId :: Id TypeSpace }
   deriving (Eq, Ord)
 
 instance Show (TypeId a) where
@@ -294,10 +294,10 @@ bottommost type_ = case type_ of
 mono :: a -> Scheme a
 mono = Forall S.empty S.empty
 
-stack :: Id -> TypeId Stack
+stack :: Id TypeSpace -> TypeId Stack
 stack = TypeId
 
-scalar :: Id -> TypeId Scalar
+scalar :: Id TypeSpace -> TypeId Scalar
 scalar = TypeId
 
 unScheme :: Scheme a -> a

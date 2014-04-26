@@ -1,4 +1,6 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE KindSignatures #-}
 
 module Kitten.IdMap
   ( IdMap(..)
@@ -26,44 +28,44 @@ import qualified Prelude
 
 import Kitten.Id
 
-newtype IdMap a = IdMap (IntMap a)
+newtype IdMap (n :: Namespace) a = IdMap (IntMap a)
   deriving (Monoid)
 
-(!) :: IdMap a -> Id -> a
+(!) :: IdMap n a -> Id n -> a
 IdMap ids ! Id index = ids I.! index
 
-adjust :: (a -> a) -> Id -> IdMap a -> IdMap a
+adjust :: (a -> a) -> Id n -> IdMap n a -> IdMap n a
 adjust f (Id i) (IdMap ids) = IdMap $ I.adjust f i ids
 
-empty :: IdMap a
+empty :: IdMap n a
 empty = IdMap I.empty
 
-fromList :: [(Id, a)] -> IdMap a
+fromList :: [(Id n, a)] -> IdMap n a
 fromList = IdMap . foldr
   (\ (Id index, value) acc -> I.insert index value acc)
   I.empty
 
-insert :: Id -> a -> IdMap a -> IdMap a
+insert :: Id n -> a -> IdMap n a -> IdMap n a
 insert (Id index) value (IdMap ids) = IdMap $ I.insert index value ids
 
-insertWith :: (a -> a -> a) -> Id -> a -> IdMap a -> IdMap a
+insertWith :: (a -> a -> a) -> Id n -> a -> IdMap n a -> IdMap n a
 insertWith f (Id index) value (IdMap ids)
   = IdMap $ I.insertWith f index value ids
 
-lookup :: Id -> IdMap a -> Maybe a
+lookup :: Id n -> IdMap n a -> Maybe a
 lookup (Id index) (IdMap ids) = I.lookup index ids
 
-map :: (a -> b) -> IdMap a -> IdMap b
+map :: (a -> b) -> IdMap n a -> IdMap n b
 map f (IdMap ids) = IdMap (I.map f ids)
 
-member :: Id -> IdMap a -> Bool
+member :: Id n -> IdMap n a -> Bool
 member (Id index) (IdMap ids) = I.member index ids
 
-notMember :: Id -> IdMap a -> Bool
+notMember :: Id n -> IdMap n a -> Bool
 notMember (Id index) (IdMap ids) = I.notMember index ids
 
-singleton :: Id -> a -> IdMap a
+singleton :: Id n -> a -> IdMap n a
 singleton (Id i) x = IdMap $ I.singleton i x
 
-toList :: IdMap a -> [(Id, a)]
+toList :: IdMap n a -> [(Id n, a)]
 toList (IdMap ids) = Prelude.map (first Id) (I.toList ids)

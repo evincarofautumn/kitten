@@ -21,10 +21,9 @@ import qualified Data.Vector as V
 
 import Kitten.Anno (Anno(..))
 import Kitten.Error
-import Kitten.Infer.Monad (Inferred, freshIdM, liftFailWriter)
+import Kitten.Infer.Monad (freshIdM)
 import Kitten.Location
 import Kitten.Type
-import Kitten.Util.FailWriter
 
 import qualified Kitten.Anno as Anno
 
@@ -149,7 +148,7 @@ stackVar name loc annotated = do
     Nothing -> unknown name loc
 
 unknown :: Text -> Location -> Converted a
-unknown name loc = lift . liftFailWriter . throwMany . (:[]) $ ErrorGroup
+unknown name loc = lift . throwMany . (:[]) $ ErrorGroup
   [ CompileError loc Error
     $ "unknown type or undeclared type variable " <> name
   ]

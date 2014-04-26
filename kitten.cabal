@@ -60,13 +60,14 @@ library
     Kitten.Id,
     Kitten.IdMap,
     Kitten.Infer,
-    Kitten.Infer.Config,
     Kitten.Infer.Locations,
     Kitten.Infer.Monad,
     Kitten.Infer.Scheme,
     Kitten.Infer.Type,
     Kitten.Infer.Unify,
     Kitten.Interpret,
+    Kitten.IR,
+    Kitten.K,
     Kitten.Kind,
     Kitten.Location,
     Kitten.Operator,
@@ -97,8 +98,7 @@ library
     Kitten.Util.Show,
     Kitten.Util.Text,
     Kitten.Util.Tuple,
-    Kitten.Util.Vector,
-    Kitten.Yarn
+    Kitten.Util.Vector
 
 executable kitten
 
