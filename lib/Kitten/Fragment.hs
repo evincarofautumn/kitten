@@ -4,7 +4,9 @@ module Kitten.Fragment
   ( Fragment(..)
   ) where
 
+import Data.HashMap.Strict (HashMap)
 import Data.Monoid
+import Data.Text (Text)
 import Data.Vector (Vector)
 
 import Kitten.Def
@@ -12,7 +14,7 @@ import Kitten.Import
 import Kitten.Operator
 
 data Fragment a = Fragment
-  { fragmentDefs :: !(Vector (Def a))
+  { fragmentDefs :: !(HashMap Text (Def a))
   , fragmentImports :: [Import]
   , fragmentOperators :: [Operator]
   , fragmentTerms :: !(Vector a)

@@ -149,6 +149,7 @@ test-suite test
     QuickCheck == 2.6.*,
     text,
     transformers,
+    unordered-containers,
     vector
 
   ghc-options:

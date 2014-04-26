@@ -16,9 +16,11 @@ import Data.Traversable (traverse)
 import Data.Vector (Vector)
 import Text.Parsec.Pos
 
+import qualified Data.HashMap.Strict as H
+import qualified Data.Traversable as T
 import qualified Data.Vector as V
-import qualified Text.Parsec.Expr as E
 import qualified Text.Parsec as Parsec
+import qualified Text.Parsec.Expr as E
 
 import Kitten.Def
 import Kitten.Error
@@ -62,8 +64,8 @@ fragment = fmap (partitionElements . concat)
 
 element :: Parser Element
 element = choice
-  [ DefElement <$> def
-  , ImportElement <$> import_
+  [ DefElement <$> def 
+ , ImportElement <$> import_
   , OperatorElement <$> operatorDeclaration
   , TermElement <$> term
   ]
@@ -265,7 +267,7 @@ rewriteInfix
   :: Fragment ParsedTerm
   -> Either ErrorGroup (Fragment ParsedTerm)
 rewriteInfix parsed@Fragment{..} = do
-  defs <- V.mapM (traverse rewriteInfixTerm) fragmentDefs
+  defs <- T.mapM (traverse rewriteInfixTerm) fragmentDefs
   terms <- V.mapM rewriteInfixTerm fragmentTerms
   return parsed
     { fragmentDefs = defs
@@ -348,8 +350,8 @@ rewriteInfix parsed@Fragment{..} = do
     useDefault op = defFixity op == Infix
       && not (any ((defName op ==) . operatorName) fragmentOperators)
     flat = fragmentOperators
-      ++ map (\Def{..} -> Operator LeftAssociative 6 defName defLocation)
-        (filter useDefault (V.toList fragmentDefs))
+      ++ (map (\Def{..} -> Operator LeftAssociative 6 defName defLocation)
+        . filter useDefault . map snd $ H.toList fragmentDefs)
     in for [9,8..0] $ \p -> filter ((p ==) . operatorPrecedence) flat
 
   toOp :: Operator -> E.Operator [ParsedTerm] () Identity ParsedTerm

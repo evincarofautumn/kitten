@@ -70,7 +70,7 @@ interpret mIp (FlattenedProgram envInstructions envNames envSymbols) stack = do
   envCalls <- newIORef []
   envClosures <- newIORef []
   envData <- newIORef stack
-  envIp <- newIORef $ (envNames Id.! Y.entryName) + fromMaybe 0 mIp
+  envIp <- newIORef $ (envNames Id.! Y.entryId) + fromMaybe 0 mIp
   envLocation <- newIORef (newLocation "interpreter" 0 0)
   let env0 = Env{..}
   fix $ \loop -> do

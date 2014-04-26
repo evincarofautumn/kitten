@@ -12,7 +12,7 @@ module Kitten.Yarn
   , Value(..)
   , declareBlock
   , emptyProgram
-  , entryName
+  , entryId
   , flattenProgram
   , yarn
   ) where
@@ -48,6 +48,7 @@ import Kitten.Util.Tuple
 
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.IdMap as Id
+import qualified Kitten.Infer.Monad as Infer
 import qualified Kitten.Tree as Tree
 import qualified Kitten.Type as Type
 
@@ -147,7 +148,7 @@ yarnEntry :: Vector TypedTerm -> Yarn ()
 yarnEntry terms = do
   instructions <- concatMapM yarnTerm terms
   modify $ \program@Program{..} -> program
-    { programBlocks = Id.adjust (<> instructions) entryName programBlocks }
+    { programBlocks = Id.adjust (<> instructions) entryId programBlocks }
 
 yarnTerm :: TypedTerm -> Yarn Block
 yarnTerm term = case term of
@@ -195,13 +196,13 @@ data Program = Program
   , programSymbols :: !(HashMap Text Id)
   }
 
-entryName :: Id
-entryName = Id 0
+entryId :: Id
+entryId = Id 0
 
 emptyProgram :: Program
 emptyProgram = Program
-  { programBlocks = Id.singleton entryName V.empty
-  , programIdGen = mkIdGenFrom $ succ entryName
+  { programBlocks = Id.singleton entryId V.empty
+  , programIdGen = mkIdGenFrom $ succ entryId
   , programSymbols = H.empty
   }
 
@@ -250,4 +251,4 @@ flattenProgram Program{..} = FlattenedProgram{..}
     = (blocks <> block, Id.insert name (V.length blocks) names)
 
   instructions :: IdMap Block
-  instructions = Id.adjust terminated entryName programBlocks
+  instructions = Id.adjust terminated entryId programBlocks

@@ -5,6 +5,9 @@ module Kitten.Parse.Element
   , partitionElements
   ) where
 
+import Control.Arrow
+
+import qualified Data.HashMap.Strict as H
 import qualified Data.Vector as V
 
 import Kitten.Def
@@ -42,7 +45,7 @@ partitionElements
 
 fromPartitioned :: Partitioned -> Fragment ParsedTerm
 fromPartitioned Partitioned{..} = Fragment
-  { fragmentDefs = V.fromList partDefs
+  { fragmentDefs = H.fromList $ map (defName &&& id) partDefs
   , fragmentImports = partImports
   , fragmentOperators = partOperators
   , fragmentTerms = V.fromList partTerms

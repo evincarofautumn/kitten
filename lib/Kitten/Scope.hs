@@ -11,6 +11,7 @@ import Control.Monad.Trans.State
 import Data.Monoid
 import Data.Vector (Vector)
 
+import qualified Data.HashMap.Strict as H
 import qualified Data.Traversable as T
 import qualified Data.Vector as V
 
@@ -22,7 +23,7 @@ import Kitten.Util.List
 
 scope :: Fragment ResolvedTerm -> Fragment ResolvedTerm
 scope fragment@Fragment{..} = fragment
-  { fragmentDefs = V.map scopeDef fragmentDefs
+  { fragmentDefs = H.map scopeDef fragmentDefs
   , fragmentTerms = V.map (scopeTerm [0]) fragmentTerms
   }
 

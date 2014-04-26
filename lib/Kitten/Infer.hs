@@ -23,6 +23,7 @@ import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as H
 import qualified Data.Set as S
 import qualified Data.Text as T
+import qualified Data.Traversable as T
 import qualified Data.Vector as V
 
 import Kitten.ClosedName
@@ -80,9 +81,9 @@ inferFragment fragment stackTypes = mdo
   -- Use previously-inferred types (i.e. defTypeScheme def). We cannot
   -- right now because effects are not inferred properly (e.g. for the
   -- effects of the 'map' prelude function).
-  _ <- V.mapM save (fragmentDefs fragment)
+  _ <- T.mapM save (fragmentDefs fragment)
 
-  typedDefs <- flip V.mapM (fragmentDefs fragment) $ \def
+  typedDefs <- flip T.mapM (fragmentDefs fragment) $ \def
     -> withOrigin (defOrigin def) $ do
       (typedTerm, inferredScheme) <- generalize
         (infer finalEnv (unScheme (defTerm def)))  -- See note [scheming defs].

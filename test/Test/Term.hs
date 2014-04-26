@@ -2,12 +2,15 @@
 
 module Test.Term where
 
+import Control.Arrow
 import Control.Monad
+import Data.HashMap.Strict (HashMap)
 import Data.Monoid
+import Data.Text (Text)
 import Test.HUnit.Lang (assertFailure)
 import Test.Hspec
-import Data.Text (Text)
 
+import qualified Data.HashMap.Strict as H
 import qualified Data.Vector as V
 
 import Kitten.Anno (Anno(..))
@@ -169,14 +172,14 @@ spec = do
 
     testTerm
       "def pi (-> Float): 3"
-      $ mempty { fragmentDefs = V.fromList
+      $ mempty { fragmentDefs = defList
         [def "pi" $ compose [pushi 3]] }
 
     testTerm
       "def inc (int -> int) {\n\
       \  1 (+)\n\
       \}\n"
-      $ mempty { fragmentDefs = V.fromList
+      $ mempty { fragmentDefs = defList
         [def "inc" $ compose [pushi 1, word "+"]] }
 
     testTerm
@@ -186,7 +189,7 @@ spec = do
       \def dec (int -> int):\n\
       \  1 (-)\n\
       \\n"
-      $ mempty { fragmentDefs = V.fromList
+      $ mempty { fragmentDefs = defList
         [ def "inc" $ compose [pushi 1, word "+"]
         , def "dec" $ compose [pushi 1, word "-"]] }
 
@@ -195,7 +198,7 @@ spec = do
     \  ->x;\n\
     \  { ->y; x y (+) }\n\
     \}"
-    $ mempty { fragmentDefs = V.fromList
+    $ mempty { fragmentDefs = defList
       [ defWithAnno "curriedAdd"
         (Anno.Function
           (V.fromList [Anno.Var "int"])
@@ -208,6 +211,9 @@ spec = do
             [ push $ quotation
               [ lambda "y"
                 [word "x", word "y", word "+"]]]]] }
+
+defList :: [Def a] -> HashMap Text (Def a)
+defList = H.fromList . map (defName &&& id)
 
 testTerm :: Text -> Fragment ParsedTerm -> Spec
 testTerm source expected = it (show source)

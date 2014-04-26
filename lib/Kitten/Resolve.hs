@@ -6,16 +6,15 @@ module Kitten.Resolve
 
 import Control.Applicative hiding (some)
 import Control.Arrow
+import Data.HashMap.Strict (HashMap)
 import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
-import Data.Vector (Vector)
 import GHC.Exts
 
 import qualified Data.HashMap.Strict as H
 import qualified Data.Text as T
 import qualified Data.Traversable as T
-import qualified Data.Vector as V
 
 import Kitten.Def
 import Kitten.Error
@@ -51,8 +50,8 @@ resolve fragment program = do
     , envScope = []
     }
 
-namesAndLocs :: Vector (Def a) -> [(Text, Location)]
-namesAndLocs = map (defName &&& defLocation) . V.toList
+namesAndLocs :: HashMap Text (Def a) -> [(Text, Location)]
+namesAndLocs = map (fst &&& defLocation . snd) . H.toList
 
 reportDuplicateDefs
   :: [(Text, Location)]
@@ -68,8 +67,8 @@ reportDuplicateDefs param = mapMaybe reportDuplicate . groupWith fst $ param
         (\ (_, here) -> CompileError here Note "also defined here")
 
 resolveDefs
-  :: Vector (Def ParsedTerm)
-  -> Resolution (Vector (Def ResolvedTerm))
+  :: HashMap Text (Def ParsedTerm)
+  -> Resolution (HashMap Text (Def ResolvedTerm))
 resolveDefs = guardMapM resolveDef
   where
   resolveDef :: Def ParsedTerm -> Resolution (Def ResolvedTerm)
@@ -118,15 +117,12 @@ resolveName fixity name loc = do
   case mLocalIndex of
     Just index -> return $ Push (Local index loc) loc
     Nothing -> do
-      indices <- getsEnv $ defIndices name
-      case V.length indices of
-        1 -> succeed
-        0 -> do
-          program <- getsEnv envProgram
-          if H.member name (programSymbols program)
-            then succeed
-            else err ["undefined word '", name, "'"]
-        _ -> err ["ambiguous word '", name, "'"]
+      present <- getsEnv $ H.member name . envDefs
+      if present then succeed else do
+        program <- getsEnv envProgram
+        if H.member name (programSymbols program)
+          then succeed
+          else err ["undefined word '", name, "'"]
   where
   succeed = return $ Call fixity name loc
   err = compileError . oneError . CompileError loc Error . T.concat

@@ -21,6 +21,7 @@ import System.IO.Error
 import Text.Parsec.Error
 import Text.Parsec.Pos
 
+import qualified Data.HashMap.Strict as H
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -94,7 +95,7 @@ compile Compile.Config{..} program
 
   return
     ( yarn typed program { programIdGen = idGen' }
-    , maybe 0 V.length $ Id.lookup entryName (programBlocks program)
+    , maybe 0 V.length $ Id.lookup entryId (programBlocks program)
     , type_
     )
 
@@ -130,17 +131,17 @@ substituteImports libraryDirectories fragment = runEitherT $ do
   (substitutedDefs, substitutedOperators) <- go
     (fragmentImports fragment)
     S.empty
-    (V.toList (fragmentDefs fragment), fragmentOperators fragment)
+    (H.toList (fragmentDefs fragment), fragmentOperators fragment)
   return fragment
-    { fragmentDefs = V.fromList substitutedDefs
+    { fragmentDefs = H.fromList substitutedDefs
     , fragmentOperators = substitutedOperators
     }
   where
   go
     :: [Import]
     -> Set Text
-    -> ([Def ParsedTerm], [Operator])
-    -> EitherT [ErrorGroup] IO ([Def ParsedTerm], [Operator])
+    -> ([(Text, Def ParsedTerm)], [Operator])
+    -> EitherT [ErrorGroup] IO ([(Text, Def ParsedTerm)], [Operator])
   go [] _ acc = return acc
   go (currentModule : remainingModules) seenModules acc@(defs, operators) = let
     name = importName currentModule
@@ -156,7 +157,7 @@ substituteImports libraryDirectories fragment = runEitherT $ do
             go
               (fragmentImports parsed ++ remainingModules)
               (S.insert name seenModules)
-              ( V.toList (fragmentDefs parsed) ++ defs
+              ( H.toList (fragmentDefs parsed) ++ defs
               , fragmentOperators parsed ++ operators
               )
           [] -> err location $ T.concat

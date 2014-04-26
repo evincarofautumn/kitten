@@ -5,7 +5,6 @@ module Kitten.Resolve.Monad
   ( Env(..)
   , Resolution
   , compileError
-  , defIndices
   , evalResolution
   , getsEnv
   , guardLiftM2
@@ -19,12 +18,10 @@ module Kitten.Resolve.Monad
 import Control.Applicative
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
+import Data.HashMap.Strict (HashMap)
 import Data.List
 import Data.Text (Text)
 import Data.Traversable (Traversable)
-import Data.Vector (Vector)
-
-import qualified Data.Vector as V
 
 import Kitten.Def
 import Kitten.Error
@@ -39,7 +36,7 @@ newtype Resolution a = Resolution
   deriving (Functor, Applicative, Monad)
 
 data Env = Env
-  { envDefs :: !(Vector (Def ParsedTerm))
+  { envDefs :: !(HashMap Text (Def ParsedTerm))
   , envProgram :: !Program
   , envScope :: [Text]
   }
@@ -47,9 +44,6 @@ data Env = Env
 -- | Halts resolution with a compilation error.
 compileError :: ErrorGroup -> Resolution a
 compileError err = Resolution $ FailWriter.throwMany [err]
-
-defIndices :: Text -> Env -> Vector Int
-defIndices expected = V.findIndices ((== expected) . defName) . envDefs
 
 evalResolution :: Env -> Resolution a -> Either [ErrorGroup] a
 evalResolution env (Resolution m) = evalState (runFailWriterT null m) env
