@@ -247,10 +247,9 @@ clear = do
 
 reset :: Input ()
 reset = do
-  idGen <- lift $ gets (programDefIdGen . envProgram)
   lift $ put Env
     { envLine = 1
-    , envProgram = emptyProgram { programDefIdGen = idGen }
+    , envProgram = emptyProgram
     , envStack = []
     }
   interact'

@@ -77,22 +77,22 @@ compile Compile.Config{..} program
 
   -- Applicative rewriting must take place after imports have been
   -- substituted, so that all operator declarations are in scope.
-  postfix <- hoistEither . mapLeft (:[]) $ rewriteInfix substituted
-  resolved <- hoistEither $ resolve postfix program
+  (postfix, program') <- hoistEither . mapLeft (:[]) $ rewriteInfix program substituted
+  resolved <- hoistEither $ resolve postfix program'
 
   when dumpResolved . lift $ hPrint stderr resolved
 
   let scoped = scope resolved
   when dumpScoped . lift $ hPrint stderr scoped
 
-  let (mTypedAndType, program') = runK program (typeFragment stackTypes scoped)
+  let (mTypedAndType, program'') = runK program' (typeFragment stackTypes scoped)
   (typed, type_) <- hoistEither mTypedAndType
 
-  let (mErrors, program'') = ir typed program'
+  let (mErrors, program''') = ir typed program''
   void $ hoistEither mErrors
 
   return
-    ( program''
+    ( program'''
     , maybe 0 V.length $ Id.lookup entryId (programBlocks program)
     , type_
     )

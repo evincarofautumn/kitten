@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Kitten.Parse.Primitive
   ( blocked
   , grouped
@@ -19,17 +21,15 @@ blocked = between
   (match TkBlockEnd)
 
 symbolic :: Parser Text
-symbolic = mapOne $ \token -> case token of
+symbolic = mapOne $ \case
   TkOperator name -> Just name
   _ -> Nothing
 
 grouped :: Parser a -> Parser a
-grouped = between
-  (match TkGroupBegin)
-  (match TkGroupEnd)
+grouped = between (match TkGroupBegin) (match TkGroupEnd)
 
 named :: Parser Text
-named = mapOne $ \token -> case token of
+named = mapOne $ \case
   TkWord name -> Just name
   _ -> Nothing
 

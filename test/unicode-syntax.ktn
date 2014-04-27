@@ -1,7 +1,7 @@
 def ↔ {a, b}(a b → b a):
   swap
 
-1 2 ↔ − sayInt
+1 2 (↔) (−) sayInt
 
 def latter {α, β}(α β → β):
   swap drop

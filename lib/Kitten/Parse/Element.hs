@@ -10,6 +10,7 @@ import Control.Arrow
 import qualified Data.HashMap.Strict as H
 import qualified Data.Vector as V
 
+import Kitten.Location
 import Kitten.Types
 
 data Element
@@ -25,9 +26,9 @@ data Partitioned = Partitioned
   , partTerms :: [ParsedTerm]
   }
 
-partitionElements :: [Element] -> Fragment ParsedTerm
-partitionElements
-  = fromPartitioned . foldr go (Partitioned [] [] [] [])
+partitionElements :: Location -> [Element] -> Fragment ParsedTerm
+partitionElements loc
+  = fromPartitioned loc . foldr go (Partitioned [] [] [] [])
   where
   go element acc = case element of
     DefElement def -> acc
@@ -39,10 +40,10 @@ partitionElements
     TermElement term -> acc
       { partTerms = term : partTerms acc }
 
-fromPartitioned :: Partitioned -> Fragment ParsedTerm
-fromPartitioned Partitioned{..} = Fragment
+fromPartitioned :: Location -> Partitioned -> Fragment ParsedTerm
+fromPartitioned loc Partitioned{..} = Fragment
   { fragmentDefs = H.fromList $ map (defName &&& id) partDefs
   , fragmentImports = partImports
   , fragmentOperators = partOperators
-  , fragmentTerms = V.fromList partTerms
+  , fragmentTerm = TrCompose StackAny (V.fromList partTerms) loc
   }

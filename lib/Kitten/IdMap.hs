@@ -31,7 +31,7 @@ import qualified Prelude
 import Kitten.Id
 
 newtype IdMap (n :: Namespace) a = IdMap (IntMap a)
-  deriving (Monoid)
+  deriving (Monoid, Show)
 
 type DefIdMap = IdMap DefSpace
 type TypeIdMap = IdMap TypeSpace

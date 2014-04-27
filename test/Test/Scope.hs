@@ -3,7 +3,6 @@
 module Test.Scope where
 
 import Control.Monad
-import Data.Monoid
 import Test.Hspec
 
 import qualified Data.Vector as V
@@ -16,23 +15,23 @@ import Test.Util
 spec :: Spec
 spec = do
   describe "no change" $ testScope
-    mempty { fragmentTerms = V.fromList [function [scoped [push $ local 0]]] }
-    mempty { fragmentTerms = V.fromList [closure [] [scoped [push $ local 0]]] }
+    (termFragment $ function [scoped [push $ local 0]])
+    (termFragment $ closure [] [scoped [push $ local 0]])
 
   describe "non-nested closure" $ testScope
-    mempty { fragmentTerms = V.fromList [scoped [function [push $ local 0]]] }
-    mempty { fragmentTerms = V.fromList [scoped [closure [ClosedName 0] [push $ closed 0]]] }
+    (termFragment $ scoped [function [push $ local 0]])
+    (termFragment $ scoped [closure [ClosedName 0] [push $ closed 0]])
 
   describe "nested closure" $ testScope
-    mempty { fragmentTerms = V.fromList [scoped [function [scoped [function [push $ local 1, push $ local 0, biAdd]]]]] }
-    mempty { fragmentTerms = V.fromList
-      [scoped
-        [ closure [ClosedName 0]
-          [ scoped
-            [ closure [ReclosedName 0, ClosedName 0]
-              [ push $ closed 0
-              , push $ closed 1
-              , biAdd]]]]] }
+    (termFragment $ scoped
+      [function [scoped [function [push $ local 1, push $ local 0, biAdd]]]])
+    (termFragment $ scoped
+      [ closure [ClosedName 0]
+        [ scoped
+          [ closure [ReclosedName 0, ClosedName 0]
+            [ push $ closed 0
+            , push $ closed 1
+            , biAdd ] ] ] ])
 
 testScope
   :: Fragment ResolvedTerm -> Fragment ResolvedTerm -> Spec

@@ -5,7 +5,6 @@ module Test.Term where
 import Control.Arrow
 import Control.Monad
 import Data.HashMap.Strict (HashMap)
-import Data.Monoid
 import Data.Text (Text)
 import Test.HUnit.Lang (assertFailure)
 import Test.Hspec
@@ -25,13 +24,13 @@ import Test.Util
 spec :: Spec
 spec = do
   describe "empty program"
-    $ testTerm "" mempty
+    . testTerm "" . termFragment $ compose []
 
   describe "terms" $ do
     testTerm "1 2 3"
-      mempty { fragmentTerms = V.fromList [pushi 1, pushi 2, pushi 3] }
+      . termFragment $ compose [pushi 1, pushi 2, pushi 3]
     testTerm "dup swap drop vector cat function compose"
-      $ mempty { fragmentTerms = V.fromList
+      . termFragment $ compose
         [ word "dup"
         , word "swap"
         , word "drop"
@@ -39,63 +38,56 @@ spec = do
         , word "cat"
         , word "function"
         , word "compose"
-        ] }
+        ]
 
   describe "function" $ do
 
     testTerm
       "{}"
-      $ mempty { fragmentTerms = V.fromList
-        [push $ quotation []] }
+      . termFragment . push $ quotation []
 
     testTerm
       "{3}"
-      $ mempty { fragmentTerms = V.fromList
-        [push $ quotation [pushi 3]] }
+      . termFragment . push $ quotation [pushi 3]
 
     testTerm
       "{ 1 (+) }"
-      $ mempty { fragmentTerms = V.fromList
-        [push $ quotation [pushi 1, word "+"]] }
+      . termFragment . push $ quotation [pushi 1, word "+"]
 
   describe "lambda" $ do
 
     testTerm
       "->x; x x (*)"
-      $ mempty { fragmentTerms = V.fromList
-        [ lambda "x"
-          [ word "x"
-          , word "x"
-          , word "*"]] }
+      . termFragment $ lambda "x"
+        [ word "x"
+        , word "x"
+        , word "*" ]
 
     testTerm
       "->x; ->y; x y (*)"
-      $ mempty { fragmentTerms = V.fromList
+      . termFragment $ lambda "x"
+        [ lambda "y"
+          [ word "x"
+          , word "y"
+          , word "*" ] ]
+
+    testTerm
+      "{ ->x; ->y; x y (*) }"
+      . termFragment . push $ quotation
         [ lambda "x"
           [ lambda "y"
             [ word "x"
             , word "y"
-            , word "*"]]] }
-
-    testTerm
-      "{ ->x; ->y; x y (*) }"
-      $ mempty { fragmentTerms = V.fromList
-        [ push $ quotation
-          [ lambda "x"
-            [ lambda "y"
-              [ word "x"
-              , word "y"
-              , word "*"]]]] }
+            , word "*" ] ] ]
 
     testTerm
       ": ->x; ->y; x y (*)"
-      $ mempty { fragmentTerms = V.fromList
-        [ push $ quotation
-          [ lambda "x"
-            [ lambda "y"
-              [ word "x"
-              , word "y"
-              , word "*"]]]] }
+      . termFragment . push $ quotation
+        [ lambda "x"
+          [ lambda "y"
+            [ word "x"
+            , word "y"
+            , word "*" ] ] ]
 
   describe "layout" $ do
 
@@ -103,47 +95,43 @@ spec = do
       ": sameLine\n\
       \  nextLine\n\
       \  anotherLine\n"
-      $ mempty { fragmentTerms = V.fromList
-        [ push $ quotation
-          [ word "sameLine"
-          , word "nextLine"
-          , word "anotherLine"]] }
+      . termFragment . push $ quotation
+        [ word "sameLine"
+        , word "nextLine"
+        , word "anotherLine" ]
 
     testTerm
       "{ : sameLine\n\
       \    nextLine\n\
       \    anotherLine }\n"
-      $ mempty { fragmentTerms = V.fromList
+      . termFragment . push $ quotation
         [ push $ quotation
-          [ push $ quotation
-            [ word "sameLine"
-            , word "nextLine"
-            , word "anotherLine"]]] }
+          [ word "sameLine"
+          , word "nextLine"
+          , word "anotherLine" ] ]
 
     testTerm "{ one : two three }"
-      $ mempty { fragmentTerms = V.fromList
-        [ push $ quotation
-          [ word "one"
-          , push $ quotation
-            [ word "two"
-            , word "three"]]] }
+      . termFragment . push $ quotation
+        [ word "one"
+        , push $ quotation
+          [ word "two"
+          , word "three" ] ]
 
     testTerm ": {one} {two}"
-      $ mempty { fragmentTerms = V.fromList
-        [ push $ quotation
-          [ push $ quotation [word "one"]
-          , push $ quotation [word "two"]]] }
+      . termFragment . push $ quotation
+        [ push $ quotation [word "one"]
+        , push $ quotation [word "two"] ]
 
     testTerm
       "\\option (0 some):\n\
       \  drop // This comment is necessary.\n\
       \else:\n\
       \  noop\n"
-      $ mempty { fragmentTerms = V.fromList
+      . termFragment $ compose
         [ compose [compose [pushi 0, call "some"]
         , push $ quotation [call "drop"]
         , push $ quotation [call "noop"]
-        , word "option_else"]] }
+        , word "option_else" ] ]
 
     testTermFailure ":"
 
@@ -158,21 +146,20 @@ spec = do
     testTerm
       ": :\n\
       \  3\n"
-      $ mempty { fragmentTerms = V.fromList
-        [push $ quotation [push $ quotation [pushi 3]]] }
+      . termFragment . push $ quotation [push $ quotation [pushi 3]]
 
   describe "definition" $ do
 
     testTerm
       "def pi (-> Float): 3"
-      $ mempty { fragmentDefs = defList
+      $ emptyFragment { fragmentDefs = defList
         [def "pi" $ compose [pushi 3]] }
 
     testTerm
       "def inc (int -> int) {\n\
       \  1 (+)\n\
       \}\n"
-      $ mempty { fragmentDefs = defList
+      $ emptyFragment { fragmentDefs = defList
         [def "inc" $ compose [pushi 1, word "+"]] }
 
     testTerm
@@ -182,16 +169,16 @@ spec = do
       \def dec (int -> int):\n\
       \  1 (-)\n\
       \\n"
-      $ mempty { fragmentDefs = defList
+      $ emptyFragment { fragmentDefs = defList
         [ def "inc" $ compose [pushi 1, word "+"]
-        , def "dec" $ compose [pushi 1, word "-"]] }
+        , def "dec" $ compose [pushi 1, word "-"] ] }
 
   describe "type" $ testTerm
     "def curriedAdd (int -> int -> int) {\n\
     \  ->x;\n\
     \  { ->y; x y (+) }\n\
     \}"
-    $ mempty { fragmentDefs = defList
+    $ emptyFragment { fragmentDefs = defList
       [ defWithAnno "curriedAdd"
         (AnFunction
           (V.fromList [AnVar "int"])
@@ -203,7 +190,10 @@ spec = do
           [ lambda "x"
             [ push $ quotation
               [ lambda "y"
-                [word "x", word "y", word "+"]]]]] }
+                [word "x", word "y", word "+"] ] ] ] ] }
+
+emptyFragment :: Fragment ParsedTerm
+emptyFragment = termFragment (compose [])
 
 defList :: [Def a] -> HashMap Text (Def a)
 defList = H.fromList . map (defName &&& id)
@@ -225,7 +215,7 @@ testTermFailure source = it ("should fail: " ++ show source)
 
 parsed :: Text -> Either ErrorGroup (Fragment ParsedTerm)
 parsed = mapLeft parseError . tokenize 1 "test"
-  >=> parse "test" >=> rewriteInfix
+  >=> parse "test" >=> liftM fst . rewriteInfix emptyProgram
 
 def :: Text -> a -> Def a
 def name term = Def

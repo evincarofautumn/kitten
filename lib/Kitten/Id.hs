@@ -39,6 +39,7 @@ instance ToText (Id n) where
   toText (Id i) = "_" <> showText i
 
 newtype IdGen (n :: Namespace) = IdGen (Id n)
+  deriving (Show)
 
 type DefIdGen = IdGen DefSpace
 type TypeIdGen = IdGen TypeSpace

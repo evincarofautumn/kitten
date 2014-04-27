@@ -53,6 +53,8 @@ import qualified Kitten.IdMap as Id
 data Program = Program
   { programBlocks :: !(IdMap DefSpace IrBlock)
   , programDefIdGen :: !(IdGen DefSpace)
+  , programFixities :: !(HashMap Text Fixity)
+  , programOperators :: [Operator]
   , programTypeIdGen :: !(IdGen TypeSpace)
   , programSymbols :: !(HashMap Text DefId)
 
@@ -64,6 +66,15 @@ data Program = Program
   , inferenceScalars :: !(IdMap TypeSpace (Type Scalar))
   , inferenceStacks :: !(IdMap TypeSpace (Type Stack))
   }
+
+instance Show Program where
+  show Program{..} = concat
+    [ "{ symbols: "
+    , show (H.keys programSymbols)
+    , ", operators: "
+    , show programOperators
+    , " }"
+    ]
 
 data ClosedName
   = ClosedName !Int
@@ -108,6 +119,8 @@ emptyProgram :: Program
 emptyProgram = Program
   { programBlocks = Id.singleton entryId V.empty
   , programDefIdGen = mkIdGenFrom (succ entryId)
+  , programFixities = H.empty
+  , programOperators = []
   , programTypeIdGen = mkIdGen
   , programSymbols = H.empty
   , inferenceClosure = V.empty
@@ -544,7 +557,7 @@ instance ToText Annotated where
 data Origin = Origin
   { originHint :: !Hint
   , originLocation :: !Location
-  }
+  } deriving (Show)
 
 data Hint
   = HiLocal !Text
@@ -560,6 +573,7 @@ data Hint
   | HiFunctionOutput !Annotated
 
   | HiNone
+  deriving (Show)
 
 -- | Picks the most helpful hint.  'mappend' is commutative.
 instance Monoid Hint where
@@ -811,22 +825,16 @@ data Fragment a = Fragment
   { fragmentDefs :: !(HashMap Text (Def a))
   , fragmentImports :: [Import]
   , fragmentOperators :: [Operator]
-  , fragmentTerms :: !(Vector a)
+  , fragmentTerm :: !a
   } deriving (Eq, Show)
 
-instance Monoid (Fragment a) where
-  mempty = Fragment
-    { fragmentDefs = mempty
-    , fragmentImports = mempty
-    , fragmentOperators = mempty
-    , fragmentTerms = mempty
-    }
-  mappend a b = Fragment
-    { fragmentDefs = fragmentDefs a <> fragmentDefs b
-    , fragmentImports = fragmentImports a <> fragmentImports b
-    , fragmentOperators = fragmentOperators a <> fragmentOperators b
-    , fragmentTerms = fragmentTerms a <> fragmentTerms b
-    }
+termFragment :: a -> Fragment a
+termFragment term = Fragment
+  { fragmentDefs = H.empty
+  , fragmentImports = []
+  , fragmentOperators = []
+  , fragmentTerm = term
+  }
 
 --------------------------------------------------------------------------------
 -- Type Annotations
@@ -872,18 +880,24 @@ data Associativity
   deriving (Eq, Show)
 
 -- | Whether a call is to a word that was originally postfix or infix.
-data Fixity = Postfix | Infix
-  deriving (Eq, Show)
+data Fixity = Infix | Postfix
+  deriving (Eq)
+
+instance ToText Fixity where
+  toText Infix = "infix"
+  toText Postfix = "postfix"
+
+instance Show Fixity where
+  show = T.unpack . toText
 
 data Operator = Operator
   { operatorAssociativity :: !Associativity
   , operatorPrecedence :: !Precedence
   , operatorName :: !Text
-  , operatorLocation :: !Location
   } deriving (Eq)
 
 instance Show Operator where
-  show (Operator fixity precedence name _) = unwords
+  show (Operator fixity precedence name) = unwords
     [ case fixity of
       NonAssociative -> "infix"
       LeftAssociative -> "infix_left"
@@ -907,9 +921,10 @@ data TrTerm a
   | TrMakeVector !(Vector (TrTerm a)) !a
 
 instance (Eq a) => Eq (TrTerm a) where
-  -- Calls are equal regardless of 'FixityHint'.
+  -- Calls are equal regardless of 'Fixity'.
   TrCall _ a b == TrCall _ c d = (a, b) == (c, d)
   -- Minor hack to make 'Compose's less in the way.
+
   TrCompose _ a _ == b | V.length a == 1 = V.head a == b
   a == TrCompose _ b _ | V.length b == 1 = a == V.head b
   -- 'Compose's are equal regardless of 'StackHint'.
@@ -923,7 +938,7 @@ instance (Eq a) => Eq (TrTerm a) where
 
 instance ToText (TrTerm a) where
   toText = \case
-    TrCall _ label _ -> toText label
+    TrCall fixity label _ -> T.concat [toText label, "/*", toText fixity, "*/"]
     TrCompose _ terms _ -> T.concat
       ["(", T.intercalate " " (V.toList (V.map toText terms)), ")"]
     TrIntrinsic intrinsic _ -> toText intrinsic

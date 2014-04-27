@@ -23,7 +23,7 @@ import Kitten.Util.List
 scope :: Fragment ResolvedTerm -> Fragment ResolvedTerm
 scope fragment@Fragment{..} = fragment
   { fragmentDefs = H.map scopeDef fragmentDefs
-  , fragmentTerms = V.map (scopeTerm [0]) fragmentTerms
+  , fragmentTerm = scopeTerm [0] fragmentTerm
   }
 
 scopeDef :: Def ResolvedTerm -> Def ResolvedTerm

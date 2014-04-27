@@ -61,8 +61,8 @@ inferFragment stackTypes fragment = do
 
     typedDefs <- flip T.mapM (fragmentDefs fragment) $ \def
       -> withOrigin (defOrigin def) $ do
-        (typedTerm, inferredScheme) <- generalize
-          (infer finalProgram (unscheme (defTerm def)))  -- See note [scheming defs].
+        (typedDefTerm, inferredScheme) <- generalize
+          . infer finalProgram . unscheme $ defTerm def  -- See note [scheming defs].
         declaredScheme <- do
           decls <- getsProgram inferenceDecls
           case H.lookup (defName def) decls of
@@ -82,11 +82,10 @@ inferFragment stackTypes fragment = do
           , item Note $ T.unwords ["inferred", toText inferredScheme]
           , item Note $ T.unwords ["declared", toText declaredScheme]
           ]
-        return def { defTerm = typedTerm <$ inferredScheme }
+        return def { defTerm = typedDefTerm <$ inferredScheme }
 
-    topLevel <- getsProgram (originLocation . inferenceOrigin)
-    (typedTerms, fragmentType) <- infer finalProgram
-      $ TrCompose StackAny (fragmentTerms fragment) topLevel
+    -- topLevel <- getsProgram (originLocation . inferenceOrigin)
+    (typedTerm, fragmentType) <- infer finalProgram $ fragmentTerm fragment
 
     -- Equate the bottom of the stack with stackTypes.
     do
@@ -101,7 +100,7 @@ inferFragment stackTypes fragment = do
     let
       typedFragment = fragment
         { fragmentDefs = typedDefs
-        , fragmentTerms = V.singleton typedTerms
+        , fragmentTerm = typedTerm
         }
 
     finalProgram <- getProgram

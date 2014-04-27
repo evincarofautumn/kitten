@@ -92,7 +92,7 @@ fromFragmentsM lookUpSource fragments = do
 flattenFragment :: Fragment TypedTerm -> Writer LocMap ()
 flattenFragment fragment = do
   Foldable.mapM_ flattenDef (fragmentDefs fragment)
-  V.mapM_ flattenTerm (fragmentTerms fragment)
+  flattenTerm (fragmentTerm fragment)
 
 flattenDef :: Def TypedTerm -> Writer LocMap ()
 flattenDef def = do

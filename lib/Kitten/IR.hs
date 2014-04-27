@@ -44,7 +44,7 @@ import qualified Kitten.IdMap as Id
 ir :: Fragment TypedTerm -> Program -> (Either [ErrorGroup] (), Program)
 ir Fragment{..} program = runK program $ do
   F.mapM_ irDef fragmentDefs
-  irEntry fragmentTerms
+  irEntry fragmentTerm
 
 irDef :: Def TypedTerm -> K ()
 irDef Def{..} = do
@@ -53,9 +53,9 @@ irDef Def{..} = do
   modifyProgram $ \program@Program{..} -> program
     { programBlocks = Id.insert defId block programBlocks }
 
-irEntry :: Vector TypedTerm -> K ()
-irEntry terms = do
-  instructions <- concatMapM irTerm terms
+irEntry :: TypedTerm -> K ()
+irEntry term = do
+  instructions <- irTerm term
   modifyProgram $ \program@Program{..} -> program
     { programBlocks = Id.adjust (<> instructions) entryId programBlocks }
 

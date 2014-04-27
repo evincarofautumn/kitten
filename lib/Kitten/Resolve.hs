@@ -33,12 +33,12 @@ resolve fragment program = do
     [] -> noop
     errors -> Left errors
   evalResolution emptyEnv $ guardLiftM2
-    (\defs terms -> fragment
+    (\defs term -> fragment
       { fragmentDefs = defs
-      , fragmentTerms = terms
+      , fragmentTerm = term
       })
     (resolveDefs (fragmentDefs fragment))
-    (guardMapM resolveTerm (fragmentTerms fragment))
+    (resolveTerm (fragmentTerm fragment))
   where
   allNamesAndLocs = namesAndLocs (fragmentDefs fragment)
   emptyEnv = Env

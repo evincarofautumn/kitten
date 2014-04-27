@@ -51,13 +51,15 @@ setInitialPosition _ (Located{..} : _)
   = setPosition (locationStart locatedLocation)
 
 fragment :: Parser (Fragment ParsedTerm)
-fragment = fmap (partitionElements . concat)
-  $ many element `sepEndBy` match TkSemicolon <* eof
+fragment = do
+  loc <- getLocation
+  fmap (partitionElements loc . concat)
+    $ many element `sepEndBy` match TkSemicolon <* eof
 
 element :: Parser Element
 element = choice
   [ DefElement <$> def 
- , ImportElement <$> import_
+  , ImportElement <$> import_
   , OperatorElement <$> operatorDeclaration
   , TermElement <$> term
   ]
@@ -90,7 +92,7 @@ import_ = (<?> "import") . locate $ do
     }
 
 operatorDeclaration :: Parser Operator
-operatorDeclaration = (<?> "operator declaration") . locate $ uncurry Operator
+operatorDeclaration = (<?> "operator declaration") $ uncurry Operator
   <$> choice
     [ match TkInfix *> ((,) NonAssociative <$> precedence)
     , match TkInfixLeft *> ((,) LeftAssociative <$> precedence)
@@ -256,15 +258,21 @@ blockContents = locate $ do
 type TermParser a = ParsecT [ParsedTerm] () Identity a
 
 rewriteInfix
-  :: Fragment ParsedTerm
-  -> Either ErrorGroup (Fragment ParsedTerm)
-rewriteInfix parsed@Fragment{..} = do
-  defs <- T.mapM (traverse rewriteInfixTerm) fragmentDefs
-  terms <- V.mapM rewriteInfixTerm fragmentTerms
-  return parsed
-    { fragmentDefs = defs
-    , fragmentTerms = terms
-    }
+  :: Program
+  -> Fragment ParsedTerm
+  -> Either ErrorGroup (Fragment ParsedTerm, Program)
+rewriteInfix program@Program{..} parsed@Fragment{..} = do
+  rewrittenDefs <- T.mapM (traverse rewriteInfixTerm) fragmentDefs
+  rewrittenTerm <- rewriteInfixTerm fragmentTerm
+  return $ (,)
+    parsed
+      { fragmentDefs = rewrittenDefs
+      , fragmentTerm = rewrittenTerm
+      }
+    program
+      { programFixities = allFixities
+      , programOperators = allOperators
+      }
 
   where
   rewriteInfixTerm :: ParsedTerm -> Either ErrorGroup ParsedTerm
@@ -289,12 +297,12 @@ rewriteInfix parsed@Fragment{..} = do
       a' <- rewriteInfixTerm a
       b' <- rewriteInfixTerm b
       return $ TrMakePair a' b' loc
-    TrPush value loc -> do
-      value' <- rewriteInfixValue value
-      return $ TrPush value' loc
     TrMakeVector terms loc -> do
       terms' <- V.mapM rewriteInfixTerm terms
       return $ TrMakeVector terms' loc
+    TrPush value loc -> do
+      value' <- rewriteInfixValue value
+      return $ TrPush value' loc
 
   lambdaTerm :: TermParser ParsedTerm
   lambdaTerm = satisfyTerm $ \case
@@ -314,7 +322,7 @@ rewriteInfix parsed@Fragment{..} = do
   binary name loc x y = TrCompose StackAny (V.fromList
     [ stack1 loc x
     , stack1 loc y
-    , TrCall Infix name loc
+    , TrCall Postfix name loc
     ]) loc
 
   binaryOp :: Text -> TermParser (ParsedTerm -> ParsedTerm -> ParsedTerm)
@@ -335,19 +343,21 @@ rewriteInfix parsed@Fragment{..} = do
 
   -- TODO Detect/report duplicates.
   opTable = map (map toOp) rawTable
+  allOperators = fragmentOperators ++ programOperators
+  allFixities = H.map defFixity fragmentDefs <> programFixities
 
   rawTable :: [[Operator]]
   rawTable = let
     -- TODO Make smarter than a linear search.
-    useDefault op = defFixity op == Infix
-      && not (any ((defName op ==) . operatorName) fragmentOperators)
-    flat = fragmentOperators
-      ++ (map (\Def{..} -> Operator LeftAssociative 6 defName defLocation)
-        . filter useDefault . map snd $ H.toList fragmentDefs)
+    useDefault name fixity = fixity == Infix
+      && not (any ((name ==) . operatorName) allOperators)
+    flat = fragmentOperators -- FIXME allOperators?
+      ++ (map (Operator LeftAssociative 6)
+        $ H.keys $ H.filterWithKey useDefault allFixities)
     in for [9,8..0] $ \p -> filter ((p ==) . operatorPrecedence) flat
 
   toOp :: Operator -> E.Operator [ParsedTerm] () Identity ParsedTerm
-  toOp (Operator fixity _ name _) = case fixity of
+  toOp (Operator associativity _ name) = case associativity of
     NonAssociative -> E.Infix (binaryOp name) E.AssocNone
     LeftAssociative -> E.Infix (binaryOp name) E.AssocLeft
     RightAssociative -> E.Infix (binaryOp name) E.AssocRight
