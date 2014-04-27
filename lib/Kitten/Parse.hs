@@ -32,7 +32,7 @@ import Kitten.Parse.Primitive
 import Kitten.Parse.Type
 import Kitten.Types
 import Kitten.Util.Either
-import Kitten.Util.Function
+import Kitten.Util.List
 import Kitten.Util.Maybe
 import Kitten.Util.Parsec
 import Kitten.Util.Text (toText)

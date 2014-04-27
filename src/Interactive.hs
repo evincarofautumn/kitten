@@ -27,13 +27,12 @@ import qualified Data.Vector as V
 import Kitten.Compile (compile)
 import Kitten.Error
 import Kitten.Interpret
+import Kitten.IR
 import Kitten.Location
-import Kitten.Type
+import Kitten.Types
 import Kitten.Util.Monad
-import Kitten.Yarn
 
 import qualified Kitten.Compile as Compile
-import qualified Kitten.Infer.Config as Infer
 import qualified Kitten.Interpret as Interpret
 
 data Env = Env
@@ -117,7 +116,7 @@ interact = do
 eval :: Interaction
 eval input = do
   mCompiled <- do
-    idGen <- lift $ gets (programIdGen . envProgram)
+    idGen <- lift $ gets (programTypeIdGen . envProgram)
     stackValues <- lift $ gets envStack
     lineNumber <- lift $ gets envLine
     let
@@ -129,7 +128,7 @@ eval input = do
         $ mapM (state . Interpret.typeOf loc) stackValues
     lift . modify $ \env -> env
       { envProgram = (envProgram env)
-        { programIdGen = idGen' }
+        { programTypeIdGen = idGen' }
       }
     interactiveCompile $ \config -> config
       { Compile.source = input
@@ -181,10 +180,6 @@ compileConfig = do
     , Compile.dumpScoped = False
     , Compile.firstLine = envLine
     , Compile.implicitPrelude = False
-    , Compile.inferConfig = Infer.Config
-      { enforceBottom = True
-      , fragmentName = name
-      }
     , Compile.libraryDirectories = []  -- TODO
     , Compile.name = name
     , Compile.predefined = mempty  -- TODO
@@ -252,10 +247,10 @@ clear = do
 
 reset :: Input ()
 reset = do
-  idGen <- lift $ gets (programIdGen . envProgram)
+  idGen <- lift $ gets (programDefIdGen . envProgram)
   lift $ put Env
     { envLine = 1
-    , envProgram = emptyProgram { programIdGen = idGen }
+    , envProgram = emptyProgram { programDefIdGen = idGen }
     , envStack = []
     }
   interact'
@@ -304,11 +299,6 @@ help = do
 reportType :: Interaction
 reportType input = do
   mCompiled <- interactiveCompile $ \config -> config
-    { Compile.source = input
-    , Compile.inferConfig = Infer.Config
-      { enforceBottom = False
-      , fragmentName = Compile.name config
-      }
-    }
+    { Compile.source = input }
   whenJust mCompiled $ \(_compiled, _ip, type_) -> liftIO $ print type_
   interact'

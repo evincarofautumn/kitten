@@ -21,6 +21,7 @@ import Data.HashMap.Strict (HashMap)
 import Data.List
 import Data.Monoid
 import Data.Text (Text)
+import Data.Traversable (traverse)
 import Data.Vector (Vector)
 import System.IO
 

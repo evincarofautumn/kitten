@@ -165,13 +165,19 @@ infer :: Program -> ResolvedTerm -> K (TypedTerm, Type Scalar)
 infer finalProgram resolved = case resolved of
 
   TrCall hint name loc -> asTyped (TrCall hint name) loc
-    $ instantiateM =<< declOrDef
-    where
-    declOrDef = do
+    . (instantiateM =<<) $ do
       decls <- getsProgram inferenceDecls
       case H.lookup name decls of
         Just decl -> return decl
-        Nothing -> getsProgram ((H.! name) . inferenceDefs)
+        Nothing -> do
+          mFound <- getsProgram (H.lookup name . inferenceDefs)
+          case mFound of
+            Just found -> return found
+            Nothing -> liftFailWriter $ throwMany [errorGroup]
+    where
+    errorGroup = ErrorGroup
+      [ CompileError loc Error $ T.concat
+        ["missing signature for '", name, "'"] ]
 
   TrCompose hint terms loc -> withLocation loc $ do
     (typedTerms, types) <- V.mapAndUnzipM recur terms

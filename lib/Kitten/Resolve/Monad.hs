@@ -18,13 +18,12 @@ module Kitten.Resolve.Monad
 import Control.Applicative
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
-import Data.HashMap.Strict (HashMap)
 import Data.List
+import Data.Set (Set)
 import Data.Text (Text)
 import Data.Traversable (Traversable)
 
 import Kitten.Error
-import Kitten.IR
 import Kitten.Util.FailWriter (FailWriterT, runFailWriterT)
 
 import qualified Kitten.Util.FailWriter as FailWriter
@@ -34,8 +33,7 @@ newtype Resolution a = Resolution
   deriving (Functor, Applicative, Monad)
 
 data Env = Env
-  { envDefs :: !(HashMap Text (Def ParsedTerm))
-  , envProgram :: !Program
+  { envDefined :: !(Set Text)
   , envScope :: [Text]
   }
 

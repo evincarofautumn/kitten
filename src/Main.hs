@@ -13,11 +13,10 @@ import qualified Data.Vector as V
 import Kitten.Compile
 import Kitten.Error
 import Kitten.Interpret
+import Kitten.IR
 import Kitten.Util.Monad
-import Kitten.Yarn
 
 import qualified Kitten.Compile as Compile
-import qualified Kitten.Infer.Config as Infer
 import qualified Kitten.Util.Text as T
 
 import Arguments
@@ -33,10 +32,6 @@ main = do
       , Compile.dumpScoped = argsDumpScoped arguments
       , Compile.firstLine = 1
       , Compile.implicitPrelude = argsEnableImplicitPrelude arguments
-      , Compile.inferConfig = Infer.Config
-        { Infer.enforceBottom = True
-        , Infer.fragmentName = filename
-        }
       , Compile.libraryDirectories = argsLibraryDirectories arguments
       , Compile.name = filename
       , Compile.predefined = V.empty

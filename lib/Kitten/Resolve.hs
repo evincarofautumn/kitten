@@ -10,17 +10,18 @@ import Data.HashMap.Strict (HashMap)
 import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
+import Data.Traversable (traverse)
 import GHC.Exts
 
 import qualified Data.HashMap.Strict as H
+import qualified Data.Set as S
 import qualified Data.Text as T
-import qualified Data.Traversable as T
 
 import Kitten.Error
-import Kitten.IR (Program(..))
 import Kitten.Location
 import Kitten.Resolve.Monad
-import Kitten.Util.Function
+import Kitten.Types
+import Kitten.Util.List
 import Kitten.Util.Monad
 
 resolve
@@ -41,8 +42,10 @@ resolve fragment program = do
   where
   allNamesAndLocs = namesAndLocs (fragmentDefs fragment)
   emptyEnv = Env
-    { envDefs = fragmentDefs fragment
-    , envProgram = program
+    { envDefined = mconcat
+      [ S.fromList $ H.keys (programSymbols program)
+      , S.fromList $ H.keys (fragmentDefs fragment)
+      ]
     , envScope = []
     }
 
@@ -69,39 +72,39 @@ resolveDefs = guardMapM resolveDef
   where
   resolveDef :: Def ParsedTerm -> Resolution (Def ResolvedTerm)
   resolveDef def = do
-    defTerm' <- T.traverse resolveTerm (defTerm def)
+    defTerm' <- traverse resolveTerm (defTerm def)
     return def { defTerm = defTerm' }
 
 resolveTerm :: ParsedTerm -> Resolution ResolvedTerm
 resolveTerm unresolved = case unresolved of
-  Builtin name loc -> return $ Builtin name loc
-  Call fixity name loc -> resolveName fixity name loc
-  Compose hint terms loc -> Compose hint
+  TrCall fixity name loc -> resolveName fixity name loc
+  TrCompose hint terms loc -> TrCompose hint
     <$> guardMapM resolveTerm terms
     <*> pure loc
-  Lambda name term loc -> withLocal name $ Lambda name
+  TrIntrinsic name loc -> return $ TrIntrinsic name loc
+  TrLambda name term loc -> withLocal name $ TrLambda name
     <$> resolveTerm term
     <*> pure loc
-  PairTerm as bs loc -> PairTerm
+  TrMakePair as bs loc -> TrMakePair
     <$> resolveTerm as
     <*> resolveTerm bs
     <*> pure loc
-  Push value loc -> Push <$> resolveValue value <*> pure loc
-  VectorTerm items loc -> VectorTerm
+  TrPush value loc -> TrPush <$> resolveValue value <*> pure loc
+  TrMakeVector items loc -> TrMakeVector
     <$> guardMapM resolveTerm items
     <*> pure loc
 
 resolveValue :: ParsedValue -> Resolution ResolvedValue
 resolveValue unresolved = case unresolved of
-  Bool value loc -> return $ Bool value loc
-  Char value loc -> return $ Char value loc
-  Closed{} -> error "FIXME 'Closed' appeared before resolution"
-  Closure{} -> error "FIXME 'Closure' appeared before resolution"
-  Float value loc -> return $ Float value loc
-  Int value loc -> return $ Int value loc
-  Local{} -> error "FIXME 'Local' appeared before resolution"
-  Quotation term loc -> Quotation <$> resolveTerm term <*> pure loc
-  String value loc -> return $ String value loc
+  TrBool value loc -> return $ TrBool value loc
+  TrChar value loc -> return $ TrChar value loc
+  TrClosed{} -> error "FIXME 'Closed' appeared before resolution"
+  TrClosure{} -> error "FIXME 'Closure' appeared before resolution"
+  TrFloat value loc -> return $ TrFloat value loc
+  TrInt value loc -> return $ TrInt value loc
+  TrLocal{} -> error "FIXME 'Local' appeared before resolution"
+  TrQuotation term loc -> TrQuotation <$> resolveTerm term <*> pure loc
+  TrText value loc -> return $ TrText value loc
 
 resolveName
   :: Fixity
@@ -111,14 +114,11 @@ resolveName
 resolveName fixity name loc = do
   mLocalIndex <- getsEnv $ localIndex name
   case mLocalIndex of
-    Just index -> return $ Push (Local index loc) loc
+    Just index -> return $ TrPush (TrLocal index loc) loc
     Nothing -> do
-      present <- getsEnv $ H.member name . envDefs
-      if present then succeed else do
-        program <- getsEnv envProgram
-        if H.member name (programSymbols program)
-          then succeed
-          else err ["undefined word '", name, "'"]
+      present <- getsEnv $ S.member name . envDefined
+      if present then success else failure
   where
-  succeed = return $ Call fixity name loc
-  err = compileError . oneError . CompileError loc Error . T.concat
+  success = return $ TrCall fixity name loc
+  failure = compileError . oneError . CompileError loc Error
+    $ T.concat ["undefined word '", name, "'"]

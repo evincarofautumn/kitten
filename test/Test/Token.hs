@@ -10,11 +10,9 @@ import Text.Parsec.Pos
 import Test.Util
 
 import Kitten.Location
-import Kitten.Token
 import Kitten.Tokenize
+import Kitten.Types
 import Kitten.Util.Monad
-
-import qualified Kitten.Builtin as Builtin
 
 spec :: Spec
 spec = do
@@ -43,13 +41,13 @@ spec = do
       $ testComment "/* Nested /* multi-line */ comment. */"
 
   describe "single-character token" $ do
-    testTokens "{" [BlockBegin NormalBlockHint]
-    testTokens "}" [BlockEnd]
-    testTokens "(" [GroupBegin]
-    testTokens ")" [GroupEnd]
-    testTokens ":" [Layout]
-    testTokens "[" [VectorBegin]
-    testTokens "]" [VectorEnd]
+    testTokens "{" [TkBlockBegin NormalBlockHint]
+    testTokens "}" [TkBlockEnd]
+    testTokens "(" [TkGroupBegin]
+    testTokens ")" [TkGroupEnd]
+    testTokens ":" [TkLayout]
+    testTokens "[" [TkVectorBegin]
+    testTokens "]" [TkVectorEnd]
 
   describe "tokenize int" $ do
     testInt "0" 0
@@ -66,40 +64,40 @@ spec = do
     testInt "-123" (-123)
 
   describe "tokenize char" $ do
-    testTokens "'\\''" [Char '\'']
-    testTokens "'a'" [Char 'a']
-    testTokens "'\\\"'" [Char '"']
-    testTokens "'\\\\'" [Char '\\']
+    testTokens "'\\''" [TkChar '\'']
+    testTokens "'a'" [TkChar 'a']
+    testTokens "'\\\"'" [TkChar '"']
+    testTokens "'\\\\'" [TkChar '\\']
 
   describe "tokenize text" $ do
-    testTokens "\"\"" [Text ""]
-    testTokens "\"abc\"" [Text "abc"]
+    testTokens "\"\"" [TkText ""]
+    testTokens "\"abc\"" [TkText "abc"]
     testTokens "\"\\a\\b\\f\\n\\r\\t\\v\\\"\\\\\""
-      [Text "\a\b\f\n\r\t\v\"\\"]
+      [TkText "\a\b\f\n\r\t\v\"\\"]
 
   describe "tokenize bool" $ do
-    testTokens "true" [Bool True]
-    testTokens "false" [Bool False]
+    testTokens "true" [TkBool True]
+    testTokens "false" [TkBool False]
 
   describe "tokenize keyword" $ do
-    testTokens "\\" [Do]
-    testTokens "def" [Def]
-    testTokens "else" [Else]
-    testTokens "import" [Import]
+    testTokens "\\" [TkDo]
+    testTokens "def" [TkDef]
+    testTokens "else" [TkElse]
+    testTokens "import" [TkImport]
 
   describe "tokenize builtin" $ do
-    testTokens "__add_int" [Builtin Builtin.AddInt]
-    testTokens "__add_vector" [Builtin Builtin.AddVector]
-    testTokens "__apply" [Builtin Builtin.Apply]
+    testTokens "__add_int" [TkIntrinsic InAddInt]
+    testTokens "__add_vector" [TkIntrinsic InAddVector]
+    testTokens "__apply" [TkIntrinsic InApply]
 
   describe "tokenize word" $ do
-    testTokens "not_a_keyword" [Word "not_a_keyword"]
-    testTokens "alsoNot" [Word "alsoNot"]
-    testTokens "thisThat123" [Word "thisThat123"]
-    testTokens "+-" [Operator "+-"]
-    testTokens "<=>" [Operator "<=>"]
+    testTokens "not_a_keyword" [TkWord "not_a_keyword"]
+    testTokens "alsoNot" [TkWord "alsoNot"]
+    testTokens "thisThat123" [TkWord "thisThat123"]
+    testTokens "+-" [TkOperator "+-"]
+    testTokens "<=>" [TkOperator "<=>"]
     testTokens "!#$%&*+-./<=>?@^|~"
-      [Operator "!#$%&*+-./<=>?@^|~"]
+      [TkOperator "!#$%&*+-./<=>?@^|~"]
 
   describe "locations" $ do
     testLocations 1 "1 2 3" [loc 1 1, loc 1 3, loc 1 5]
@@ -131,7 +129,7 @@ testInt :: Text -> Int -> Spec
 testInt source expected = it ("int " ++ show source)
   $ case tokenize 1 "test" source of
     Left message -> assertFailure $ show message
-    Right [Located (Int actual _) _]
+    Right [Located (TkInt actual _) _]
       | actual == expected -> noop
     Right actual -> expectedButGot
       (show expected) (showLocated actual)

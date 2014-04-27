@@ -8,15 +8,10 @@ import Test.Hspec
 
 import qualified Data.Vector as V
 
-import Kitten.ClosedName
-import Kitten.Fragment
 import Kitten.Location
 import Kitten.Scope
-import Kitten.Tree
-import Kitten.Type (StackHint(..))
+import Kitten.Types
 import Test.Util
-
-import qualified Kitten.Builtin as Builtin
 
 spec :: Spec
 spec = do
@@ -47,26 +42,26 @@ testScope source expected
     $ expectedButGot (show expected) (show actual)
 
 biAdd :: ResolvedTerm
-biAdd = Builtin Builtin.AddInt TestLocation
+biAdd = TrIntrinsic InAddInt TestLocation
 
 closed :: Int -> ResolvedValue
-closed index = Closed index TestLocation
+closed index = TrClosed index TestLocation
 
 closure :: [ClosedName] -> [ResolvedTerm] -> ResolvedTerm
-closure names terms = push $ Closure
+closure names terms = push $ TrClosure
   (V.fromList names) (compose terms) TestLocation
 
 compose :: [ResolvedTerm] -> ResolvedTerm
-compose terms = Compose StackAny (V.fromList terms) TestLocation
+compose terms = TrCompose StackAny (V.fromList terms) TestLocation
 
 function :: [ResolvedTerm] -> ResolvedTerm
-function terms = push $ Quotation (compose terms) TestLocation
+function terms = push $ TrQuotation (compose terms) TestLocation
 
 local :: Int -> ResolvedValue
-local index = Local index TestLocation
+local index = TrLocal index TestLocation
 
 push :: ResolvedValue -> ResolvedTerm
-push value = Push value TestLocation
+push value = TrPush value TestLocation
 
 scoped :: [ResolvedTerm] -> ResolvedTerm
-scoped terms = Lambda "testvar" (compose terms) TestLocation
+scoped terms = TrLambda "testvar" (compose terms) TestLocation

@@ -34,6 +34,7 @@ import Kitten.Parse
 import Kitten.Resolve
 import Kitten.Scope
 import Kitten.Tokenize
+import Kitten.Types
 import Kitten.Util.Either
 import Kitten.Util.Monad
 
@@ -84,11 +85,14 @@ compile Compile.Config{..} program
   let scoped = scope resolved
   when dumpScoped . lift $ hPrint stderr scoped
 
-  (idGen', typed, type_) <- hoistEither
-    $ typeFragment inferConfig stackTypes scoped (programIdGen program)
+  let (mTypedAndType, program') = runK program (typeFragment stackTypes scoped)
+  (typed, type_) <- hoistEither mTypedAndType
+
+  let (mErrors, program'') = ir typed program'
+  void $ hoistEither mErrors
 
   return
-    ( yarn typed program { programIdGen = idGen' }
+    ( program''
     , maybe 0 V.length $ Id.lookup entryId (programBlocks program)
     , type_
     )

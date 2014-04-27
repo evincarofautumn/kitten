@@ -13,21 +13,14 @@ import Test.Hspec
 import qualified Data.HashMap.Strict as H
 import qualified Data.Vector as V
 
-import Kitten.Anno (Anno(..))
-import Kitten.Def
 import Kitten.Error
-import Kitten.Fragment
 import Kitten.Location
-import Kitten.Operator
 import Kitten.Parse
 import Kitten.Tokenize
-import Kitten.Tree
-import Kitten.Type (StackHint(..), mono)
+import Kitten.Types
 import Kitten.Util.Either
 import Kitten.Util.Monad
 import Test.Util
-
-import qualified Kitten.Anno as Anno
 
 spec :: Spec
 spec = do
@@ -200,12 +193,12 @@ spec = do
     \}"
     $ mempty { fragmentDefs = defList
       [ defWithAnno "curriedAdd"
-        (Anno.Function
-          (V.fromList [Anno.Var "int"])
+        (AnFunction
+          (V.fromList [AnVar "int"])
           (V.fromList
-            [Anno.Function
-              (V.fromList [Anno.Var "int"])
-              (V.fromList [Anno.Var "int"])]))
+            [AnFunction
+              (V.fromList [AnVar "int"])
+              (V.fromList [AnVar "int"])]))
         $ compose
           [ lambda "x"
             [ push $ quotation
@@ -243,32 +236,32 @@ def name term = Def
   , defTerm = mono term
   }
 
-defWithAnno :: Text -> Anno.Type -> a -> Def a
+defWithAnno :: Text -> AnType -> a -> Def a
 defWithAnno name anno term = (def name term)
   { defAnno = Anno anno TestLocation }
 
 call :: Text -> ParsedTerm
-call name = Call Postfix name TestLocation
+call name = TrCall Postfix name TestLocation
 
 compose :: [ParsedTerm] -> ParsedTerm
-compose terms = Compose StackAny (V.fromList terms) TestLocation
+compose terms = TrCompose StackAny (V.fromList terms) TestLocation
 
 quotation :: [ParsedTerm] -> ParsedValue
-quotation terms = Quotation
-  (Compose StackAny (V.fromList terms) TestLocation) TestLocation
+quotation terms = TrQuotation
+  (TrCompose StackAny (V.fromList terms) TestLocation) TestLocation
 
 int :: Int -> ParsedValue
-int value = Int value TestLocation
+int value = TrInt value TestLocation
 
 pushi :: Int -> ParsedTerm
 pushi value = push $ int value
 
 lambda :: Text -> [ParsedTerm] -> ParsedTerm
 lambda name terms
-  = Lambda name (compose terms) TestLocation
+  = TrLambda name (compose terms) TestLocation
 
 push :: ParsedValue -> ParsedTerm
-push value = Push value TestLocation
+push value = TrPush value TestLocation
 
 word :: Text -> ParsedTerm
-word value = Call Postfix value TestLocation
+word value = TrCall Postfix value TestLocation
