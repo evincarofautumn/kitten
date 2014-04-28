@@ -351,7 +351,7 @@ rewriteInfix program@Program{..} parsed@Fragment{..} = do
     -- TODO Make smarter than a linear search.
     useDefault name fixity = fixity == Infix
       && not (any ((name ==) . operatorName) allOperators)
-    flat = fragmentOperators -- FIXME allOperators?
+    flat = allOperators
       ++ (map (Operator LeftAssociative 6)
         $ H.keys $ H.filterWithKey useDefault allFixities)
     in for [9,8..0] $ \p -> filter ((p ==) . operatorPrecedence) flat

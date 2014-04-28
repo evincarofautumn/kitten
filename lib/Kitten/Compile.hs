@@ -72,12 +72,12 @@ compile Compile.Config{..} program
       } else fragment)
     $ hoistEither (parseSource firstLine name source)
 
-  (substituted, program') <- hoistEither
-    =<< lift (substituteImports libraryDirectories parsed program)
+  (substituted) <- hoistEither
+    =<< lift (substituteImports libraryDirectories parsed)
 
   -- Applicative rewriting must take place after imports have been
   -- substituted, so that all operator declarations are in scope.
-  (postfix, program'') <- hoistEither . mapLeft (:[]) $ rewriteInfix program' substituted
+  (postfix, program') <- hoistEither . mapLeft (:[]) $ rewriteInfix program substituted
   resolved <- hoistEither $ resolve postfix program'
 
   when dumpResolved . lift $ hPrint stderr resolved
@@ -85,14 +85,14 @@ compile Compile.Config{..} program
   let scoped = scope resolved
   when dumpScoped . lift $ hPrint stderr scoped
 
-  let (mTypedAndType, program''') = runK program'' (typeFragment stackTypes scoped)
+  let (mTypedAndType, program'') = runK program' (typeFragment stackTypes scoped)
   (typed, type_) <- hoistEither mTypedAndType
 
-  let (mErrors, program'''') = ir typed program'''
+  let (mErrors, program''') = ir typed program''
   void $ hoistEither mErrors
 
   return
-    ( program''''
+    ( program'''
     , maybe 0 V.length $ Id.lookup entryId (programBlocks program)
     , type_
     )
@@ -124,19 +124,16 @@ locateImport libraryDirectories importName = do
 substituteImports
   :: [FilePath]
   -> Fragment ParsedTerm
-  -> Program
-  -> IO (Either [ErrorGroup] (Fragment ParsedTerm, Program))
-substituteImports libraryDirectories fragment program = runEitherT $ do
+  -> IO (Either [ErrorGroup] (Fragment ParsedTerm))
+substituteImports libraryDirectories fragment = runEitherT $ do
   (substitutedDefs, substitutedOperators) <- go
     (fragmentImports fragment)
     S.empty
     (H.toList (fragmentDefs fragment), fragmentOperators fragment)
-  return $ (,)
-    fragment
-      { fragmentDefs = H.fromList substitutedDefs
-      , fragmentOperators = substitutedOperators
-      }
-    program { programOperators = substitutedOperators }
+  return fragment
+    { fragmentDefs = H.fromList substitutedDefs
+    , fragmentOperators = substitutedOperators
+    }
   where
   go
     :: [Import]
