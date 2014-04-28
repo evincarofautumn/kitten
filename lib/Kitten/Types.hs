@@ -938,7 +938,7 @@ instance (Eq a) => Eq (TrTerm a) where
 
 instance ToText (TrTerm a) where
   toText = \case
-    TrCall fixity label _ -> T.concat [toText label, "/*", toText fixity, "*/"]
+    TrCall _ label _ -> label
     TrCompose _ terms _ -> T.concat
       ["(", T.intercalate " " (V.toList (V.map toText terms)), ")"]
     TrIntrinsic intrinsic _ -> toText intrinsic
