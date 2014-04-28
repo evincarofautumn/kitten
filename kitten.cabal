@@ -115,6 +115,7 @@ executable kitten
     parsec,
     text,
     transformers,
+    unordered-containers,
     vector
 
 test-suite test

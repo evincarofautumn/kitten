@@ -19,6 +19,7 @@ import System.Console.Haskeline
 import Text.Parsec.Pos
 
 import qualified Control.Exception as E
+import qualified Data.HashMap.Strict as H
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
@@ -64,27 +65,28 @@ runInteraction = do
     }
 
 settings :: Settings State
-settings = defaultSettings
-  { historyFile = Nothing
-  , autoAddHistory = True
+settings = setComplete completer $ defaultSettings
+  { autoAddHistory = True
+  , historyFile = Nothing
   }
-
-{-
 
 completer :: CompletionFunc State
 completer = completeWord Nothing "\t \"{}[]()\\:" completePrefix
 
 completePrefix :: String -> State [Completion]
 completePrefix prefix = do
-  defs <- gets replDefs
+  symbols <- gets (H.keys . programSymbols . envProgram)
   let
     prefix' = T.pack prefix
     matching
-      = V.filter (prefix' `T.isPrefixOf`) (defName <$> defs)
-      <> V.filter (prefix' `T.isPrefixOf`) Builtin.names
-    finished = V.length matching <= 1
-    completions = map (toCompletion finished . T.unpack) (V.toList matching)
+      = filter (prefix' `T.isPrefixOf`) symbols
+      <> filter (prefix' `T.isPrefixOf`) intrinsicNameList
+    finished = case matching of [] -> True; [_] -> True; _ -> False
+    completions = map (toCompletion finished . T.unpack) matching
   return completions
+
+intrinsicNameList :: [Text]
+intrinsicNameList = V.toList intrinsicNames
 
 toCompletion :: Bool -> String -> Completion
 toCompletion finished name = Completion
@@ -92,8 +94,6 @@ toCompletion finished name = Completion
   , display = name
   , isFinished = finished
   }
-
--}
 
 interact :: Input ()
 interact = do
