@@ -10,6 +10,7 @@ module Kitten.IR
   , emptyProgram
   , entryId
   , flattenProgram
+  , inverseSymbols
   , ir
   ) where
 
@@ -127,14 +128,17 @@ getDef name program@Program{..} = case H.lookup name programSymbols of
     in (,) id' program'
       { programSymbols = H.insert name id' programSymbols }
 
+inverseSymbols :: Program -> DefIdMap [Text]
+inverseSymbols Program{..}
+  = foldl' (\symbols (symbol, name)
+    -> Id.insertWith (++) name [symbol] symbols) Id.empty
+  $ H.toList programSymbols
+
 flattenProgram :: Program -> FlattenedProgram
-flattenProgram Program{..} = FlattenedProgram{..}
+flattenProgram program@Program{..} = FlattenedProgram{..}
   where
   (flattenedBlock, flattenedNames) = foldl' go mempty (Id.toList instructions)
-  flattenedSymbols
-    = foldl' (\symbols (symbol, name)
-      -> Id.insertWith (++) name [symbol] symbols) Id.empty
-    $ H.toList programSymbols
+  flattenedSymbols = inverseSymbols program
 
   go :: (IrBlock, DefIdMap Int) -> (DefId, IrBlock) -> (IrBlock, DefIdMap Int)
   go (blocks, names) (name, block)

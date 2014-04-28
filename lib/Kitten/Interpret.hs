@@ -43,91 +43,93 @@ data Env = Env
   { envCalls :: !(IORef [FrameEntry])
   , envClosures :: !(IORef [Vector InterpreterValue])
   , envData :: !(IORef [InterpreterValue])
-  , envInstructions :: !(Vector IrInstruction)
+  , envInstructions :: !(DefIdMap IrBlock)
   , envIp :: !(IORef Ip)
-  , envNames :: !(DefIdMap Int)
   , envLocation :: !(IORef Location)
   , envSymbols :: !(DefIdMap [Text])
   }
 
 data FrameEntry
-  = FrCall !CallType !Int
+  = FrCall !CallType !Ip
   | FrLocal !InterpreterValue
 
 data CallType = WithoutClosure | WithClosure
 type Interpret a = ReaderT Env IO a
-type Ip = Int
+type Ip = (DefId, Int)
 type Offset = Maybe (Ip -> Ip)
 
 interpret
   :: Maybe Int
-  -> FlattenedProgram
   -> [InterpreterValue]
+  -> Program
   -> IO [InterpreterValue]
-interpret mIp (FlattenedProgram envInstructions envNames envSymbols) stack = do
+interpret mStart stack program = do
   envCalls <- newIORef []
   envClosures <- newIORef []
   envData <- newIORef stack
-  envIp <- newIORef $ (envNames Id.! entryId) + fromMaybe 0 mIp
+  envIp <- newIORef (entryId, fromMaybe 0 mStart)
   envLocation <- newIORef (newLocation "interpreter" 0 0)
-  let env0 = Env{..}
+  let
+    envInstructions = programBlocks program
+    envSymbols = inverseSymbols program
+    env0 = Env{..}
   fix $ \loop -> do
-    offset <- runReaderT interpretInstruction env0
+    offset <- flip runReaderT env0 $ do
+      mInstruction <- currentInstruction
+      case mInstruction of
+        Just instruction -> interpretInstruction instruction
+        Nothing -> return Nothing
     case offset of
       Just offset' -> modifyIORef' envIp offset' >> loop
       Nothing -> noop
   readIORef envData
 
-interpretInstruction :: Interpret Offset
-interpretInstruction = do
-  instruction <- do
-    instructions <- asks envInstructions
-    ip <- asksIO envIp
-    let len = V.length instructions
-    if ip < 0 || ip >= len
-      then error $ concat
-        [ "Instruction pointer ("
-        , show ip
-        , ") out of bounds ("
-        , show len
-        , ")"
-        ]
-      else return (instructions ! ip)
+-- TODO Make this not do a lookup every step.
+currentInstruction :: Interpret (Maybe IrInstruction)
+currentInstruction = do
+  instructions <- asks envInstructions
+  (defId, ip) <- asksIO envIp
+  let def = instructions Id.! defId
+  let len = V.length def
+  return $ if ip >= len
+    then Nothing
+    else Just (def ! ip)
 
-  case instruction of
-    IrAct label closure type_ -> do
-      values <- V.mapM getClosedName closure
-      pushData (Activation label values type_)
-      proceed
-    IrIntrinsic intrinsic -> interpretIntrinsic intrinsic
-    IrCall label -> call label Nothing
-    IrClosure index -> do
-      pushData =<< getClosed index
-      proceed
-    IrComment{} -> proceed
-    IrEnter -> do
-      pushLocal =<< popData
-      proceed
-    IrLeave -> popLocal >> proceed
-    IrLocal index -> (pushData =<< getLocal index) >> proceed
-    IrMakeVector size -> do
-      pushData . Vector . V.reverse . V.fromList
-        =<< replicateM size popData
-      proceed
-    IrPush value -> pushData (interpreterValue value) >> proceed
-    IrReturn -> fix $ \loop -> do
-      calls <- asksIO envCalls
-      case calls of
-        -- Discard all locals pushed during this call frame.
-        FrLocal _ : rest -> envCalls =: rest >> loop
-        FrCall type_ target : rest -> do
-          envIp =: target
-          envCalls =: rest
-          case type_ of
-            WithClosure -> envClosures ~: tail
-            _ -> noop
-          proceed
-        [] -> return Nothing
+interpretInstruction :: IrInstruction -> Interpret Offset
+interpretInstruction instruction = case instruction of
+  IrAct label closure type_ -> do
+    values <- V.mapM getClosedName closure
+    pushData (Activation label values type_)
+    proceed
+  IrIntrinsic intrinsic -> interpretIntrinsic intrinsic
+  IrCall label -> call label Nothing
+  IrClosure index -> do
+    pushData =<< getClosed index
+    proceed
+  IrComment{} -> proceed
+  IrEnter -> do
+    pushLocal =<< popData
+    proceed
+  IrLeave -> popLocal >> proceed
+  IrLocal index -> (pushData =<< getLocal index) >> proceed
+  IrMakeVector size -> do
+    pushData . Vector . V.reverse . V.fromList
+      =<< replicateM size popData
+    proceed
+  IrPush value -> pushData (interpreterValue value) >> proceed
+  IrReturn -> fix $ \loop -> do
+    calls <- asksIO envCalls
+    case calls of
+      -- Discard all locals pushed during this call frame.
+      FrLocal _ : rest -> envCalls =: rest >> loop
+      FrCall type_ target : rest -> do
+        envIp =: target
+        envCalls =: rest
+        case type_ of
+          WithClosure -> envClosures ~: tail
+          _ -> noop
+        proceed
+      [] -> return Nothing
 
 interpreterValue :: IrValue -> InterpreterValue
 interpreterValue value = case value of
@@ -150,14 +152,13 @@ interpretQuotation _ = error "Attempt to call non-function."
 
 call :: DefId -> Maybe (Vector InterpreterValue) -> Interpret Offset
 call target mClosure = do
-  destination <- (Id.! target) <$> asks envNames
   ip <- asksIO envIp
   case mClosure of
     Nothing -> envCalls ~: (FrCall WithoutClosure ip :)
     Just closure -> do
       envClosures ~: (closure :)
       envCalls ~: (FrCall WithClosure ip :)
-  return $ Just (const destination)
+  return $ Just (const (target, 0))
 
 interpretIntrinsic :: Intrinsic -> Interpret Offset
 interpretIntrinsic intrinsic = case intrinsic of
@@ -458,7 +459,7 @@ interpretIntrinsic intrinsic = case intrinsic of
     proceed
 
 proceed :: Interpret Offset
-proceed = return (Just succ)
+proceed = return $ Just (fmap succ)
 
 data InterpreterValue
   = Activation !DefId !(Vector InterpreterValue) !(Type Scalar)

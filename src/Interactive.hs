@@ -137,7 +137,7 @@ eval input = do
 
   whenJust mCompiled $ \ (compiled, ip, _type) -> do
     stackState <- lift $ gets envStack
-    stackState' <- liftIO $ interpret (Just ip) (flattenProgram compiled) stackState
+    stackState' <- liftIO $ interpret (Just ip) stackState compiled
     lift . modify $ \s -> s
       { envLine = envLine s + T.count "\n" input + 1
       , envStack = stackState'

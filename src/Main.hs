@@ -62,6 +62,5 @@ interpretAll entryPoints compileMode config
         exitFailure
       Right (result, ip, _type) -> case compileMode of
         CheckMode -> noop
-        CompileMode -> V.mapM_ print (flattenedBlock flattened)
-        InterpretMode -> void $ interpret (Just ip) flattened []
-        where flattened = flattenProgram result
+        CompileMode -> V.mapM_ print . flattenedBlock $ flattenProgram result
+        InterpretMode -> void $ interpret (Just ip) [] result

@@ -42,7 +42,7 @@ import qualified Data.Vector as V
 
 import Kitten.Error
 import Kitten.Id
-import Kitten.IdMap (IdMap)
+import Kitten.IdMap (DefIdMap, TypeIdMap)
 import Kitten.Location
 import Kitten.Util.FailWriter
 import Kitten.Util.Text (ToText(..), showText)
@@ -51,11 +51,11 @@ import Kitten.Util.Tuple
 import qualified Kitten.IdMap as Id
 
 data Program = Program
-  { programBlocks :: !(IdMap DefSpace IrBlock)
-  , programDefIdGen :: !(IdGen DefSpace)
+  { programBlocks :: !(DefIdMap IrBlock)
+  , programDefIdGen :: !DefIdGen
   , programFixities :: !(HashMap Text Fixity)
   , programOperators :: [Operator]
-  , programTypeIdGen :: !(IdGen TypeSpace)
+  , programTypeIdGen :: !TypeIdGen
   , programSymbols :: !(HashMap Text DefId)
 
   , inferenceClosure :: !(Vector (Type Scalar))
@@ -63,8 +63,8 @@ data Program = Program
   , inferenceDecls :: !(HashMap Text TypeScheme)
   , inferenceLocals :: [Type Scalar]
   , inferenceOrigin :: !Origin
-  , inferenceScalars :: !(IdMap TypeSpace (Type Scalar))
-  , inferenceStacks :: !(IdMap TypeSpace (Type Stack))
+  , inferenceScalars :: !(TypeIdMap (Type Scalar))
+  , inferenceStacks :: !(TypeIdMap (Type Stack))
   }
 
 instance Show Program where
