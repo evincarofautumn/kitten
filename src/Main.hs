@@ -14,9 +14,9 @@ import Kitten.Compile
 import Kitten.Error
 import Kitten.Interpret
 import Kitten.IR
+import Kitten.Types
 import Kitten.Util.Monad
 
-import qualified Kitten.Compile as Compile
 import qualified Kitten.Util.Text as T
 
 import Arguments
@@ -27,16 +27,17 @@ main = do
   hSetEncoding stdout utf8
   arguments <- parseArguments
   let
-    defaultConfig filename program = Compile.Config
-      { Compile.dumpResolved = argsDumpResolved arguments
-      , Compile.dumpScoped = argsDumpScoped arguments
-      , Compile.firstLine = 1
-      , Compile.implicitPrelude = argsEnableImplicitPrelude arguments
-      , Compile.libraryDirectories = argsLibraryDirectories arguments
-      , Compile.name = filename
-      , Compile.predefined = V.empty
-      , Compile.source = program
-      , Compile.stackTypes = V.empty
+    defaultConfig filename program = Config
+      { configDumpResolved = argsDumpResolved arguments
+      , configDumpScoped = argsDumpScoped arguments
+      , configEnforceBottom = True
+      , configFirstLine = 1
+      , configImplicitPrelude = argsEnableImplicitPrelude arguments
+      , configLibraryDirectories = argsLibraryDirectories arguments
+      , configName = filename
+      , configPredefined = V.empty
+      , configSource = program
+      , configStackTypes = V.empty
       }
 
   case argsEntryPoints arguments of
@@ -47,7 +48,7 @@ main = do
 interpretAll
   :: [FilePath]
   -> CompileMode
-  -> (FilePath -> Text -> Compile.Config)
+  -> (FilePath -> Text -> Config)
   -> IO ()
 interpretAll entryPoints compileMode config
   = mapM_ interpretOne entryPoints

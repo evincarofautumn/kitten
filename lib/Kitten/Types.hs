@@ -18,6 +18,7 @@ module Kitten.Types where
 import Control.Applicative
 import Control.Monad.Fix
 import Control.Monad.Trans.Class
+import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State.Strict
 import Data.Foldable (Foldable)
 import Data.Function
@@ -81,14 +82,30 @@ data ClosedName
   | ReclosedName !Int
   deriving (Eq, Show)
 
+data Config = Config
+  { configDumpResolved :: !Bool
+  , configDumpScoped :: !Bool
+  , configEnforceBottom :: !Bool
+  , configFirstLine :: !Int
+  , configImplicitPrelude :: !Bool
+  , configLibraryDirectories :: [FilePath]
+  , configName :: String
+  , configPredefined :: !(Vector (Def TypedTerm))
+  , configSource :: !Text
+  , configStackTypes :: Vector (Type Scalar)
+  }
+
 newtype KT m a = KT
-  { unwrapKT :: FailWriterT [ErrorGroup] (StateT Program m) a }
+  { unwrapKT :: FailWriterT [ErrorGroup] (ReaderT Config (StateT Program m)) a }
   deriving (Applicative, Functor, Monad, MonadFix)
 
 instance MonadTrans KT where
-  lift = KT . lift . lift
+  lift = KT . lift . lift . lift
 
 type K = KT Identity
+
+asksConfig :: (Config -> a) -> K a
+asksConfig = KT . lift . asks
 
 getProgram :: K Program
 getProgram = liftState get
@@ -97,7 +114,7 @@ getsProgram :: (Program -> a) -> K a
 getsProgram = liftState . gets
 
 liftState :: (Monad m) => StateT Program m a -> KT m a
-liftState = KT . lift
+liftState = KT . lift . lift
 
 modifyProgram :: (Program -> Program) -> K ()
 modifyProgram = liftState . modify
@@ -105,14 +122,18 @@ modifyProgram = liftState . modify
 putProgram :: Program -> K ()
 putProgram = liftState . put
 
-runKT :: (Monad m) => Program -> KT m a -> m (Either [ErrorGroup] a, Program)
-runKT program = flip runStateT program . runFailWriterT null . unwrapKT
+runKT
+  :: (Monad m)
+  => Program -> Config -> KT m a -> m (Either [ErrorGroup] a, Program)
+runKT program config = flip runStateT program
+  . flip runReaderT config . runFailWriterT null . unwrapKT
 
-runK :: Program -> K a -> (Either [ErrorGroup] a, Program)
-runK program = runIdentity . runKT program
+runK :: Program -> Config -> K a -> (Either [ErrorGroup] a, Program)
+runK program config = runIdentity . runKT program config
 
 liftFailWriter
-  :: (Monad m) => FailWriterT [ErrorGroup] (StateT Program m) a -> KT m a
+  :: (Monad m)
+  => FailWriterT [ErrorGroup] (ReaderT Config (StateT Program m)) a -> KT m a
 liftFailWriter = KT
 
 emptyProgram :: Program

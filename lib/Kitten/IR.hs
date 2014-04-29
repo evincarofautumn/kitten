@@ -42,8 +42,8 @@ import Kitten.Util.Tuple
 
 import qualified Kitten.IdMap as Id
 
-ir :: Fragment TypedTerm -> Program -> (Either [ErrorGroup] (), Program)
-ir Fragment{..} program = runK program $ do
+ir :: Fragment TypedTerm -> Program -> Config -> (Either [ErrorGroup] (), Program)
+ir Fragment{..} program config = runK program config $ do
   F.mapM_ irDef fragmentDefs
   irEntry fragmentTerm
 

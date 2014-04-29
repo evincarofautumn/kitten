@@ -39,17 +39,9 @@ import Kitten.Util.Text (toText)
 import qualified Kitten.Util.Vector as V
 
 typeFragment
-  :: Vector (Type Scalar)
-  -> Fragment ResolvedTerm
+  :: Fragment ResolvedTerm
   -> K (Fragment TypedTerm, Type Scalar)
-typeFragment stackTypes fragment
-  = inferFragment stackTypes fragment
-
-inferFragment
-  :: Vector (Type Scalar)
-  -> Fragment ResolvedTerm
-  -> K (Fragment TypedTerm, Type Scalar)
-inferFragment stackTypes fragment = do
+typeFragment fragment = do
   rec
     -- Populate environment with definition types.
     --
@@ -84,16 +76,16 @@ inferFragment stackTypes fragment = do
           ]
         return def { defTerm = typedDefTerm <$ inferredScheme }
 
-    -- topLevel <- getsProgram (originLocation . inferenceOrigin)
+    topLevel <- getsProgram (originLocation . inferenceOrigin)
     (typedTerm, fragmentType) <- infer finalProgram $ fragmentTerm fragment
 
     -- Equate the bottom of the stack with stackTypes.
     do
       let TyFunction consumption _ _ = fragmentType
       bottom <- freshVarM
-      -- TODO Reinstate this check.
-      -- enforce <- asksConfig enforceBottom
-      -- when enforce $ bottom === TyEmpty (Origin NoHint topLevel)
+      enforce <- asksConfig configEnforceBottom
+      when enforce $ bottom === TyEmpty (Origin HiNone topLevel)
+      stackTypes <- asksConfig configStackTypes
       let stackType = F.foldl (:.) bottom stackTypes
       stackType === consumption
 

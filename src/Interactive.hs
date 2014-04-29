@@ -33,7 +33,6 @@ import Kitten.Location
 import Kitten.Types
 import Kitten.Util.Monad
 
-import qualified Kitten.Compile as Compile
 import qualified Kitten.Interpret as Interpret
 
 data Env = Env
@@ -131,8 +130,8 @@ eval input = do
         { programTypeIdGen = idGen' }
       }
     interactiveCompile $ \config -> config
-      { Compile.source = input
-      , Compile.stackTypes = V.fromList (reverse stackTypes)
+      { configSource = input
+      , configStackTypes = V.fromList (reverse stackTypes)
       }
 
   whenJust mCompiled $ \ (compiled, ip, _type) -> do
@@ -159,7 +158,7 @@ showStack = do
     mapM_ putStrLn . reverse $ map show data_
 
 interactiveCompile
-  :: (Compile.Config -> Compile.Config)
+  :: (Config -> Config)
   -> Input (Maybe (Program, Int, Type Scalar))
 interactiveCompile update = do
   program <- lift $ gets envProgram
@@ -172,19 +171,20 @@ interactiveCompile update = do
       lift . modify $ \env -> env { envProgram = program' }
       return (Just result)
 
-compileConfig :: Input Compile.Config
+compileConfig :: Input Config
 compileConfig = do
   Env{..} <- lift get
-  return Compile.Config
-    { Compile.dumpResolved = False
-    , Compile.dumpScoped = False
-    , Compile.firstLine = envLine
-    , Compile.implicitPrelude = False
-    , Compile.libraryDirectories = []  -- TODO
-    , Compile.name = name
-    , Compile.predefined = mempty  -- TODO
-    , Compile.source = ""
-    , Compile.stackTypes = V.empty
+  return Config
+    { configDumpResolved = False
+    , configDumpScoped = False
+    , configEnforceBottom = True
+    , configFirstLine = envLine
+    , configImplicitPrelude = False
+    , configLibraryDirectories = []  -- TODO
+    , configName = name
+    , configPredefined = mempty  -- TODO
+    , configSource = ""
+    , configStackTypes = V.empty
     }
   where name = "<interactive>"
 
@@ -298,6 +298,8 @@ help = do
 reportType :: Interaction
 reportType input = do
   mCompiled <- interactiveCompile $ \config -> config
-    { Compile.source = input }
+    { configEnforceBottom = False
+    , configSource = input
+    }
   whenJust mCompiled $ \(_compiled, _ip, type_) -> liftIO $ print type_
   interact'

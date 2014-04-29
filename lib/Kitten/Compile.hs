@@ -3,8 +3,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Kitten.Compile
-  ( Compile.Config(..)
-  , compile
+  ( compile
   ) where
 
 import Control.Applicative
@@ -38,7 +37,6 @@ import Kitten.Types
 import Kitten.Util.Either
 import Kitten.Util.Monad
 
-import qualified Kitten.Compile.Config as Compile
 import qualified Kitten.IdMap as Id
 import qualified Kitten.Util.Text as T
 
@@ -55,13 +53,13 @@ parseSource line name source = do
   mapLeft (:[]) $ parse name tokenized
 
 compile
-  :: Compile.Config
+  :: Config
   -> Program
   -> IO (Either [ErrorGroup] (Program, Int, Type Scalar))
-compile Compile.Config{..} program
+compile config@Config{..} program
   = liftM (mapLeft sort) . runEitherT $ do
   parsed <- fmap
-    (\fragment -> if implicitPrelude then fragment
+    (\fragment -> if configImplicitPrelude then fragment
       { fragmentImports = Import
         { importName = "Prelude"
         , importLocation = Location
@@ -70,25 +68,25 @@ compile Compile.Config{..} program
           }
         } : fragmentImports fragment
       } else fragment)
-    $ hoistEither (parseSource firstLine name source)
+    $ hoistEither (parseSource configFirstLine configName configSource)
 
   (substituted) <- hoistEither
-    =<< lift (substituteImports libraryDirectories parsed)
+    =<< lift (substituteImports configLibraryDirectories parsed)
 
   -- Applicative rewriting must take place after imports have been
   -- substituted, so that all operator declarations are in scope.
   (postfix, program') <- hoistEither . mapLeft (:[]) $ rewriteInfix program substituted
   resolved <- hoistEither $ resolve postfix program'
 
-  when dumpResolved . lift $ hPrint stderr resolved
+  when configDumpResolved . lift $ hPrint stderr resolved
 
   let scoped = scope resolved
-  when dumpScoped . lift $ hPrint stderr scoped
+  when configDumpScoped . lift $ hPrint stderr scoped
 
-  let (mTypedAndType, program'') = runK program' (typeFragment stackTypes scoped)
+  let (mTypedAndType, program'') = runK program' config $ typeFragment scoped
   (typed, type_) <- hoistEither mTypedAndType
 
-  let (mErrors, program''') = ir typed program''
+  let (mErrors, program''') = ir typed program'' config
   void $ hoistEither mErrors
 
   return

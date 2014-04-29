@@ -49,7 +49,6 @@ library
 
   exposed-modules:
     Kitten.Compile,
-    Kitten.Compile.Config,
     Kitten.Error,
     Kitten.HTML,
     Kitten.Id,
