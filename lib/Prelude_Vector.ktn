@@ -89,6 +89,21 @@ def foldr1 {a}([a] (a a -> a) -> a?):
   else:
     none
 
+def generateN {a}((int -> a) int -> [a]):
+  -> f size;
+  \unfoldN 0 size: -> index;
+    index f apply;
+    index + 1
+
+// TODO (strager): Make this a compiler intrinsic.
+def unfoldN {a, b}(a int (a -> b a) -> [b]):
+  -> z size f;
+  \if size > 0:
+    z f apply -> b a;
+    (a (size - 1) f unfoldN) b prepend
+  else:
+    []
+
 // Unsafe right-associative non-empty vector fold.
 def unsafeFoldr1 {a}([a] (a a -> a) -> a):
   -> xs fn;
@@ -202,6 +217,12 @@ def last {a}([a] -> a?):
 // Gets the length of a vector.
 def length {a}([a] -> int):
   __length
+
+// Looks up a value in an association list by an equality predicate.
+def lookUp {a, b}([a & b] a (a a -> bool) -> b?):
+  -> key eq;
+  { first key eq apply } find
+  {rest} liftOption
 
 // Lifts a function on values to a function on vectors.
 def map {a, b}([a] (a -> b) -> [b]):

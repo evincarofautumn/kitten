@@ -65,6 +65,11 @@ def cond1 {a, b, c}(
   else:
     x (ps tail) cond1
 
+// TODO(strager): Make this more efficient.
+def loopN (int (int ->) ->):
+  -> size f;
+  { f apply none } size generateN drop
+
 // Repeats an action until a condition is false.
 def loopWhile ((-> bool) ->):
   -> f;

@@ -49,3 +49,11 @@ def none {a}(-> a?):
 // Constructs an option with a value.
 def some {a}(a -> a?):
   __some
+
+// TODO(strager): Find a better name.  'option' is taken.
+def maybe {a, b}(a? (a -> b) b -> b):
+  -> mx f z;
+  \option mx:
+    f apply
+  else:
+    z
