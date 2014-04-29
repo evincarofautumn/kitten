@@ -41,7 +41,7 @@ main = do
       }
 
   case argsEntryPoints arguments of
-    [] -> runInteraction
+    [] -> runInteraction (argsEnableImplicitPrelude arguments)
     entryPoints -> interpretAll entryPoints
       (argsCompileMode arguments) defaultConfig
 

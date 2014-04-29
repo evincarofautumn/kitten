@@ -44,10 +44,12 @@ data Env = Env
 type State = StateT Env IO
 type Input = InputT State
 
-runInteraction :: IO ()
-runInteraction = do
+runInteraction :: Bool -> IO ()
+runInteraction implicitPrelude = do
   welcome
-  flip evalStateT emptyEnv $ runInputT settings interact
+  flip evalStateT emptyEnv $ runInputT settings $ do
+    when implicitPrelude $ eval "import Prelude"
+    interact
 
   where
   welcome :: IO ()
@@ -106,7 +108,7 @@ interact = do
     Nothing
       -- | not (matched line) -> continue (T.pack line)
       | null line -> interact'
-      | otherwise -> eval (T.pack line)
+      | otherwise -> eval (T.pack line) >> interact'
     where
     (cmd, args) =
       let (c, a) = T.break isSpace $ T.pack line
@@ -133,7 +135,6 @@ eval input = do
       { configSource = input
       , configStackTypes = V.fromList (reverse stackTypes)
       }
-
   whenJust mCompiled $ \ (compiled, ip, _type) -> do
     stackState <- lift $ gets envStack
     stackState' <- liftIO $ interpret (Just ip) stackState compiled
@@ -141,8 +142,6 @@ eval input = do
       { envLine = envLine s + T.count "\n" input + 1
       , envStack = stackState'
       }
-
-  interact'
 
 interact' :: Input ()
 interact' = showStack >> interact
@@ -263,7 +262,7 @@ load file = do
       interact'
     Right contents -> do
       liftIO . putStrLn $ "File loaded: " ++ file
-      eval contents
+      eval contents >> interact'
 
 help :: Input ()
 help = do
