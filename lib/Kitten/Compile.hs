@@ -29,6 +29,7 @@ import Kitten.Error
 import Kitten.Infer
 import Kitten.IR
 import Kitten.Location
+import Kitten.Optimize
 import Kitten.Parse
 import Kitten.Resolve
 import Kitten.Scope
@@ -89,8 +90,10 @@ compile config@Config{..} program
   let (mErrors, program''') = ir typed program'' config
   void $ hoistEither mErrors
 
+  let program'''' = optimize program'''
+
   return
-    ( program'''
+    ( program''''
     , maybe 0 V.length $ Id.lookup entryId (programBlocks program)
     , type_
     )

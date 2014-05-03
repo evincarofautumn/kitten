@@ -62,6 +62,7 @@ library
     Kitten.Interpret,
     Kitten.IR,
     Kitten.Location,
+    Kitten.Optimize,
     Kitten.Parse,
     Kitten.Parse.Element,
     Kitten.Parse.Layout,

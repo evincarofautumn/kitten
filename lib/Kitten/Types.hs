@@ -208,6 +208,8 @@ data IrInstruction
   | IrMakeVector !Int
   | IrPush !IrValue
   | IrReturn
+  | IrTailCall !(DefId)
+  deriving (Eq)
 
 type IrBlock = Vector IrInstruction
 
@@ -220,6 +222,7 @@ data IrValue
   | IrOption !(Maybe IrValue)
   | IrPair !IrValue !IrValue
   | IrString !Text
+  deriving (Eq)
 
 instance Show IrInstruction where
   show instruction = T.unpack . T.unwords $ case instruction of
@@ -240,6 +243,7 @@ instance Show IrInstruction where
     IrMakeVector size -> ["vector", showText size]
     IrPush value -> ["push", showText value]
     IrReturn -> ["ret"]
+    IrTailCall target -> ["tailcall", showText target]
 
 instance Show IrValue where
   show = T.unpack . toText

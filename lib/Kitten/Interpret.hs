@@ -130,6 +130,7 @@ interpretInstruction instruction = case instruction of
           _ -> noop
         proceed
       [] -> return Nothing
+  IrTailCall label -> return $ Just (const (label, 0))
 
 interpreterValue :: IrValue -> InterpreterValue
 interpreterValue value = case value of
