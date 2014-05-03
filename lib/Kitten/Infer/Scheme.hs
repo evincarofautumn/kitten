@@ -60,14 +60,14 @@ instantiate origin@(Origin _ _) (Forall stacks scalars type_) program
     $ composeM [renames stacks, renames scalars] emptyProgram
 
   renames
-    :: (Declare a)
+    :: (Declare a, Fresh a)
     => Set (KindedId a)
     -> Program
     -> State Program Program
   renames = flip (foldrM rename) . S.toList
 
   rename
-    :: (Declare a)
+    :: (Declare a, Fresh a)
     => KindedId a
     -> Program
     -> State Program Program
@@ -119,17 +119,31 @@ class Unbound (a :: Kind) where
   unbound :: Program -> [KindedId a]
 
 instance Unbound Scalar where
-  unbound env = map KindedId $ filter (`Id.notMember` inferenceScalars env)
-    [Id 0 .. envMaxName env]
+  unbound env = map KindedId
+    $ filter (`Id.notMember` inferenceScalars env)
+    $ let n = envMaxScalar env in [n, pred n .. Id 0]
+    -- See note [enumerating unbound names].
 
 instance Unbound Stack where
-  unbound env = map KindedId $ filter (`Id.notMember` inferenceStacks env)
-    [Id 0 .. envMaxName env]
+  unbound env = map KindedId
+    $ filter (`Id.notMember` inferenceStacks env)
+    $ let n = envMaxStack env in [n, pred n .. Id 0]
+    -- See note [enumerating unbound names].
 
 -- | The last allocated name in an environment. Relies on
 -- the fact that 'NameGen' allocates names sequentially.
-envMaxName :: Program -> Id TypeSpace
-envMaxName = pred . fst . genId . programTypeIdGen
+envMaxScalar :: Program -> Id TypeSpace
+envMaxScalar = unkinded . pred . fst . genKinded . programScalarIdGen
+
+-- | See 'envMaxScalar'.
+envMaxStack :: Program -> Id TypeSpace
+envMaxStack = unkinded . pred . fst . genKinded . programStackIdGen
+
+-- Note [enumerating unbound names]:
+--
+-- We enumerate unbound names in descending order, with the most recently
+-- allocated names appearing first, so that searches for bound names complete
+-- faster on average and do fewer allocations.
 
 data TypeLevel = TopLevel | NonTopLevel
   deriving (Eq)
@@ -336,8 +350,8 @@ skolemize (Forall stackVars scalarVars type_) = do
     declares vars consts program0
       = foldr (uncurry declare) program0
       $ zip (S.toList vars) (map (\name -> TyConst name origin) consts)
-  stackConsts <- replicateM (S.size stackVars) freshKindedIdM
-  scalarConsts <- replicateM (S.size scalarVars) freshKindedIdM
+  scalarConsts <- replicateM (S.size scalarVars) freshScalarIdM
+  stackConsts <- replicateM (S.size stackVars) freshStackIdM
   program <- getsProgram
     $ declares scalarVars scalarConsts
     . declares stackVars stackConsts

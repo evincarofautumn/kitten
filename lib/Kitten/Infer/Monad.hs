@@ -7,6 +7,7 @@
 
 module Kitten.Infer.Monad
   ( Declare(..)
+  , Fresh(..)
   , freshConst
   , freshM
   , freshVar
@@ -62,26 +63,34 @@ nonexistent kind (Origin _ loc) name
   , "'"
   ]
 
-fresh
-  :: forall a (b :: Kind -> *)
-  . (KindedId a -> Origin -> b a)
-  -> Origin
-  -> Program
-  -> (b a, Program)
-fresh constructor origin program
-  = let (typeId, program') = freshTypeId program
-  in (constructor (KindedId typeId) origin, program')
+class Fresh (a :: Kind) where
+  fresh
+    :: forall (b :: Kind -> *)
+    . (KindedId a -> Origin -> b a)
+    -> Origin -> Program -> (b a, Program)
 
-freshConst :: Origin -> Program -> (Type a, Program)
+instance Fresh Scalar where
+  fresh constructor origin program
+    = let (typeId, program') = freshScalarId program
+    in (constructor typeId origin, program')
+
+instance Fresh Stack where
+  fresh constructor origin program
+    = let (typeId, program') = freshStackId program
+    in (constructor typeId origin, program')
+
+freshConst
+  :: forall (a :: Kind). (Fresh a) => Origin -> Program -> (Type a, Program)
 freshConst = fresh TyConst
 
-freshVar :: Origin -> Program -> (Type a, Program)
+freshVar
+  :: forall (a :: Kind). (Fresh a) => Origin -> Program -> (Type a, Program)
 freshVar = fresh TyVar
 
-freshConstM :: K (Type a)
+freshConstM :: forall (a :: Kind). (Fresh a) => K (Type a)
 freshConstM = freshM freshConst
 
-freshVarM :: forall (a :: Kind). K (Type a)
+freshVarM :: forall (a :: Kind). (Fresh a) => K (Type a)
 freshVarM = freshM freshVar
 
 withLocation :: Location -> K a -> K a

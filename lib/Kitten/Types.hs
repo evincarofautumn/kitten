@@ -56,7 +56,8 @@ data Program = Program
   , programDefIdGen :: !DefIdGen
   , programFixities :: !(HashMap Text Fixity)
   , programOperators :: [Operator]
-  , programTypeIdGen :: !TypeIdGen
+  , programScalarIdGen :: !(KindedGen Scalar)
+  , programStackIdGen :: !(KindedGen Stack)
   , programSymbols :: !(HashMap Text DefId)
 
   , inferenceClosure :: !(Vector (Type Scalar))
@@ -142,7 +143,8 @@ emptyProgram = Program
   , programDefIdGen = mkIdGenFrom (succ entryId)
   , programFixities = H.empty
   , programOperators = []
-  , programTypeIdGen = mkIdGen
+  , programScalarIdGen = mkKindedGen
+  , programStackIdGen = mkKindedGen
   , programSymbols = H.empty
   , inferenceClosure = V.empty
   , inferenceDefs = H.empty
@@ -167,21 +169,21 @@ freshDefId program = let
 freshDefIdM :: K (DefId)
 freshDefIdM = liftState $ state freshDefId
 
-freshTypeId :: Program -> (TypeId, Program)
-freshTypeId program = let
-  (i, gen') = genId (programTypeIdGen program)
-  in (i, program { programTypeIdGen = gen' })
+freshScalarId :: Program -> (KindedId Scalar, Program)
+freshScalarId program = let
+  (i, gen') = genKinded (programScalarIdGen program)
+  in (i, program { programScalarIdGen = gen' })
 
-freshTypeIdM :: K (TypeId)
-freshTypeIdM = liftState $ state freshTypeId
+freshScalarIdM :: K (KindedId Scalar)
+freshScalarIdM = liftState $ state freshScalarId
 
-freshKindedId :: Program -> (KindedId a, Program)
-freshKindedId program = let
-  (i, program') = freshTypeId program
-  in (KindedId i, program')
+freshStackId :: Program -> (KindedId Stack, Program)
+freshStackId program = let
+  (i, gen') = genKinded (programStackIdGen program)
+  in (i, program { programStackIdGen = gen' })
 
-freshKindedIdM :: forall (a :: Kind). K (KindedId a)
-freshKindedIdM = liftState $ state freshKindedId
+freshStackIdM :: K (KindedId Stack)
+freshStackIdM = liftState $ state freshStackId
 
 freshM
   :: forall a (b :: Kind -> *)
@@ -556,7 +558,15 @@ suffix (Origin hint _) = case hint of
   HiNone -> ""
 
 newtype KindedId (a :: Kind) = KindedId { unkinded :: TypeId }
-  deriving (Eq, Ord)
+  deriving (Enum, Eq, Ord)
+
+newtype KindedGen (a :: Kind) = KindedGen (KindedId a)
+
+genKinded :: KindedGen a -> (KindedId a, KindedGen a)
+genKinded (KindedGen i) = (i, KindedGen (succ i))
+
+mkKindedGen :: KindedGen a
+mkKindedGen = KindedGen (KindedId (Id 0))
 
 instance Show (KindedId a) where
   show = T.unpack . toText

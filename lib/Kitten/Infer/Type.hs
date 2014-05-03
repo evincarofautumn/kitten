@@ -64,7 +64,7 @@ fromAnno annotated (Anno annoType annoLoc) = do
       <$> fromAnnoType' HiNone a
       <*> fromAnnoType' HiNone b
     AnFunction a b -> do
-      r <- lift freshKindedIdM
+      r <- lift freshStackIdM
       let rVar = TyVar r origin
       scheme <- Forall (S.singleton r) S.empty
         <$> makeFunction origin rVar a rVar b
@@ -84,12 +84,12 @@ fromAnno annotated (Anno annoType annoLoc) = do
       return $ TyQuantified scheme origin
       where
       declareScalar name = do
-        var <- lift freshKindedIdM
+        var <- lift freshScalarIdM
         modify $ \env -> env
           { envScalars = M.insert name var (envScalars env) }
         return var
       declareStack name = do
-        var <- lift freshKindedIdM
+        var <- lift freshStackIdM
         modify $ \env -> env
           { envStacks = M.insert name var (envStacks env) }
         return var

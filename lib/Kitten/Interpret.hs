@@ -554,10 +554,15 @@ stringFromChars = V.toList . V.map fromChar
   fromChar (Char c) = c
   fromChar _ = error "stringFromChars: non-character"
 
-typeOf :: Location -> InterpreterValue -> TypeIdGen -> (Type Scalar, TypeIdGen)
+typeOf
+  :: Location
+  -> InterpreterValue
+  -> KindedGen Scalar
+  -> (Type Scalar, KindedGen Scalar)
 typeOf loc = runState . typeOfM loc
 
-typeOfM :: Location -> InterpreterValue -> State TypeIdGen (Type Scalar)
+typeOfM
+  :: Location -> InterpreterValue -> State (KindedGen Scalar) (Type Scalar)
 typeOfM loc value = case value of
   Activation _ _ type_ -> return type_
   Bool _ -> return $ tyBool origin
@@ -576,10 +581,10 @@ typeOfM loc value = case value of
   where
   recur = typeOfM loc
 
-  freshVarM :: State TypeIdGen (Type a)
+  freshVarM :: State (KindedGen Scalar) (Type Scalar)
   freshVarM = do
-    i <- state genId
-    return $ TyVar (KindedId i) origin
+    i <- state genKinded
+    return $ TyVar i origin
 
   -- TODO(strager): Type hint for stack elements.
   origin :: Origin

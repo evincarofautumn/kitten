@@ -21,7 +21,7 @@ module Kitten.IdMap
   ) where
 
 import Control.Arrow
-import Data.IntMap (IntMap)
+import Data.IntMap.Strict (IntMap)
 import Data.Monoid
 import Prelude hiding (lookup, map)
 

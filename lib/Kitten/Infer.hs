@@ -143,7 +143,7 @@ instanceCheck inferredScheme declaredScheme errorGroup = do
 class ForAll a b where
   forAll :: a -> K (Type b)
 
-instance ForAll a b => ForAll (Type c -> a) b where
+instance (ForAll a b, Fresh c) => ForAll (Type c -> a) b where
   forAll f = do
     var <- freshVarM
     forAll $ f var
@@ -190,7 +190,7 @@ infer finalProgram resolved = case resolved of
     -- Check stack effect hint.
     case hint of
       Stack0 -> do
-        s <- freshKindedIdM
+        s <- freshStackIdM
         instanceCheck typeScheme
           (Forall (S.singleton s) S.empty
             $ (TyVar s origin --> TyVar s origin) origin)
@@ -201,8 +201,8 @@ infer finalProgram resolved = case resolved of
             ]
           ]
       Stack1 -> do
-        s <- freshKindedIdM
-        a <- freshKindedIdM
+        s <- freshStackIdM
+        a <- freshScalarIdM
         -- Note that 'a' is not forall-bound. We want this effect hint
         -- to match function types that produce a single result of any
         -- type, and that operate on any input stack; but these two
@@ -417,12 +417,12 @@ infer finalProgram resolved = case resolved of
     return (TrPush value' (loc, sub finalProgram type_), type_)
 
   TrMakeVector values loc -> withLocation loc $ do
-    (typedValues, types) <- mapAndUnzipM recur (V.toList values)
+    (typedValues, types) <- V.mapAndUnzipM recur values
     elementType <- fromConstant =<< unifyEach types
     origin <- getsProgram inferenceOrigin
     type_ <- forAll $ \r -> (r --> r :. TyVector elementType origin) origin
     return
-      ( TrMakeVector (V.fromList typedValues) (loc, sub finalProgram type_)
+      ( TrMakeVector typedValues (loc, sub finalProgram type_)
       , type_
       )
 
@@ -507,10 +507,16 @@ inferValue finalProgram value = getsProgram inferenceOrigin >>= \origin -> case 
   where
   ret loc type_ constructor = return (constructor (loc, type_), type_)
 
-unifyEach :: [Type Scalar] -> K (Type Scalar)
-unifyEach (x : y : zs) = x === y >> unifyEach (y : zs)
-unifyEach [x] = return x
-unifyEach [] = freshVarM
+unifyEach :: Vector (Type Scalar) -> K (Type Scalar)
+unifyEach xs = go 0
+  where
+  go i = if i >= V.length xs
+    then freshVarM
+    else if i == V.length xs - 1
+      then return (xs V.! i)
+      else do
+        xs V.! i === xs V.! (i + 1)
+        go (i + 1)
 
 inferCompose
   :: Type Stack -> Type Stack

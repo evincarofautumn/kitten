@@ -17,7 +17,7 @@ import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Maybe
-import Control.Monad.Trans.Writer
+import Control.Monad.Trans.Writer.Strict
 import Data.Monoid
 import Data.Traversable (Traversable)
 

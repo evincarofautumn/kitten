@@ -117,7 +117,7 @@ interact = do
 eval :: Interaction
 eval input = do
   mCompiled <- do
-    idGen <- lift $ gets (programTypeIdGen . envProgram)
+    idGen <- lift $ gets (programScalarIdGen . envProgram)
     stackValues <- lift $ gets envStack
     lineNumber <- lift $ gets envLine
     let
@@ -129,7 +129,7 @@ eval input = do
         $ mapM (state . Interpret.typeOf loc) stackValues
     lift . modify $ \env -> env
       { envProgram = (envProgram env)
-        { programTypeIdGen = idGen' }
+        { programScalarIdGen = idGen' }
       }
     interactiveCompile $ \config -> config
       { configSource = input
