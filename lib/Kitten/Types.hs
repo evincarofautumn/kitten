@@ -225,7 +225,10 @@ data IrValue
   deriving (Eq)
 
 instance Show IrInstruction where
-  show instruction = T.unpack . T.unwords $ case instruction of
+  show = T.unpack . toText
+
+instance ToText IrInstruction where
+  toText instruction = T.unwords $ case instruction of
     IrAct target names _
       -> "act" : showText target : map showClosedName (V.toList names)
       where
