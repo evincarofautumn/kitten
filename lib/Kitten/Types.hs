@@ -199,7 +199,7 @@ freshM action = do
 data IrInstruction
   = IrAct !DefId !(Vector ClosedName) !(Type Scalar)
   | IrIntrinsic !Intrinsic
-  | IrCall !(DefId)
+  | IrCall !DefId
   | IrClosure !Int
   | IrComment !Text
   | IrEnter
@@ -208,7 +208,7 @@ data IrInstruction
   | IrMakeVector !Int
   | IrPush !IrValue
   | IrReturn
-  | IrTailCall !(DefId)
+  | IrTailCall !DefId
   deriving (Eq)
 
 type IrBlock = Vector IrInstruction

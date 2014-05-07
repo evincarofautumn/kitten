@@ -7,10 +7,12 @@ module Kitten.Id
   ( DefId
   , DefIdGen
   , Id(..)
+  , IdGen
+  , LabelId
+  , LabelIdGen
+  , Namespace(..)
   , TypeId
   , TypeIdGen
-  , Namespace(..)
-  , IdGen
   , genId
   , mkIdGen
   , mkIdGenFrom
@@ -24,12 +26,14 @@ import Kitten.Util.Text
 
 data Namespace
   = DefSpace
+  | LabelSpace
   | TypeSpace
 
 newtype Id (n :: Namespace) = Id Int
   deriving (Enum, Eq, Ord)
 
 type DefId = Id DefSpace
+type LabelId = Id LabelSpace
 type TypeId = Id TypeSpace
 
 instance Show (Id n) where
@@ -42,6 +46,7 @@ newtype IdGen (n :: Namespace) = IdGen (Id n)
   deriving (Show)
 
 type DefIdGen = IdGen DefSpace
+type LabelIdGen = IdGen LabelSpace
 type TypeIdGen = IdGen TypeSpace
 
 genId :: IdGen n -> (Id n, IdGen n)

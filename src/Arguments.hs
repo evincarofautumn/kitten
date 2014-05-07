@@ -3,6 +3,7 @@
 module Arguments
   ( Arguments(..)
   , CompileMode(..)
+  , OutputFormat(..)
   , parseArguments
   ) where
 
@@ -21,9 +22,13 @@ data Arguments = Arguments
   , argsShowVersion :: Bool
   }
 
+data OutputFormat
+  = OutputC
+  | OutputIr
+
 data CompileMode
   = CheckMode
-  | CompileMode
+  | CompileMode !OutputFormat
   | InterpretMode
 
 parseArguments :: IO Arguments
@@ -84,10 +89,12 @@ argumentsMode = mode "kitten" defaultArguments
 
   options :: [Flag Arguments]
   options =
-    [ flagBool' ["c", "compile"]
-      "Compile Yarn assembly."
-      $ \flag acc@Arguments{..} -> acc
-      { argsCompileMode = if flag then CompileMode else argsCompileMode }
+    [ flagReq' ["c", "compile"] "c|ir"
+      "Compile to the given output format."
+      $ \format acc@Arguments{..} -> case format of
+        "c" -> Right acc { argsCompileMode = CompileMode OutputC }
+        "ir" -> Right acc { argsCompileMode = CompileMode OutputIr }
+        _ -> Left $ "Unknown output format '" ++ format ++ "'."
 
     , flagBool' ["check"]
       "Check syntax and types without compiling or running."

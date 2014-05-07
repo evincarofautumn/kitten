@@ -10,6 +10,7 @@ import System.IO
 
 import qualified Data.Vector as V
 
+import Kitten.C
 import Kitten.Compile
 import Kitten.Error
 import Kitten.Interpret
@@ -63,5 +64,8 @@ interpretAll entryPoints compileMode config
         exitFailure
       Right (result, ip, _type) -> case compileMode of
         CheckMode -> noop
-        CompileMode -> V.mapM_ print . flattenedBlock $ flattenProgram result
+        CompileMode OutputIr -> V.mapM_ print
+          $ flattenedBlock (flattenProgram result)
+        CompileMode OutputC -> V.mapM_ (putStrLn . T.unpack)
+          $ toC $ flattenProgram result
         InterpretMode -> void $ interpret (Just ip) [] result

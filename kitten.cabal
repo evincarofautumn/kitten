@@ -48,6 +48,7 @@ library
     lib
 
   exposed-modules:
+    Kitten.C,
     Kitten.Compile,
     Kitten.Error,
     Kitten.HTML,

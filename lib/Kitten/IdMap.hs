@@ -5,10 +5,13 @@
 module Kitten.IdMap
   ( DefIdMap
   , IdMap
+  , LabelIdMap
   , TypeIdMap
   , (!)
   , adjust
+  , any
   , empty
+  , filterWithKey
   , fromList
   , insert
   , insertWith
@@ -23,8 +26,9 @@ module Kitten.IdMap
 import Control.Arrow
 import Data.IntMap.Strict (IntMap)
 import Data.Monoid
-import Prelude hiding (lookup, map)
+import Prelude hiding (any, lookup, map)
 
+import qualified Data.Foldable as F
 import qualified Data.IntMap as I
 import qualified Prelude
 
@@ -34,6 +38,7 @@ newtype IdMap (n :: Namespace) a = IdMap (IntMap a)
   deriving (Eq, Monoid, Show)
 
 type DefIdMap = IdMap DefSpace
+type LabelIdMap = IdMap LabelSpace
 type TypeIdMap = IdMap TypeSpace
 
 (!) :: IdMap n a -> Id n -> a
@@ -42,8 +47,14 @@ IdMap ids ! Id index = ids I.! index
 adjust :: (a -> a) -> Id n -> IdMap n a -> IdMap n a
 adjust f (Id i) (IdMap ids) = IdMap $ I.adjust f i ids
 
+any :: (a -> Bool) -> IdMap n a -> Bool
+any f (IdMap ids) = F.any f ids
+
 empty :: IdMap n a
 empty = IdMap I.empty
+
+filterWithKey :: (Id n -> a -> Bool) -> IdMap n a -> IdMap n a
+filterWithKey f (IdMap ids) = IdMap $ I.filterWithKey (f . Id) ids
 
 fromList :: [(Id n, a)] -> IdMap n a
 fromList = IdMap . foldr
