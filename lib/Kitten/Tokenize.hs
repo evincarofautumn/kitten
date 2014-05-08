@@ -54,7 +54,11 @@ token :: Parser Located
 token = (<?> "token") . located $ choice
   [ TkBlockBegin NormalBlockHint <$ char '{'
   , TkBlockEnd <$ char '}'
-  , TkChar <$> (char '\'' *> character '\'' <* char '\'')
+  , do
+    mc <- char '\'' *> character '\'' <* char '\''
+    case mc of
+      Just c -> return $ TkChar c
+      Nothing -> unexpected "empty character literal"
   , TkComma <$ char ','
   , TkGroupBegin <$ char '('
   , TkGroupEnd <$ char ')'
@@ -97,22 +101,24 @@ token = (<?> "token") . located $ choice
     $ char prefix *> many1 (oneOf digits <?> (desc ++ " digit"))
 
   text :: Parser Text
-  text = T.pack <$> many (character '"')
+  text = T.pack . catMaybes <$> many (character '"')
 
-  character :: Char -> Parser Char
+  character :: Char -> Parser (Maybe Char)
   character quote
-    = (noneOf ('\\' : [quote]) <?> "character") <|> escape
+    = (Just <$> noneOf ('\\' : [quote]) <?> "character") <|> escape
 
-  escape :: Parser Char
+  escape :: Parser (Maybe Char)
   escape = (<?> "escape") $ char '\\' *> choice
-    [ oneOf "\\\"'"
-    , '\a' <$ char 'a'
-    , '\b' <$ char 'b'
-    , '\f' <$ char 'f'
-    , '\n' <$ char 'n'
-    , '\r' <$ char 'r'
-    , '\t' <$ char 't'
-    , '\v' <$ char 'v'
+    [ Just <$> oneOf "\\\"'"
+    , Just '\a' <$ char 'a'
+    , Just '\b' <$ char 'b'
+    , Just '\f' <$ char 'f'
+    , Just '\n' <$ char 'n'
+    , Just '\r' <$ char 'r'
+    , Just '\t' <$ char 't'
+    , Just '\v' <$ char 'v'
+    , Just . head <$> many1 space
+    , Nothing <$ char '&'
     ]
 
   word :: Parser Token
