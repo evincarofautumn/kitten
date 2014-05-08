@@ -3,7 +3,7 @@
 def bottlesOfBeer (int ->):
   -> x;
   x verse
-  \if x > 1:
+  if (x > 1):
     (x - 1) bottlesOfBeer
 
 def verse (int ->):
@@ -25,10 +25,11 @@ def take (->):
 
 def bottles (int ->):
   -> x;
-  \if x = 0:
+  if (x = 0):
     "no more bottles"
-  else if x = 1:
-    "one bottle"
   else:
-    x showInt " bottles" cat
+    if (x = 1):
+      "one bottle"
+    else:
+      x showInt " bottles" cat
   print

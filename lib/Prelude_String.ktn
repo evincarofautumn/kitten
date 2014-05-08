@@ -28,7 +28,7 @@ def neChar (char char -> bool):
 
 // Shows a Boolean as a string.
 def showBool (bool -> [char]):
-  {"true"} {"false"} if_else
+  {"true"} {"false"} if___else_
 
 // Shows a Boolean vector as a string.
 def showBools ([bool] -> [char]):

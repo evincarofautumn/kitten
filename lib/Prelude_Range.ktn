@@ -2,7 +2,7 @@
 // based on a given next and compare functions
 def rangeFor (int int (int -> int) (int int -> bool) -> [int]):
   -> start end next cmp;
-  \if start end cmp apply:
+  if (start end cmp apply):
     []
   else:
     start next apply
@@ -12,7 +12,7 @@ def rangeFor (int int (int -> int) (int int -> bool) -> [int]):
 // Inclusive range
 def rangeTo (int int -> [int]):
   -> start end;
-  \if start < end:
+  if (start < end):
     start end {(+ 1)} {(>)} rangeFor
   else:
     start end {(- 1)} {(<)} rangeFor
@@ -20,7 +20,7 @@ def rangeTo (int int -> [int]):
 // Non-inclusive range
 def rangeUntil (int int -> [int]):
   -> start end;
-  \if start < end:
+  if (start < end):
     start end {(+ 1)} {(>=)} rangeFor
   else:
     start end {(- 1)} {(<=)} rangeFor

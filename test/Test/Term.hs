@@ -123,15 +123,20 @@ spec = do
         , push $ quotation [word "two"] ]
 
     testTerm
-      "\\option (0 some):\n\
+      "def option___else_ (->) {}\n\
+      \option (0 some):\n\
       \  drop // This comment is necessary.\n\
       \else:\n\
       \  noop\n"
-      . termFragment $ compose
+      (termFragment $ compose
         [ compose [compose [pushi 0, call "some"]
         , push $ quotation [call "drop"]
         , push $ quotation [call "noop"]
-        , word "option_else" ] ]
+        , word "option___else_" ] ])
+        { fragmentDefs = defList
+          [ defWithAnno "option___else_"
+            (AnFunction V.empty V.empty)
+            $ compose [] ] }
 
     testTermFailure ":"
 

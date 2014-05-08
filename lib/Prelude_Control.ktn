@@ -3,28 +3,52 @@ def apply {.r, .s}(.r (.r -> .s) -> .s):
   __apply
 
 // Applies a function to the left branch of a choice.
-def choice {.r, a, b}(.r (a | b) (.r a -> .r) -> .r):
+def choice__ {.r, a, b}(.r (a | b) (.r a -> .r) -> .r):
+  __choice
+
+// Same as 'choice__' but taking the discriminant from the stack.
+def choice_ {.r, a, b}(.r (a | b) (.r a -> .r) -> .r):
   __choice
 
 // Applies one of two functions to the branches of a choice.
-def choice_else {.r, .s, a, b}(.r (a | b) (.r a -> .s) (.r b -> .s) -> .s):
+def choice___else_ {.r, .s, a, b}(.r (a | b) (.r a -> .s) (.r b -> .s) -> .s):
+  __choice_else
+
+// Same as 'choice___else_' but taking the discriminant from the stack.
+def choice__else_ {.r, .s, a, b}(.r (a | b) (.r a -> .s) (.r b -> .s) -> .s):
   __choice_else
 
 // Applies a function if a condition is met.
-def if {.r}(.r bool (.r -> .r) -> .r):
+def if__ {.r}(.r bool (.r -> .r) -> .r):
+  __if
+
+// Same as 'if__' but taking the discriminant from the stack.
+def if_ {.r}(.r bool (.r -> .r) -> .r):
   __if
 
 // Applies one of two functions according to a condition.
-def if_else {.r, .s}(.r bool (.r -> .s) (.r -> .s) -> .s):
+def if___else_ {.r, .s}(.r bool (.r -> .s) (.r -> .s) -> .s):
+  __if_else
+
+// Same as 'if___else_' but taking the discriminant from the stack.
+def if__else_ {.r, .s}(.r bool (.r -> .s) (.r -> .s) -> .s):
   __if_else
 
 // Applies a function to the value of some option.
-def option {.r, a}(.r a? (.r a -> .r) -> .r):
+def option__ {.r, a}(.r a? (.r a -> .r) -> .r):
+  __option
+
+// Same as 'option__' but taking the discriminant from the stack.
+def option_ {.r, a}(.r a? (.r a -> .r) -> .r):
   __option
 
 // Applies a function to the value of some option, or else a
 // default function.
-def option_else {.r, .s, a}(.r a? (.r a -> .s) (.r -> .s) -> .s):
+def option___else_ {.r, .s, a}(.r a? (.r a -> .s) (.r -> .s) -> .s):
+  __option_else
+
+// Same as 'option___else_' but taking the discriminant from the stack.
+def option__else_ {.r, .s, a}(.r a? (.r a -> .s) (.r -> .s) -> .s):
   __option_else
 
 // 'cond' accepts a value, a vector of patterns, and a
@@ -41,9 +65,9 @@ def cond {a, b, c}(
   c
 ):
   -> x ps z;
-  \option ps head: -> p;
+  option (ps head): -> p;
     x p first apply -> m;
-    \option m:
+    option (m):
       p rest apply
     else:
       x (ps tail) z cond
@@ -60,25 +84,25 @@ def cond1 {a, b, c}(
   -> x ps;
   ps head fromSome -> p;
   x p first apply -> m;
-  \option m:
+  option (m):
     p rest apply
   else:
     x (ps tail) cond1
 
 // TODO(strager): Make this more efficient.
-def loopN (int (int ->) ->):
+def upto__ (int (int ->) ->):
   -> size f;
   { f apply none } size generateN drop
 
 // Repeats an action until a condition is false.
 def loopWhile ((-> bool) ->):
   -> f;
-  \if f apply: f loopWhile
+  if (f apply): f loopWhile
 
 // Iterates a function on a value until a predicate holds.
 def until {a}(a (a -> a) (a -> bool) -> a):
   -> x f p;
-  \if x p apply:
+  if (x p apply):
     x
   else:
     x f apply

@@ -10,13 +10,17 @@ module Kitten.Parse
 import Control.Applicative hiding (some)
 import Control.Monad
 import Data.Functor.Identity
+import Data.List (sortBy)
+import Data.Maybe
 import Data.Monoid
+import Data.Ord
 import Data.Text (Text)
 import Data.Traversable (traverse)
 import Data.Vector (Vector)
 import Text.Parsec.Pos
 
 import qualified Data.HashMap.Strict as H
+import qualified Data.Text as T
 import qualified Data.Traversable as T
 import qualified Data.Vector as V
 import qualified Text.Parsec as Parsec
@@ -35,7 +39,10 @@ import Kitten.Util.Either
 import Kitten.Util.List
 import Kitten.Util.Maybe
 import Kitten.Util.Parsec
-import Kitten.Util.Text (toText)
+
+--import Debug.Trace
+traceShow :: a -> a -> a
+traceShow _ x = x
 
 parse
   :: String
@@ -120,7 +127,6 @@ term = nonblockTerm <|> blockTerm
     , TrMakeVector <$> vector
     , mapOne toIntrinsic <?> "intrinsic"
     , lambda
-    , doElse
     ]
 
   section :: Parser (Location -> ParsedTerm)
@@ -157,41 +163,6 @@ term = nonblockTerm <|> blockTerm
 
   group :: Parser (Location -> ParsedTerm)
   group = (<?> "group") $ TrCompose StackAny <$> grouped (many1V term)
-
-  doElse :: Parser (Location -> ParsedTerm)
-  doElse = (<?> "do block") $ match TkDo *> doBody
-
-  toFunctionOrIntrinsic :: Token -> Maybe Text
-  toFunctionOrIntrinsic token = case token of
-    TkIntrinsic name -> Just (toText name)
-    TkWord name -> Just name
-    TkOperator name -> Just name
-    _ -> Nothing
-
-  doBody :: Parser (Location -> ParsedTerm)
-  doBody = (<?> "do body") $ do
-    name <- mapOne toFunctionOrIntrinsic
-    open <- many nonblockTerm
-    body <- blockTerm
-    else_ <- optionMaybe $ match TkElse *> choice
-      [ try . locate $ TrPush
-        <$> locate (TrQuotation <$> locate doBody)
-      , blockTerm
-      ]
-    let
-      (name', else') = case else_ of
-        Nothing -> (name, V.empty)
-        Just elseBody -> (name <> "_else", V.singleton elseBody)
-      name'' = case intrinsicFromText name' of
-        Just intrinsic -> TrIntrinsic intrinsic
-        Nothing -> TrCall Postfix name'
-    return $ \loc -> let
-      whole = V.concat
-        [ V.fromList [TrCompose StackAny (V.fromList open) loc, body]
-        , else'
-        , V.singleton (name'' loc)
-        ]
-      in TrCompose StackAny whole loc
 
   lambda :: Parser (Location -> ParsedTerm)
   lambda = (<?> "lambda") $ match TkArrow *> do
@@ -309,6 +280,48 @@ rewriteInfix program@Program{..} parsed@Fragment{..} = do
     TrLambda{} -> True
     _ -> False
 
+  mixfix :: TermParser ParsedTerm
+  mixfix = do
+    loc <- getPosition
+    (operands, name) <- choice $ map (try . mixfixName) mixfixTable
+    return . mixfixCall operands name
+      $ Location { locationStart = loc, locationIndent = -1 }
+
+    where
+    mixfixCall :: [ParsedTerm] -> Text -> Location -> ParsedTerm
+    mixfixCall operands name loc = TrCompose StackAny
+      (V.fromList operands
+        <> V.singleton (TrCall Postfix {- TODO Mixfix? -} name loc))
+      loc
+
+    mixfixName :: [Text] -> TermParser ([ParsedTerm], Text)
+    mixfixName = fmap (fmap (T.intercalate "_")) . go
+      where
+      go ("" : parts) = do
+        operand <- satisfyTerm $ \case
+          TrCall{} -> False
+          _ -> True
+        (operands, name) <- go parts
+        return (operand : operands, "" : name)
+      go (part : parts) = do
+        void . satisfyTerm $ \case
+          TrCall _ part' _ | part' == part -> True
+          _ -> False
+        (operands, name) <- go parts
+        return (operands, part : name)
+      go [] = return ([], [])
+
+  mixfixTable :: [[Text]]
+  mixfixTable = let
+    x = sortBy (flip (comparing length)) . mapMaybe toMixfixParts
+      $ H.keys fragmentDefs ++ H.keys programSymbols
+    in traceShow x x
+
+  toMixfixParts :: Text -> Maybe [Text]
+  toMixfixParts name = case T.splitOn "_" name of
+    [_] -> Nothing
+    parts -> Just parts
+
   rewriteInfixValue :: ParsedValue -> Either ErrorGroup ParsedValue
   rewriteInfixValue = \case
     TrQuotation body loc -> TrQuotation <$> rewriteInfixTerm body <*> pure loc
@@ -336,10 +349,13 @@ rewriteInfix program@Program{..} parsed@Fragment{..} = do
     (locate (TrCompose StackAny <$> many1V operand) <?> "operand")
     where
     operand :: TermParser ParsedTerm
-    operand = satisfyTerm $ \case
-      TrCall Infix _ _ -> False  -- An operator is not an operand.
-      TrLambda{} -> False  -- Nor is a bare lambda.
-      _ -> True
+    operand = choice
+      [ try mixfix
+      , satisfyTerm $ \case
+        TrCall Infix _ _ -> False  -- An operator is not an operand.
+        TrLambda{} -> False  -- Nor is a bare lambda.
+        _ -> True
+      ]
 
   -- TODO Detect/report duplicates.
   opTable = map (map toOp) rawTable

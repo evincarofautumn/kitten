@@ -10,21 +10,21 @@ def levenshtein ([char] [char] -> int):
   0 (columns + 1) replicate (rows + 1) replicate
 
   // Distance from any first string to empty second string.
-  \mapRange 0 rows: -> row;
+  from (0) to (rows): -> row;
     (row, 0) @@= row
 
   // Distance from any second string to empty first string.
-  \mapRange 0 columns: -> column;
+  from (0) to (columns): -> column;
     (0, column) @@= column
 
-  \mapRange 1 rows: -> row;
-    \mapRange 1 columns: -> distances column;
+  from (1) to (rows): -> row;
+    from (1) to (columns): -> distances column;
 
       first @! (row - 1) -> firstChar;
       second @! (column - 1) -> secondChar;
 
       distances
-      \if firstChar secondChar eqChar:
+      if (firstChar secondChar eqChar):
         distances @@! (row - 1, column - 1)
       else:
         distances @@! (row - 1, column);      // deletion

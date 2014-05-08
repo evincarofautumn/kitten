@@ -1,11 +1,11 @@
 // Binds computations on option values.
 def bindOption {a, b}(a? (a -> b?) -> b?):
-  {none} option_else
+  {none} option___else_
 
 // Safely gets a value from an option value.
 def fromOption {a}(a? a -> a):
   -> m z;
-  \option m {} else: z
+  option (m) {} else {z}
 
 // Unsafely gets the value from an option.
 def fromSome {a}(a? -> a):
@@ -13,14 +13,14 @@ def fromSome {a}(a? -> a):
 
 // Whether an option is empty.
 def isNone {a}(a? -> bool):
-  \option:
+  option:
     drop false
   else:
     true
 
 // Whether an option contains a value.
 def isSome {a}(a? -> bool):
-  \option:
+  option:
     drop true
   else:
     false
@@ -28,7 +28,7 @@ def isSome {a}(a? -> bool):
 // Maps a function over an option value.
 def liftOption {a, b}(a? (a -> b) -> b?):
   -> f;
-  \option:
+  option:
     f apply some
   else:
     none
@@ -36,8 +36,8 @@ def liftOption {a, b}(a? (a -> b) -> b?):
 // Combines two option values with a function.
 def liftOption2 {a, b, c}(a? b? (a b -> c) -> c?):
   -> mx my f;
-  \option mx: -> x;
-    \option my: -> y;
+  option (mx): -> x;
+    option (my): -> y;
       x y f apply some
     else: none
   else: none
@@ -53,7 +53,7 @@ def some {a}(a -> a?):
 // TODO(strager): Find a better name.  'option' is taken.
 def maybe {a, b}(a? (a -> b) b -> b):
   -> mx f z;
-  \option mx:
+  option (mx):
     f apply
   else:
     z

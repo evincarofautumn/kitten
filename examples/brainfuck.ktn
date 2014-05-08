@@ -33,7 +33,7 @@ def runProgram ([char] ->):
 
 def loopProgram([char] int [int] int ->):
   stepProgram -> running;
-  \if running:
+  if (running):
     loopProgram
   else:
     drop drop drop drop
@@ -41,56 +41,56 @@ def loopProgram([char] int [int] int ->):
 def stepProgram ([char] int [int] int -> [char] int [int] int bool):
   -> program pc ram ramc;
 
-  \if debug:
+  if (debug):
     ram ramc dumpMemory
     program pc dumpProgram
 
-  [ \pair '<':
+  [ '<' {
       program (pc + 1) ram (ramc - 1)
-
-  , \pair '>':
+    } pair
+  , '>' {
       program (pc + 1) ram (ramc + 1)
-
-  , \pair '+':
+    } pair
+  , '+' {
       program (pc + 1) ram(ramc @~: (+ 1)) ramc
-
-  , \pair '-':
+    } pair
+  , '-' {
       program (pc + 1) ram(ramc @~: (- 1)) ramc
-
-  , \pair '[':
-      \if ram @! ramc = 0:
-        \option program pc findMatchingRBracket:
+    } pair
+  , '[' {
+      if (ram @! ramc = 0):
+        option (program pc findMatchingRBracket):
           -> rbracket;
           program (rbracket + 1) ram ramc
         else:
           ["No matching ] at position ", pc showInt] concat error
       else:
         program (pc + 1) ram ramc
-
-  , \pair ']':
-      \option program pc findMatchingLBracket:
+    } pair
+  , ']' {
+      option (program pc findMatchingLBracket):
         -> lbracket;
         program lbracket ram ramc
       else:
         ["No matching [ at position ", pc showInt] concat error
-
-  , \pair '.':
+    } pair
+  , '.' {
       ram @! ramc -> cell;
-      \option cell intToChar:
+      option (cell intToChar):
         vector print
       else:
         ["Tried to print ", cell showInt, ", which is out of range"] concat error
       program (pc + 1) ram ramc
-
-  , \pair ',':
+    } pair
+  , ',' {
       getCharApprox {charToInt} eofCell maybe -> cell;
       program (pc + 1) ram(ramc @= cell) ramc
-
+    } pair
   ] -> instructionTable;
 
-  \option program @ pc:
+  option (program @ pc):
     -> instruction;
-    \option (instructionTable instruction {eqChar} lookUp):
+    option (instructionTable instruction {eqChar} lookUp):
       apply
     else:
       program (pc + 1) ram ramc
@@ -101,16 +101,18 @@ def stepProgram ([char] int [int] int -> [char] int [int] int bool):
 
 def findLBracket ([char] int int -> int?):
   -> program pc depth;
-  \option program @ pc:
-    [ \pair '[':
-        \if depth = 0:
+  option (program @ pc):
+    [ '[' {
+        if (depth = 0):
           pc some
         else:
           program (pc - 1) (depth - 1) findLBracket
-    , \pair ']':
+      } pair
+    , ']' {
         program (pc - 1) (depth + 1) findLBracket
+      } pair
     ] swap {eqChar} lookUp
-    \option:
+    option:
       apply
     else:
       program (pc - 1) depth findLBracket
@@ -123,16 +125,18 @@ def findMatchingLBracket([char] int -> int?):
 // TODO(strager): Remove duplication with findLBracket.
 def findRBracket ([char] int int -> int?):
   -> program pc depth;
-  \option program @ pc:
-    [ \pair '[':
+  option (program @ pc):
+    [ '[' {
         program (pc + 1) (depth + 1) findRBracket
-    , \pair ']':
-        \if depth = 0:
+      } pair
+    , ']' {
+        if (depth = 0):
           pc some
         else:
           program (pc + 1) (depth - 1) findRBracket
+      } pair
     ] swap {eqChar} lookUp
-    \option:
+    option:
       apply
     else:
       program (pc + 1) depth findRBracket
@@ -192,10 +196,10 @@ def dumpMemory ([int] int ->):
   -> ram ramc;
 
   "Memory:" say
-  \loopN 32: -> index;
+  upto 32: -> index;
     ram @! index -> cell;
     ["[", index showInt, "] ", cell showInt] concat print
-    \if index = ramc: " <" print
+    if (index = ramc): " <" print
     newline
 
 def dumpProgram ([char] int ->):

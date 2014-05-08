@@ -1,7 +1,7 @@
 // Absolute value of an integer.
 def absInt (int -> int):
   -> x;
-  \if x < 0:
+  if (x < 0):
     x negInt
   else:
     x
@@ -9,7 +9,7 @@ def absInt (int -> int):
 // Absolute value of a floating-point number.
 def absFloat (float -> float):
   -> x;
-  \if x <. 0.0:
+  if (x <. 0.0):
     x negFloat
   else:
     x
@@ -37,7 +37,7 @@ def evenInt (int -> bool):
 // The maximum of two integers.
 def maxInt (int int -> int):
   -> a b;
-  \if a > b: a else: b
+  if (a > b) {a} else {b}
 
 // The maximum of three integers.
 def maxInt3 (int int int -> int):
@@ -50,7 +50,7 @@ def maxInts ([int] -> int?):
 // The minimum of two integers.
 def minInt (int int -> int):
   -> a b;
-  \if a < b: a else: b
+  if (a < b) {a} else {b}
 
 // The minimum of three integers.
 def minInt3 (int int int -> int):

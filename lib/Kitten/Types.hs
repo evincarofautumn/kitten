@@ -746,8 +746,6 @@ data Token
   | TkChar Char
   | TkComma
   | TkDef
-  | TkDo
-  | TkElse
   | TkGroupBegin
   | TkGroupEnd
   | TkFloat !Double
@@ -776,8 +774,6 @@ instance Eq Token where
   TkChar a       == TkChar b       = a == b
   TkComma        == TkComma        = True
   TkDef          == TkDef          = True
-  TkDo           == TkDo           = True
-  TkElse         == TkElse         = True
   TkGroupBegin   == TkGroupBegin   = True
   TkGroupEnd     == TkGroupEnd     = True
   TkFloat a      == TkFloat b      = a == b
@@ -809,8 +805,6 @@ instance Show Token where
     TkChar value -> show value
     TkComma -> ","
     TkDef -> "def"
-    TkDo -> "\\"
-    TkElse -> "else"
     TkIgnore -> "_"
     TkInfix -> "infix"
     TkInfixLeft -> "infix_left"

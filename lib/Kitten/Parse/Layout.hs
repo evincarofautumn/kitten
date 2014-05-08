@@ -22,22 +22,6 @@ insertBraces = (concat <$> many unit) <* eof
     end <- locatedMatch close
     return $ begin : inner ++ [end]
 
-  doElse :: Parser [Located]
-  doElse = (:) <$> locatedMatch TkDo <*> doBody
-
-  doBody :: Parser [Located]
-  doBody = do
-    name <- locatedSatisfy $ \(Located token _) -> case token of
-      TkIntrinsic{} -> True
-      TkOperator{} -> True
-      TkWord{} -> True
-      _ -> False
-    open <- many (unitWhere nonblock)
-    body <- unit
-    else_ <- option []
-      ((:) <$> locatedMatch TkElse <*> (try doBody <|> unit))
-    return $ name : concat [concat open, body, else_]
-
   unit :: Parser [Located]
   unit = unitWhere $ const True
 
@@ -47,13 +31,9 @@ insertBraces = (concat <$> many unit) <* eof
     [ bracket (TkBlockBegin NormalBlockHint) TkBlockEnd
     , bracket TkGroupBegin TkGroupEnd
     , bracket TkVectorBegin TkVectorEnd
-    , doElse
     , layout
     , list <$> locatedSatisfy nonbracket
     ]
-
-  nonblock :: Located -> Bool
-  nonblock = not . (`elem` blockBrackets) . locatedToken
 
   nonbracket :: Located -> Bool
   nonbracket = not . (`elem` brackets) . locatedToken
@@ -64,7 +44,6 @@ insertBraces = (concat <$> many unit) <* eof
     , TkGroupEnd
     , TkVectorBegin
     , TkVectorEnd
-    , TkElse
     ]
 
   blockBrackets :: [Token]

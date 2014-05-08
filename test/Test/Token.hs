@@ -80,9 +80,7 @@ spec = do
     testTokens "false" [TkBool False]
 
   describe "tokenize keyword" $ do
-    testTokens "\\" [TkDo]
     testTokens "def" [TkDef]
-    testTokens "else" [TkElse]
     testTokens "import" [TkImport]
 
   describe "tokenize builtin" $ do
