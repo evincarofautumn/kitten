@@ -16,21 +16,21 @@ def iii ((int int -> int) ->):
   -> f;
   binary f apply sayInt
 
-{(+)} iii
-{(&)} iii
+\+ iii
+\& iii
 {(- 1)} ii
-{(/)} iii
-{(=)} iib
-{(>=)} iib
-{(>)} iib
+\/ iii
+\= iib
+\>= iib
+\> iib
 {(+ 1)} ii
-{(<=)} iib
-{(<)} iib
-{(%)} iii
-{(*)} iii
-{(!=)} iib
-{negInt} ii
-{(~)} ii
-{(|)} iii
-{(-)} iii
-{(^)} iii
+\<= iib
+\< iib
+\% iii
+\* iii
+\!= iib
+\negInt ii
+\~ ii
+\| iii
+\- iii
+\^ iii

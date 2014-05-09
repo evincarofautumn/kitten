@@ -5,6 +5,6 @@ def readInt ([char] -> int?):
   option (s last): -> c;
     if (c {'0' geChar} {'9' leChar} bothTo (&&)):
       drop;
-      c '0' {charToInt} toBoth (-);
+      c '0' \charToInt toBoth (-);
       option (s init readInt): 10 (*) (+)
       some

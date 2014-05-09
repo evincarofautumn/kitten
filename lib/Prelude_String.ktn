@@ -1,30 +1,30 @@
 // Character equality.
 def eqChar (char char -> bool):
-  {charToInt} toBoth (=)
+  \charToInt toBoth (=)
 
 // String equality.
 def eqString ([char] [char] -> bool):
-  {eqChar} eqVector
+  \eqChar eqVector
 
 // Character greater than or equal.
 def geChar (char char -> bool):
-  {charToInt} toBoth (>=)
+  \charToInt toBoth (>=)
 
 // Character greater than.
 def gtChar (char char -> bool):
-  {charToInt} toBoth (>)
+  \charToInt toBoth (>)
 
 // Character less than or equal.
 def leChar (char char -> bool):
-  {charToInt} toBoth (<=)
+  \charToInt toBoth (<=)
 
 // Character less than.
 def ltChar (char char -> bool):
-  {charToInt} toBoth (<)
+  \charToInt toBoth (<)
 
 // Character inequality.
 def neChar (char char -> bool):
-  {charToInt} toBoth (!=)
+  \charToInt toBoth (!=)
 
 // Shows a Boolean as a string.
 def showBool (bool -> [char]):
@@ -32,7 +32,7 @@ def showBool (bool -> [char]):
 
 // Shows a Boolean vector as a string.
 def showBools ([bool] -> [char]):
-  {showBool} showVector
+  \showBool showVector
 
 // Shows a string vector as a string.
 def showStrings ([[char]] -> [char]):
@@ -44,7 +44,7 @@ def showFloat (float -> [char]):
 
 // Shows a floating-point vector as a string.
 def showFloats ([float] -> [char]):
-  {showFloat} showVector
+  \showFloat showVector
 
 // Shows an integer as a string.
 def showInt (int -> [char]):
@@ -52,7 +52,7 @@ def showInt (int -> [char]):
 
 // Shows an integer vector as a string.
 def showInts ([int] -> [char]):
-  {showInt} showVector
+  \showInt showVector
 
 // Shows a vector as a string.
 def showVector {a}([a] (a -> [char]) -> [char]):

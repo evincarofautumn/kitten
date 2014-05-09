@@ -181,7 +181,7 @@ def readXY (char char -> (int & int)?):
 def readXY_ (char char -> (int & int)?):
   readX -> mx;
   readY -> my;
-  mx my {pair} liftOption2
+  mx my \pair liftOption2
 
 def readX (char -> int?):
   -> c;

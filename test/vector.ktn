@@ -18,7 +18,7 @@ def a (->) {}
 
 def b (->) {}
 
-[{a}, {b}] length sayInt
+[\a, \b] length sayInt
 
 def f (int int -> int): (+)
 

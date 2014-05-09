@@ -4,7 +4,7 @@ def append {a}([a] a -> [a]):
 
 // The Cartesian product of two vectors.
 def cartesian {a, b}([a] [b] -> [a & b]):
-  {pair} cartesianWith
+  \pair cartesianWith
 
 // The Cartesian product of two vectors with a generalized
 // tupling function.
@@ -25,7 +25,7 @@ def <> {a}([a] [a] -> [a]):
 
 // Concatenates a vector of vectors.
 def concat {a}([[a]] -> [a]):
-  [] {(<>)} foldl
+  [] \<> foldl
 
 // Lifts an impure function on values to one on vectors.
 def each {a}([a] (a ->) ->):
@@ -42,11 +42,11 @@ def elem {a}([a] a (a a -> bool) -> bool):
 
 // Whether a character is present in a string.
 def elemChar ([char] char -> bool):
-  {eqChar} elem
+  \eqChar elem
 
 // Whether an integer is present in an integer vector.
 def elemInt ([int] int -> bool):
-  {(=)} elem
+  \= elem
 
 // Whether two vectors are equal according to the given
 // equality predicate.
@@ -153,7 +153,7 @@ def head {a}([a] -> a?):
 
 // Splits a vector into its head and tail.
 def headTail {a}([a] -> a? [a]):
-  {head} {tail} bothTo
+  \head \tail bothTo
 
 // Unsafely removes the last element of a vector.
 def init {a}([a] -> [a]):
@@ -235,7 +235,7 @@ def length {a}([a] -> int):
 def lookUp {a, b}([a & b] a (a a -> bool) -> b?):
   -> key eq;
   { first key eq apply } find
-  {rest} liftOption
+  \rest liftOption
 
 // Lifts a function on values to a function on vectors.
 def map {a, b}([a] (a -> b) -> [b]):
@@ -386,8 +386,8 @@ def transpose {a}([[a]] -> [[a]]):
     else:
       xss unsafeHeadTail -> xs xss;
       xs unsafeHeadTail -> x xs;
-      ((xss {tail} map) xs prepend) transpose
-      (xss {unsafeHead} map) x prepend
+      ((xss \tail map) xs prepend) transpose
+      (xss \unsafeHead map) x prepend
       prepend
 
 // Strips duplicate elements from a vector according the
@@ -404,7 +404,7 @@ def unsafeHead {a}([a] -> a):
   head fromSome
 
 def unsafeHeadTail {a}([a] -> a [a]):
-  {unsafeHead} {tail} bothTo
+  \unsafeHead \tail bothTo
 
 def unsafeLast {a}([a] -> a):
   last fromSome
@@ -415,7 +415,7 @@ def vector {a}(a -> [a]):
 
 // Zips two lists together as pairs.
 def zip {a, b}([a] [b] -> [a & b]):
-  {pair} zipWith
+  \pair zipWith
 
 // Zips two lists together with a function.
 def zipWith {a, b, c}([a] [b] (a b -> c) -> [c]):

@@ -1,7 +1,7 @@
 [] {(+ 1)} map sayInts
 [1, 2, 3] {(+ 1)} map sayInts
 ["a", "b", "c"] { "s" cat } map sayStrings
-["one", "two", "three"] {length} map sayInts
+["one", "two", "three"] \length map sayInts
 [1, 2, 3, 4, 5] 0 const map sayInts
 
 ["fee", "fie", "foe", "fum"] {dup say} map

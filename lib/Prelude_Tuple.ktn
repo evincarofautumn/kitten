@@ -32,7 +32,7 @@ def rest {a, b}(a & b -> b):
 
 // Extracts a pair.
 def unpair {a, b}(a & b -> a b):
-  {first} {rest} bothTo
+  \first \rest bothTo
 
 // Extracts a triple.
 def untriple {a, b, c}(a & b & c -> a b c):

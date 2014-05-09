@@ -114,20 +114,19 @@ operatorDeclaration = (<?> "operator declaration") $ uncurry Operator
       _ -> Nothing
 
 term :: Parser ParsedTerm
-term = nonblockTerm <|> blockTerm
+term = locate $ choice
+  [ try $ TrPush <$> locate (mapOne toLiteral <?> "literal")
+  , TrCall Postfix <$> named
+  , TrCall Infix <$> symbolic
+  , try section
+  , try group <?> "grouped expression"
+  , pair <$> tuple
+  , TrMakeVector <$> vector
+  , mapOne toIntrinsic <?> "intrinsic"
+  , lambda
+  , TrPush <$> blockValue
+  ]
   where
-  nonblockTerm :: Parser ParsedTerm
-  nonblockTerm = locate $ choice
-    [ try $ TrPush <$> locate (mapOne toLiteral <?> "literal")
-    , TrCall Postfix <$> named
-    , TrCall Infix <$> symbolic
-    , try section
-    , try group <?> "grouped expression"
-    , pair <$> tuple
-    , TrMakeVector <$> vector
-    , mapOne toIntrinsic <?> "intrinsic"
-    , lambda
-    ]
 
   section :: Parser (Location -> ParsedTerm)
   section = (<?> "operator section") $ grouped $ choice
@@ -157,9 +156,6 @@ term = nonblockTerm <|> blockTerm
         [ TrCall Postfix "right operand" loc
         , TrCall Postfix "left operand" loc
         ]) loc) loc) loc
-
-  blockTerm :: Parser ParsedTerm
-  blockTerm = locate $ TrPush <$> blockValue
 
   group :: Parser (Location -> ParsedTerm)
   group = (<?> "group") $ TrCompose StackAny <$> grouped (many1V term)
@@ -203,8 +199,10 @@ term = nonblockTerm <|> blockTerm
 
 blockValue :: Parser ParsedValue
 blockValue = (<?> "function") . locate $ do
-  terms <- block
+  terms <- block <|> V.singleton <$> reference
   return $ \loc -> TrQuotation (TrCompose StackAny terms loc) loc
+  where
+  reference = locate $ TrCall Postfix <$> (match TkReference *> word)
 
 toLiteral :: Token -> Maybe (Location -> ParsedValue)
 toLiteral (TkBool x) = Just $ TrBool x

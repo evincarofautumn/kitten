@@ -4,5 +4,5 @@
 5 ({(- 1)} >>> {dup sayInt}) apply sayInt
 
 // Polyadic
-123 456 {(+)} {(+ 1)} compose apply sayInt
-123 456 ({(- 1)} >>> {(+)}) apply sayInt
+123 456 \+ {(+ 1)} compose apply sayInt
+123 456 ({(- 1)} >>> \+) apply sayInt

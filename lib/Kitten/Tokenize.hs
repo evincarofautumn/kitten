@@ -65,6 +65,7 @@ token = (<?> "token") . located $ choice
   , TkLayout <$ char ':'
   , TkVectorBegin <$ char '['
   , TkVectorEnd <$ char ']'
+  , TkReference <$ char '\\'
   , TkSemicolon <$ char ';'
   , TkText <$> between (char '"') (char '"') text
   , try number
@@ -161,7 +162,7 @@ token = (<?> "token") . located $ choice
     *> (Parsec.satisfy isSymbol <|> Parsec.satisfy isPunctuation)
 
   special :: Parser Char
-  special = oneOf "\"'(),:;[]_{}"
+  special = oneOf "\"'(),:;[\\]_{}"
 
 readBin :: String -> Int
 readBin = go 0

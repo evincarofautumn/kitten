@@ -83,14 +83,14 @@ def stepProgram ([char] int [int] int -> [char] int [int] int bool):
       program (pc + 1) ram ramc
     } pair
   , ',' {
-      getCharApprox {charToInt} eofCell maybe -> cell;
+      getCharApprox \charToInt eofCell maybe -> cell;
       program (pc + 1) ram(ramc @= cell) ramc
     } pair
   ] -> instructionTable;
 
   option (program @ pc):
     -> instruction;
-    option (instructionTable instruction {eqChar} lookUp):
+    option (instructionTable instruction \eqChar lookUp):
       apply
     else:
       program (pc + 1) ram ramc
@@ -111,7 +111,7 @@ def findLBracket ([char] int int -> int?):
     , ']' {
         program (pc - 1) (depth + 1) findLBracket
       } pair
-    ] swap {eqChar} lookUp
+    ] swap \eqChar lookUp
     option:
       apply
     else:
@@ -135,7 +135,7 @@ def findRBracket ([char] int int -> int?):
         else:
           program (pc + 1) (depth - 1) findRBracket
       } pair
-    ] swap {eqChar} lookUp
+    ] swap \eqChar lookUp
     option:
       apply
     else:

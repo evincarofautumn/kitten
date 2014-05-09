@@ -15,7 +15,7 @@ def ∘ {.r, .s, .t, .u}(.r (.s -> .t) (.t -> .u) -> .r (.s -> .u)):
 // Wraps a value in a function.
 def function {a}(a -> (-> a)):
   -> x;
-  { x }
+  \x
 
 // Wraps a value in a unary function.
 def const {a, b}(a -> b -> a):

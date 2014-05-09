@@ -758,6 +758,7 @@ data Token
   | TkInt !Int !BaseHint
   | TkLayout
   | TkOperator !Text
+  | TkReference
   | TkSemicolon
   | TkText !Text
   | TkType
@@ -787,6 +788,7 @@ instance Eq Token where
   TkInt a _      == TkInt b _      = a == b
   TkLayout       == TkLayout       = True
   TkOperator a   == TkOperator b   = a == b
+  TkReference    == TkReference    = True
   TkSemicolon    == TkSemicolon    = True
   TkText a       == TkText b       = a == b
   TkType         == TkType         = True
@@ -824,6 +826,7 @@ instance Show Token where
         HexadecimalHint -> (16, "0x", ['0'..'9'] ++ ['A'..'F'])
     TkLayout -> ":"
     TkOperator word -> T.unpack word
+    TkReference -> "\\"
     TkSemicolon -> ";"
     TkText value -> show value
     TkType -> "type"

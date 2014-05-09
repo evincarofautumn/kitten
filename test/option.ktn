@@ -5,7 +5,7 @@ def test {a}(a? (a -> [char]) ->):
   else:
     "(none)" say
 
-5 some {showInt} test
+5 some \showInt test
 "meow" some {} test
 none {} test
 
