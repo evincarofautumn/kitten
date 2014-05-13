@@ -22,7 +22,7 @@ composeM :: (Monad m) => [a -> m a] -> a -> m a
 composeM = foldr (>=>) return
 
 mapMaybeM :: (Monad m) => (a -> m (Maybe b)) -> [a] -> m [b]
-mapMaybeM f = liftM catMaybes . sequence . map f
+mapMaybeM f = liftM catMaybes . mapM f
 
 noop :: (Monad m) => m ()
 noop = return ()

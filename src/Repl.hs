@@ -104,8 +104,7 @@ newArgCommand symbols func helpArgs helpText =
   symbolText = T.concat ["[", T.intercalate ", " fmtSymbols, "]"]
 
 newCommand :: [Text] -> ReplInput () -> Text -> ReplCommand
-newCommand symbols func helpText =
-  newArgCommand symbols (const func) "" helpText
+newCommand symbols func = newArgCommand symbols (const func) ""
 
 replCommands :: [ReplCommand]
 replCommands =
@@ -306,7 +305,7 @@ reset = do
 
 load :: FilePath -> ReplInput ()
 load file = do
-  r <- liftIO $ (E.try (TIO.readFile file) :: IO (Either IOException Text))
+  r <- liftIO (E.try (TIO.readFile file) :: IO (Either IOException Text))
   case r of
     Left e -> liftIO (putStrLn $ "Error loading file:\n  " ++ show e) >> repl'
     Right contents -> liftIO (putStrLn $ "File loaded: " ++ file) >> eval contents
