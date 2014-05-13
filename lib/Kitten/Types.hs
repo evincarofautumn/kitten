@@ -91,9 +91,20 @@ data Config = Config
   , configImplicitPrelude :: !Bool
   , configLibraryDirectories :: [FilePath]
   , configName :: String
+  , configOptimizations :: !OptConfig
   , configPredefined :: !(Vector (Def TypedTerm))
   , configSource :: !Text
   , configStackTypes :: Vector (Type Scalar)
+  }
+
+-- TODO Add flags for other optimizations.
+data OptConfig = OptConfig
+  { optUnusedDefElim :: !Bool
+  }
+
+defaultOptimizations :: OptConfig
+defaultOptimizations = OptConfig
+  { optUnusedDefElim = True
   }
 
 newtype KT m a = KT

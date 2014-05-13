@@ -90,7 +90,7 @@ compile config@Config{..} program
   let (mErrors, program''') = ir typed program'' config
   void $ hoistEither mErrors
 
-  let program'''' = optimize program'''
+  let program'''' = optimize configOptimizations program'''
 
   return
     ( program''''

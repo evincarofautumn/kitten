@@ -35,6 +35,7 @@ main = do
       , configImplicitPrelude = argsEnableImplicitPrelude arguments
       , configLibraryDirectories = argsLibraryDirectories arguments
       , configName = filename
+      , configOptimizations = defaultOptimizations
       , configPredefined = V.empty
       , configSource = program
       , configStackTypes = V.empty

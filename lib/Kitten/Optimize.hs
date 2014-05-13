@@ -14,12 +14,13 @@ import qualified Data.Vector as V
 
 import Kitten.IdMap (DefIdMap)
 import Kitten.Types
+import Kitten.Util.Function
 
 import qualified Kitten.IdMap as Id
 
-optimize :: Program -> Program
-optimize program = program
-  { programBlocks = whole $ fix go (programBlocks program) }
+optimize :: OptConfig -> Program -> Program
+optimize config program = program
+  { programBlocks = whole config $ fix go (programBlocks program) }
   where
   go = \loop blocks -> let
     blocks' = foldl' (applyOpt program) blocks optimizations
@@ -27,8 +28,11 @@ optimize program = program
       then blocks
       else loop blocks'
 
-whole :: DefIdMap IrBlock -> DefIdMap IrBlock
-whole defs = Id.filterWithKey
+whole :: OptConfig -> DefIdMap IrBlock -> DefIdMap IrBlock
+whole OptConfig{..} = compose [unusedDefElim | optUnusedDefElim]
+
+unusedDefElim :: DefIdMap IrBlock -> DefIdMap IrBlock
+unusedDefElim defs = Id.filterWithKey
   (\k _ -> k == entryId || (entryId, k) `elem` closure) defs
   where
   closure = transitiveClosure references

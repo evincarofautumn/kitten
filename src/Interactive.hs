@@ -180,6 +180,9 @@ compileConfig = do
     , configFirstLine = envLine
     , configImplicitPrelude = False
     , configLibraryDirectories = []  -- TODO
+    , configOptimizations = defaultOptimizations
+      { optUnusedDefElim = False  -- Bad for interactive mode.
+      }
     , configName = name
     , configPredefined = mempty  -- TODO
     , configSource = ""
