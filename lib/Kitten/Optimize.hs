@@ -8,11 +8,8 @@ module Kitten.Optimize
 import Data.Function
 import Data.List
 import Data.Maybe
--- import Data.Monoid
--- import Data.Set (Set)
 
 import qualified Data.Set as S
--- import qualified Data.Traversable as T
 import qualified Data.Vector as V
 
 import Kitten.IdMap (DefIdMap)
