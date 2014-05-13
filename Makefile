@@ -13,10 +13,6 @@ KITTEN = $(BUILDDIR)/kitten
 PRELUDE = $(BUILDDIR)/Prelude.ktn
 TESTER = ./test/run.sh
 TESTS = $(basename $(notdir $(wildcard test/*.ktn)))
-YARN = $(BUILDDIR)/yarn
-
-YARN_HEADERS = $(wildcard yarn/*.h)
-YARN_SOURCES = $(wildcard yarn/*.cpp)
 
 PHONY_TARGETS = \
 	deps \
@@ -25,7 +21,6 @@ PHONY_TARGETS = \
 	unit \
 	example \
 	test \
-	yarn \
 	prelude \
 	lint \
 	loc \
@@ -68,7 +63,6 @@ build_DEPS = clean $(configure_DEPS) configure
 unit_DEPS = clean $(build_DEPS) build
 example_DEPS = clean $(build_DEPS) build $(prelude_DEPS) prelude
 test_DEPS = clean $(build_DEPS) build $(prelude_DEPS) prelude
-yarn_DEPS = clean
 prelude_DEPS = clean $(build_DEPS) build
 lint_DEPS = clean
 loc_DEPS = clean
@@ -89,13 +83,6 @@ build : $(KITTEN)
 $(KITTEN) :
 	$(CABAL) build
 $(call SOFT_DEP_RULE,$(KITTEN),$(build_DEPS))
-
-.PHONY : yarn
-yarn : $(YARN) $(YARN_HEADERS)
-
-$(YARN) : $(YARN_SOURCES)
-	$(CXX) $^ -o $@ -std=c++11 -stdlib=libc++ -Wall -pedantic -g
-$(call SOFT_DEP_RULE,$(YARN),$(yarn_DEPS))
 
 .PHONY : clean
 clean :
