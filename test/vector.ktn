@@ -23,3 +23,7 @@ def b (->) {}
 def f (int int -> int): (+)
 
 [1 + 2, 3 * 4, 5 6 f] sayInts
+
+[1, 0, 3](1 @= 2) sayInts
+
+([0] <> [1] <> [2]) sayInts

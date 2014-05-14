@@ -303,9 +303,9 @@ def replicate {a}(a int -> [a]):
 // Reverses a vector.
 def reverse {a}([a] -> [a]):
   -> xs;
-  option (xs last) -> x:
-    xs init reverse
-    x prepend
+  option (xs head) -> x:
+    xs tail reverse
+    x append
   else:
     []
 

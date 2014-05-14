@@ -12,6 +12,10 @@ static KObject junk = { .data = K_JUNK, .type = K_JUNK };
 
 static KObject* data_bottom;
 static KObject* locals_bottom;
+static KR* return_bottom;
+
+static KObject* k_vector_begin(KObject);
+static KObject* k_vector_end(KObject);
 
 void k_init() {
 #ifndef NDEBUG
@@ -25,6 +29,7 @@ void k_init() {
   const size_t RETURN_SIZE = 1024;
   k_return = calloc(RETURN_SIZE, sizeof(KR));
   k_return += RETURN_SIZE;
+  return_bottom = k_return;
 
   const size_t DATA_SIZE = 1024;
   k_data = calloc(DATA_SIZE, sizeof(KObject));
@@ -49,7 +54,7 @@ static int is_boxed_type(const KType type) {
 #endif
 
 #if 0
-static uint64_t* boxed_refs(KObject* const object) {
+static k_cell_t* boxed_refs(KObject* const object) {
   return &(*((KBoxed**)&object->data))->refs;
 }
 #endif
@@ -101,7 +106,7 @@ KObject k_activation(void* const function, const size_t size, ...) {
     }
   }
   va_end(args);
-  return (KObject) { .data = (uint64_t)activation, .type = K_ACTIVATION };
+  return (KObject) { .data = (k_cell_t)activation, .type = K_ACTIVATION };
 }
 
 KObject k_bool(const k_bool_t value) {
@@ -113,28 +118,35 @@ KObject k_char(const k_char_t value) {
 }
 
 KObject k_float(const k_float_t value) {
-  return (KObject) { .data = *((uint64_t*)&value), .type = K_FLOAT };
+  return (KObject) { .data = *((k_cell_t*)&value), .type = K_FLOAT };
+}
+
+KObject k_from_box(const KObject value, const KType type) {
+  assert(value.type == type);
+  return ((KBoxed*)value.data)->as_box.value;
 }
 
 KObject k_handle(const k_handle_t value) {
-  return (KObject) { .data = *((uint64_t*)&value), .type = K_HANDLE };
+  return (KObject) { .data = *((k_cell_t*)&value), .type = K_HANDLE };
 }
 
 KObject k_int(const k_int_t value) {
   return (KObject) { .data = value, .type = K_INT };
 }
 
-static KObject k_sole(const KObject value, const KType type) {
+static KObject k_box(const KObject value, const KType type) {
+  KBox* const data = calloc(1, sizeof(KBox));
+  data->refs = 1;
+  data->value = k_retain(value);
   const KObject result = {
-    .data = (uint64_t)calloc(1, sizeof(KObject)),
+    .data = (k_cell_t)data,
     .type = type
   };
-  *((KObject*)result.data) = k_retain(value);
   return result;
 }
 
 KObject k_left(const KObject value) {
-  return k_sole(value, K_LEFT);
+  return k_box(value, K_LEFT);
 }
 
 KObject k_none() {
@@ -145,15 +157,15 @@ KObject k_pair(const KObject first, const KObject rest) {
   KPair* pair = calloc(1, sizeof(KPair));
   pair->first = k_retain(first);
   pair->rest = k_retain(rest);
-  return (KObject) { .data = (uint64_t)pair, .type = K_PAIR };
+  return (KObject) { .data = (k_cell_t)pair, .type = K_PAIR };
 }
 
 KObject k_right(const KObject value) {
-  return k_sole(value, K_RIGHT);
+  return k_box(value, K_RIGHT);
 }
 
 KObject k_some(const KObject value) {
-  return k_sole(value, K_SOME);
+  return k_box(value, K_SOME);
 }
 
 KObject k_unit() {
@@ -162,25 +174,18 @@ KObject k_unit() {
 
 KObject k_append_vector(
   const KObject a, const KObject b) {
-  KVector* vector = calloc(1, sizeof(KVector));
-  const size_t size
-    = ((KVector*)a.data)->end - ((KVector*)a.data)->begin
-    + ((KVector*)b.data)->end - ((KVector*)b.data)->begin;
-  vector->begin = calloc(size, sizeof(KObject));
-  vector->capacity = vector->begin + size;
-  vector->end = vector->begin;
-  for (KObject* from = ((KVector*)a.data)->begin;
-       from != ((KVector*)a.data)->end; ++from) {
-    *vector->end++ = k_retain(*from);
-  }
-  for (KObject* from = ((KVector*)b.data)->begin;
-       from != ((KVector*)b.data)->end; ++from) {
-    *vector->end++ = k_retain(*from);
-  }
-  return (KObject) {
-    .data = (uint64_t)vector,
-    .type = K_VECTOR
-  };
+  const size_t size = k_vector_size(a) + k_vector_size(b);
+  const KObject vector = k_new_vector(size);
+  KObject* from = k_vector_begin(a);
+  KObject* to = k_vector_begin(vector);
+  KObject* const a_end = k_vector_end(a);
+  while (from != a_end)
+    *to++ = k_retain(*from++);
+  from = k_vector_begin(b);
+  KObject* const b_end = k_vector_end(b);
+  while (from != b_end)
+    *to++ = k_retain(*from++);
+  return vector;
 }
 
 /* Creates a new vector with uninitialized elements. */
@@ -190,7 +195,7 @@ KObject k_new_vector(const size_t size) {
   vector->end = vector->begin + size;
   vector->capacity = vector->begin + size;
   return (KObject) {
-    .data = (uint64_t)vector,
+    .data = (k_cell_t)vector,
     .type = K_VECTOR
   };
 }
@@ -207,9 +212,37 @@ KObject k_vector(const size_t size, ...) {
   }
   va_end(args);
   return (KObject) {
-    .data = (uint64_t)vector,
+    .data = (k_cell_t)vector,
     .type = K_VECTOR
   };
+}
+
+static KObject* k_vector_begin(const KObject object) {
+  assert(object.type == K_VECTOR);
+  return ((KVector*)object.data)->begin;
+}
+
+static KObject* k_vector_end(const KObject object) {
+  assert(object.type == K_VECTOR);
+  return ((KVector*)object.data)->end;
+}
+
+KObject k_vector_get(const KObject object, k_cell_t index) {
+  assert(object.type == K_VECTOR);
+  const KVector* const vector = (KVector*)object.data;
+  return vector->begin[index];
+}
+
+void k_vector_set(const KObject object, k_cell_t index, const KObject value) {
+  assert(object.type == K_VECTOR);
+  const KVector* const vector = (KVector*)object.data;
+  vector->begin[index] = value;
+}
+
+k_cell_t k_vector_size(const KObject object) {
+  assert(object.type == K_VECTOR);
+  const KVector* const vector = (const KVector*)object.data;
+  return vector->end - vector->begin;
 }
 
 KObject k_make_vector(const size_t size) {
@@ -218,11 +251,11 @@ KObject k_make_vector(const size_t size) {
   vector->end = vector->begin + size;
   vector->capacity = vector->begin + size;
   for (size_t i = 0; i < size; ++i) {
-    vector->begin[i] = k_data[i];
+    vector->begin[i] = k_data[size - i - 1];
   }
   k_data += size;
   return (KObject) {
-    .data = (uint64_t)vector,
+    .data = (k_cell_t)vector,
     .type = K_VECTOR
   };
 }
@@ -288,5 +321,12 @@ KObject k_pop_locals() {
   fprintf(stderr, "pop locals\t");
   dump_locals();
 #endif
+  return x;
+}
+
+KR k_pop_return() {
+  assert(k_return < return_bottom);
+  const KR x = k_return[0];
+  ++k_return;
   return x;
 }

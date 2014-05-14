@@ -20,26 +20,18 @@ CFLAGS="kitten.c -std=c99 -Wall -Werror -g -I. -DNDEBUG"
 
 BLACKLISTED_C_TESTS=$(cat <<EOF
 Imported
-abs
 cartesian
 choice
 compose
 cond
-currying
 filter
 hello-kitten
-int
 levenshtein
-map
-option
 range
-reverse
-scope
 show
 splitAt
 transpose
 tuple
-vector
 EOF
 )
 
