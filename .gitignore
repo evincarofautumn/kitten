@@ -2,6 +2,14 @@
 /.*
 /*~
 /test/*.actual
+/test/*.err.c
+/test/*.err.interpreted
+/test/*.ktn.built
+/test/*.ktn.c
+/test/*.ktn.info
+/test/*.out.c
+/test/*.out.interpreted
+/test/*.dSYM/
 /dist
 
 !/.travis.yaml
