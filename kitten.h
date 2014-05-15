@@ -345,8 +345,9 @@ KObject k_pop_locals(void);
       assert(x.type == K_INT); \
     } \
     char buffer[20] = {0}; \
-    snprintf(buffer, sizeof(buffer), "%"PRId64, (k_int_t)x.data); \
-    const size_t length = strnlen(buffer, sizeof(buffer)); \
+    int length = 0; \
+    snprintf(buffer, sizeof(buffer), \
+      "%"PRId64"%n", (k_int_t)x.data, &length);  \
     KObject string = k_new_vector(length); \
     for (size_t i = 0; i < length; ++i) { \
       ((KVector*)string.data)->begin[i] = (KObject) { \
