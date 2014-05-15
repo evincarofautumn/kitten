@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Main where
 
@@ -43,15 +44,14 @@ main = do
 
   case argsEntryPoints arguments of
     [] -> runInteraction (argsEnableImplicitPrelude arguments)
-    entryPoints -> interpretAll entryPoints
-      (argsCompileMode arguments) defaultConfig
+    entryPoints -> interpretAll entryPoints arguments defaultConfig
 
 interpretAll
   :: [FilePath]
-  -> CompileMode
+  -> Arguments
   -> (FilePath -> Text -> Config)
   -> IO ()
-interpretAll entryPoints compileMode config
+interpretAll entryPoints Arguments{..} config
   = mapM_ interpretOne entryPoints
   where
   interpretOne :: FilePath -> IO ()
@@ -62,10 +62,12 @@ interpretAll entryPoints compileMode config
       Left compileErrors -> do
         printCompileErrors compileErrors
         exitFailure
-      Right (result, ip, _type) -> case compileMode of
-        CheckMode -> noop
-        CompileMode OutputIr -> V.mapM_ print
-          $ flattenedBlock (flattenProgram result)
-        CompileMode OutputC -> V.mapM_ (putStrLn . T.unpack)
-          $ toC $ flattenProgram result
-        InterpretMode -> void $ interpret (Just ip) [] result
+      Right (result, ip, _type) -> do
+        out <- maybe (return stdout) (flip openFile WriteMode) argsOutputPath
+        case argsCompileMode of
+          CheckMode -> noop
+          CompileMode OutputIr -> V.mapM_ (hPrint out)
+            $ flattenedBlock (flattenProgram result)
+          CompileMode OutputC -> V.mapM_ (hPutStrLn out . T.unpack)
+            $ toC $ flattenProgram result
+          InterpretMode -> void $ interpret (Just ip) [] result

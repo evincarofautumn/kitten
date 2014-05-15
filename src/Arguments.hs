@@ -18,6 +18,7 @@ data Arguments = Arguments
   , argsEnableImplicitPrelude :: Bool
   , argsEntryPoints :: [FilePath]
   , argsLibraryDirectories :: [FilePath]
+  , argsOutputPath :: Maybe FilePath
   , argsShowHelp :: Bool
   , argsShowVersion :: Bool
   }
@@ -58,6 +59,7 @@ argumentsMode = mode "kitten" defaultArguments
     , argsEnableImplicitPrelude = True
     , argsEntryPoints = []
     , argsLibraryDirectories = []
+    , argsOutputPath = Nothing
     , argsShowHelp = False
     , argsShowVersion = False
     }
@@ -120,6 +122,12 @@ argumentsMode = mode "kitten" defaultArguments
       "Disable implicit inclusion of prelude."
       $ \flag acc@Arguments{..} -> acc
       { argsEnableImplicitPrelude = not flag }
+
+    , flagReq' ["o", "output"] "PATH"
+      "File path for compile output."
+      $ \path acc@Arguments{..} -> case argsOutputPath of
+        Just{} -> Left "Only one output path is allowed."
+        Nothing -> Right $ acc { argsOutputPath = Just path }
 
     , flagHelpSimple $ \acc -> acc { argsShowHelp = True }
     , flagVersion $ \acc -> acc { argsShowVersion = True }
