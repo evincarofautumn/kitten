@@ -38,6 +38,7 @@ import qualified Data.Set as S
 import Kitten.Id
 import Kitten.Infer.Monad
 import Kitten.Types
+import Kitten.Util.Function
 import Kitten.Util.Monad
 
 import qualified Kitten.IdMap as Id
@@ -85,7 +86,7 @@ generalize action = do
     substituted :: Type Scalar
     substituted = sub after type_
 
-    dependent :: (Occurrences a, Unbound a) => KindedId a -> Bool
+    dependent :: (Occurrences a, ReifyKind a, Unbound a) => KindedId a -> Bool
     dependent = dependentBetween before after
 
     scalars :: [KindedId Scalar]
@@ -101,7 +102,7 @@ generalize action = do
 -- | Tests whether a variable is dependent between two type
 -- environment states.
 dependentBetween
-  :: forall a. (Occurrences a, Unbound a)
+  :: forall a. (Occurrences a, ReifyKind a, Unbound a)
   => Program
   -> Program
   -> KindedId a
@@ -153,7 +154,8 @@ regeneralize program (Forall stacks scalars wholeType) = let
   (type_, vars) = runWriter $ regeneralize' TopLevel wholeType
   in Forall (foldr S.delete stacks vars) scalars type_
   where
-  regeneralize' :: TypeLevel -> Type a -> Writer [KindedId Stack] (Type a)
+  regeneralize'
+    :: forall a. TypeLevel -> Type a -> Writer [KindedId Stack] (Type a)
   regeneralize' level type_ = case type_ of
     TyFunction a b loc
       | level == NonTopLevel
@@ -164,7 +166,9 @@ regeneralize program (Forall stacks scalars wholeType) = let
         -- If this is the only mention of this type variable, then it
         -- can simply be removed from the outer quantifier. Otherwise,
         -- it should be renamed in the inner quantifier.
-        when (occurrences (unkinded c) program wholeType == 2)
+        when (occurrences
+          (reifyKind (KindProxy :: KindProxy a))
+          (unkinded c) program wholeType == 2)
           $ tell [c]
         return $ TyQuantified
           (Forall (S.singleton c) S.empty type_)
@@ -235,47 +239,48 @@ normalize origin@(Origin _ _) type_ = let
   var :: Int -> Type a
   var index = TyVar (KindedId (Id index)) origin
 
-occurs :: (Occurrences a) => Id TypeSpace -> Program -> Type a -> Bool
-occurs = (((> 0) .) .) . occurrences
+occurs
+  :: forall a
+  . (Occurrences a, ReifyKind a)
+  => Id TypeSpace -> Program -> Type a -> Bool
+occurs = (> 0) ..: occurrences (reifyKind (KindProxy :: KindProxy a))
 
 class Occurrences a where
-  occurrences :: Id TypeSpace -> Program -> Type a -> Int
+  occurrences :: Kind -> Id TypeSpace -> Program -> Type a -> Int
 
 instance Occurrences Stack where
-  occurrences name program type_ = case type_ of
-    a :. b -> occurrences name program a + occurrences name program b
+  occurrences kind name program type_ = case type_ of
+    a :. b -> recur a + recur b
     TyConst typeName@(KindedId name') _ -> case retrieve program typeName of
-      Left{} -> if name == name' then 1 else 0  -- See Note [Var Kinds].
-      Right type' -> occurrences name program type'
+      Left{} -> if kind == Stack && name == name' then 1 else 0
+      Right type' -> recur type'
     TyEmpty{} -> 0
     TyVar typeName@(KindedId name') _ -> case retrieve program typeName of
-      Left{} -> if name == name' then 1 else 0  -- See Note [Var Kinds].
-      Right type' -> occurrences name program type'
+      Left{} -> if kind == Stack && name == name' then 1 else 0
+      Right type' -> recur type'
+    where
+    recur :: (Occurrences a) => Type a -> Int
+    recur = occurrences kind name program
 
 instance Occurrences Scalar where
-  occurrences name program type_ = case type_ of
-    a :& b -> occurrences name program a + occurrences name program b
-    (:?) a -> occurrences name program a
-    a :| b -> occurrences name program a + occurrences name program b
-    TyFunction a b _ -> occurrences name program a + occurrences name program b
+  occurrences kind name program type_ = case type_ of
+    a :& b -> recur a + recur b
+    (:?) a -> recur a
+    a :| b -> recur a + recur b
+    TyFunction a b _ -> recur a + recur b
     TyConst typeName@(KindedId name') _ -> case retrieve program typeName of
-      Left{} -> if name == name' then 1 else 0  -- See Note [Var Kinds].
-      Right type' -> occurrences name program type'
+      Left{} -> if kind == Scalar && name == name' then 1 else 0
+      Right type' -> recur type'
     TyCtor{} -> 0
     TyVar typeName@(KindedId name') _ -> case retrieve program typeName of
-      Left{} -> if name == name' then 1 else 0  -- See Note [Var Kinds].
-      Right type' -> occurrences name program type'
+      Left{} -> if kind == Scalar && name == name' then 1 else 0
+      Right type' -> recur type'
     TyQuantified (Forall _ s t) _
-      -> if KindedId name `S.member` s then 0 else occurrences name program t
-    TyVector a _ -> occurrences name program a
-
--- Note [Var Kinds]:
---
--- Type variables are allocated such that, if the 'Kind's of
--- two type variables are not equal, the 'Names' of those
--- two type variables are also not equal. Additionally,
--- skolem constants ('Const') do not overlap with type
--- variables ('Var').
+      -> if KindedId name `S.member` s then 0 else recur t
+    TyVector a _ -> recur a
+    where
+    recur :: (Occurrences a) => Type a -> Int
+    recur = occurrences kind name program
 
 class Simplify a where
   simplify :: Program -> Type a -> Type a

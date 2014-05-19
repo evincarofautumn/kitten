@@ -452,6 +452,7 @@ intrinsicToTextTable = V.map swap intrinsicFromTextTable
 -- Kinds
 
 data Kind = Scalar | Stack
+  deriving (Eq)
 
 -- | A helper data type for reification of a kind type,
 -- better demonstrated than explained:
