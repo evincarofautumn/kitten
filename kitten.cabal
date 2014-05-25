@@ -115,6 +115,7 @@ executable kitten
     filepath,
     haskeline == 0.7.*,
     parsec,
+    boxes == 0.1.*,
     text,
     transformers,
     unordered-containers,

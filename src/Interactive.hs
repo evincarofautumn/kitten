@@ -10,6 +10,7 @@ import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict hiding (State)
 import Data.Char (isSpace)
+import Data.List
 import Data.Maybe
 import Data.Monoid
 import Data.Set (Set)
@@ -17,12 +18,13 @@ import Data.Text (Text)
 import Prelude hiding (interact)
 import System.Console.Haskeline
 import Text.Parsec.Pos
+import Text.PrettyPrint.Boxes hiding ((<>))
 
 import qualified Control.Exception as E
 import qualified Data.HashMap.Strict as H
 import qualified Data.Set as S
 import qualified Data.Text as T
-import qualified Data.Text.IO as TIO
+import qualified Data.Text.IO as T
 import qualified Data.Vector as V
 
 import Kitten.Compile (compile)
@@ -31,6 +33,7 @@ import Kitten.Interpret
 import Kitten.IR
 import Kitten.Location
 import Kitten.Types
+import Kitten.Util.List
 import Kitten.Util.Monad
 
 import qualified Kitten.Interpret as Interpret
@@ -53,9 +56,10 @@ runInteraction implicitPrelude = do
 
   where
   welcome :: IO ()
-  welcome = mapM_ putStrLn
+  welcome = mapM_ T.putStrLn
     [ "Welcome to Kitten!"
-    , "Type ':help' for help or ':quit' to quit."
+    , "Type '" <> commandPrefix <> "help' for help \
+      \or '" <> commandPrefix <> "quit' to quit."
     ]
 
 emptyEnv :: Env
@@ -238,32 +242,26 @@ liftIO = lift . lift
 type LineArgs = Text
 type Interaction = LineArgs -> Input ()
 
-data Description = Description
-  { descCommand :: Text
-  , descHelp :: Text
-  }
-
 data Command = Command
   { cmdSymbols :: Set Text
   , cmdAction :: Interaction
-  , cmdDesc :: Description
+  , cmdArgs :: [Text]
+  , cmdDesc :: Text
   }
 
-newArgCommand :: [Text] -> Interaction -> Text -> Text -> Command
+newArgCommand :: [Text] -> Interaction -> [Text] -> Text -> Command
 newArgCommand symbols func helpArgs helpText = Command
-  { cmdSymbols = S.fromList fmtSymbols
+  { cmdSymbols = S.fromList $ map (commandPrefix <>) symbols
   , cmdAction = func
-  , cmdDesc = Description
-    { descCommand = T.unwords [symbolText, helpArgs]
-    , descHelp = helpText
-    }
+  , cmdArgs = helpArgs
+  , cmdDesc = helpText
   }
-  where
-  fmtSymbols = map (T.cons ':') symbols
-  symbolText = T.concat ["[", T.intercalate ", " fmtSymbols, "]"]
+
+commandPrefix :: Text
+commandPrefix = ":"
 
 newCommand :: [Text] -> Input () -> Text -> Command
-newCommand symbols func = newArgCommand symbols (const func) ""
+newCommand symbols func = newArgCommand symbols (const func) []
 
 replCommands :: [Command]
 replCommands =
@@ -271,10 +269,10 @@ replCommands =
   , newCommand ["h", "help"] help "Display this help message"
   , newCommand ["q", "quit"] quit "Quit interactive mode"
   , newArgCommand ["l", "load"] (load . T.unpack)
-      "<filepath>" "Load a file into interactive mode"
+    ["filepath"] "Load a file into interactive mode"
   , newCommand ["reset"] reset "Clear the stack and all definitions"
   , newArgCommand ["t", "type"] reportType
-      "<expression>" "Print the inferred type of <expression>"
+      ["expression"] "Print the inferred type of <expression>"
   ]
 
 replCommandsTable :: [(Text, Command)]
@@ -295,7 +293,7 @@ reset = do
 
 load :: FilePath -> Input ()
 load file = do
-  r <- liftIO (E.try (TIO.readFile file) :: IO (Either IOException Text))
+  r <- liftIO (E.try (T.readFile file) :: IO (Either IOException Text))
   case r of
     Left e -> do
       liftIO . putStrLn $ "Error loading file:\n  " ++ show e
@@ -306,33 +304,41 @@ load file = do
 
 help :: Input ()
 help = do
-  liftIO $ printColumns $ concat
-    [ [ Just ("<expression>", "Evaluate <expression> and print the result")
-      , Just ("def <name> (<signature>) <body>", "Introduce a definition")
-      , Nothing
+  liftIO $ do
+    putStrLn ""
+    putStr . render . vcat left . intersperse vpad
+      $ map (hcat top . intersperse hpad . map (vcat left) . transpose)
+      [ [ colspan 2 (text "Kitten Forms")
+        , [ text "<expression>"
+          , text "Evaluate <expression> and print the result"
+          ]
+        , [ text "def <name> (<signature>) <body>"
+          , text "Introduce a definition"
+          ]
+        ]
+      , colspan 3 (text "Interactive Commands")
+        : for replCommands
+        (\Command{..} ->
+          [ text . T.unpack $ T.concat
+            ["[", T.intercalate ", " (S.toList cmdSymbols), "]"]
+          , text . T.unpack . T.intercalate " "
+            $ map (("<" <>) . (<> ">")) cmdArgs
+          , text (T.unpack cmdDesc)
+          ])
+      , [ colspan 2 (text "Keybindings")
+        , [ text "<TAB>"
+          , "Autocomplete a definition name"
+          ]
+        ]
       ]
-    , replCommandsHelp
-    , [ Nothing
-      , Just ("<TAB>", "Autocomplete a definition name")
-      ]
-    ]
+    putStrLn ""
   interact'
-
   where
-  printColumns :: [Maybe (String, String)] -> IO ()
-  printColumns columns = mapM_ go columns
-    where
-    margin = 2
-    width = maximum . map (length . fst) $ catMaybes columns
-    go column = case column of
-      Nothing -> putStrLn ""
-      Just (a, b) -> do
-        putStr a
-        putStr (replicate (width + margin - length a) ' ')
-        putStrLn b
-  replCommandsHelp =
-    map (\(Command {cmdDesc=(Description fmt info)}) ->
-      Just (T.unpack fmt, T.unpack info)) replCommands
+  vpad = emptyBox vmargin 0
+  vmargin = 1
+  hpad = emptyBox 0 hmargin
+  hmargin = 2
+  colspan n = (: replicate (n - 1) (text ""))
 
 reportType :: Interaction
 reportType input = do
