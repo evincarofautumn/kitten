@@ -267,11 +267,11 @@ newCommand symbols func = newArgCommand symbols (const func) ""
 
 replCommands :: [Command]
 replCommands =
-  [ newCommand ["c", "clear"] clear "Clear the Stack"
+  [ newCommand ["c", "clear"] clear "Clear the stack"
   , newCommand ["h", "help"] help "Display this help message"
-  , newCommand ["q", "quit"] quit "Quit the Kitten REPL"
+  , newCommand ["q", "quit"] quit "Quit interactive mode"
   , newArgCommand ["l", "load"] (load . T.unpack)
-      "<filepath>" "Load a file into the Kitten REPL"
+      "<filepath>" "Load a file into interactive mode"
   , newCommand ["reset"] reset "Clear the stack and all definitions"
   , newArgCommand ["t", "type"] reportType
       "<expression>" "Print the inferred type of <expression>"
