@@ -165,7 +165,7 @@ eval input = do
     lineNumber <- lift $ gets envLine
     let
       loc = Location
-        { locationStart = newPos "REPL" lineNumber 0
+        { locationStart = newPos "" lineNumber 0
         , locationIndent = -1
         }
       (stackTypes, idGen') = flip runState idGen
@@ -226,12 +226,11 @@ compileConfig = do
     , configOptimizations = defaultOptimizations
       { optUnusedDefElim = False  -- Bad for interactive mode.
       }
-    , configName = name
+    , configName = ""
     , configPredefined = mempty  -- TODO
     , configSource = ""
     , configStackTypes = V.empty
     }
-  where name = "<interactive>"
 
 liftIO :: IO a -> Input a
 liftIO = lift . lift
