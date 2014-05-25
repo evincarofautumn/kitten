@@ -58,12 +58,12 @@ runInteraction implicitPrelude = do
     , "Type ':help' for help or ':quit' to quit."
     ]
 
-  emptyEnv :: Env
-  emptyEnv = Env
-    { envLine = 1
-    , envProgram = emptyProgram
-    , envStack = []
-    }
+emptyEnv :: Env
+emptyEnv = Env
+  { envLine = 0
+  , envProgram = emptyProgram
+  , envStack = []
+  }
 
 settings :: Settings State
 settings = setComplete completer $ defaultSettings
@@ -98,21 +98,64 @@ toCompletion finished name = Completion
 
 interact :: Input ()
 interact = do
-  mLine <- getInputLine ">>> "
+  mLine <- getInput 0 ">>>"
   case mLine of
     Nothing -> quit
     Just input -> evaluate input
   where
-  evaluate line = case lookup cmd replCommandsTable of
-    Just (Command {cmdAction=execute}) -> execute args
+  evaluate line = case lookup command replCommandsTable of
+    Just Command{..} -> cmdAction args
     Nothing
-      -- | not (matched line) -> continue (T.pack line)
-      | null line -> interact'
-      | otherwise -> eval (T.pack line) >> interact'
+      | not (matched line) -> continue 1 line'
+      | otherwise -> eval line' >> interact'
     where
-    (cmd, args) =
-      let (c, a) = T.break isSpace $ T.pack line
-      in (c, T.strip a)
+    line' = T.pack line
+    (command, args) = splitCommandArgs line'
+
+splitCommandArgs :: Text -> (Text, Text)
+splitCommandArgs line = let
+  (command, args) = T.break isSpace line
+  in (command, T.strip args)
+
+data InString = Inside | Outside
+
+matched :: String -> Bool
+matched = go Outside (0::Int)
+  where
+  go q n ('\\':x:xs)
+    | x `elem` "'\"" = go q n xs
+    | otherwise = go q n xs
+  go q n ('"':xs) = go (case q of Inside -> Outside; Outside -> Inside) n xs
+  go Inside n (_:xs) = go Inside n xs
+  go Inside _ [] = True
+  go Outside n (x:xs)
+    | isOpen x = go Outside (succ n) xs
+    | isClose x = n <= 0 || go Outside (pred n) xs
+    | otherwise = go Outside n xs
+  go Outside n [] = n == 0
+  isOpen = (`elem` "([{")
+  isClose = (`elem` "}])")
+
+continue :: Int -> Text -> Input ()
+continue offset prefix = do
+  mLine <- getInput offset "..."
+  case mLine of
+    Nothing -> quit
+    Just line -> let
+      line' = T.pack line
+      whole = T.concat [prefix, "\n", line']
+      (command, args) = splitCommandArgs line'
+      in case lookup command replCommandsTable of
+        Just Command{..} -> cmdAction args
+        Nothing -> if matched (T.unpack whole)
+          then eval whole >> interact'
+          else continue (succ offset) whole
+
+getInput :: Int -> String -> Input (Maybe String)
+getInput offset prompt = do
+  lineNumber <- lift $ gets (show . (+ offset) . envLine)
+  getInputLine $ concat
+    [replicate (3 - length lineNumber) ' ', lineNumber, " ", prompt, " "]
 
 eval :: Interaction
 eval input = do
@@ -248,11 +291,7 @@ clear = do
 
 reset :: Input ()
 reset = do
-  lift $ put Env
-    { envLine = 1
-    , envProgram = emptyProgram
-    , envStack = []
-    }
+  lift $ put emptyEnv
   interact'
 
 load :: FilePath -> Input ()
