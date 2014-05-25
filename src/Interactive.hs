@@ -32,6 +32,7 @@ import Kitten.Error
 import Kitten.Interpret
 import Kitten.IR
 import Kitten.Location
+import Kitten.Type.Tidy
 import Kitten.Types
 import Kitten.Util.List
 import Kitten.Util.Monad
@@ -346,5 +347,6 @@ reportType input = do
     { configEnforceBottom = False
     , configSource = input
     }
-  whenJust mCompiled $ \(_compiled, _ip, type_) -> liftIO $ print type_
+  whenJust mCompiled $ \(_compiled, _ip, type_)
+    -> liftIO . print . runTidy $ tidyType type_
   interact'
