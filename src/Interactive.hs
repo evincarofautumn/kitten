@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Interactive
@@ -65,7 +66,7 @@ runInteraction implicitPrelude = do
 
 emptyEnv :: Env
 emptyEnv = Env
-  { envLine = 0
+  { envLine = 1
   , envProgram = emptyProgram
   , envStack = []
   }
@@ -77,18 +78,23 @@ settings = setComplete completer $ defaultSettings
   }
 
 completer :: CompletionFunc State
-completer = completeWord Nothing "\t \"{}[]()\\:" completePrefix
+completer = completeWord Nothing "\t \"{}[]()\\" completePrefix
 
 completePrefix :: String -> State [Completion]
-completePrefix prefix = do
+completePrefix prefix
+  | Just rest <- T.stripPrefix commandPrefix (T.pack prefix) = let
+  commandNames = concatMap (S.toList . cmdSymbols) replCommands
+  matching = filter (rest `T.isPrefixOf`) commandNames
+  in return $ map
+    (toCompletion (small matching) . T.unpack . (commandPrefix <>)) matching
+  | otherwise = do
   symbols <- gets (H.keys . programSymbols . envProgram)
   let
     prefix' = T.pack prefix
     matching
       = filter (prefix' `T.isPrefixOf`) symbols
       <> filter (prefix' `T.isPrefixOf`) intrinsicNameList
-    finished = case matching of [] -> True; [_] -> True; _ -> False
-    completions = map (toCompletion finished . T.unpack) matching
+    completions = map (toCompletion (small matching) . T.unpack) matching
   return completions
 
 intrinsicNameList :: [Text]
@@ -106,21 +112,14 @@ interact = do
   mLine <- getInput 0 ">>>"
   case mLine of
     Nothing -> quit
-    Just input -> evaluate input
-  where
-  evaluate line = case lookup command replCommandsTable of
-    Just Command{..} -> cmdAction args
-    Nothing
-      | not (matched line) -> continue 1 line'
-      | otherwise -> eval line' >> interact'
-    where
-    line' = T.pack line
-    (command, args) = splitCommandArgs line'
+    Just input -> evalOrContinue 0 (T.pack input) ""
 
-splitCommandArgs :: Text -> (Text, Text)
-splitCommandArgs line = let
-  (command, args) = T.break isSpace line
-  in (command, T.strip args)
+splitCommandArgs :: Text -> Maybe (Text, Text)
+splitCommandArgs line
+  | Just unprefixed <- T.stripPrefix commandPrefix line
+  = let (command, args) = T.break isSpace unprefixed
+  in Just (command, T.strip args)
+  | otherwise = Nothing
 
 data InString = Inside | Outside
 
@@ -142,19 +141,20 @@ matched = go Outside (0::Int)
   isClose = (`elem` "}])")
 
 continue :: Int -> Text -> Input ()
-continue offset prefix = do
+continue offset acc = do
   mLine <- getInput offset "..."
   case mLine of
     Nothing -> quit
-    Just line -> let
-      line' = T.pack line
-      whole = T.concat [prefix, "\n", line']
-      (command, args) = splitCommandArgs line'
-      in case lookup command replCommandsTable of
-        Just Command{..} -> cmdAction args
-        Nothing -> if matched (T.unpack whole)
-          then eval whole >> interact'
-          else continue (succ offset) whole
+    Just line -> evalOrContinue offset (T.pack line) acc
+
+evalOrContinue :: Int -> Text -> Text -> Input ()
+evalOrContinue offset line acc
+  | Just (command, args) <- splitCommandArgs line
+  , Just Command{..} <- lookup command replCommandsTable
+  = cmdAction args
+  | matched (T.unpack acc') = eval acc' >> interact'
+  | otherwise = continue (succ offset) acc'
+  where acc' = T.concat [acc, "\n", line]
 
 getInput :: Int -> String -> Input (Maybe String)
 getInput offset prompt = do
@@ -187,7 +187,7 @@ eval input = do
     stackState <- lift $ gets envStack
     stackState' <- liftIO $ interpret (Just ip) stackState compiled
     lift . modify $ \s -> s
-      { envLine = envLine s + T.count "\n" input + 1
+      { envLine = envLine s + T.count "\n" input
       , envStack = stackState'
       }
 
@@ -252,7 +252,7 @@ data Command = Command
 
 newArgCommand :: [Text] -> Interaction -> [Text] -> Text -> Command
 newArgCommand symbols func helpArgs helpText = Command
-  { cmdSymbols = S.fromList $ map (commandPrefix <>) symbols
+  { cmdSymbols = S.fromList symbols
   , cmdAction = func
   , cmdArgs = helpArgs
   , cmdDesc = helpText
@@ -321,7 +321,10 @@ help = do
         : for replCommands
         (\Command{..} ->
           [ text . T.unpack $ T.concat
-            ["[", T.intercalate ", " (S.toList cmdSymbols), "]"]
+            [ "["
+            , T.intercalate ", " . map (commandPrefix <>) $ S.toList cmdSymbols
+            , "]"
+            ]
           , text . T.unpack . T.intercalate " "
             $ map (("<" <>) . (<> ">")) cmdArgs
           , text (T.unpack cmdDesc)

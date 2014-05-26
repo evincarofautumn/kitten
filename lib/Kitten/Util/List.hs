@@ -3,6 +3,7 @@ module Kitten.Util.List
   , for
   , list
   , mapHead
+  , small
   , stripCommonPrefix
   ) where
 
@@ -21,6 +22,11 @@ list = (:[])
 mapHead :: (a -> a) -> [a] -> [a]
 mapHead f (x : xs) = f x : xs
 mapHead _ [] = []
+
+small :: [a] -> Bool
+small [] = True
+small [_] = True
+small _ = False
 
 stripCommonPrefix :: (Eq a) => [a] -> [a] -> ([a], [a])
 stripCommonPrefix (x : xs) (y : ys) | x == y = stripCommonPrefix xs ys
