@@ -1,3 +1,3 @@
-test/type-error-6.ktn:3:1: error: cannot solve scalar type constraint [t1 (from myAddVector)] (output of myAddVector) = int (from bar)
-test/type-error-6.ktn:1:17: note: [t1 (from myAddVector)] (output of myAddVector) is from here
-test/type-error-6.ktn:3:9: note: int (from bar) is from here
+test/type-error-6.ktn:3:1: error: cannot solve scalar type constraint [t1] = int
+test/type-error-6.ktn:1:17: note: [t1] is from here
+test/type-error-6.ktn:3:9: note: int is from here

@@ -1,5 +1,5 @@
-test/instance-checks-8.ktn:1:1: error: cannot solve stack type constraint .s1 t1 (type of y) t2 (type of x) = .s2 (type of example)
-test/instance-checks-8.ktn:1:1: note: .s2 (type of example) is from here
-test/instance-checks-8.ktn:1:19: note: t1 (type of y) is from here
-test/instance-checks-8.ktn:1:19: note: t2 (type of x) is from here
+test/instance-checks-8.ktn:1:1: error: cannot solve stack type constraint .s1 t1 t2 = .s2
+test/instance-checks-8.ktn:1:1: note: .s2 is from here
+test/instance-checks-8.ktn:1:19: note: t1 is from here
+test/instance-checks-8.ktn:1:19: note: t2 is from here
 test/instance-checks-8.ktn:1:26: note: .s1 is from here

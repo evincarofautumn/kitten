@@ -1,3 +1,3 @@
-test/instance-checks-3.ktn:1:1: error: cannot solve scalar type constraint int (type of x) = t1 (from example)
-test/instance-checks-3.ktn:1:1: note: t1 (from example) is from here
-test/instance-checks-3.ktn:1:13: note: int (type of x) is from here
+test/instance-checks-3.ktn:1:1: error: cannot solve scalar type constraint int = t1
+test/instance-checks-3.ktn:1:1: note: t1 is from here
+test/instance-checks-3.ktn:1:13: note: int is from here

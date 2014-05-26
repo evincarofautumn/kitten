@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -542,39 +543,22 @@ instance ToText (Type Scalar) where
     t1 :& t2 -> T.concat ["(", toText t1, " & ", toText t2, ")"]
     (:?) t -> toText t <> "?"
     t1 :| t2 -> T.concat ["(", toText t1, " | ", toText t2, ")"]
-    TyConst (KindedId (Id i)) o
-      -> "t" <> showText i <> suffix o  -- TODO Show differently?
-    TyCtor name o -> toText name <> suffix o
-    TyFunction r1 r2 o -> T.concat
-      [ "(", T.unwords [toText r1, "->", toText r2], ")"
-      , suffix o
-      ]
+    TyConst (KindedId (Id i)) _
+      -> "t" <> showText i  -- TODO Show differently?
+    TyCtor name _ -> toText name
+    TyFunction r1 r2 _ -> T.concat
+      ["(", T.unwords [toText r1, "->", toText r2], ")"]
     TyQuantified scheme _ -> toText scheme
-    TyVar (KindedId (Id i)) o
-      -> "t" <> showText i <> suffix o
-    TyVector t o -> T.concat ["[", toText t, "]", suffix o]
+    TyVar (KindedId (Id i)) _ -> "t" <> showText i
+    TyVector t _ -> T.concat ["[", toText t, "]"]
 
 instance ToText (Type Stack) where
   toText = \case
     t1 :. t2 -> T.unwords [toText t1, toText t2]
-    TyConst (KindedId (Id i)) o
-      -> ".s" <> showText i <> suffix o  -- TODO Show differently?
-    TyEmpty o -> "<empty>" <> suffix o
-    TyVar (KindedId (Id i)) o
-      -> ".s" <> showText i <> suffix o
-
-suffix :: Origin -> Text
-suffix (Origin hint _) = case hint of
-  HiLocal name -> " (type of " <> name <> ")"
-  HiType annotated
-    -> " (type of " <> toText annotated <> ")"
-  HiVar _ annotated
-    -> " (from " <> toText annotated <> ")"
-  HiFunctionInput annotated
-    -> " (input to " <> toText annotated <> ")"
-  HiFunctionOutput annotated
-    -> " (output of " <> toText annotated <> ")"
-  HiNone -> ""
+    TyConst (KindedId (Id i)) _
+      -> ".s" <> showText i  -- TODO Show differently?
+    TyEmpty _ -> "<empty>"
+    TyVar (KindedId (Id i)) _ -> ".s" <> showText i
 
 newtype KindedId (a :: Kind) = KindedId { unkinded :: TypeId }
   deriving (Enum, Eq, Ord)
@@ -658,16 +642,23 @@ instance (ToText a) => Show (Scheme a) where
   show = T.unpack . toText
 
 instance (ToText a) => ToText (Scheme a) where
-  toText (Forall stacks scalars type_) = T.unwords
-    $ (if null variables then id else (("forall" : variables ++ ["."]) ++))
-    [toText type_]
+  toText (Forall stacks scalars type_) = T.concat
+    $ (if null variables then []
+      else ["{", T.intercalate ", " variables, "}"])
+    ++ [toText type_]
 
     where
     variables :: [Text]
     variables = wordSetText stacks ++ wordSetText scalars
 
-    wordSetText :: Set (KindedId a) -> [Text]
-    wordSetText = map toText . S.toList
+    wordSetText :: (ToText (Type a)) => Set (KindedId a) -> [Text]
+    wordSetText = map (toText . flip TyVar origin) . S.toList
+
+    origin = Origin
+      { originHint = HiNone
+      , originLocation = Location
+        { locationStart = newPos "" 0 0, locationIndent = -1 }
+      }
 
 type TypeScheme = Scheme (Type Scalar)
 

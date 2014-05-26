@@ -1,4 +1,4 @@
-test/type-error-1.ktn:4:8: error: cannot solve scalar type constraint [t1] = int (input to __add_int)
+test/type-error-1.ktn:4:8: error: cannot solve scalar type constraint [t1] = int
 test/type-error-1.ktn:4:8: note: [t1] is from here
 test/type-error-1.ktn:4:8: note: t1 is from here
-test/type-error-1.ktn:4:14: note: int (input to __add_int) is from here
+test/type-error-1.ktn:4:14: note: int is from here
