@@ -86,7 +86,7 @@ irValue resolved = case resolved of
   TrClosed index _ -> return $ V.singleton (IrClosure index)
   TrClosure names terms (loc, type_) -> do
     instructions <- irTerm terms
-    target <- declareBlockM (Just $ "closure from " <> toText loc) (terminated instructions)
+    target <- declareBlockM Nothing (terminated instructions)
     return $ V.singleton (IrAct target names type_)
   TrFloat x _ -> value $ IrFloat x
   TrInt x _ -> value $ IrInt x
