@@ -15,7 +15,6 @@ module Kitten.Infer.Unify
 
 import Control.Monad
 import Data.Function
-import Data.Monoid
 import Data.Text (Text)
 
 import qualified Data.Text as T
@@ -105,8 +104,11 @@ unificationError prefix location type1 type2 = runTidy $ do
   return [ErrorGroup (primaryError : secondaryErrors)]
   where
   kind = reifyKind (KindProxy :: KindProxy a)
-  errorDetail (loc, type_) = CompileError loc Note
-    $ toText type_ <> " is from here"
+  errorDetail (origin@(Origin _ loc), type_) = CompileError loc Note $ T.concat
+    [ type_
+    , originSuffix origin
+    , " is from here"
+    ]
 
 -- | Unifies two types, returning the second type.
 unifyM

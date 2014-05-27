@@ -491,6 +491,20 @@ data Type (a :: Kind) where
   TyVar :: !(KindedId a) -> !Origin -> Type a
   TyVector :: !(Type Scalar) -> !Origin -> Type Scalar
 
+typeOrigin :: Type a -> Maybe Origin
+typeOrigin = \case
+  (:&){} -> Nothing
+  (:.){} -> Nothing
+  (:?){} -> Nothing
+  (:|){} -> Nothing
+  TyConst _ o -> Just o
+  TyCtor _ o -> Just o
+  TyEmpty o -> Just o
+  TyFunction _ _ o -> Just o
+  TyQuantified _ o -> Just o
+  TyVar _ o -> Just o
+  TyVector _ o -> Just o
+
 data Ctor
   = CtorBool
   | CtorChar
@@ -559,6 +573,19 @@ instance ToText (Type Stack) where
       -> ".s" <> showText i  -- TODO Show differently?
     TyEmpty _ -> "<empty>"
     TyVar (KindedId (Id i)) _ -> ".s" <> showText i
+
+originSuffix :: Origin -> Text
+originSuffix (Origin hint _) = case hint of
+  HiLocal name -> " (type of " <> name <> ")"
+  HiType annotated
+    -> " (type of " <> toText annotated <> ")"
+  HiVar _ annotated
+    -> " (from " <> toText annotated <> ")"
+  HiFunctionInput annotated
+    -> " (input to " <> toText annotated <> ")"
+  HiFunctionOutput annotated
+    -> " (output of " <> toText annotated <> ")"
+  HiNone -> ""
 
 newtype KindedId (a :: Kind) = KindedId { unkinded :: TypeId }
   deriving (Enum, Eq, Ord)
