@@ -54,7 +54,7 @@ runInteraction :: Config -> IO ()
 runInteraction config = do
   welcome
   flip evalStateT (emptyEnv config) $ runInputT settings $ do
-    when (configImplicitPrelude config) $ eval "import Prelude"
+    eval $ if configImplicitPrelude config then "import Prelude" else ""
     interact
 
   where
