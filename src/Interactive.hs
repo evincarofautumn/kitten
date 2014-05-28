@@ -44,16 +44,17 @@ data Env = Env
   { envLine :: !Int
   , envProgram :: !Program
   , envStack :: [InterpreterValue]
+  , envConfig :: Config
   }
 
 type State = StateT Env IO
 type Input = InputT State
 
-runInteraction :: Bool -> IO ()
-runInteraction implicitPrelude = do
+runInteraction :: Config -> IO ()
+runInteraction config = do
   welcome
-  flip evalStateT emptyEnv $ runInputT settings $ do
-    when implicitPrelude $ eval "import Prelude"
+  flip evalStateT (emptyEnv config) $ runInputT settings $ do
+    when (configImplicitPrelude config) $ eval "import Prelude"
     interact
 
   where
@@ -64,9 +65,15 @@ runInteraction implicitPrelude = do
       \or '" <> commandPrefix <> "quit' to quit."
     ]
 
-emptyEnv :: Env
-emptyEnv = Env
-  { envLine = 1
+emptyEnv :: Config -> Env
+emptyEnv config = Env
+  { envConfig = config
+    { configImplicitPrelude = False
+    , configOptimizations = defaultOptimizations
+      { optUnusedDefElim = False  -- Bad for interactive mode.
+      }
+    }
+  , envLine = 1
   , envProgram = emptyProgram
   , envStack = []
   }
@@ -221,21 +228,7 @@ interactiveCompile update = do
 compileConfig :: Input Config
 compileConfig = do
   Env{..} <- lift get
-  return Config
-    { configDumpResolved = False
-    , configDumpScoped = False
-    , configEnforceBottom = True
-    , configFirstLine = envLine
-    , configImplicitPrelude = False
-    , configLibraryDirectories = []  -- TODO
-    , configOptimizations = defaultOptimizations
-      { optUnusedDefElim = False  -- Bad for interactive mode.
-      }
-    , configName = ""
-    , configPredefined = mempty  -- TODO
-    , configSource = ""
-    , configStackTypes = V.empty
-    }
+  return envConfig { configFirstLine = envLine }
 
 liftIO :: IO a -> Input a
 liftIO = lift . lift
@@ -289,7 +282,7 @@ clear = do
 
 reset :: Input ()
 reset = do
-  lift $ put emptyEnv
+  lift $ put . emptyEnv =<< gets envConfig
   interact'
 
 load :: FilePath -> Input ()

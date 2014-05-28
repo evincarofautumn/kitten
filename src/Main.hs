@@ -4,7 +4,6 @@
 module Main where
 
 import Control.Monad
-import Data.Text (Text)
 import System.Exit
 import System.IO
 
@@ -28,28 +27,28 @@ main = do
   hSetEncoding stdout utf8
   arguments <- parseArguments
   let
-    defaultConfig filename program = Config
+    defaultConfig = Config
       { configDumpResolved = argsDumpResolved arguments
       , configDumpScoped = argsDumpScoped arguments
       , configEnforceBottom = True
       , configFirstLine = 1
       , configImplicitPrelude = argsEnableImplicitPrelude arguments
       , configLibraryDirectories = argsLibraryDirectories arguments
-      , configName = filename
+      , configName = ""
       , configOptimizations = defaultOptimizations
       , configPredefined = V.empty
-      , configSource = program
+      , configSource = ""
       , configStackTypes = V.empty
       }
 
   case argsEntryPoints arguments of
-    [] -> runInteraction (argsEnableImplicitPrelude arguments)
+    [] -> runInteraction defaultConfig
     entryPoints -> interpretAll entryPoints arguments defaultConfig
 
 interpretAll
   :: [FilePath]
   -> Arguments
-  -> (FilePath -> Text -> Config)
+  -> Config
   -> IO ()
 interpretAll entryPoints Arguments{..} config
   = mapM_ interpretOne entryPoints
@@ -57,7 +56,10 @@ interpretAll entryPoints Arguments{..} config
   interpretOne :: FilePath -> IO ()
   interpretOne filename = do
     source <- T.readFileUtf8 filename
-    mResult <- compile (config filename source) emptyProgram
+    mResult <- compile config
+      { configName = filename
+      , configSource = source
+      } emptyProgram
     case mResult of
       Left compileErrors -> do
         printCompileErrors compileErrors
