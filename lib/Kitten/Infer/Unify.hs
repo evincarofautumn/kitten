@@ -92,11 +92,11 @@ unificationError prefix location type1 type2 = runTidy $ do
   type2' <- tidyType type2
   let
     primaryError = CompileError location Error $ T.unwords
-      $ "cannot solve"
+      $ "cannot match"
       : prefix `consMaybe` toText kind
-      : "type constraint"
+      : "type"
       : toText type1'
-      : "="
+      : "with"
       : toText type2'
       : []
     secondaryErrors = map errorDetail
