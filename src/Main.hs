@@ -3,9 +3,14 @@
 
 module Main where
 
+import Control.Applicative
+import Control.Exception
 import Control.Monad
+import System.Environment
 import System.Exit
+import System.FilePath
 import System.IO
+import System.IO.Error
 
 import qualified Data.Vector as V
 
@@ -26,6 +31,8 @@ main :: IO ()
 main = do
   hSetEncoding stdout utf8
   arguments <- parseArguments
+  libraryDirectories <- splitSearchPath <$> catch (getEnv "KITTEN_LIB")
+    (\e -> if isDoesNotExistError e then return [] else throwIO e)
   let
     defaultConfig = Config
       { configDumpResolved = argsDumpResolved arguments
@@ -33,7 +40,8 @@ main = do
       , configEnforceBottom = True
       , configFirstLine = 1
       , configImplicitPrelude = argsEnableImplicitPrelude arguments
-      , configLibraryDirectories = argsLibraryDirectories arguments
+      , configLibraryDirectories
+        = argsLibraryDirectories arguments ++ libraryDirectories
       , configName = ""
       , configOptimizations = defaultOptimizations
       , configPredefined = V.empty
