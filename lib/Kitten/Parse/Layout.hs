@@ -3,7 +3,6 @@ module Kitten.Parse.Layout
   ) where
 
 import Control.Applicative
-import Control.Monad
 
 import Kitten.Location
 import Kitten.Parse.Monad
@@ -56,14 +55,18 @@ insertBraces = (concat <$> many unit) <* eof
   layout :: Parser [Located]
   layout = do
     Located
-      { locatedLocation = colonLoc@Location
-        {locationIndent = colonIndent}
+      { locatedLocation = colonLoc@Location { locationIndent = colonIndent }
       } <- locatedMatch TkLayout
     let
-      inside (Located _ loc)
+      validFirst (Located _ loc)
         = sourceColumn (locationStart loc) > colonIndent
+    Located
+      { locatedLocation = Location { locationStart = firstTokenLoc }
+      } <- lookAhead (locatedSatisfy validFirst)
+      <?> "token indented more than start of layout block"
+    let
+      inside (Located _ loc)
+        = sourceColumn (locationStart loc) >= sourceColumn firstTokenLoc
     body <- concat <$> many (unitWhere inside)
-    when (null body)
-      $ fail "empty layout blocks are not allowed; use {} instead"
     return $ Located (TkBlockBegin LayoutBlockHint) colonLoc
       : body ++ [Located TkBlockEnd colonLoc]

@@ -48,7 +48,8 @@ def askTurn ([char] char -> [char]):
   getLine -> input;
   input readMoveLine -> mxy;
 
-  option (mxy): -> xy;
+  option (mxy):
+    -> xy;
     board
     xy first xy rest xyToCellNumber
     player editBoard

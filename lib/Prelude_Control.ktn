@@ -65,7 +65,8 @@ def cond {a, b, c}(
   c
 ):
   -> x ps z;
-  option (ps head): -> p;
+  option (ps head):
+    -> p;
     x p first apply -> m;
     option (m):
       p rest apply

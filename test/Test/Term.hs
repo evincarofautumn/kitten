@@ -153,6 +153,14 @@ spec = do
       \  3\n"
       . termFragment . push $ quotation [push $ quotation [pushi 3]]
 
+    testTerm
+      ": : 1\n\
+      \    2\n\
+      \  3\n"
+      . termFragment . push $ quotation
+        [push $ quotation [pushi 1, pushi 2], pushi 3]
+
+
   describe "definition" $ do
 
     testTerm
