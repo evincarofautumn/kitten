@@ -129,6 +129,10 @@ def foldl1 {a}([a] (a a -> a) -> a?):
 def for__ {a, b}([a] (a -> b) -> [b]):
   map
 
+// Same as 'each' but prefix.
+def for_each__ {a}([a] (a ->) ->):
+  each
+
 // Same as 'mapConcat' but prefix.
 def forConcat__ {a, b}([a] (a -> [b]) -> [b]):
   mapConcat
