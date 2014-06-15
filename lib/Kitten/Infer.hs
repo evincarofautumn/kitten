@@ -85,10 +85,10 @@ typeFragment fragment = mdo
     let TyFunction consumption _ _ = fragmentType
     bottom <- freshVarM
     enforce <- asksConfig configEnforceBottom
-    when enforce $ bottom === TyEmpty (Origin HiNone topLevel)
+    when enforce $ bottom `shouldBe` TyEmpty (Origin HiNone topLevel)
     stackTypes <- asksConfig configStackTypes
     let stackType = F.foldl (:.) bottom stackTypes
-    stackType === consumption
+    stackType `shouldBe` consumption
 
   let
     typedFragment = fragment
@@ -129,7 +129,7 @@ instanceCheck :: TypeScheme -> TypeScheme -> ErrorGroup -> K ()
 instanceCheck inferredScheme declaredScheme errorGroup = do
   inferredType <- instantiateM inferredScheme
   (stackConsts, scalarConsts, declaredType) <- skolemize declaredScheme
-  inferredType === declaredType
+  inferredType `shouldBe` declaredType
   let
     (escapedStacks, escapedScalars) = free inferredScheme <> free declaredScheme
     badStacks = filter (`elem` escapedStacks) stackConsts
@@ -457,7 +457,7 @@ infer finalProgram resolved = case resolved of
         case H.lookup name decls of
           Just (Forall _ _ ctorType) -> do
             TyFunction fields whole origin <- unquantify ctorType
-            fields === bodyIn
+            bodyIn `shouldBe` fields
             let type_ = TyFunction whole bodyOut origin
             return
               ( TrCase name (TrClosure names body' (loc'', type_))
@@ -501,7 +501,7 @@ fromConstant type_ = do
   a <- freshVarM
   r <- freshVarM
   origin <- getsProgram inferenceOrigin
-  type_ === (r --> r :. a) origin
+  type_ `shouldBe` (r --> r :. a) origin
   return a
 
 binary :: Type Scalar -> Origin -> K (Type Scalar)
@@ -567,7 +567,7 @@ unifyEach xs = go 0
     | i >= V.length xs = freshVarM
     | i == V.length xs - 1 = return (xs V.! i)
     | otherwise = do
-      xs V.! i === xs V.! (i + 1)
+      xs V.! i `shouldBe` xs V.! (i + 1)
       go (i + 1)
 
 inferCompose
@@ -575,5 +575,5 @@ inferCompose
   -> Type Stack -> Type Stack
   -> K (Type Scalar)
 inferCompose in1 out1 in2 out2 = do
-  out1 === in2
+  out1 `shouldBe` in2
   TyFunction in1 out2 <$> getsProgram inferenceOrigin

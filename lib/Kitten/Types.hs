@@ -62,6 +62,7 @@ data Program = Program
   , programSymbols :: !(HashMap Text DefId)
   , programTypes :: !(HashMap Text TypeDef)
 
+  , inferenceContext :: [Text]
   , inferenceClosure :: !(Vector (Type Scalar))
   , inferenceDefs :: !(HashMap Text TypeScheme)
   , inferenceDecls :: !(HashMap Text TypeScheme)
@@ -162,6 +163,8 @@ emptyProgram = Program
   , programStackIdGen = mkKindedGen
   , programSymbols = H.empty
   , programTypes = H.empty
+
+  , inferenceContext = []
   , inferenceClosure = V.empty
   , inferenceDefs = H.empty
   , inferenceDecls = H.empty

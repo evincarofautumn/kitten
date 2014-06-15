@@ -1,3 +1,9 @@
-test/udt-mixing-constructors.ktn:8:1: error: cannot match scalar type A with B
+test/udt-mixing-constructors.ktn:8:1: error: expected scalar type B but got A
 test/udt-mixing-constructors.ktn:2:3: note: A (from A) is from here
 test/udt-mixing-constructors.ktn:5:3: note: B (from B) is from here
+
+test/udt-mixing-constructors.ktn:8:1: error: expected stack type s2... B but got s1... A
+
+test/udt-mixing-constructors.ktn:8:1: error: expected scalar type (s3... B -> s4...) but got (s1... A -> s2...)
+test/udt-mixing-constructors.ktn:2:3: note: (s1... A -> s2...) is from here
+test/udt-mixing-constructors.ktn:5:3: note: (s3... B -> s4...) is from here

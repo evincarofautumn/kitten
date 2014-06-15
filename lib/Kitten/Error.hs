@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Error
@@ -13,7 +14,9 @@ import Control.Applicative
 import Control.Monad.Trans.State
 import Data.Function
 import Data.List
+import Data.Maybe
 import Data.Text (Text)
+import Data.Traversable (for)
 import Text.Parsec.Error
 import System.IO
 
@@ -32,11 +35,13 @@ instance Ord ErrorGroup where
   compare (ErrorGroup (a:_)) (ErrorGroup (b:_)) = compare a b
   compare (ErrorGroup _) (ErrorGroup _) = EQ
 
-instance Show ErrorGroup where
-  show = T.unpack . toText
-
-instance ToText ErrorGroup where
-  toText (ErrorGroup errors) = T.unlines $ map toText (sort errors)
+instance ToText [ErrorGroup] where
+  toText gs = T.intercalate "\n"
+    $ flip evalState [] $ for gs $ \ (ErrorGroup g) -> do
+      fmap (T.unlines . catMaybes) . for g $ \e -> do
+        alreadySaid <- gets (e `elem`)
+        if alreadySaid then return Nothing
+          else do modify (e :); return $ Just (toText e)
 
 data Label
   = Error
@@ -55,7 +60,6 @@ instance Show CompileError where
 
 instance ToText CompileError where
   toText compileError = case compileError of
-
     CompileError location category message -> T.intercalate ": "
       [ toText location
       , toText category
@@ -110,5 +114,4 @@ oxfordOr [x, y, z] = concat [x, ", ", y, ", or ", z]
 oxfordOr (x:xs) = concat [x, ", ", oxfordOr xs]
 
 printCompileErrors :: [ErrorGroup] -> IO ()
-printCompileErrors = hPutStr stderr . T.unpack
-  . T.intercalate "\n" . map toText
+printCompileErrors = hPutStr stderr . T.unpack . toText
