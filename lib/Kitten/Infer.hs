@@ -84,10 +84,10 @@ typeFragment fragment = do
       let TyFunction consumption _ _ = fragmentType
       bottom <- freshVarM
       enforce <- asksConfig configEnforceBottom
-      when enforce $ bottom === TyEmpty (Origin HiNone topLevel)
+      when enforce $ bottom `shouldBe` TyEmpty (Origin HiNone topLevel)
       stackTypes <- asksConfig configStackTypes
       let stackType = F.foldl (:.) bottom stackTypes
-      stackType === consumption
+      consumption `shouldBe` stackType
 
     let
       typedFragment = fragment
@@ -127,7 +127,7 @@ instanceCheck :: TypeScheme -> TypeScheme -> ErrorGroup -> K ()
 instanceCheck inferredScheme declaredScheme errorGroup = do
   inferredType <- instantiateM inferredScheme
   (stackConsts, scalarConsts, declaredType) <- skolemize declaredScheme
-  inferredType === declaredType
+  inferredType `shouldBe` declaredType
   let
     (escapedStacks, escapedScalars) = free inferredScheme <> free declaredScheme
     badStacks = filter (`elem` escapedStacks) stackConsts
@@ -448,7 +448,7 @@ fromConstant type_ = do
   a <- freshVarM
   r <- freshVarM
   origin <- getsProgram inferenceOrigin
-  type_ === (r --> r :. a) origin
+  type_ `shouldBe` (r --> r :. a) origin
   return a
 
 binary :: Type Scalar -> Origin -> K (Type Scalar)
@@ -515,7 +515,7 @@ unifyEach xs = go 0
     else if i == V.length xs - 1
       then return (xs V.! i)
       else do
-        xs V.! i === xs V.! (i + 1)
+        xs V.! i `shouldBe` xs V.! (i + 1)
         go (i + 1)
 
 inferCompose
@@ -523,5 +523,5 @@ inferCompose
   -> Type Stack -> Type Stack
   -> K (Type Scalar)
 inferCompose in1 out1 in2 out2 = do
-  out1 === in2
+  out1 `shouldBe` in2
   TyFunction in1 out2 <$> getsProgram inferenceOrigin

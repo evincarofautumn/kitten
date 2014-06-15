@@ -7,12 +7,13 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Kitten.Infer.Unify
-  ( (===)
+  ( shouldBe
   , unifyM
   , unifyM_
   , unifyVar
   ) where
 
+-- import Control.Applicative
 import Control.Monad
 import Data.Function
 import Data.Text (Text)
@@ -26,6 +27,7 @@ import Kitten.Infer.Scheme
 import Kitten.Location
 import Kitten.Type.Tidy
 import Kitten.Types
+import Kitten.Util.Either
 import Kitten.Util.FailWriter
 import Kitten.Util.Maybe
 import Kitten.Util.Text (ToText(..))
@@ -37,7 +39,8 @@ unify
   -> Type a
   -> Program
   -> Either [ErrorGroup] Program
-unify a b program = (unification `on` simplify program) a b program
+unify have want program
+  = (unification `on` simplify program) have want program
 
 class Unification a where
   unification
@@ -47,60 +50,85 @@ class Unification a where
     -> Either [ErrorGroup] Program
 
 instance Unification Stack where
-  unification type1 type2 program = case (type1, type2) of
-    _ | type1 == type2 -> Right program
-
-    (a :. b, c :. d) -> unify b d program >>= unify a c
-
-    (TyVar var (Origin hint _), type_) -> unifyVar var (type_ `addHint` hint) program
-    (_, TyVar{}) -> commutative
-
-    _ -> Left $ unificationError Nothing
-      (originLocation $ inferenceOrigin program) type1 type2
-
-    where commutative = unification type2 type1 program
+  unification have want program = case (have, want) of
+    _ | have == want -> Right program
+    (a :. b, c :. d) -> withContext' $ unify b d program >>= unify a c
+    (TyVar var (Origin hint _), type_)
+      -> withContext' $ unifyVar var (type_ `addHint` hint) program
+    (type_, TyVar var (Origin hint _))
+      -> withContext' $ unifyVar var (type_ `addHint` hint) program
+    _ -> Left $ unificationError Nothing loc have want
+    where
+    withContext' = withContext have want loc
+    loc = originLocation $ inferenceOrigin program
 
 instance Unification Scalar where
-  unification type1 type2 program = case (type1, type2) of
-    _ | type1 == type2 -> Right program
-    (a :& b, c :& d) -> unify b d program >>= unify a c
-    ((:?) a, (:?) b) -> unify a b program
-    (a :| b, c :| d) -> unify b d program >>= unify a c
-    (TyFunction a b _, TyFunction c d _) -> unify b d program >>= unify a c
-    (TyVector a _, TyVector b _) -> unify a b program
-    (TyVar var (Origin hint _), type_) -> unifyVar var (type_ `addHint` hint) program
-    (_, TyVar{}) -> commutative
-    (TyQuantified scheme loc, _) -> let
-      (type', program') = instantiate loc scheme program
-      in unify type' type2 program'
-    (_, TyQuantified{}) -> commutative
+  unification have want program = case (have, want) of
+    _ | have == want -> Right program
+    (a :& b, c :& d) -> withContext' $ unify b d program >>= unify a c
+    ((:?) a, (:?) b) -> withContext' $ unify a b program
+    (a :| b, c :| d) -> withContext' $ unify b d program >>= unify a c
+    (TyFunction a b _, TyFunction c d _)
+      -> withContext' $ unify b d program >>= unify a c
+    (TyVector a _, TyVector b _) -> withContext' $ unify a b program
+    (TyVar var (Origin hint _), type_)
+      -> withContext' $ unifyVar var (type_ `addHint` hint) program
+    (type_, TyVar var (Origin hint _))
+      -> withContext' $ unifyVar var (type_ `addHint` hint) program
+    (TyQuantified scheme loc', type_) -> withContext' $ let
+      (type', program') = instantiate loc' scheme program
+      in unify type' type_ program'
+    (type_, TyQuantified scheme loc') -> withContext' $ let
+      (type', program') = instantiate loc' scheme program
+      in unify type' type_ program'
+    _ -> Left $ unificationError Nothing loc have want
+    where
+    withContext' = withContext have want loc
+    loc = originLocation $ inferenceOrigin program
 
-    _ -> Left $ unificationError Nothing
-      (originLocation $ inferenceOrigin program) type1 type2
+withContext
+  :: forall (a :: Kind) b
+  . (DiagnosticLocations a, ReifyKind a, TidyType a, ToText (Type a))
+  => Type a -> Type a -> Location
+  -> Either [ErrorGroup] b -> Either [ErrorGroup] b
+withContext have want loc
+  = mapLeft (++ unificationError Nothing loc have want)
 
-    where commutative = unification type2 type1 program
+{-
+[ErrorGroup [CompileError loc Note
+  (let (have', want') = runTidy $ (liftA2 (,) `on` tidyType) have want
+  in T.unwords
+  $ "expected"
+  : toText (reifyKind (KindProxy :: KindProxy a))
+  : "type"
+  : toText want'
+  : "but got"
+  : toText have'
+  : [])]]
+-}
 
 unificationError
-  :: forall (a :: Kind). (ReifyKind a, TidyType a, ToText (Type a))
+  :: forall (a :: Kind)
+  . (DiagnosticLocations a, ReifyKind a, TidyType a, ToText (Type a))
   => Maybe Text
   -> Location
   -> Type a
   -> Type a
   -> [ErrorGroup]
-unificationError prefix location type1 type2 = runTidy $ do
-  type1' <- tidyType type1
-  type2' <- tidyType type2
+unificationError prefix location have want = runTidy $ do
+  have' <- tidyType have
+  want' <- tidyType want
   let
     primaryError = CompileError location Error $ T.unwords
-      $ "cannot match"
+      $ "expected"
       : prefix `consMaybe` toText kind
       : "type"
-      : toText type1'
-      : "with"
-      : toText type2'
+      : toText want'
+      : "but got"
+      : toText have'
       : []
     secondaryErrors = map errorDetail
-      $ diagnosticLocations type1' ++ diagnosticLocations type2'
+      $ diagnosticLocations have' ++ diagnosticLocations want'
   return [ErrorGroup (primaryError : secondaryErrors)]
   where
   kind = reifyKind (KindProxy :: KindProxy a)
@@ -116,10 +144,10 @@ unifyM
   => Type a
   -> Type a
   -> K (Type a)
-unifyM type1 type2 = do
-  program <- getsProgram $ unify type1 type2
+unifyM have want = do
+  program <- getsProgram $ unify have want
   case program of
-    Right program' -> putProgram program' >> return type2
+    Right program' -> putProgram program' >> return want
     Left errors -> liftFailWriter $ throwMany errors
 
 unifyM_
@@ -129,18 +157,18 @@ unifyM_
   -> K ()
 unifyM_ = (void .) . unifyM
 
-(===)
+shouldBe
   :: (Unification a, Simplify a)
   => Type a
   -> Type a
   -> K ()
-(===) = unifyM_
-
-infix 3 ===
+shouldBe = unifyM_
+infix 3 `shouldBe`
 
 unifyVar
   :: forall a.
   ( Declare a
+  , DiagnosticLocations a
   , Occurrences a
   , ReifyKind a
   , Substitute a

@@ -1,5 +1,9 @@
-test/instance-checks-8.ktn:1:1: error: cannot match stack type .s1 t1 t2 with .s2
-test/instance-checks-8.ktn:1:1: note: .s2 (type of example) is from here
+test/instance-checks-8.ktn:1:1: error: expected stack type .s2 but got .s1 t1 t2
 test/instance-checks-8.ktn:1:19: note: t1 (type of y) is from here
 test/instance-checks-8.ktn:1:19: note: t2 (type of x) is from here
-test/instance-checks-8.ktn:1:26: note: .s1 is from here
+
+test/instance-checks-8.ktn:1:1: error: expected scalar type (.s2 -> .s2) but got (.s1 t1 t2 -> .s1 t2 t1)
+test/instance-checks-8.ktn:1:17: note: (.s1 t1 t2 -> .s1 t2 t1) is from here
+test/instance-checks-8.ktn:1:19: note: t1 (type of x) is from here
+test/instance-checks-8.ktn:1:19: note: t2 (type of y) is from here
+test/instance-checks-8.ktn:1:13: note: (.s2 -> .s2) (type of example) is from here

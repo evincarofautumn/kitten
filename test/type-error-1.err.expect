@@ -1,4 +1,9 @@
-test/type-error-1.ktn:4:8: error: cannot match scalar type [t1] with int
+test/type-error-1.ktn:4:8: error: expected scalar type int but got [t1]
 test/type-error-1.ktn:4:8: note: [t1] is from here
 test/type-error-1.ktn:4:8: note: t1 is from here
 test/type-error-1.ktn:4:14: note: int (input to __add_int) is from here
+
+test/type-error-1.ktn:4:8: error: expected stack type .s2 int but got .s1 [t1]
+
+test/type-error-1.ktn:4:8: error: expected stack type .s2 int int but got .s1 int
+test/type-error-1.ktn:4:12: note: int is from here

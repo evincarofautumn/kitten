@@ -1,4 +1,10 @@
-test/stack-effects-2.ktn:1:6: error: cannot match stack type .s1 int with .s2
+test/stack-effects-2.ktn:1:6: error: expected stack type .s2 but got .s1 int
 test/stack-effects-2.ktn:1:2: note: int is from here
-test/stack-effects-2.ktn:1:6: note: .s1 is from here
-test/stack-effects-2.ktn:1:6: note: .s2 is from here
+
+test/stack-effects-2.ktn:1:6: error: expected stack type .s2 t1 but got .s1 int int
+test/stack-effects-2.ktn:1:4: note: int is from here
+test/stack-effects-2.ktn:1:6: note: t1 is from here
+
+test/stack-effects-2.ktn:1:6: error: expected scalar type (.s2 -> .s2 t1) but got (.s1 -> .s1 int int)
+test/stack-effects-2.ktn:1:6: note: (.s1 -> .s1 int int) is from here
+test/stack-effects-2.ktn:1:6: note: (.s2 -> .s2 t1) is from here

@@ -10,6 +10,7 @@ import Test.HUnit.Lang (assertFailure)
 import Test.Hspec
 
 import qualified Data.HashMap.Strict as H
+import qualified Data.Text as T
 import qualified Data.Vector as V
 
 import Kitten.Error
@@ -19,6 +20,7 @@ import Kitten.Tokenize
 import Kitten.Types
 import Kitten.Util.Either
 import Kitten.Util.Monad
+import Kitten.Util.Text (ToText(..))
 import Test.Util
 
 spec :: Spec
@@ -206,7 +208,7 @@ defList = H.fromList . map (defName &&& id)
 testTerm :: Text -> Fragment ParsedTerm -> Spec
 testTerm source expected = it (show source)
   $ case parsed source of
-    Left message -> assertFailure $ show message
+    Left message -> assertFailure . T.unpack $ toText [message]
     Right actual
       | expected == actual -> noop
       | otherwise -> expectedButGot
