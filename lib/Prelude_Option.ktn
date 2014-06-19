@@ -36,13 +36,10 @@ def liftOption {a, b}(a? (a -> b) -> b?):
 // Combines two option values with a function.
 def liftOption2 {a, b, c}(a? b? (a b -> c) -> c?):
   -> mx my f;
-  option (mx):
-    -> x;
-    option (my):
-      -> y;
-      x y f apply some
-    else: none
-  else: none
+  none
+  option (mx) -> x:
+    option (my) -> y:
+      drop x y f apply some
 
 // Constructs an empty option.
 def none {a}(-> a?):

@@ -163,12 +163,15 @@ term = locate $ choice
   lambda :: Parser (Location -> ParsedTerm)
   lambda = (<?> "lambda") $ match TkArrow *> do
     names <- many1 $ Just <$> named <|> Nothing <$ match TkIgnore
-    void (match TkSemicolon)
-    terms <- blockContents
-    return $ \loc -> foldr
+    (wrap, terms) <- choice
+      [ match TkSemicolon *> ((,) (\_ ts -> ts) <$> blockContents)
+      , (,) (\loc ts -> TrPush (TrQuotation ts loc) loc)
+        <$> block
+      ]
+    return $ \loc -> wrap loc $ foldr
       (\mLambdaName lambdaTerms -> maybe
         (TrCompose StackAny (V.fromList
-          [ TrLambda "ignored" (TrCompose StackAny V.empty loc) loc
+          [ TrLambda "_" (TrCompose StackAny V.empty loc) loc
           , lambdaTerms
           ]) loc)
         (\lambdaName -> TrLambda lambdaName lambdaTerms loc)

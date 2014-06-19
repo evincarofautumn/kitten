@@ -10,10 +10,8 @@ def cartesian {a, b}([a] [b] -> [a & b]):
 // tupling function.
 def cartesianWith {a, b, c}([a] [b] (a b -> c) -> [c]):
   -> xs ys function;
-  forConcat (xs):
-    -> x;
-    for (ys):
-      -> y;
+  forConcat (xs) -> x:
+    for (ys) -> y:
       x y function apply
 
 // Concatenates two vectors.
@@ -62,8 +60,7 @@ def eqVector {a}([a] [a] (a a -> bool) -> bool):
 // Filters a vector by a predicate.
 def filter {a}([a] (a -> bool) -> [a]):
   -> v f;
-  option (v head):
-    -> x;
+  option (v head) -> x:
     if (x f apply):
       v tail f filter
       x prepend
@@ -79,8 +76,7 @@ def find {a}([a] (a -> bool) -> a?):
 // Folds elements of a vector right-associatively.
 def foldr {a, b}([a] b (a b -> b) -> b):
   -> xs z k;
-  option (xs last):
-    -> x;
+  option (xs last) -> x:
     (xs init) (x z k apply) k foldr
   else:
     z
@@ -88,16 +84,14 @@ def foldr {a, b}([a] b (a b -> b) -> b):
 // Right-associative non-empty vector fold.
 def foldr1 {a}([a] (a a -> a) -> a?):
   -> xs fn;
-  option (xs last):
-    -> x;
+  option (xs last) -> x:
     (xs init) x fn foldr some
   else:
     none
 
 def generateN {a}((int -> a) int -> [a]):
   -> f size;
-  from (0) unfold (size):
-    -> index;
+  from (0) unfold (size) -> index:
     index f apply;
     index + 1
 
@@ -118,8 +112,7 @@ def unsafeFoldr1 {a}([a] (a a -> a) -> a):
 // Folds elements of a vector left-associatively.
 def foldl {a, b}([b] a (a b -> a) -> a):
   -> xs z k;
-  option (xs head):
-    -> x;
+  option (xs head) -> x:
     xs tail (z x k apply) k foldl
   else:
     z
@@ -127,8 +120,7 @@ def foldl {a, b}([b] a (a b -> a) -> a):
 // Left-associative non-empty vector fold.
 def foldl1 {a}([a] (a a -> a) -> a?):
   -> xs fn;
-  option (xs head):
-    -> x;
+  option (xs head) -> x:
     xs tail x fn foldl some
   else:
     none
@@ -176,8 +168,7 @@ def init {a}([a] -> [a]):
 // the main diagonal and xs wrapped to the remainder.
 def insertEverywhere {a}([a] a -> [[a]]):
   -> xs n;
-  option (xs head):
-    -> x;
+  option (xs head) -> x:
     (xs tail) n insertEverywhere
     {x prepend} map
     (xs n prepend)
@@ -187,8 +178,7 @@ def insertEverywhere {a}([a] a -> [[a]]):
 
 def insert {a}([a] a (a a -> bool) -> [a]):
   -> xs n lt;
-  option (xs head):
-    -> x;
+  option (xs head) -> x:
     if (x n lt apply):
       (xs tail) n lt insert
       x prepend
@@ -200,8 +190,7 @@ def insert {a}([a] a (a a -> bool) -> [a]):
 // Intersperses a value between the values of a vector.
 def intersperse {a}([a] a -> [a]):
   -> xs sep;
-  option (xs head):
-    -> x;
+  option (xs head) -> x:
     xs tail sep prependToAll
     x prepend
   else:
@@ -221,8 +210,7 @@ def keep {a}([a] int -> [a]):
   if (n <= 0):
     []
   else:
-    option (xs head):
-      -> x;
+    option (xs head) -> x:
       xs tail (n - 1) keep
       x prepend
     else:
@@ -232,8 +220,7 @@ def keep {a}([a] int -> [a]):
 def keepWhile {a}([a] (a -> bool) -> [a]):
   -> xs f;
   []
-  option (xs head):
-    -> x;
+  option (xs head) -> x:
     if (x f apply):
       drop
       xs tail f keepWhile
@@ -297,8 +284,7 @@ def prepend {a}([a] a -> [a]):
 
 def prependToAll {a}([a] a -> [a]):
   -> xs sep;
-  option (xs head):
-    -> x;
+  option (xs head) -> x:
     xs tail sep prependToAll
     x prepend
     sep prepend
@@ -317,8 +303,7 @@ def replicate {a}(a int -> [a]):
 // Reverses a vector.
 def reverse {a}([a] -> [a]):
   -> xs;
-  option (xs last):
-    -> x;
+  option (xs last) -> x:
     xs init reverse
     x prepend
   else:
@@ -337,8 +322,7 @@ def scanl1 {a}([a] (a a -> a) -> [a]):
 // Scan fold of remaining elements
 def scanlRest {a, b}([b] a (a b -> a) -> [a]):
   -> xs z k;
-  option (xs head):
-    -> x;
+  option (xs head) -> x:
     z x k apply -> q;
     xs tail q k scanlRest
     q prepend
@@ -348,8 +332,7 @@ def scanlRest {a, b}([b] a (a b -> a) -> [a]):
 // Produce a list of fold-right results
 def scanr {a, b}([a] b (a b -> b) -> [b]):
   -> xs z k;
-  option (xs head):
-    -> x;
+  option (xs head) -> x:
     (xs tail) z k scanr dup unsafeHead
     x swap k apply
     prepend
@@ -392,8 +375,7 @@ def toss {a}([a] int -> [a]):
 def tossWhile {a}([a] (a -> bool) -> [a]):
   -> xs f;
   xs
-  option (xs head):
-    -> x;
+  option (xs head) -> x:
     if (x f apply):
       tail f tossWhile
 
@@ -416,8 +398,7 @@ def transpose {a}([[a]] -> [[a]]):
 // given equality predicate.
 def unique {a}([a] (a a -> bool) -> [a]):
   -> xs eq;
-  option (xs head):
-    -> x;
+  option (xs head) -> x:
     (xs tail {x (eq apply) not} filter) eq unique
     x prepend
   else:
@@ -444,10 +425,8 @@ def zip {a, b}([a] [b] -> [a & b]):
 def zipWith {a, b, c}([a] [b] (a b -> c) -> [c]):
   -> as bs f;
   []
-  option (as head):
-    -> a;
-    option (bs head):
-      -> b;
+  option (as head) -> a:
+    option (bs head) -> b:
       drop
       (as tail) (bs tail) f zipWith
       a b f apply; prepend
