@@ -196,7 +196,8 @@ def dumpMemory ([int] int ->):
   -> ram ramc;
 
   "Memory:" say
-  upto 32: -> index;
+  upto 32:
+    -> index;
     ram @! index -> cell;
     ["[", index showInt, "] ", cell showInt] concat print
     if (index = ramc): " <" print
