@@ -55,7 +55,6 @@ optimizations :: [Program -> Optimization]
 optimizations =
   [ callElim
   , inline
-  , leaveElim
   ]
 
 callElim :: a -> Optimization
@@ -77,11 +76,6 @@ inline _ [] = []
 
 inlineThreshold :: Int
 inlineThreshold = 10
-
-leaveElim :: a -> Optimization
-leaveElim p (IrLeave : IrReturn : xs) = IrReturn : leaveElim p xs
-leaveElim p (x : xs) = x : leaveElim p xs
-leaveElim _ [] = []
 
 applyOpt
   :: Program
