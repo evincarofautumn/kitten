@@ -1,5 +1,6 @@
 #include "kitten.h"
 
+#include <ctype.h>
 #include <stdarg.h>
 #include <stdlib.h>
 
@@ -174,7 +175,7 @@ KObject k_unit() {
 
 KObject k_append_vector(
   const KObject a, const KObject b) {
-  const size_t size = k_vector_size(a) + k_vector_size(b);
+  const k_cell_t size = k_vector_size(a) + k_vector_size(b);
   const KObject vector = k_new_vector(size);
   KObject* from = k_vector_begin(a);
   KObject* to = k_vector_begin(vector);
@@ -185,6 +186,7 @@ KObject k_append_vector(
   KObject* const b_end = k_vector_end(b);
   while (from != b_end)
     *to++ = k_retain(*from++);
+  assert(to == k_vector_end(vector));
   return vector;
 }
 
@@ -229,6 +231,7 @@ static KObject* k_vector_end(const KObject object) {
 
 KObject k_vector_get(const KObject object, k_cell_t index) {
   assert(object.type == K_VECTOR);
+  assert(k_vector_size(object) > index);
   const KVector* const vector = (KVector*)object.data;
   return vector->begin[index];
 }
@@ -261,18 +264,77 @@ KObject k_make_vector(const size_t size) {
 }
 
 #ifndef NDEBUG
-static void dump_data() {
-  fprintf(stderr, "[");
-  for (KObject* p = k_data; p < data_bottom; ++p) {
-    fprintf(stderr, "  %"PRId64"/%"PRId64"", p->data, p->type);
+static void dump_object(const KObject object) {
+  if (object.type == K_JUNK) {
+    fprintf(stderr, "<junk>");
+  } else if (object.type == K_BOOL) {
+    fprintf(stderr, "%s", object.data ? "true" : "false");
+  } else if (object.type == K_CHAR) {
+    fprintf(stderr, "'%c'", (char)(object.data));
+  } else if (object.type == K_FLOAT) {
+    fprintf(stderr, "%f", *(const double*)(&object.data));
+  } else if (object.type == K_INT) {
+    fprintf(stderr, "%"PRId64"", object.data);
+  } else if (object.type == K_NONE) {
+    fprintf(stderr, "none");
+  } else if (object.type == K_UNIT) {
+    fprintf(stderr, "()");
+  } else if (object.type == K_ACTIVATION) {
+    fprintf(stderr, "<act>");
+  } else if (object.type == K_HANDLE) {
+    fprintf(stderr, "<handle>");
+  } else if (object.type == K_LEFT) {
+    fprintf(stderr, "(");
+    dump_object(((const KBox*)object.data)->value);
+    fprintf(stderr, " left)");
+  } else if (object.type == K_PAIR) {
+    fprintf(stderr, "(");
+    dump_object(((const KPair*)object.data)->first);
+    fprintf(stderr, " ");
+    dump_object(((const KPair*)object.data)->rest);
+    fprintf(stderr, " pair)");
+  } else if (object.type == K_RIGHT) {
+    fprintf(stderr, "(");
+    dump_object(((const KBox*)object.data)->value);
+    fprintf(stderr, " right)");
+  } else if (object.type == K_SOME) {
+    fprintf(stderr, "(");
+    dump_object(((const KBox*)object.data)->value);
+    fprintf(stderr, " some)");
+  } else if (object.type == K_VECTOR) {
+    if (k_vector_size(object) > 0 && k_vector_get(object, 0).type == K_CHAR) {
+      fputc('"', stderr);
+      for (const KObject* c = k_vector_begin(object);
+           c != k_vector_end(object); ++c) {
+        fputc(isprint(c->data) ? c->data : '.', stderr);
+      }
+      fputc('"', stderr);
+    } else {
+      fprintf(stderr, "[");
+      for (k_cell_t i = 0; i < k_vector_size(object); ++i) {
+        fprintf(stderr, " ");
+        dump_object(k_vector_get(object, i));
+      }
+      fprintf(stderr, " ]");
+    }
+  } else {
+    fprintf(stderr, "<unknown:%"PRId64">", object.type);
   }
-  fprintf(stderr, "  ]\n");
+}
+
+static void dump_data() {
+  for (const KObject* p = data_bottom - 1; p >= k_data; --p) {
+    fprintf(stderr, "  ");
+    dump_object(*p);
+  }
+  fputc('\n', stderr);
 }
 
 static void dump_locals() {
   fprintf(stderr, "(");
-  for (KObject* p = k_locals; p < locals_bottom; ++p) {
-    fprintf(stderr, "  %"PRId64"/%"PRId64"", p->data, p->type);
+  for (const KObject* p = k_locals; p < locals_bottom; ++p) {
+    fprintf(stderr, "  ");
+    dump_object(*p);
   }
   fprintf(stderr, "  )\n");
 }
