@@ -64,14 +64,14 @@ callElim p (x : xs) = x : callElim p xs
 callElim _ [] = []
 
 inline :: Program -> Optimization
-inline p (IrCall x : xs) = ($ inline p xs)
+inline p (call@(IrCall x) : xs) = ($ inline p xs)
   $ case Id.lookup x (programBlocks p) of
     Just block
       | V.length block < inlineThreshold
         && V.length block >= 1
         && V.last block == IrReturn
       -> (V.toList (V.init block) ++)
-    _ -> (IrCall x :)
+    _ -> (call :)
 inline p (x : xs) = x : inline p xs
 inline _ [] = []
 
