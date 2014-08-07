@@ -75,7 +75,7 @@ toC FlattenedProgram{..} = V.concat
     \int main(int argc, char** argv) {\n\
       \k_init();\n\
       \K_PUSH_RETURN(((KR){ .address = &&exit, .closure = 0 }));\n\
-      \goto " <> global entryId <> ";\n"
+      \goto " <> global entryId <> ";"
 
   end = "\
     \exit:\n\
@@ -86,7 +86,7 @@ toC FlattenedProgram{..} = V.concat
   go ip instruction = (<>) <$> advance ip <*> case instruction of
     IrAct label names _ -> return $ "K_ACT(" <> global label <> ", "
       <> T.intercalate ", " (showText (V.length names)
-        : map closedName (V.toList names)) <> ");\n"
+        : map closedName (V.toList names)) <> ");"
       where
       closedName (ClosedName index) = "K_CLOSED, " <> showText index
       closedName (ReclosedName index) = "K_RECLOSED, " <> showText index
