@@ -87,7 +87,11 @@ $(call SOFT_DEP_RULE,$(KITTEN),$(build_DEPS))
 .PHONY : clean
 clean :
 	$(CABAL) clean
-	rm -f test/*.actual
+	rm -f test/*.built
+	rm -f test/*.err.c
+	rm -f test/*.err.interpreted
+	rm -f test/*.out.c
+	rm -f test/*.out.interpreted
 
 .PHONY : configure
 configure :
