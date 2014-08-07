@@ -1,13 +1,16 @@
 # Script for Travis CI: https://travis-ci.org/
 # Based off of: https://github.com/hvr/multi-ghc-travis
 
-# Don't do this!
-#language: haskell
+language: c
 
 env:
  - GHC_VERSION=7.6.3 CABAL_PACKAGE=cabal-install      CABAL=cabal      CABAL_INSTALL_FLAGS=
  - GHC_VERSION=7.6.3 CABAL_PACKAGE=cabal-install-1.18 CABAL=cabal-1.18 CABAL_INSTALL_FLAGS=-j
  - GHC_VERSION=head  CABAL_PACKAGE=cabal-install-1.18 CABAL=cabal-1.18 CABAL_INSTALL_FLAGS=-j
+
+compiler:
+ - gcc
+ - clang
 
 matrix:
  allow_failures:
