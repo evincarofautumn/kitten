@@ -1,5 +1,6 @@
 #!/bin/bash
 
+CC="${CC:-cc}"
 KITTEN_DIR="$(pwd)"
 cd "$(dirname "$0")"
 HERE="$(pwd)"
@@ -78,7 +79,7 @@ function run_test {
       if [ $? -ne 0 ]; then
         return
       fi
-      if ! gcc "$test_file.c" $CFLAGS -o "$test_file.built" \
+      if ! "$CC" "$test_file.c" $CFLAGS -o "$test_file.built" \
         > "$test_file.info" 2>&1; then
         echo "Test '$test_name' ($mode) FAILED." >&2
         echo "The generated program did not compile:" >&2
