@@ -2,6 +2,7 @@
 #define KITTEN_H
 
 #include <assert.h>
+#include <float.h>
 #include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -145,6 +146,55 @@ KR k_pop_return(void);
       .closure = 0, \
     })); \
     goto CALL; \
+  } while (0)
+
+#define K_CHOICE() \
+  do { \
+    KObject left = k_pop_data(); \
+    assert(left.type == K_ACTIVATION); \
+    KObject choice = k_pop_data(); \
+    assert(choice.type == K_LEFT || choice.type == K_RIGHT); \
+    if (choice.type == K_LEFT) { \
+      k_push_data(k_from_box(choice, K_LEFT)); \
+      k_push_data(left); \
+      K_APPLY(CAT(here, __LINE__)); CAT(here, __LINE__): (void)0; \
+    } \
+  } while (0)
+
+#define K_CHOICE_ELSE() \
+  do { \
+    KObject right = k_pop_data(); \
+    assert(right.type == K_ACTIVATION); \
+    KObject left = k_pop_data(); \
+    assert(left.type == K_ACTIVATION); \
+    KObject choice = k_pop_data(); \
+    assert(choice.type == K_LEFT || choice.type == K_RIGHT); \
+    if (choice.type == K_LEFT) { \
+      k_push_data(k_from_box(choice, K_LEFT)); \
+      k_push_data(left); \
+    } else if (choice.type == K_RIGHT) { \
+      k_push_data(k_from_box(choice, K_RIGHT)); \
+      k_push_data(right); \
+    } \
+    K_APPLY(CAT(here, __LINE__)); CAT(here, __LINE__): (void)0; \
+  } while (0)
+
+#define K_GET_LINE() \
+  do { \
+    KObject handle = k_pop_data(); \
+    assert(handle.type == K_HANDLE); \
+    char* line = NULL; \
+    size_t size = 0; \
+    ssize_t length = getline(&line, &size, *(k_handle_t*)(&handle.data)); \
+    if (length == -1) { \
+      length = 1; \
+    } \
+    KObject string = k_new_vector(length - 1); \
+    for (size_t i = 0; i < length - 1; ++i) { \
+      k_vector_set(string, i, k_char(line[i])); \
+    } \
+    k_push_data(string); \
+    free(line); \
   } while (0)
 
 #define K_TAIL_CALL(CALL) \
@@ -293,7 +343,17 @@ KR k_pop_return(void);
   } while (0)
 
 #define K_OPTION() \
-  assert(!"TODO __option");
+  do { \
+    KObject some = k_pop_data(); \
+    assert(some.type == K_ACTIVATION); \
+    KObject option = k_pop_data(); \
+    assert(option.type == K_SOME || option.type == K_NONE); \
+    if (option.type == K_SOME) { \
+      k_push_data(k_from_box(option, K_SOME)); \
+      k_push_data(some); \
+      K_APPLY(CAT(here, __LINE__)); CAT(here, __LINE__): (void)0; \
+    } \
+  } while (0)
 
 #define K_OPTION_ELSE() \
   do { \
@@ -395,6 +455,27 @@ KR k_pop_return(void);
          p != ((KVector*)string.data)->end; ++p) { \
       fputc(p->data, (FILE*)handle.data); \
     } \
+  } while (0)
+
+#define K_SHOW_FLOAT() \
+  do { \
+    KObject x = k_pop_data(); \
+    assert(x.type == K_FLOAT);  \
+    char buffer[ \
+      1 /* sign */ \
+      + (DBL_MAX_10_EXP + 1) /* decimal digits */ \
+      + 1 /* dot */ \
+      + 6 /* default precision */ \
+      + 1 /* null */ \
+    ]; \
+    int length = 0; \
+    snprintf(buffer, sizeof(buffer), \
+      "%f%n", *(k_float_t*)(&x.data), &length);  \
+    KObject string = k_new_vector(length); \
+    for (size_t i = 0; i < length; ++i) { \
+      k_vector_set(string, i, k_char(buffer[i])); \
+    } \
+    k_push_data(string); \
   } while (0)
 
 #define K_SHOW_INT() \

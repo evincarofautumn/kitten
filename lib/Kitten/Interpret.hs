@@ -24,6 +24,7 @@ import Data.Text (Text)
 import Data.Vector (Vector, (!))
 import System.Exit
 import System.IO
+import Text.Printf
 
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -365,7 +366,7 @@ interpretIntrinsic intrinsic = case intrinsic of
 
   InShowFloat -> do
     Float value <- popData
-    pushData $ Vector (charsFromString $ show value)
+    pushData $ Vector (charsFromString $ printf "%.6f" value)
     proceed
 
   InShowInt -> do

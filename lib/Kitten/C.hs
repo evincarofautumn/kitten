@@ -193,13 +193,13 @@ toCIntrinsic intrinsic = case intrinsic of
   InXorBool -> relational "int" "!="
   InXorInt -> binary "int" "^"
 
-  InGetLine -> return "assert(!\"TODO stdio __get_line\");"
+  InGetLine -> return "K_GET_LINE();"
   InInit -> return "K_INIT();"
   InModFloat -> return "K_MOD_FLOAT();"
   InOpenIn -> return "assert(!\"TODO stdio __open_in\");"
   InOpenOut -> return "assert(!\"TODO stdio __open_out\");"
   InSet -> return "K_SET();"
-  InShowFloat -> return "assert(!\"TODO intrinsic __show_float\");"
+  InShowFloat -> return "K_SHOW_FLOAT();"
   InTail -> return "K_TAIL();"
 
   where

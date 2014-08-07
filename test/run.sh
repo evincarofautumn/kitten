@@ -19,19 +19,6 @@ function run_kitten {
 CFLAGS="kitten.c -std=c99 -Wall -Werror -g -I. -DNDEBUG"
 
 BLACKLISTED_C_TESTS=$(cat <<EOF
-Imported
-cartesian
-choice
-compose
-cond
-filter
-hello-kitten
-levenshtein
-range
-show
-splitAt
-transpose
-tuple
 EOF
 )
 
