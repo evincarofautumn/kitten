@@ -183,18 +183,16 @@ KR k_pop_return(void);
   do { \
     KObject handle = k_pop_data(); \
     assert(handle.type == K_HANDLE); \
-    char* line = NULL; \
-    size_t size = 0; \
-    ssize_t length = getline(&line, &size, *(k_handle_t*)(&handle.data)); \
-    if (length == -1) { \
-      length = 1; \
+    size_t length = 1; \
+    char line[1024]; \
+    if (fgets(line, 1024, *(k_handle_t*)(&handle.data))) { \
+      length = strlen(line); \
     } \
     KObject string = k_new_vector(length - 1); \
     for (size_t i = 0; i < length - 1; ++i) { \
       k_vector_set(string, i, k_char(line[i])); \
     } \
     k_push_data(string); \
-    free(line); \
   } while (0)
 
 #define K_TAIL_CALL(CALL) \
