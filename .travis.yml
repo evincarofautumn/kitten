@@ -23,6 +23,9 @@ before_install:
  - sudo apt-get install $CABAL_PACKAGE ghc-$GHC_VERSION
  - export PATH=/opt/ghc/$GHC_VERSION/bin:$HOME/.cabal/bin:$PATH # HACK
  - $CABAL update
+ - wget http://www.hboehm.info/gc/gc_source/gc-7.2f.tar.gz
+ - tar xzvf gc-7.2f.tar.gz
+ - (cd gc-7.2 && ./configure --prefix=$HOME && make && make install)
  # See Note [hlint].
  # - $CABAL install $CABAL_INSTALL_FLAGS happy # Needed for hlint.
  # - $CABAL install $CABAL_INSTALL_FLAGS hlint
@@ -32,6 +35,7 @@ install:
 
 script:
  # - which hlint # See Note [hlint].
+ - export CFLAGS="-I $HOME/include -L $HOME/lib"
  - make all
  # TODO(strager): cabal sdist, cabal check, etc.
 
