@@ -1,6 +1,7 @@
 #include "kitten.h"
 
 #include <ctype.h>
+#include <gc/gc.h>
 #include <stdarg.h>
 #include <stdlib.h>
 
@@ -18,29 +19,35 @@ static KR* return_bottom;
 static KObject* k_vector_begin(KObject);
 static KObject* k_vector_end(KObject);
 
+void* k_alloc(const size_t count, const size_t size) {
+  void* allocated = GC_MALLOC(count * size);
+  assert(allocated);
+  return allocated;
+}
+
 void k_init() {
 #ifndef NDEBUG
   fprintf(stderr, "k_init()\n");
 #endif
 
   const size_t CLOSURE_SIZE = 1024;
-  k_closure = calloc(CLOSURE_SIZE, sizeof(KObject*));
+  k_closure = k_alloc(CLOSURE_SIZE, sizeof(KObject*));
   k_closure += CLOSURE_SIZE;
 
   const size_t RETURN_SIZE = 1024;
-  k_return = calloc(RETURN_SIZE, sizeof(KR));
+  k_return = k_alloc(RETURN_SIZE, sizeof(KR));
   k_return += RETURN_SIZE;
   return_bottom = k_return;
 
   const size_t DATA_SIZE = 1024;
-  k_data = calloc(DATA_SIZE, sizeof(KObject));
+  k_data = k_alloc(DATA_SIZE, sizeof(KObject));
   for (size_t i = 0; i < DATA_SIZE; ++i) {
     *k_data++ = junk;
   }
   data_bottom = k_data;
 
   const size_t LOCALS_SIZE = 1024;
-  k_locals = calloc(LOCALS_SIZE, sizeof(KObject));
+  k_locals = k_alloc(LOCALS_SIZE, sizeof(KObject));
   for (size_t i = 0; i < LOCALS_SIZE; ++i) {
     *k_locals++ = junk;
   }
@@ -48,48 +55,11 @@ void k_init() {
 
 }
 
-#if 0
-static int is_boxed_type(const KType type) {
-  return type >= K_BOXED;
-}
-#endif
-
-#if 0
-static k_cell_t* boxed_refs(KObject* const object) {
-  return &(*((KBoxed**)&object->data))->refs;
-}
-#endif
-
-KObject k_retain(const KObject object) {
-#if 0
-  if (is_boxed_type(object.type))
-    ++(*((KBoxed**)&object.data))->refs;
-#endif
-  return object;
-}
-KObject k_release(KObject object) {
-
-#if 0
-  if (!is_boxed_type(object.type))
-    return object;
-
-  if (--*boxed_refs(&object) > 0)
-    return object;
-
-  // TODO Free members.
-
-  free((KObject*)object.data);
-#endif
-
-  return object;
-
-}
-
 KObject k_activation(void* const function, const size_t size, ...) {
-  KActivation* const activation = calloc(1, sizeof(KActivation));
+  KActivation* const activation = k_alloc(1, sizeof(KActivation));
   activation->refs = 1;
   activation->function = function;
-  activation->begin = calloc(size, sizeof(KObject));
+  activation->begin = k_alloc(size, sizeof(KObject));
   activation->end = activation->begin + size;
   va_list args;
   va_start(args, size);
@@ -136,9 +106,9 @@ KObject k_int(const k_int_t value) {
 }
 
 static KObject k_box(const KObject value, const KType type) {
-  KBox* const data = calloc(1, sizeof(KBox));
+  KBox* const data = k_alloc(1, sizeof(KBox));
   data->refs = 1;
-  data->value = k_retain(value);
+  data->value = value;
   const KObject result = {
     .data = (k_cell_t)data,
     .type = type
@@ -155,9 +125,9 @@ KObject k_none() {
 }
 
 KObject k_pair(const KObject first, const KObject rest) {
-  KPair* pair = calloc(1, sizeof(KPair));
-  pair->first = k_retain(first);
-  pair->rest = k_retain(rest);
+  KPair* pair = k_alloc(1, sizeof(KPair));
+  pair->first = first;
+  pair->rest = rest;
   return (KObject) { .data = (k_cell_t)pair, .type = K_PAIR };
 }
 
@@ -181,19 +151,19 @@ KObject k_append_vector(
   KObject* to = k_vector_begin(vector);
   KObject* const a_end = k_vector_end(a);
   while (from != a_end)
-    *to++ = k_retain(*from++);
+    *to++ = *from++;
   from = k_vector_begin(b);
   KObject* const b_end = k_vector_end(b);
   while (from != b_end)
-    *to++ = k_retain(*from++);
+    *to++ = *from++;
   assert(to == k_vector_end(vector));
   return vector;
 }
 
 /* Creates a new vector with uninitialized elements. */
 KObject k_new_vector(const size_t size) {
-  KVector* vector = calloc(1, sizeof(KVector));
-  vector->begin = calloc(size, sizeof(KObject));
+  KVector* vector = k_alloc(1, sizeof(KVector));
+  vector->begin = k_alloc(size, sizeof(KObject));
   vector->end = vector->begin + size;
   vector->capacity = vector->begin + size;
   return (KObject) {
@@ -205,12 +175,12 @@ KObject k_new_vector(const size_t size) {
 KObject k_vector(const size_t size, ...) {
   va_list args;
   va_start(args, size);
-  KVector* vector = calloc(1, sizeof(KVector));
-  vector->begin = calloc(size, sizeof(KObject));
+  KVector* vector = k_alloc(1, sizeof(KVector));
+  vector->begin = k_alloc(size, sizeof(KObject));
   vector->end = vector->begin + size;
   vector->capacity = vector->begin + size;
   for (size_t i = 0; i < size; ++i) {
-    vector->begin[i] = k_retain(va_arg(args, KObject));
+    vector->begin[i] = va_arg(args, KObject);
   }
   va_end(args);
   return (KObject) {
@@ -249,8 +219,8 @@ k_cell_t k_vector_size(const KObject object) {
 }
 
 KObject k_make_vector(const size_t size) {
-  KVector* vector = calloc(1, sizeof(KVector));
-  vector->begin = calloc(size, sizeof(KObject));
+  KVector* vector = k_alloc(1, sizeof(KVector));
+  vector->begin = k_alloc(size, sizeof(KObject));
   vector->end = vector->begin + size;
   vector->capacity = vector->begin + size;
   for (size_t i = 0; i < size; ++i) {

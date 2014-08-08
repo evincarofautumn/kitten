@@ -94,8 +94,7 @@ extern KObject* k_locals;
 
 void k_init(void);
 
-KObject k_retain(KObject);
-KObject k_release(KObject);
+void* k_alloc(size_t, size_t);
 
 KObject k_activation(void *, size_t, ...);
 KObject k_bool(int);
@@ -203,12 +202,10 @@ KR k_pop_return(void);
 #define K_RETURN() \
   do { \
     KR call = k_pop_return(); \
-    /* TODO Release locals. */ \
     if (call.locals) { \
       k_locals = call.locals; \
     } \
     if (call.closure) { \
-      /* TODO Release closure. */ \
       K_DROP_CLOSURE(); \
     } \
     goto *call.address; \
@@ -235,7 +232,7 @@ KR k_pop_return(void);
     assert(object.type == K_ACTIVATION); \
     const KActivation* const activation = (KActivation*)object.data; \
     const size_t size = activation->end - activation->begin; \
-    K_PUSH_CLOSURE(calloc(size, sizeof(KObject))); \
+    K_PUSH_CLOSURE(k_alloc(size, sizeof(KObject))); \
     for (size_t i = 0; i < size; ++i) { \
       k_closure[0][i] = activation->begin[i]; \
     } \
