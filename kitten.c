@@ -1,7 +1,6 @@
 #include "kitten.h"
 
 #include <ctype.h>
-#include <gc/gc.h>
 #include <math.h>
 #include <stdarg.h>
 #include <stdlib.h>
