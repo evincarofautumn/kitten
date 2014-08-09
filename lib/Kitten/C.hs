@@ -79,6 +79,7 @@ toC FlattenedProgram{..} = V.concat
 
   end = "\
     \exit:\n\
+      \k_quit();\n\
       \return 0;\n\
     \}"
 
@@ -94,13 +95,13 @@ toC FlattenedProgram{..} = V.concat
       next <- newLabel 0
       return $ "K_CALL(" <> global label <> ", " <> local next <> ");"
     IrClosure index -> return
-      $ "k_push_data(K_GET_CLOSURE(" <> showText index <> "));"
+      $ "k_push_data(k_retain(K_GET_CLOSURE(" <> showText index <> ")));"
     IrComment text -> return $ "/* " <> text <> "*/"
     IrEnter -> return "k_push_locals(k_pop_data());"
     IrIntrinsic intrinsic -> toCIntrinsic intrinsic
     IrLeave -> return "K_DROP_LOCALS();"
     IrLocal index -> return
-      $ "k_push_data(K_GET_LOCAL(" <> showText index <> "));"
+      $ "k_push_data(k_retain(K_GET_LOCAL(" <> showText index <> ")));"
     IrMakeVector size -> return $ "K_MAKE_VECTOR(" <> showText size <> ");"
     IrPush x -> return $ "k_push_data(" <> toCValue x <> ");"
     IrReturn -> return "K_RETURN();"

@@ -5,10 +5,10 @@
 #include <stdarg.h>
 #include <stdlib.h>
 
-KR* k_return;
 KObject** k_closure;
 KObject* k_data;
 KObject* k_locals;
+KR* k_return;
 
 static KObject junk = { .data = K_JUNK, .type = K_JUNK };
 
@@ -20,9 +20,84 @@ static KObject* k_vector_begin(KObject);
 static KObject* k_vector_end(KObject);
 
 void* k_alloc(const size_t count, const size_t size) {
-  void* allocated = GC_MALLOC(count * size);
+  void* allocated = calloc(count, size);
   assert(allocated);
   return allocated;
+}
+
+void k_free(void* const pointer) {
+  free(pointer);
+}
+
+KObject k_retain(const KObject object) {
+  switch (object.type) {
+  case K_ACTIVATION:
+    ++((KActivation*)object.data)->refs;
+    break;
+  case K_LEFT:
+  case K_RIGHT:
+  case K_SOME:
+    ++((KBox*)object.data)->refs;
+    break;
+  case K_PAIR:
+    ++((KPair*)object.data)->refs;
+    break;
+  case K_VECTOR:
+    ++((KVector*)object.data)->refs;
+    break;
+  }
+  return object;
+}
+
+void k_release(const KObject object) {
+  switch (object.type) {
+  case K_ACTIVATION:
+    {
+      KActivation* const activation = (KActivation*)object.data;
+      if (--activation->refs == 0) {
+        for (KObject* object = activation->begin;
+          object != activation->end; ++object) {
+          k_release(*object);
+        }
+        k_free(activation->begin);
+        k_free(activation);
+      }
+      break;
+    }
+  case K_LEFT:
+  case K_RIGHT:
+  case K_SOME:
+    {
+      KBox* const box = (KBox*)object.data;
+      if (--box->refs == 0) {
+        k_release(box->value);
+        k_free(box);
+      }
+      break;
+    }
+  case K_PAIR:
+    {
+      KPair* const pair = (KPair*)object.data;
+      if (--pair->refs == 0) {
+        k_release(pair->first);
+        k_release(pair->rest);
+        k_free(pair);
+      }
+      break;
+    }
+  case K_VECTOR:
+    {
+      KVector* const vector = (KVector*)object.data;
+      if (--vector->refs == 0) {
+        const k_cell_t size = vector->end - vector->begin;
+        for (k_cell_t i = 0; i < size; ++i)
+          k_release(vector->begin[i]);
+        k_free(vector->begin);
+        k_free(vector);
+      }
+      break;
+    }
+  }
 }
 
 void k_init() {
@@ -55,6 +130,13 @@ void k_init() {
 
 }
 
+void k_quit() {
+  while (k_data < data_bottom)
+    K_DROP_DATA();
+  while (k_locals < locals_bottom)
+    K_DROP_LOCALS();
+}
+
 KObject k_activation(void* const function, const size_t size, ...) {
   KActivation* const activation = k_alloc(1, sizeof(KActivation));
   activation->refs = 1;
@@ -69,10 +151,10 @@ KObject k_activation(void* const function, const size_t size, ...) {
     const int index = va_arg(args, int);
     switch (namespace) {
     case K_CLOSED:
-      activation->begin[i] = K_GET_LOCAL(index);
+      activation->begin[i] = k_retain(K_GET_LOCAL(index));
       break;
     case K_RECLOSED:
-      activation->begin[i] = K_GET_CLOSURE(index);
+      activation->begin[i] = k_retain(K_GET_CLOSURE(index));
       break;
     }
   }
@@ -98,7 +180,7 @@ KObject k_from_box(const KObject value, const KType type) {
 }
 
 KObject k_handle(const k_handle_t value) {
-  return (KObject) { .data = *((k_cell_t*)&value), .type = K_HANDLE };
+  return (KObject) { .data = (k_cell_t)value, .type = K_HANDLE };
 }
 
 KObject k_int(const k_int_t value) {
@@ -109,11 +191,10 @@ static KObject k_box(const KObject value, const KType type) {
   KBox* const data = k_alloc(1, sizeof(KBox));
   data->refs = 1;
   data->value = value;
-  const KObject result = {
+  return (KObject) {
     .data = (k_cell_t)data,
     .type = type
   };
-  return result;
 }
 
 KObject k_left(const KObject value) {
@@ -126,6 +207,7 @@ KObject k_none() {
 
 KObject k_pair(const KObject first, const KObject rest) {
   KPair* pair = k_alloc(1, sizeof(KPair));
+  pair->refs = 1;
   pair->first = first;
   pair->rest = rest;
   return (KObject) { .data = (k_cell_t)pair, .type = K_PAIR };
@@ -147,22 +229,23 @@ KObject k_append_vector(
   const KObject a, const KObject b) {
   const k_cell_t size = k_vector_size(a) + k_vector_size(b);
   const KObject vector = k_new_vector(size);
-  KObject* from = k_vector_begin(a);
+  const KObject* from = k_vector_begin(a);
   KObject* to = k_vector_begin(vector);
-  KObject* const a_end = k_vector_end(a);
+  const KObject* const a_end = k_vector_end(a);
   while (from != a_end)
-    *to++ = *from++;
+    *to++ = k_retain(*from++);
   from = k_vector_begin(b);
-  KObject* const b_end = k_vector_end(b);
+  const KObject* const b_end = k_vector_end(b);
   while (from != b_end)
-    *to++ = *from++;
+    *to++ = k_retain(*from++);
   assert(to == k_vector_end(vector));
   return vector;
 }
 
 /* Creates a new vector with uninitialized elements. */
 KObject k_new_vector(const size_t size) {
-  KVector* vector = k_alloc(1, sizeof(KVector));
+  KVector* const vector = k_alloc(1, sizeof(KVector));
+  vector->refs = 1;
   vector->begin = k_alloc(size, sizeof(KObject));
   vector->end = vector->begin + size;
   vector->capacity = vector->begin + size;
@@ -175,7 +258,8 @@ KObject k_new_vector(const size_t size) {
 KObject k_vector(const size_t size, ...) {
   va_list args;
   va_start(args, size);
-  KVector* vector = k_alloc(1, sizeof(KVector));
+  KVector* const vector = k_alloc(1, sizeof(KVector));
+  vector->refs = 1;
   vector->begin = k_alloc(size, sizeof(KObject));
   vector->end = vector->begin + size;
   vector->capacity = vector->begin + size;
@@ -219,10 +303,12 @@ k_cell_t k_vector_size(const KObject object) {
 }
 
 KObject k_make_vector(const size_t size) {
-  KVector* vector = k_alloc(1, sizeof(KVector));
+  KVector* const vector = k_alloc(1, sizeof(KVector));
+  vector->refs = 1;
   vector->begin = k_alloc(size, sizeof(KObject));
   vector->end = vector->begin + size;
   vector->capacity = vector->begin + size;
+  // Moving from stack into vector; no retain/release needed.
   for (size_t i = 0; i < size; ++i) {
     vector->begin[i] = k_data[size - i - 1];
   }

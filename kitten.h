@@ -29,12 +29,12 @@ typedef enum KType {
   K_BOOL = K_UNBOXED + 1,
   K_CHAR,
   K_FLOAT,
+  K_HANDLE,
   K_INT,
   K_NONE,
   K_UNIT,
   K_BOXED = 0x10,
   K_ACTIVATION = K_BOXED + 1,
-  K_HANDLE,
   K_LEFT,
   K_PAIR,
   K_RIGHT,
@@ -93,8 +93,12 @@ extern KObject* k_data;
 extern KObject* k_locals;
 
 void k_init(void);
+void k_quit(void);
 
 void* k_alloc(size_t, size_t);
+void k_free(void*);
+KObject k_retain(KObject);
+void k_release(KObject);
 
 KObject k_activation(void *, size_t, ...);
 KObject k_bool(int);
@@ -124,9 +128,27 @@ void k_push_locals(KObject);
 KObject k_pop_locals(void);
 KR k_pop_return(void);
 
-#define K_DROP_CLOSURE()   (++k_closure)
-#define K_DROP_DATA()      ((k_data[0] = (KObject) { .data = K_JUNK, .type = K_JUNK }), ++k_data)
-#define K_DROP_LOCALS()    ((k_locals[0] = (KObject) { .data = K_JUNK, .type = K_JUNK }), ++k_locals)
+#define K_DROP_CLOSURE(size) \
+  do { \
+    for (size_t i = 0; i < size; ++i) \
+      k_release(k_closure[0][i]); \
+    ++k_closure; \
+  } while (0)
+
+#define K_DROP_DATA() \
+  do { \
+    k_release(k_data[0]); \
+    k_data[0] = (KObject) { .data = K_JUNK, .type = K_JUNK }; \
+    ++k_data; \
+  } while (0)
+
+#define K_DROP_LOCALS() \
+  do { \
+    k_release(k_locals[0]); \
+    k_locals[0] = (KObject) { .data = K_JUNK, .type = K_JUNK }; \
+    ++k_locals; \
+  } while (0)
+
 #define K_GET_CLOSURE(i)   (k_closure[0][(i)])
 #define K_GET_LOCAL(i)     (k_locals[(i)])
 #define K_PUSH_CLOSURE(x)  (*--k_closure = (x))
@@ -142,7 +164,7 @@ KR k_pop_return(void);
     K_PUSH_RETURN(((KR){ \
       .address = &&RETURN, \
       .locals = k_locals, \
-      .closure = 0, \
+      .closure = -1, \
     })); \
     goto CALL; \
   } while (0)
@@ -154,7 +176,8 @@ KR k_pop_return(void);
     KObject choice = k_pop_data(); \
     assert(choice.type == K_LEFT || choice.type == K_RIGHT); \
     if (choice.type == K_LEFT) { \
-      k_push_data(k_from_box(choice, K_LEFT)); \
+      k_push_data(k_retain(k_from_box(choice, K_LEFT))); \
+      k_release(choice); \
       k_push_data(left); \
       K_APPLY(CAT(here, __LINE__)); CAT(here, __LINE__): (void)0; \
     } \
@@ -169,10 +192,12 @@ KR k_pop_return(void);
     KObject choice = k_pop_data(); \
     assert(choice.type == K_LEFT || choice.type == K_RIGHT); \
     if (choice.type == K_LEFT) { \
-      k_push_data(k_from_box(choice, K_LEFT)); \
+      k_push_data(k_retain(k_from_box(choice, K_LEFT))); \
+      k_release(choice); \
       k_push_data(left); \
     } else if (choice.type == K_RIGHT) { \
-      k_push_data(k_from_box(choice, K_RIGHT)); \
+      k_push_data(k_retain(k_from_box(choice, K_RIGHT))); \
+      k_release(choice); \
       k_push_data(right); \
     } \
     K_APPLY(CAT(here, __LINE__)); CAT(here, __LINE__): (void)0; \
@@ -202,12 +227,11 @@ KR k_pop_return(void);
 #define K_RETURN() \
   do { \
     KR call = k_pop_return(); \
-    if (call.locals) { \
-      k_locals = call.locals; \
-    } \
-    if (call.closure) { \
-      K_DROP_CLOSURE(); \
-    } \
+    if (call.locals) \
+      while (k_locals < call.locals) \
+        k_release(*k_locals++); \
+    if (call.closure != -1) \
+      K_DROP_CLOSURE(call.closure); \
     goto *call.address; \
   } while (0)
 
@@ -224,6 +248,8 @@ KR k_pop_return(void);
     assert(a.type == K_VECTOR); \
     assert(b.type == K_VECTOR); \
     k_push_data(k_append_vector(a, b)); \
+    k_release(a); \
+    k_release(b); \
   } while (0)
 
 #define K_APPLY(RETURN) \
@@ -234,10 +260,11 @@ KR k_pop_return(void);
     const size_t size = activation->end - activation->begin; \
     K_PUSH_CLOSURE(k_alloc(size, sizeof(KObject))); \
     for (size_t i = 0; i < size; ++i) { \
-      k_closure[0][i] = activation->begin[i]; \
+      k_closure[0][i] = k_retain(activation->begin[i]); \
     } \
-    K_PUSH_RETURN(((KR){ .address = &&RETURN, .closure = 1 })); \
+    K_PUSH_RETURN(((KR){ .address = &&RETURN, .closure = size })); \
     void* const function = activation->function; \
+    k_release(object); \
     goto *function; \
   } while (0)
 
@@ -252,7 +279,8 @@ KR k_pop_return(void);
   do { \
     KObject pair = k_pop_data(); \
     assert(pair.type == K_PAIR); \
-    k_push_data(((KPair*)pair.data)->first); \
+    k_push_data(k_retain(((KPair*)pair.data)->first)); \
+    k_release(pair); \
   } while (0)
 
 #define K_GET() \
@@ -264,7 +292,8 @@ KR k_pop_return(void);
     const k_int_t i = (k_int_t)index.data; \
     const k_cell_t size = k_vector_size(vector); \
     k_push_data(i < 0 || i >= size \
-      ? k_none() : k_some(k_vector_get(vector, i)));\
+      ? k_none() : k_some(k_retain(k_vector_get(vector, i)))); \
+    k_release(vector); \
   } while (0)
 
 #define CAT_(A, B) A##B
@@ -279,6 +308,8 @@ KR k_pop_return(void);
     if (cond.data) { \
       k_push_data(true); \
       K_APPLY(CAT(here, __LINE__)); CAT(here, __LINE__): (void)0; \
+    } else { \
+      k_release(true); \
     } \
   } while (0)
 
@@ -292,7 +323,9 @@ KR k_pop_return(void);
     assert(cond.type == K_BOOL); \
     if (cond.data) { \
       k_push_data(true); \
+      k_release(false); \
     } else { \
+      k_release(true); \
       k_push_data(false); \
     } \
     K_APPLY(CAT(here, __LINE__)); CAT(here, __LINE__): (void)0; \
@@ -306,8 +339,9 @@ KR k_pop_return(void);
     const k_cell_t size = k_vector_size(vector); \
     const KObject result = k_new_vector(size == 0 ? 0 : size - 1); \
     for (k_cell_t i = 0; i + 1 < size; ++i) { \
-      k_vector_set(result, i, k_vector_get(vector, i)); \
+      k_vector_set(result, i, k_retain(k_vector_get(vector, i))); \
     } \
+    k_release(vector); \
     k_push_data(result); \
   } while (0)
 
@@ -327,7 +361,8 @@ KR k_pop_return(void);
   do { \
     KObject pair = k_pop_data(); \
     assert(pair.type == K_PAIR); \
-    k_push_data(((KPair*)pair.data)->rest); \
+    k_push_data(k_retain(((KPair*)pair.data)->rest)); \
+    k_release(pair); \
   } while (0)
 
 #define K_LENGTH() \
@@ -335,6 +370,7 @@ KR k_pop_return(void);
     KObject vector = k_pop_data(); \
     assert(vector.type == K_VECTOR); \
     k_push_data(k_int(k_vector_size(vector))); \
+    k_release(vector); \
   } while (0)
 
 #define K_OPTION() \
@@ -344,9 +380,13 @@ KR k_pop_return(void);
     KObject option = k_pop_data(); \
     assert(option.type == K_SOME || option.type == K_NONE); \
     if (option.type == K_SOME) { \
-      k_push_data(k_from_box(option, K_SOME)); \
+      k_push_data(k_retain(k_from_box(option, K_SOME))); \
+      k_release(option); \
       k_push_data(some); \
       K_APPLY(CAT(here, __LINE__)); CAT(here, __LINE__): (void)0; \
+    } else { \
+      k_release(option); \
+      k_release(some); \
     } \
   } while (0)
 
@@ -359,10 +399,13 @@ KR k_pop_return(void);
     KObject option = k_pop_data(); \
     assert(option.type == K_SOME || option.type == K_NONE); \
     if (option.type == K_SOME) { \
-      k_push_data(k_from_box(option, K_SOME)); \
+      k_push_data(k_retain(k_from_box(option, K_SOME))); \
+      k_release(option); \
       k_push_data(some); \
+      k_release(none); \
     } else if (option.type == K_NONE) { \
       k_push_data(none); \
+      k_release(some); \
     } \
     K_APPLY(CAT(here, __LINE__)); CAT(here, __LINE__): (void)0; \
   } while (0)
@@ -389,8 +432,9 @@ KR k_pop_return(void);
         k_vector_set(result, i, value); \
         continue; \
       } \
-      k_vector_set(result, i, k_vector_get(vector, i)); \
+      k_vector_set(result, i, k_retain(k_vector_get(vector, i))); \
     } \
+    k_release(vector); \
     k_push_data(result); \
   } while (0)
 
@@ -405,11 +449,11 @@ KR k_pop_return(void);
     KObject vector = k_pop_data(); \
     assert(vector.type == K_VECTOR); \
     const k_cell_t size = k_vector_size(vector); \
-    const KObject result = k_new_vector(size == 0 ? 0 : size - 1); \
-    for (k_cell_t i = 0; i + 1 < size; ++i) { \
-      k_vector_set(result, i, k_vector_get(vector, i + 1)); \
-    } \
+    const KObject result = k_new_vector(size == 0 ? 0 : size - 1);  \
+    for (k_cell_t i = 0; i + 1 < size; ++i) \
+      k_vector_set(result, i, k_retain(k_vector_get(vector, i + 1))); \
     k_push_data(result); \
+    k_release(vector); \
   } while (0)
 
 #define K_BINARY(TYPE, OPERATION) \
@@ -423,7 +467,8 @@ KR k_pop_return(void);
 #define K_FROM_BOX(TYPE) \
   do { \
     KObject a = k_pop_data(); \
-    k_push_data(k_from_box(a, TYPE)); \
+    k_push_data(k_retain(k_from_box(a, TYPE))); \
+    k_release(a); \
   } while (0)
 
 #define K_RELATIONAL(TYPE, OPERATION) \
@@ -446,10 +491,11 @@ KR k_pop_return(void);
     assert(handle.type == K_HANDLE); \
     KObject string = k_pop_data(); \
     assert(string.type == K_VECTOR); \
-    for (KObject* p = ((KVector*)string.data)->begin; \
-         p != ((KVector*)string.data)->end; ++p) { \
-      fputc(p->data, (FILE*)handle.data); \
+    for (KObject* character = ((KVector*)string.data)->begin; \
+         character != ((KVector*)string.data)->end; ++character) { \
+      fputc(character->data, (FILE*)handle.data); \
     } \
+    k_release(string); \
   } while (0)
 
 #define K_SHOW_FLOAT() \
