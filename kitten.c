@@ -151,6 +151,7 @@ void k_runtime_quit() {
 void k_drop_closure(const size_t size) {
   for (size_t i = 0; i < size; ++i)
     k_release(k_closure[0][i]);
+  k_free(k_closure[0]);
   ++k_closure;
 }
 

@@ -74,7 +74,7 @@ toC FlattenedProgram{..} = V.concat
     \#include \"kitten.h\"\n\
     \int main(int argc, char** argv) {\n\
       \k_runtime_init();\n\
-      \k_push_return(((KR){ .address = &&exit, .closure = 0 }));\n\
+      \k_push_return(((KR){ .address = &&exit, .closure = -1 }));\n\
       \goto " <> global entryId <> ";"
 
   end = "\
