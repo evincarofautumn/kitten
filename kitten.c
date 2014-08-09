@@ -17,6 +17,11 @@ static KObject* data_bottom;
 static KObject* locals_bottom;
 static KR* return_bottom;
 
+static KObject* data_top;
+static KObject* locals_top;
+static KObject** closure_top;
+static KR* return_top;
+
 static KObject* k_vector_begin(KObject);
 static KObject* k_vector_end(KObject);
 
@@ -105,15 +110,18 @@ void k_runtime_init() {
 
   const size_t CLOSURE_SIZE = 1024;
   k_closure = k_alloc(CLOSURE_SIZE, sizeof(KObject*));
+  closure_top = k_closure;
   k_closure += CLOSURE_SIZE;
 
   const size_t RETURN_SIZE = 1024;
   k_return = k_alloc(RETURN_SIZE, sizeof(KR));
+  return_top = k_return;
   k_return += RETURN_SIZE;
   return_bottom = k_return;
 
   const size_t DATA_SIZE = 1024;
   k_data = k_alloc(DATA_SIZE, sizeof(KObject));
+  data_top = k_data;
   for (size_t i = 0; i < DATA_SIZE; ++i) {
     *k_data++ = junk;
   }
@@ -121,6 +129,7 @@ void k_runtime_init() {
 
   const size_t LOCALS_SIZE = 1024;
   k_locals = k_alloc(LOCALS_SIZE, sizeof(KObject));
+  locals_top = k_locals;
   for (size_t i = 0; i < LOCALS_SIZE; ++i) {
     *k_locals++ = junk;
   }
@@ -129,10 +138,14 @@ void k_runtime_init() {
 }
 
 void k_runtime_quit() {
+  k_free(closure_top);
   while (k_data < data_bottom)
     k_drop_data();
+  k_free(data_top);
   while (k_locals < locals_bottom)
     k_drop_locals();
+  k_free(locals_top);
+  k_free(return_top);
 }
 
 void k_drop_closure(const size_t size) {
