@@ -73,13 +73,13 @@ toC FlattenedProgram{..} = V.concat
   begin = "\
     \#include \"kitten.h\"\n\
     \int main(int argc, char** argv) {\n\
-      \k_init();\n\
-      \K_PUSH_RETURN(((KR){ .address = &&exit, .closure = 0 }));\n\
+      \k_runtime_init();\n\
+      \k_push_return(((KR){ .address = &&exit, .closure = 0 }));\n\
       \goto " <> global entryId <> ";"
 
   end = "\
     \exit:\n\
-      \k_quit();\n\
+      \k_runtime_quit();\n\
       \return 0;\n\
     \}"
 
@@ -95,33 +95,33 @@ toC FlattenedProgram{..} = V.concat
       next <- newLabel 0
       return $ "K_CALL(" <> global label <> ", " <> local next <> ");"
     IrClosure index -> return
-      $ "k_push_data(k_retain(K_GET_CLOSURE(" <> showText index <> ")));"
+      $ "k_push_data(k_retain(k_get_closure(" <> showText index <> ")));"
     IrComment text -> return $ "/* " <> text <> "*/"
     IrEnter -> return "k_push_locals(k_pop_data());"
     IrIntrinsic intrinsic -> toCIntrinsic intrinsic
-    IrLeave -> return "K_DROP_LOCALS();"
+    IrLeave -> return "k_drop_locals();"
     IrLocal index -> return
-      $ "k_push_data(k_retain(K_GET_LOCAL(" <> showText index <> ")));"
-    IrMakeVector size -> return $ "K_MAKE_VECTOR(" <> showText size <> ");"
+      $ "k_push_data(k_retain(k_get_local(" <> showText index <> ")));"
+    IrMakeVector size -> return $ "k_make_vector(" <> showText size <> ");"
     IrPush x -> return $ "k_push_data(" <> toCValue x <> ");"
     IrReturn -> return "K_RETURN();"
     IrTailCall label -> return $ "K_TAIL_CALL(" <> global label <> ");"
 
 toCValue :: IrValue -> Text
 toCValue value = case value of
-  IrBool x -> "k_bool(" <> showText (fromEnum x :: Int) <> ")"
-  IrChar x -> "k_char(" <> showText (fromEnum x :: Int) <> ")"
-  IrChoice False x -> "k_left(" <> toCValue x <> ")"
-  IrChoice True x -> "k_right(" <> toCValue x <> ")"
-  IrFloat x -> "k_float(" <> showText x <> ")"
-  IrInt x -> "k_int(" <> showText x <> ")"
-  IrOption Nothing -> "k_none()"
-  IrOption (Just x) -> "k_some(" <> toCValue x <> ")"
-  IrPair x y -> "k_pair(" <> toCValue x <> ", " <> toCValue y <> ")"
+  IrBool x -> "k_new_bool(" <> showText (fromEnum x :: Int) <> ")"
+  IrChar x -> "k_new_char(" <> showText (fromEnum x :: Int) <> ")"
+  IrChoice False x -> "k_new_left(" <> toCValue x <> ")"
+  IrChoice True x -> "k_new_right(" <> toCValue x <> ")"
+  IrFloat x -> "k_new_float(" <> showText x <> ")"
+  IrInt x -> "k_new_int(" <> showText x <> ")"
+  IrOption Nothing -> "k_new_none()"
+  IrOption (Just x) -> "k_new_some(" <> toCValue x <> ")"
+  IrPair x y -> "k_new_pair(" <> toCValue x <> ", " <> toCValue y <> ")"
   IrString x -> "k_vector("
     <> T.intercalate ", " (showText (T.length x) : map char (T.unpack x))
     <> ")"
-    where char c = "k_char(" <> showText c <> ")"
+    where char c = "k_new_char(" <> showText c <> ")"
 
 global :: DefId -> Text
 global (Id label) = "global" <> showText label
@@ -133,7 +133,7 @@ toCIntrinsic :: Intrinsic -> State Env Text
 toCIntrinsic intrinsic = case intrinsic of
   InAddFloat -> binary "float" "+"
   InAddInt -> binary "int" "+"
-  InAddVector -> return "K_ADD_VECTOR();"
+  InAddVector -> return "k_add_vector();"
   InAndBool -> relational "int" "&&"
   InAndInt -> binary "int" "&"
   InApply -> do
@@ -142,30 +142,33 @@ toCIntrinsic intrinsic = case intrinsic of
   InCharToInt -> return "/* __char_to_int */"
   InChoice -> return "K_CHOICE();"
   InChoiceElse -> return "K_CHOICE_ELSE();"
-  InClose -> return "K_CLOSE();"
+  InClose -> return "k_close();"
   InDivFloat -> binary "float" "/"
   InDivInt -> binary "int" "/"
   InEqFloat -> relational "float" "=="
   InEqInt -> relational "int" "=="
   InExit -> return "exit(k_data[0].data);"
+  InFirst -> return "k_first();"
+  InFromLeft -> return "k_from_box(K_LEFT);"
+  InFromRight -> return "k_from_box(K_RIGHT);"
+  InFromSome -> return "k_from_box(K_SOME);"
   InGeFloat -> relational "float" ">="
   InGeInt -> relational "int" ">="
+  InGet -> return "k_get();"
+  InGetLine -> return "k_get_line();"
   InGtFloat -> relational "float" ">"
   InGtInt -> relational "int" ">"
-  InFirst -> return "K_FIRST();"
-  InFromLeft -> return "K_FROM_BOX(K_LEFT);"
-  InFromRight -> return "K_FROM_BOX(K_RIGHT);"
-  InFromSome -> return "K_FROM_BOX(K_SOME);"
-  InGet -> return "K_GET();"
   InIf -> return "K_IF();"
   InIfElse -> return "K_IF_ELSE();"
+  InInit -> return "k_init();"
   InIntToChar -> return "/* __int_to_char */"
   InLeFloat -> relational "float" "<="
   InLeInt -> relational "int" "<="
-  InLeft -> return "K_LEFT();"
-  InLength -> return "K_LENGTH();"
+  InLeft -> return "k_left();"
+  InLength -> return "k_length();"
   InLtFloat -> relational "float" "<"
   InLtInt -> relational "int" "<"
+  InModFloat -> return "k_mod_float();"
   InModInt -> binary "int" "%"
   InMulFloat -> binary "float" "*"
   InMulInt -> binary "int" "*"
@@ -173,35 +176,32 @@ toCIntrinsic intrinsic = case intrinsic of
   InNeInt -> relational "int" "!="
   InNegFloat -> unary "float" "-"
   InNegInt -> unary "int" "-"
-  InNone -> return "k_push_data(k_none());"
+  InNone -> return "k_push_data(k_new_none());"
   InNotBool -> unary "int" "!"
   InNotInt -> unary "int" "~"
   InOption -> return "K_OPTION();"
   InOptionElse -> return "K_OPTION_ELSE();"
   InOrBool -> relational "int" "||"
   InOrInt -> binary "int" "|"
-  InPair -> return "K_PAIR();"
-  InPrint -> return "K_PRINT();"
-  InRest -> return "K_REST();"
-  InRight -> return "K_RIGHT();"
-  InShowInt -> return "K_SHOW_INT();"
-  InSome -> return "K_SOME();"
-  InStderr -> return "k_push_data(k_handle(stderr));"
-  InStdin -> return "k_push_data(k_handle(stdin));"
-  InStdout -> return "k_push_data(k_handle(stdout));"
+  InPair -> return "k_pair();"
+  InPrint -> return "k_print();"
+  InRest -> return "k_rest();"
+  InRight -> return "k_right();"
+  InSet -> return "k_set();"
+  InShowFloat -> return "k_show_float();"
+  InShowInt -> return "k_show_int();"
+  InSome -> return "k_some();"
+  InStderr -> return "k_push_data(k_new_handle(stderr));"
+  InStdin -> return "k_push_data(k_new_handle(stdin));"
+  InStdout -> return "k_push_data(k_new_handle(stdout));"
   InSubFloat -> binary "float" "-"
   InSubInt -> binary "int" "-"
+  InTail -> return "k_tail();"
   InXorBool -> relational "int" "!="
   InXorInt -> binary "int" "^"
 
-  InGetLine -> return "K_GET_LINE();"
-  InInit -> return "K_INIT();"
-  InModFloat -> return "K_MOD_FLOAT();"
   InOpenIn -> return "assert(!\"TODO stdio __open_in\");"
   InOpenOut -> return "assert(!\"TODO stdio __open_out\");"
-  InSet -> return "K_SET();"
-  InShowFloat -> return "K_SHOW_FLOAT();"
-  InTail -> return "K_TAIL();"
 
   where
 
