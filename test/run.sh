@@ -17,7 +17,7 @@ function run_kitten {
   "$KITTEN" -L "$HERE" $*
 }
 
-CFLAGS+=" kitten.c -std=c99 -Wall -Werror -g -I. -DNDEBUG"
+CFLAGS+=" kitten.c -std=c99 -Wall -Werror -g -I. -DNDEBUG -lm"
 
 BLACKLISTED_C_TESTS=$(cat <<EOF
 EOF
