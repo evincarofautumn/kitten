@@ -600,19 +600,23 @@ void k_in_set() {
   const KObject value = k_data_pop();
   const KObject index = k_data_pop();
   assert(index.type == K_INT);
-  const KObject vector = k_data_pop();
-  assert(vector.type == K_VECTOR);
-  const k_cell_t size = k_vector_size(vector);
-  const KObject result = k_vector_new(size);
-  for (k_cell_t i = 0; i < size; ++i) {
-    if (i == index.data) {
-      k_vector_set(result, i, value);
-      continue;
+  assert(data[0].type == K_VECTOR);
+  if (k_object_unique(k_data[0])) {
+    k_vector_set(k_data[0], index.data, value);
+  } else {
+    const KObject vector = k_data_pop();
+    const k_cell_t size = k_vector_size(vector);
+    const KObject result = k_vector_new(size);
+    for (k_cell_t i = 0; i < size; ++i) {
+      if (i == index.data) {
+        k_vector_set(result, i, value);
+        continue;
+      }
+      k_vector_set(result, i, k_object_retain(k_vector_get(vector, i)));
     }
-    k_vector_set(result, i, k_object_retain(k_vector_get(vector, i)));
+    k_object_release(vector);
+    k_data_push(result);
   }
-  k_object_release(vector);
-  k_data_push(result);
 }
 
 void k_in_show_float() {
