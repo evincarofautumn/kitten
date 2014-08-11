@@ -100,23 +100,22 @@ void k_runtime_quit(void);
 void* k_mem_alloc(size_t, size_t);
 void k_mem_free(void*);
 void* k_mem_realloc(void*, size_t, size_t);
-KObject k_object_retain(KObject);
+
+static inline KObject k_object_retain(const KObject object) {
+  if (object.type >= K_BOXED) ++((KBox*)object.data)->refs;
+  return object;
+}
+
 void k_object_release(KObject);
 int k_object_unique(KObject);
 
 // Value creation.
 KObject k_activation_new(void*, size_t, ...);
-KObject k_bool_new(int);
-KObject k_char_new(uint32_t);
-KObject k_float_new(double);
-KObject k_handle_new(FILE*);
-KObject k_int_new(int64_t);
+KObject k_float_new(k_float_t);
 KObject k_left_new(KObject);
-KObject k_none_new(void);
 KObject k_pair_new(KObject, KObject);
 KObject k_right_new(KObject);
 KObject k_some_new(KObject);
-KObject k_unit_new(void);
 KObject k_vector_new(size_t);
 
 // Box operations.
@@ -155,18 +154,85 @@ void k_in_show_int(void);
 void k_in_some(void);
 void k_in_tail(void);
 
+////////////////////////////////////////////////////////////////////////////////
 // Stack manipulation.
-KCall k_call_pop(void);
-KObject k_closure_get(k_cell_t);
-KObject k_data_pop(void);
-KObject k_locals_get(k_cell_t);
-void k_call_push(KCall);
-void k_closure_drop(size_t);
-void k_closure_push(KObject*);
-void k_data_drop(void);
-void k_data_push(KObject);
-void k_locals_drop(void);
-void k_locals_push(KObject);
+
+static inline void k_closure_drop(const size_t size) {
+  for (size_t i = 0; i < size; ++i)
+    k_object_release(k_closure[0][i]);
+  k_mem_free(k_closure[0]);
+  ++k_closure;
+}
+
+static inline void k_data_drop() {
+  k_object_release(*k_data++);
+}
+
+static inline void k_locals_drop() {
+  k_object_release(*k_locals++);
+}
+
+static inline KObject k_closure_get(const size_t i) {
+  return k_closure[0][i];
+}
+
+static inline KObject k_locals_get(const size_t i) {
+  return k_locals[i];
+}
+
+static inline void k_closure_push(KObject* const closure) {
+  *--k_closure = closure;
+}
+
+static inline void k_call_push(const KCall call) {
+  *--k_call = call;
+}
+
+static inline void k_locals_push(const KObject object) {
+  *--k_locals = object;
+}
+
+static inline void k_data_push(const KObject object) {
+  *--k_data = object;
+}
+
+static inline KObject k_data_pop() {
+  return *k_data++;
+}
+
+static inline KCall k_call_pop() {
+  return *k_call++;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Value creation.
+
+static inline KObject k_bool_new(const k_cell_t value) {
+  return (KObject) { .data = !!(value), .type = K_BOOL };
+}
+
+static inline KObject k_char_new(const k_cell_t value) {
+  return (KObject) { .data = (value), .type = K_CHAR };
+}
+
+static inline KObject k_handle_new(const k_handle_t value) {
+  return (KObject) { .data = (k_cell_t)value, .type = K_HANDLE };
+}
+
+static inline KObject k_int_new(const k_cell_t value) {
+  return (KObject) { .data = value, .type = K_INT };
+}
+
+static inline KObject k_none_new() {
+  return (KObject) { .data = 0, .type = K_NONE };
+}
+
+static inline KObject k_unit_new() {
+  return (KObject) { .data = 0, .type = K_UNIT };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Intrinsics.
 
 #define K_IN_ACT(LABEL, ...) \
   do { \
@@ -175,7 +241,7 @@ void k_locals_push(KObject);
 
 #define K_IN_CALL(CALL, RETURN) \
   do { \
-    k_call_push(((KCall){ \
+    k_call_push(((KCall) { \
       .address = &&RETURN, \
       .locals = k_locals, \
       .closure = -1, \
@@ -208,7 +274,7 @@ void k_locals_push(KObject);
     k_closure_push(k_mem_alloc(size, sizeof(KObject))); \
     for (size_t i = 0; i < size; ++i) \
       k_closure[0][i] = k_object_retain(activation->begin[i]); \
-    k_call_push(((KCall){ \
+    k_call_push(((KCall) { \
       .address = &&RETURN, \
       .locals = k_locals, \
       .closure = size \

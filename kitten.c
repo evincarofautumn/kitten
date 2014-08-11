@@ -98,26 +98,6 @@ void* k_mem_realloc(void* allocated, const size_t count, const size_t size) {
   return allocated;
 }
 
-KObject k_object_retain(const KObject object) {
-  switch (object.type) {
-  case K_ACTIVATION:
-    ++((KActivation*)object.data)->refs;
-    break;
-  case K_LEFT:
-  case K_RIGHT:
-  case K_SOME:
-    ++((KBox*)object.data)->refs;
-    break;
-  case K_PAIR:
-    ++((KPair*)object.data)->refs;
-    break;
-  case K_VECTOR:
-    ++((KVector*)object.data)->refs;
-    break;
-  }
-  return object;
-}
-
 void k_object_release(const KObject object) {
   switch (object.type) {
   case K_ACTIVATION:
@@ -214,32 +194,12 @@ KObject k_activation_new(void* const function, const size_t size, ...) {
   return (KObject) { .data = (k_cell_t)activation, .type = K_ACTIVATION };
 }
 
-KObject k_bool_new(const k_bool_t value) {
-  return (KObject) { .data = !!value, .type = K_BOOL };
-}
-
-KObject k_char_new(const k_char_t value) {
-  return (KObject) { .data = value, .type = K_CHAR };
-}
-
 KObject k_float_new(const k_float_t value) {
   return (KObject) { .data = *((k_cell_t*)&value), .type = K_FLOAT };
 }
 
-KObject k_handle_new(const k_handle_t value) {
-  return (KObject) { .data = (k_cell_t)value, .type = K_HANDLE };
-}
-
-KObject k_int_new(const k_int_t value) {
-  return (KObject) { .data = value, .type = K_INT };
-}
-
 KObject k_left_new(const KObject value) {
   return k_box_new(value, K_LEFT);
-}
-
-KObject k_none_new() {
-  return (KObject) { .data = 0, .type = K_NONE };
 }
 
 KObject k_pair_new(const KObject first, const KObject rest) {
@@ -256,10 +216,6 @@ KObject k_right_new(const KObject value) {
 
 KObject k_some_new(const KObject value) {
   return k_box_new(value, K_SOME);
-}
-
-KObject k_unit_new() {
-  return (KObject) { .data = 0, .type = K_UNIT };
 }
 
 // Creates a new vector with uninitialized elements.
@@ -563,7 +519,8 @@ void k_in_mod_float() {
   const KObject b = k_data_pop();
   const KObject a = k_data_pop();
   assert(a.type == b.type);
-  k_data_push(k_float_new(fmod((k_float_t)a.data, (k_float_t)b.data)));
+  const k_float_t result = fmod((k_float_t)a.data, (k_float_t)b.data);
+  k_data_push(k_float_new(result));
 }
 
 void k_in_pair() {
@@ -665,83 +622,6 @@ void k_in_tail() {
     k_vector_set(result, i, k_object_retain(k_vector_get(vector, i + 1)));
   k_data_push(result);
   k_object_release(vector);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Stack manipulation.
-
-void k_closure_drop(const size_t size) {
-  for (size_t i = 0; i < size; ++i)
-    k_object_release(k_closure[0][i]);
-  k_mem_free(k_closure[0]);
-  ++k_closure;
-}
-
-void k_data_drop() {
-  k_object_release(k_data[0]);
-  k_data[0] = junk;
-  ++k_data;
-}
-
-void k_locals_drop() {
-  k_object_release(k_locals[0]);
-  k_locals[0] = junk;
-  ++k_locals;
-}
-
-KObject k_closure_get(const k_cell_t i) {
-  return k_closure[0][i];
-}
-
-KObject k_locals_get(const k_cell_t i) {
-  return k_locals[i];
-}
-
-void k_closure_push(KObject* const object) {
-  *--k_closure = object;
-}
-
-void k_call_push(KCall call) {
-  *--k_call = call;
-}
-
-void k_locals_push(const KObject object) {
-  assert(object.type > K_UNBOXED && object.type < K_MAX_TYPE);
-  *--k_locals = object;
-#ifndef NDEBUG
-  fprintf(stderr, "push locals\t");
-  dump_locals();
-#endif
-}
-
-void k_data_push(const KObject object) {
-  assert(object.type > K_UNBOXED && object.type < K_MAX_TYPE);
-  *--k_data = object;
-#ifndef NDEBUG
-  fprintf(stderr, "push data\t");
-  dump_data();
-#endif
-}
-
-KObject k_data_pop() {
-  assert(k_data < data_bottom);
-  const KObject x = k_data[0];
-#ifndef NDEBUG
-  k_data[0] = junk;
-#endif
-  ++k_data;
-#ifndef NDEBUG
-  fprintf(stderr, "pop data\t");
-  dump_data();
-#endif
-  return x;
-}
-
-KCall k_call_pop() {
-  assert(k_call < call_bottom);
-  const KCall x = k_call[0];
-  ++k_call;
-  return x;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
