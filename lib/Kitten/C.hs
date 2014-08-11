@@ -137,7 +137,7 @@ toCIntrinsic intrinsic = case intrinsic of
   InApply -> do
     next <- newLabel 0
     return $ "K_IN_APPLY(" <> local next <> ");"
-  InCharToInt -> return "/* __char_to_int */"
+  InCharToInt -> return "k_in_char_to_int();"
   InChoice -> return "K_IN_CHOICE();"
   InChoiceElse -> return "K_IN_CHOICE_ELSE();"
   InClose -> return "k_in_close();"
@@ -145,7 +145,7 @@ toCIntrinsic intrinsic = case intrinsic of
   InDivInt -> binary "int" "/"
   InEqFloat -> relational "float" "=="
   InEqInt -> relational "int" "=="
-  InExit -> return "exit(k_data[0].data);"
+  InExit -> return "exit(k_data[0].data.as_int);"
   InFirst -> return "k_in_first();"
   InFromLeft -> return "k_in_from_box(K_LEFT);"
   InFromRight -> return "k_in_from_box(K_RIGHT);"
@@ -159,7 +159,7 @@ toCIntrinsic intrinsic = case intrinsic of
   InIf -> return "K_IN_IF();"
   InIfElse -> return "K_IN_IF_ELSE();"
   InInit -> return "k_in_init();"
-  InIntToChar -> return "/* __int_to_char */"
+  InIntToChar -> return "k_in_int_to_char();"
   InLeFloat -> relational "float" "<="
   InLeInt -> relational "int" "<="
   InLeft -> return "k_in_left();"

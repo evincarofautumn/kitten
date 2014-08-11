@@ -10,8 +10,6 @@ KObject* k_data;
 KObject* k_locals;
 KCall* k_call;
 
-static KObject junk = { .data = K_JUNK, .type = K_JUNK };
-
 static KCall* call_bottom;
 static KObject* data_bottom;
 static KObject* locals_bottom;
@@ -26,8 +24,6 @@ static KObject k_box_new(KObject, KType);
 static KObject k_vector_append_mutating(KObject, KObject);
 static KObject k_vector_append_mutating_moving(KObject, KObject);
 static KObject k_vector_prepend_mutating(KObject, KObject);
-static KObject* k_vector_begin(KObject);
-static KObject* k_vector_end(KObject);
 static void k_vector_push(KObject, KObject);
 static void k_vector_reserve(KObject, k_cell_t);
 
@@ -52,17 +48,13 @@ void k_runtime_init() {
   const size_t DATA_SIZE = 1024;
   k_data = k_mem_alloc(DATA_SIZE, sizeof(KObject));
   data_top = k_data;
-  for (size_t i = 0; i < DATA_SIZE; ++i) {
-    *k_data++ = junk;
-  }
+  k_data += DATA_SIZE;
   data_bottom = k_data;
 
   const size_t LOCALS_SIZE = 1024;
   k_locals = k_mem_alloc(LOCALS_SIZE, sizeof(KObject));
   locals_top = k_locals;
-  for (size_t i = 0; i < LOCALS_SIZE; ++i) {
-    *k_locals++ = junk;
-  }
+  k_locals += LOCALS_SIZE;
   locals_bottom = k_locals;
 
 }
@@ -102,7 +94,7 @@ void k_object_release(const KObject object) {
   switch (object.type) {
   case K_ACTIVATION:
     {
-      KActivation* const activation = (KActivation*)object.data;
+      KActivation* const activation = object.data.as_activation;
       if (--activation->refs == 0) {
         for (KObject* object = activation->begin;
           object != activation->end; ++object) {
@@ -117,7 +109,7 @@ void k_object_release(const KObject object) {
   case K_RIGHT:
   case K_SOME:
     {
-      KBox* const box = (KBox*)object.data;
+      KBox* const box = object.data.as_box;
       if (--box->refs == 0) {
         k_object_release(box->value);
         k_mem_free(box);
@@ -126,7 +118,7 @@ void k_object_release(const KObject object) {
     }
   case K_PAIR:
     {
-      KPair* const pair = (KPair*)object.data;
+      KPair* const pair = object.data.as_pair;
       if (--pair->refs == 0) {
         k_object_release(pair->first);
         k_object_release(pair->rest);
@@ -136,7 +128,7 @@ void k_object_release(const KObject object) {
     }
   case K_VECTOR:
     {
-      KVector* const vector = (KVector*)object.data;
+      KVector* const vector = object.data.as_vector;
       if (--vector->refs == 0) {
         const k_cell_t size = vector->end - vector->begin;
         for (k_cell_t i = 0; i < size; ++i)
@@ -146,24 +138,13 @@ void k_object_release(const KObject object) {
       }
       break;
     }
+  default:
+    break;
   }
 }
 
 int k_object_unique(const KObject object) {
-  switch (object.type) {
-  case K_ACTIVATION:
-    return ((KActivation*)object.data)->refs == 1;
-  case K_LEFT:
-  case K_RIGHT:
-  case K_SOME:
-    return ((KBox*)object.data)->refs == 1;
-  case K_PAIR:
-    return ((KPair*)object.data)->refs == 1;
-  case K_VECTOR:
-    return ((KVector*)object.data)->refs == 1;
-  default:
-    return 1;
-  }
+  return object.type >= K_BOXED ? *object.data.as_refs == 1 : 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -191,11 +172,10 @@ KObject k_activation_new(void* const function, const size_t size, ...) {
     }
   }
   va_end(args);
-  return (KObject) { .data = (k_cell_t)activation, .type = K_ACTIVATION };
-}
-
-KObject k_float_new(const k_float_t value) {
-  return (KObject) { .data = *((k_cell_t*)&value), .type = K_FLOAT };
+  return (KObject) {
+    .data = (KData) { .as_activation = activation },
+    .type = K_ACTIVATION
+  };
 }
 
 KObject k_left_new(const KObject value) {
@@ -207,7 +187,7 @@ KObject k_pair_new(const KObject first, const KObject rest) {
   pair->refs = 1;
   pair->first = first;
   pair->rest = rest;
-  return (KObject) { .data = (k_cell_t)pair, .type = K_PAIR };
+  return (KObject) { .data = (KData) { .as_pair = pair }, .type = K_PAIR };
 }
 
 KObject k_right_new(const KObject value) {
@@ -226,7 +206,7 @@ KObject k_vector_new(const size_t size) {
   vector->end = vector->begin + size;
   vector->capacity = vector->begin + size;
   return (KObject) {
-    .data = (k_cell_t)vector,
+    .data = (KData) { .as_vector = vector },
     .type = K_VECTOR
   };
 }
@@ -234,32 +214,14 @@ KObject k_vector_new(const size_t size) {
 ////////////////////////////////////////////////////////////////////////////////
 // Box operations.
 
-KObject k_box_get(const KObject value, const KType type) {
-  assert(value.type == type);
-  return ((KBoxed*)value.data)->as_box.value;
-}
-
 static KObject k_box_new(const KObject value, const KType type) {
   KBox* const data = k_mem_alloc(1, sizeof(KBox));
   data->refs = 1;
   data->value = value;
   return (KObject) {
-    .data = (k_cell_t)data,
+    .data = (KData) { .as_box = data },
     .type = type
   };
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Pair operations.
-
-KObject k_pair_first(const KObject pair) {
-  assert(pair.type == K_PAIR);
-  return ((KPair*)pair.data)->first;
-}
-
-KObject k_pair_rest(const KObject pair) {
-  assert(pair.type == K_PAIR);
-  return ((KPair*)pair.data)->rest;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -280,16 +242,16 @@ static k_cell_t fit_capacity(k_cell_t size) {
 KObject k_vector_append(const KObject a, const KObject b) {
   const k_cell_t size = k_vector_size(a) + k_vector_size(b);
   const KObject vector = k_vector_new(size);
-  const KObject* from = k_vector_begin(a);
-  KObject* to = k_vector_begin(vector);
-  const KObject* const a_end = k_vector_end(a);
+  const KObject* from = a.data.as_vector->begin;
+  KObject* to = vector.data.as_vector->begin;
+  const KObject* const a_end = a.data.as_vector->end;
   while (from != a_end)
     *to++ = k_object_retain(*from++);
-  from = k_vector_begin(b);
-  const KObject* const b_end = k_vector_end(b);
+  from = b.data.as_vector->begin;
+  const KObject* const b_end = b.data.as_vector->end;
   while (from != b_end)
     *to++ = k_object_retain(*from++);
-  assert(to == k_vector_end(vector));
+  assert(to == vector.data.as_vector->end);
   return vector;
 }
 
@@ -298,8 +260,8 @@ static KObject k_vector_append_mutating(const KObject a, const KObject b) {
   const k_cell_t size_b = k_vector_size(b);
   const k_cell_t total_size = size_a + size_b;
   k_vector_reserve(a, fit_capacity(total_size));
-  const KObject* from = k_vector_begin(b);
-  const KObject* const b_end = k_vector_end(b);
+  const KObject* from = b.data.as_vector->begin;
+  const KObject* const b_end = b.data.as_vector->end;
   while (from != b_end)
     k_vector_push(a, k_object_retain(*from++));
   return a;
@@ -311,11 +273,11 @@ static KObject k_vector_append_mutating_moving
   const k_cell_t size_b = k_vector_size(b);
   const k_cell_t total_size = size_a + size_b;
   k_vector_reserve(a, fit_capacity(total_size));
-  KObject* from = k_vector_begin(b);
-  const KObject* const b_end = k_vector_end(b);
+  KObject* from = b.data.as_vector->begin;
+  const KObject* const b_end = b.data.as_vector->end;
   while (from != b_end) {
     k_vector_push(a, *from);
-    *from++ = junk;
+    *from++ = k_unit_new();
   }
   return a;
 }
@@ -325,15 +287,15 @@ static KObject k_vector_prepend_mutating(const KObject a, const KObject b) {
   const k_cell_t size_b = k_vector_size(b);
   const k_cell_t total_size = size_a + size_b;
   k_vector_reserve(b, fit_capacity(total_size));
-  KVector* const vector = (KVector*)b.data;
+  KVector* const vector = b.data.as_vector;
   memmove(
     vector->begin + size_a,
     vector->begin,
     (vector->end - vector->begin) * sizeof(KObject));
   vector->end = vector->begin + total_size;
   KObject* to = vector->begin;
-  const KObject* from = k_vector_begin(a);
-  const KObject* const a_end = k_vector_end(a);
+  const KObject* from = a.data.as_vector->begin;
+  const KObject* const a_end = a.data.as_vector->end;
   while (from != a_end)
     *to++ = k_object_retain(*from++);
   return b;
@@ -341,7 +303,7 @@ static KObject k_vector_prepend_mutating(const KObject a, const KObject b) {
 
 static void k_vector_push(const KObject object, const KObject value) {
   assert(object.type == K_VECTOR);
-  KVector* const vector = (KVector*)object.data;
+  KVector* const vector = object.data.as_vector;
   if (vector->end == vector->capacity)
     k_vector_reserve(object, fit_capacity(vector->end - vector->begin + 1));
   *vector->end++ = value;
@@ -349,7 +311,7 @@ static void k_vector_push(const KObject object, const KObject value) {
 
 static void k_vector_reserve(const KObject object, const k_cell_t capacity) {
   assert(object.type == K_VECTOR);
-  KVector* const vector = (KVector*)object.data;
+  KVector* const vector = object.data.as_vector;
   if (vector->capacity - vector->begin >= capacity)
     return;
   const k_cell_t size = vector->end - vector->begin;
@@ -372,37 +334,27 @@ KObject k_vector(const size_t size, ...) {
   }
   va_end(args);
   return (KObject) {
-    .data = (k_cell_t)vector,
+    .data = (KData) { .as_vector = vector },
     .type = K_VECTOR
   };
-}
-
-static KObject* k_vector_begin(const KObject object) {
-  assert(object.type == K_VECTOR);
-  return ((KVector*)object.data)->begin;
-}
-
-static KObject* k_vector_end(const KObject object) {
-  assert(object.type == K_VECTOR);
-  return ((KVector*)object.data)->end;
 }
 
 KObject k_vector_get(const KObject object, k_cell_t index) {
   assert(object.type == K_VECTOR);
   assert(k_vector_size(object) > index);
-  const KVector* const vector = (KVector*)object.data;
+  const KVector* const vector = object.data.as_vector;
   return vector->begin[index];
 }
 
 void k_vector_set(const KObject object, k_cell_t index, const KObject value) {
   assert(object.type == K_VECTOR);
-  const KVector* const vector = (KVector*)object.data;
+  const KVector* const vector = object.data.as_vector;
   vector->begin[index] = value;
 }
 
 k_cell_t k_vector_size(const KObject object) {
   assert(object.type == K_VECTOR);
-  const KVector* const vector = (const KVector*)object.data;
+  const KVector* const vector = object.data.as_vector;
   return vector->end - vector->begin;
 }
 
@@ -432,22 +384,31 @@ void k_in_add_vector() {
   }
 }
 
+void k_in_char_to_int() {
+  const KObject a = k_data_pop();
+  assert(a.type == K_CHAR);
+  k_data_push((KObject) {
+    .data = (KData) { .as_int = a.data.as_char },
+    .type = K_INT
+  });
+}
+
 void k_in_close() {
   KObject handle = k_data_pop();
   assert(handle.type == K_HANDLE);
-  fclose((FILE*)handle.data);
+  fclose(handle.data.as_handle);
 }
 
 void k_in_first() {
   const KObject a = k_data_pop();
   assert(a.type == K_PAIR);
-  k_data_push(k_object_retain(k_pair_first(a)));
+  k_data_push(k_object_retain(a.data.as_pair->first));
   k_object_release(a);
 }
 
-void k_in_from_box(const KType type) {
+void k_in_from_box() {
   const KObject a = k_data_pop();
-  k_data_push(k_object_retain(k_box_get(a, type)));
+  k_data_push(k_object_retain(a.data.as_box->value));
   k_object_release(a);
 }
 
@@ -456,7 +417,7 @@ void k_in_get() {
   assert(index.type == K_INT);
   const KObject vector = k_data_pop();
   assert(vector.type == K_VECTOR);
-  const k_int_t i = (k_int_t)index.data;
+  const k_int_t i = index.data.as_int;
   const k_cell_t size = k_vector_size(vector);
   k_data_push(i < 0 || i >= size
     ? k_none_new() : k_some_new(k_object_retain(k_vector_get(vector, i))));
@@ -468,7 +429,7 @@ void k_in_get_line() {
   assert(handle.type == K_HANDLE);
   size_t length = 1;
   char line[1024];
-  if (fgets(line, 1024, (k_handle_t)handle.data))
+  if (fgets(line, 1024, handle.data.as_handle))
     length = strlen(line);
   const KObject string = k_vector_new(length - 1);
   for (size_t i = 0; i < length - 1; ++i)
@@ -485,6 +446,15 @@ void k_in_init() {
     k_vector_set(result, i, k_object_retain(k_vector_get(vector, i)));
   k_data_push(result);
   k_object_release(vector);
+}
+
+void k_in_int_to_char() {
+  const KObject a = k_data_pop();
+  assert(a.type == K_INT);
+  k_data_push((KObject) {
+    .data = (KData) { .as_char = a.data.as_int },
+    .type = K_CHAR
+  });
 }
 
 void k_in_left() {
@@ -510,7 +480,7 @@ void k_in_make_vector(const size_t size) {
     vector->begin[i] = k_data[size - i - 1];
   k_data += size;
   k_data_push((KObject) {
-    .data = (k_cell_t)vector,
+    .data = (KData) { .as_vector = vector },
     .type = K_VECTOR
   });
 }
@@ -519,7 +489,7 @@ void k_in_mod_float() {
   const KObject b = k_data_pop();
   const KObject a = k_data_pop();
   assert(a.type == b.type);
-  const k_float_t result = fmod((k_float_t)a.data, (k_float_t)b.data);
+  const k_float_t result = fmod(a.data.as_float, b.data.as_float);
   k_data_push(k_float_new(result));
 }
 
@@ -534,9 +504,9 @@ void k_in_print() {
   assert(handle.type == K_HANDLE);
   const KObject string = k_data_pop();
   assert(string.type == K_VECTOR);
-  for (KObject* character = ((KVector*)string.data)->begin;
-    character != ((KVector*)string.data)->end; ++character) {
-    fputc(character->data, (FILE*)handle.data);
+  for (KObject* character = string.data.as_vector->begin;
+    character != string.data.as_vector->end; ++character) {
+    fputc(character->data.as_char, handle.data.as_handle);
   }
   k_object_release(string);
 }
@@ -544,7 +514,7 @@ void k_in_print() {
 void k_in_rest() {
   const KObject a = k_data_pop();
   assert(a.type == K_PAIR);
-  k_data_push(k_object_retain(k_pair_rest(a)));
+  k_data_push(k_object_retain(a.data.as_pair->rest));
   k_object_release(a);
 }
 
@@ -559,13 +529,13 @@ void k_in_set() {
   assert(index.type == K_INT);
   assert(data[0].type == K_VECTOR);
   if (k_object_unique(k_data[0])) {
-    k_vector_set(k_data[0], index.data, value);
+    k_vector_set(k_data[0], index.data.as_int, value);
   } else {
     const KObject vector = k_data_pop();
     const k_cell_t size = k_vector_size(vector);
     const KObject result = k_vector_new(size);
     for (k_cell_t i = 0; i < size; ++i) {
-      if (i == index.data) {
+      if (i == index.data.as_int) {
         k_vector_set(result, i, value);
         continue;
       }
@@ -588,7 +558,7 @@ void k_in_show_float() {
   ];
   int length = 0;
   snprintf(buffer, sizeof(buffer),
-    "%f%n", *(k_float_t*)(&x.data), &length);
+    "%f%n", x.data.as_float, &length);
   const KObject string = k_vector_new(length);
   for (size_t i = 0; i < length; ++i)
     k_vector_set(string, i, k_char_new(buffer[i]));
@@ -601,7 +571,7 @@ void k_in_show_int() {
   char buffer[20] = {0};
   int length = 0;
   snprintf(buffer, sizeof(buffer),
-    "%"PRId64"%n", (k_int_t)x.data, &length);
+    "%"PRId64"%n", x.data.as_int, &length);
   const KObject string = k_vector_new(length);
   for (size_t i = 0; i < length; ++i)
     k_vector_set(string, i, k_char_new(buffer[i]));
@@ -629,14 +599,12 @@ void k_in_tail() {
 
 #ifndef NDEBUG
 static void dump_object(const KObject object) {
-  if (object.type == K_JUNK) {
-    fprintf(stderr, "<junk>");
-  } else if (object.type == K_BOOL) {
+  if (object.type == K_BOOL) {
     fprintf(stderr, "%s", object.data ? "true" : "false");
   } else if (object.type == K_CHAR) {
     fprintf(stderr, "'%c'", (char)(object.data));
   } else if (object.type == K_FLOAT) {
-    fprintf(stderr, "%f", *(const double*)(&object.data));
+    fprintf(stderr, "%f", object.data.as_float);
   } else if (object.type == K_INT) {
     fprintf(stderr, "%"PRId64"", object.data);
   } else if (object.type == K_NONE) {
@@ -649,7 +617,7 @@ static void dump_object(const KObject object) {
     fprintf(stderr, "<handle>");
   } else if (object.type == K_LEFT) {
     fprintf(stderr, "(");
-    dump_object(k_box_get(object, K_LEFT));
+    dump_object(object.as_box->value);
     fprintf(stderr, " left)");
   } else if (object.type == K_PAIR) {
     fprintf(stderr, "(");
@@ -659,17 +627,17 @@ static void dump_object(const KObject object) {
     fprintf(stderr, " pair)");
   } else if (object.type == K_RIGHT) {
     fprintf(stderr, "(");
-    dump_object(k_box_get(object, K_RIGHT));
+    dump_object(object.as_box->value);
     fprintf(stderr, " right)");
   } else if (object.type == K_SOME) {
     fprintf(stderr, "(");
-    dump_object(k_box_get(object, K_SOME));
+    dump_object(object.as_box->value);
     fprintf(stderr, " some)");
   } else if (object.type == K_VECTOR) {
     if (k_vector_size(object) > 0 && k_vector_get(object, 0).type == K_CHAR) {
       fputc('"', stderr);
-      for (const KObject* c = k_vector_begin(object);
-           c != k_vector_end(object); ++c) {
+      for (const KObject* c = object.data.as_vector->begin;
+           c != object.data.as_vector->end; ++c) {
         fputc(isprint(c->data) ? c->data : '.', stderr);
       }
       fputc('"', stderr);

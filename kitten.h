@@ -24,7 +24,6 @@ typedef enum KClosedName {
 } KClosedName;
 
 typedef enum KType {
-  K_JUNK = -1,
   K_UNBOXED = 0x00,
   K_BOOL = K_UNBOXED + 1,
   K_CHAR,
@@ -43,9 +42,27 @@ typedef enum KType {
   K_MAX_TYPE
 } KType;
 
+struct KActivation;
+struct KBox;
+struct KPair;
+struct KVector;
+
+typedef union KData {
+  k_bool_t as_bool;
+  k_char_t as_char;
+  k_int_t as_int;
+  k_float_t as_float;
+  k_handle_t as_handle;
+  k_cell_t* as_refs;
+  struct KActivation* as_activation;
+  struct KBox* as_box;
+  struct KPair* as_pair;
+  struct KVector* as_vector;
+} KData;
+
 typedef struct KObject {
-  k_cell_t data;
-  k_cell_t type;
+  KType type;
+  KData data;
 } KObject;
 
 typedef struct KActivation {
@@ -73,14 +90,6 @@ typedef struct KVector {
   KObject* capacity;
 } KVector;
 
-typedef union KBoxed {
-  k_cell_t refs;
-  KActivation as_activation;
-  KBox as_box;
-  KPair as_pair;
-  KVector as_vector;
-} KBoxed;
-
 typedef struct KCall {
   void* address;
   KObject* locals;
@@ -102,7 +111,7 @@ void k_mem_free(void*);
 void* k_mem_realloc(void*, size_t, size_t);
 
 static inline KObject k_object_retain(const KObject object) {
-  if (object.type >= K_BOXED) ++((KBox*)object.data)->refs;
+  if (object.type > K_BOXED) ++*object.data.as_refs;
   return object;
 }
 
@@ -111,19 +120,11 @@ int k_object_unique(KObject);
 
 // Value creation.
 KObject k_activation_new(void*, size_t, ...);
-KObject k_float_new(k_float_t);
 KObject k_left_new(KObject);
 KObject k_pair_new(KObject, KObject);
 KObject k_right_new(KObject);
 KObject k_some_new(KObject);
 KObject k_vector_new(size_t);
-
-// Box operations.
-KObject k_box_get(KObject, KType);
-
-// Pair operations.
-KObject k_pair_first(KObject);
-KObject k_pair_rest(KObject);
 
 // Vector operations.
 KObject k_vector(size_t, ...);
@@ -134,12 +135,14 @@ void k_vector_set(KObject, k_cell_t, KObject);
 
 // Intrinsics.
 void k_in_add_vector(void);
+void k_in_char_to_int(void);
 void k_in_close(void);
 void k_in_first(void);
-void k_in_from_box(KType);
+void k_in_from_box();
 void k_in_get(void);
 void k_in_get_line(void);
 void k_in_init(void);
+void k_in_int_to_char(void);
 void k_in_left(void);
 void k_in_length(void);
 void k_in_make_vector(size_t);
@@ -207,28 +210,32 @@ static inline KCall k_call_pop() {
 ////////////////////////////////////////////////////////////////////////////////
 // Value creation.
 
-static inline KObject k_bool_new(const k_cell_t value) {
-  return (KObject) { .data = !!(value), .type = K_BOOL };
+static inline KObject k_bool_new(const k_bool_t value) {
+  return (KObject) { .data = (KData) { .as_bool = !!value }, .type = K_BOOL };
 }
 
-static inline KObject k_char_new(const k_cell_t value) {
-  return (KObject) { .data = (value), .type = K_CHAR };
+static inline KObject k_char_new(const k_char_t value) {
+  return (KObject) { .data = (KData) { .as_char = value }, .type = K_CHAR };
+}
+
+static inline KObject k_float_new(const k_float_t value) {
+  return (KObject) { .data = (KData) { .as_float = value }, .type = K_FLOAT };
 }
 
 static inline KObject k_handle_new(const k_handle_t value) {
-  return (KObject) { .data = (k_cell_t)value, .type = K_HANDLE };
+  return (KObject) { .data = (KData) { .as_handle = value }, .type = K_HANDLE };
 }
 
-static inline KObject k_int_new(const k_cell_t value) {
-  return (KObject) { .data = value, .type = K_INT };
+static inline KObject k_int_new(const k_int_t value) {
+  return (KObject) { .data = (KData) { .as_int = value }, .type = K_INT };
 }
 
 static inline KObject k_none_new() {
-  return (KObject) { .data = 0, .type = K_NONE };
+  return (KObject) { .data = (KData) { .as_int = 0 }, .type = K_NONE };
 }
 
 static inline KObject k_unit_new() {
-  return (KObject) { .data = 0, .type = K_UNIT };
+  return (KObject) { .data = (KData) { .as_int = 0 }, .type = K_UNIT };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -269,7 +276,7 @@ static inline KObject k_unit_new() {
   do { \
     const KObject object = k_data_pop(); \
     assert(object.type == K_ACTIVATION); \
-    const KActivation* const activation = (KActivation*)object.data; \
+    const KActivation* const activation = object.data.as_activation; \
     const size_t size = activation->end - activation->begin; \
     k_closure_push(k_mem_alloc(size, sizeof(KObject))); \
     for (size_t i = 0; i < size; ++i) \
@@ -294,7 +301,7 @@ static inline KObject k_unit_new() {
     const KObject choice = k_data_pop(); \
     assert(choice.type == K_LEFT || choice.type == K_RIGHT); \
     if (choice.type == K_LEFT) { \
-      k_data_push(k_object_retain(k_box_get(choice, K_LEFT))); \
+      k_data_push(k_object_retain(choice.data.as_box->value)); \
       k_object_release(choice); \
       k_data_push(left); \
       K_IN_APPLY(CAT(here, __LINE__)); CAT(here, __LINE__): (void)0; \
@@ -310,11 +317,11 @@ static inline KObject k_unit_new() {
     const KObject choice = k_data_pop(); \
     assert(choice.type == K_LEFT || choice.type == K_RIGHT); \
     if (choice.type == K_LEFT) { \
-      k_data_push(k_object_retain(k_box_get(choice, K_LEFT))); \
+      k_data_push(k_object_retain(choice.data.as_box->value)); \
       k_object_release(choice); \
       k_data_push(left); \
     } else if (choice.type == K_RIGHT) { \
-      k_data_push(k_object_retain(k_box_get(choice, K_RIGHT))); \
+      k_data_push(k_object_retain(choice.data.as_box->value)); \
       k_object_release(choice); \
       k_data_push(right); \
     } \
@@ -327,7 +334,7 @@ static inline KObject k_unit_new() {
     assert(true.type == K_ACTIVATION); \
     const KObject cond = k_data_pop(); \
     assert(cond.type == K_BOOL); \
-    if (cond.data) { \
+    if (cond.data.as_bool) { \
       k_data_push(true); \
       K_IN_APPLY(CAT(here, __LINE__)); CAT(here, __LINE__): (void)0; \
     } else { \
@@ -343,7 +350,7 @@ static inline KObject k_unit_new() {
     assert(true.type == K_ACTIVATION); \
     const KObject cond = k_data_pop(); \
     assert(cond.type == K_BOOL); \
-    if (cond.data) { \
+    if (cond.data.as_bool) { \
       k_data_push(true); \
       k_object_release(false); \
     } else { \
@@ -360,7 +367,7 @@ static inline KObject k_unit_new() {
     const KObject option = k_data_pop(); \
     assert(option.type == K_SOME || option.type == K_NONE); \
     if (option.type == K_SOME) { \
-      k_data_push(k_object_retain(k_box_get(option, K_SOME))); \
+      k_data_push(k_object_retain(option.data.as_box->value)); \
       k_object_release(option); \
       k_data_push(some); \
       K_IN_APPLY(CAT(here, __LINE__)); CAT(here, __LINE__): (void)0; \
@@ -379,7 +386,7 @@ static inline KObject k_unit_new() {
     const KObject option = k_data_pop(); \
     assert(option.type == K_SOME || option.type == K_NONE); \
     if (option.type == K_SOME) { \
-      k_data_push(k_object_retain(k_box_get(option, K_SOME))); \
+      k_data_push(k_object_retain(option.data.as_box->value)); \
       k_object_release(option); \
       k_data_push(some); \
       k_object_release(none); \
@@ -395,9 +402,7 @@ static inline KObject k_unit_new() {
     const KObject b = k_data_pop(); \
     KObject* const a = &k_data[0]; \
     assert(a->type == b.type); \
-    k_##TYPE##_t result \
-      = (*(k_##TYPE##_t*)&a->data) OPERATION (*(k_##TYPE##_t*)&b.data); \
-    a->data = *(k_cell_t*)&result; \
+    a->data.as_##TYPE = (a->data.as_##TYPE) OPERATION (b.data.as_##TYPE); \
   } while (0)
 
 #define K_IN_RELATIONAL(TYPE, OPERATION) \
@@ -405,14 +410,13 @@ static inline KObject k_unit_new() {
     const KObject b = k_data_pop(); \
     KObject* const a = &k_data[0]; \
     assert(a->type == b.type); \
-    a->data = (*(k_##TYPE##_t*)&a->data) OPERATION (*(k_##TYPE##_t*)&b.data); \
+    a->data.as_##TYPE = (a->data.as_##TYPE) OPERATION (b.data.as_##TYPE); \
   } while (0)
 
 #define K_IN_UNARY(TYPE, OPERATION) \
   do { \
     KObject* const a = &k_data[0]; \
-    const k_##TYPE##_t result = OPERATION (*(k_##TYPE##_t*)&a->data); \
-    a->data = *(k_cell_t*)&result; \
+    a->data.as_##TYPE = OPERATION (a->data.as_##TYPE);  \
   } while (0)
 
 #endif
