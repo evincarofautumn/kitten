@@ -22,8 +22,16 @@ static KObject* locals_top;
 static KObject** closure_top;
 
 static KObject k_box_new(KObject, KType);
+
+static KObject k_vector_append_mutating(KObject, KObject);
+static KObject k_vector_append_mutating_moving(KObject, KObject);
+static KObject k_vector_prepend_mutating(KObject, KObject);
 static KObject* k_vector_begin(KObject);
 static KObject* k_vector_end(KObject);
+static void k_vector_push(KObject, KObject);
+static void k_vector_reserve(KObject, k_cell_t);
+
+int k_object_unique(KObject);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Runtime initialization.
@@ -81,6 +89,13 @@ void* k_mem_alloc(const size_t count, const size_t size) {
 
 void k_mem_free(void* const pointer) {
   free(pointer);
+}
+
+void* k_mem_realloc(void* allocated, const size_t count, const size_t size) {
+  const size_t bytes = count * size;
+  allocated = realloc(allocated, bytes);
+  assert(allocated);
+  return allocated;
 }
 
 KObject k_object_retain(const KObject object) {
@@ -151,6 +166,23 @@ void k_object_release(const KObject object) {
       }
       break;
     }
+  }
+}
+
+int k_object_unique(const KObject object) {
+  switch (object.type) {
+  case K_ACTIVATION:
+    return ((KActivation*)object.data)->refs == 1;
+  case K_LEFT:
+  case K_RIGHT:
+  case K_SOME:
+    return ((KBox*)object.data)->refs == 1;
+  case K_PAIR:
+    return ((KPair*)object.data)->refs == 1;
+  case K_VECTOR:
+    return ((KVector*)object.data)->refs == 1;
+  default:
+    return 1;
   }
 }
 
@@ -277,6 +309,18 @@ KObject k_pair_rest(const KObject pair) {
 ////////////////////////////////////////////////////////////////////////////////
 // Vector operations.
 
+// Computes the least power of two not less than 'size'.
+static k_cell_t fit_capacity(k_cell_t size) {
+  --size;
+  size |= size >> 1;
+  size |= size >> 2;
+  size |= size >> 4;
+  size |= size >> 8;
+  size |= size >> 16;
+  size |= size >> 32;
+  return size + 1;
+}
+
 KObject k_vector_append(const KObject a, const KObject b) {
   const k_cell_t size = k_vector_size(a) + k_vector_size(b);
   const KObject vector = k_vector_new(size);
@@ -291,6 +335,72 @@ KObject k_vector_append(const KObject a, const KObject b) {
     *to++ = k_object_retain(*from++);
   assert(to == k_vector_end(vector));
   return vector;
+}
+
+static KObject k_vector_append_mutating(const KObject a, const KObject b) {
+  const k_cell_t size_a = k_vector_size(a);
+  const k_cell_t size_b = k_vector_size(b);
+  const k_cell_t total_size = size_a + size_b;
+  k_vector_reserve(a, fit_capacity(total_size));
+  const KObject* from = k_vector_begin(b);
+  const KObject* const b_end = k_vector_end(b);
+  while (from != b_end)
+    k_vector_push(a, k_object_retain(*from++));
+  return a;
+}
+
+static KObject k_vector_append_mutating_moving
+  (const KObject a, const KObject b) {
+  const k_cell_t size_a = k_vector_size(a);
+  const k_cell_t size_b = k_vector_size(b);
+  const k_cell_t total_size = size_a + size_b;
+  k_vector_reserve(a, fit_capacity(total_size));
+  KObject* from = k_vector_begin(b);
+  const KObject* const b_end = k_vector_end(b);
+  while (from != b_end) {
+    k_vector_push(a, *from);
+    *from++ = junk;
+  }
+  return a;
+}
+
+static KObject k_vector_prepend_mutating(const KObject a, const KObject b) {
+  const k_cell_t size_a = k_vector_size(a);
+  const k_cell_t size_b = k_vector_size(b);
+  const k_cell_t total_size = size_a + size_b;
+  k_vector_reserve(b, fit_capacity(total_size));
+  KVector* const vector = (KVector*)b.data;
+  memmove(
+    vector->begin + size_a,
+    vector->begin,
+    (vector->end - vector->begin) * sizeof(KObject));
+  vector->end = vector->begin + total_size;
+  KObject* to = vector->begin;
+  const KObject* from = k_vector_begin(a);
+  const KObject* const a_end = k_vector_end(a);
+  while (from != a_end)
+    *to++ = k_object_retain(*from++);
+  return b;
+}
+
+static void k_vector_push(const KObject object, const KObject value) {
+  assert(object.type == K_VECTOR);
+  KVector* const vector = (KVector*)object.data;
+  if (vector->end == vector->capacity)
+    k_vector_reserve(object, fit_capacity(vector->end - vector->begin + 1));
+  *vector->end++ = value;
+}
+
+static void k_vector_reserve(const KObject object, const k_cell_t capacity) {
+  assert(object.type == K_VECTOR);
+  KVector* const vector = (KVector*)object.data;
+  if (vector->capacity - vector->begin >= capacity)
+    return;
+  const k_cell_t size = vector->end - vector->begin;
+  vector->begin = k_mem_realloc
+    (vector->begin, capacity, sizeof(KObject));
+  vector->end = vector->begin + size;
+  vector->capacity = vector->begin + capacity;
 }
 
 KObject k_vector(const size_t size, ...) {
@@ -348,9 +458,22 @@ void k_in_add_vector() {
   KObject a = k_data_pop();
   assert(a.type == K_VECTOR);
   assert(b.type == K_VECTOR);
-  k_data_push(k_vector_append(a, b));
-  k_object_release(a);
-  k_object_release(b);
+  const int unique_a = k_object_unique(a);
+  const int unique_b = k_object_unique(b);
+  if (unique_a && unique_b) {
+    k_data_push(k_vector_append_mutating_moving(a, b));
+    k_object_release(b);
+  } else if (unique_a) {
+    k_data_push(k_vector_append_mutating(a, b));
+    k_object_release(b);
+  } else if (unique_b) {
+    k_data_push(k_vector_prepend_mutating(a, b));
+    k_object_release(a);
+  } else {
+    k_data_push(k_vector_append(a, b));
+    k_object_release(a);
+    k_object_release(b);
+  }
 }
 
 void k_in_close() {

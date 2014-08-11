@@ -99,8 +99,10 @@ void k_runtime_quit(void);
 // Memory and reference counting.
 void* k_mem_alloc(size_t, size_t);
 void k_mem_free(void*);
+void* k_mem_realloc(void*, size_t, size_t);
 KObject k_object_retain(KObject);
 void k_object_release(KObject);
+int k_object_unique(KObject);
 
 // Value creation.
 KObject k_activation_new(void*, size_t, ...);
@@ -325,25 +327,26 @@ void k_locals_push(KObject);
 #define K_IN_BINARY(TYPE, OPERATION) \
   do { \
     const KObject b = k_data_pop(); \
-    const KObject a = k_data_pop(); \
-    assert(a.type == b.type); \
-    k_data_push(k_##TYPE##_new \
-      ((k_##TYPE##_t)a.data OPERATION (k_##TYPE##_t)b.data)); \
+    KObject* const a = &k_data[0]; \
+    assert(a->type == b.type); \
+    k_##TYPE##_t result \
+      = (*(k_##TYPE##_t*)&a->data) OPERATION (*(k_##TYPE##_t*)&b.data); \
+    a->data = *(k_cell_t*)&result; \
   } while (0)
 
 #define K_IN_RELATIONAL(TYPE, OPERATION) \
   do { \
     const KObject b = k_data_pop(); \
-    const KObject a = k_data_pop(); \
-    assert(a.type == b.type); \
-    k_data_push(k_bool_new \
-      ((k_##TYPE##_t)a.data OPERATION ((k_##TYPE##_t)b.data))); \
+    KObject* const a = &k_data[0]; \
+    assert(a->type == b.type); \
+    a->data = (*(k_##TYPE##_t*)&a->data) OPERATION (*(k_##TYPE##_t*)&b.data); \
   } while (0)
 
 #define K_IN_UNARY(TYPE, OPERATION) \
   do { \
-    const KObject a = k_data_pop(); \
-    k_data_push(k_##TYPE##_new(OPERATION (k_##TYPE##_t)a.data)); \
+    KObject* const a = &k_data[0]; \
+    const k_##TYPE##_t result = OPERATION (*(k_##TYPE##_t*)&a->data); \
+    a->data = *(k_cell_t*)&result; \
   } while (0)
 
 #endif
