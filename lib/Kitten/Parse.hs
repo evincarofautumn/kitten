@@ -147,6 +147,7 @@ term = locate $ choice
   , TrMakeVector <$> vector
   , mapOne toIntrinsic <?> "intrinsic"
   , lambda
+  , matchCase
   , TrPush <$> blockValue
   ]
   where
@@ -201,6 +202,14 @@ term = locate $ choice
         mLambdaName)
       (TrCompose StackAny terms loc)
       (reverse names)
+
+  matchCase :: Parser (Location -> ParsedTerm)
+  matchCase = (<?> "match") $ match TkMatch *> do
+    patterns <- blocked . manyV . locate $ match TkCase *> do
+      name <- named
+      body <- block
+      return $ \loc -> TrCase name (TrCompose StackAny body loc) loc
+    return $ \loc -> TrMatch patterns loc
 
   pair :: Vector ParsedTerm -> Location -> ParsedTerm
   pair values loc = V.foldr1 (\x y -> TrMakePair x y loc) values
@@ -296,6 +305,13 @@ rewriteInfix program@Program{..} parsed@Fragment{..} = do
     TrMakeVector terms loc -> do
       terms' <- V.mapM rewriteInfixTerm terms
       return $ TrMakeVector terms' loc
+    TrMatch cases loc -> do
+      cases' <- V.mapM rewriteInfixCase cases
+      return $ TrMatch cases' loc
+      where
+      rewriteInfixCase (TrCase name body loc') = do
+        body' <- rewriteInfixTerm body
+        return $ TrCase name body' loc'
     TrPush value loc -> do
       value' <- rewriteInfixValue value
       return $ TrPush value' loc

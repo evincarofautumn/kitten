@@ -95,13 +95,15 @@ toC FlattenedProgram{..} = V.concat
     IrClosure index -> return
       $ "k_data_push(k_object_retain(k_closure_get(" <> showText index <> ")));"
     IrComment text -> return $ "/* " <> text <> "*/"
-    IrConstruct size -> return $ "k_in_construct(" <> showText size <> ");"
+    IrConstruct index size -> return $ T.concat
+      ["k_in_construct(", showText index, ", ", showText size, ");"]
     IrEnter -> return "k_locals_push(k_data_pop());"
     IrIntrinsic intrinsic -> toCIntrinsic intrinsic
     IrLeave -> return "k_locals_drop();"
     IrLocal index -> return
       $ "k_data_push(k_object_retain(k_locals_get(" <> showText index <> ")));"
     IrMakeVector size -> return $ "k_in_make_vector(" <> showText size <> ");"
+    IrMatch{} -> return "assert(!\"TODO match\");"
     IrPush x -> return $ "k_data_push(" <> toCValue x <> ");"
     IrReturn -> return "K_IN_RETURN();"
     IrTailCall label -> return $ "K_IN_TAIL_CALL(" <> global label <> ");"

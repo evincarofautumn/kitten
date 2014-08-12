@@ -73,7 +73,7 @@ compile config@Config{..} program
       } else fragment)
     $ hoistEither (parseSource configFirstLine configName configSource)
 
-  (substituted) <- hoistEither
+  substituted <- hoistEither
     =<< lift (substituteImports configLibraryDirectories parsed)
 
   -- Applicative rewriting must take place after imports have been
@@ -89,7 +89,13 @@ compile config@Config{..} program
   let (mTypedAndType, program'') = runK program' config $ typeFragment scoped
   (typed, type_) <- hoistEither mTypedAndType
 
-  let (mErrors, program''') = ir typed program'' config
+  let
+    (mErrors, program''') = ir typed
+      program''
+        { programTypes = programTypes program''
+          <> H.map (V.map ctorName . typeDefConstructors)
+            (fragmentTypes typed) }
+      config
   void $ hoistEither mErrors
 
   let program'''' = optimize configOptimizations program'''

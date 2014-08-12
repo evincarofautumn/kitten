@@ -7,7 +7,6 @@ module Kitten.Optimize
 
 import Data.Function
 import Data.List
-import Data.Maybe
 
 import qualified Data.Set as S
 import qualified Data.Vector as V
@@ -37,12 +36,13 @@ unusedDefElim defs = Id.filterWithKey
   where
   closure = transitiveClosure references
   references = concatMap (\ (a, b) -> map ((,) a) (S.toList b))
-    $ Id.toList $ Id.map (S.fromList . mapMaybe reference . V.toList) defs
+    $ Id.toList $ Id.map (S.fromList . concatMap reference . V.toList) defs
   reference = \case
-    IrAct x _ _ -> Just x
-    IrCall x -> Just x
-    IrTailCall x -> Just x
-    _ -> Nothing
+    IrAct x _ _ -> [x]
+    IrCall x -> [x]
+    IrTailCall x -> [x]
+    IrMatch cases -> V.toList $ V.map (\ (IrCase _ x) -> x) cases
+    _ -> []
 
 -- TODO Make more efficient.
 transitiveClosure :: (Eq a) => [(a, a)] -> [(a, a)]

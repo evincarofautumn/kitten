@@ -67,5 +67,6 @@ defineConstructor name TypeConstructor{..} = Def
   , defFixity = Postfix
   , defLocation = ctorLocation
   , defName = ctorName
-  , defTerm = mono $ TrConstruct name (V.length ctorFields) ctorLocation
+  , defTerm = mono
+    $ TrConstruct name ctorName (V.length ctorFields) ctorLocation
   }

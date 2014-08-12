@@ -12,7 +12,6 @@ import Data.Monoid
 import Data.Vector (Vector)
 
 import qualified Data.HashMap.Strict as H
-import qualified Data.Traversable as T
 import qualified Data.Vector as V
 
 import Kitten.Types
@@ -33,18 +32,21 @@ scopeTerm :: [Int] -> ResolvedTerm -> ResolvedTerm
 scopeTerm stack typed = case typed of
   TrCall{} -> typed
   TrConstruct{} -> typed
-  TrCompose hint terms loc -> TrCompose hint (recur <$> terms) loc
+  TrCompose hint terms loc -> TrCompose hint (V.map recur terms) loc
   TrIntrinsic{} -> typed
   TrLambda name term loc -> TrLambda name
     (scopeTerm (mapHead succ stack) term)
     loc
   TrMakePair as bs loc -> TrMakePair (recur as) (recur bs) loc
+  TrMakeVector items loc -> TrMakeVector (V.map recur items) loc
+  TrMatch cases loc -> TrMatch (V.map scopeCase cases) loc
   TrPush value loc -> TrPush (scopeValue stack value) loc
-  TrMakeVector items loc -> TrMakeVector (recur <$> items) loc
 
   where
   recur :: ResolvedTerm -> ResolvedTerm
   recur = scopeTerm stack
+
+  scopeCase (TrCase name body loc) = TrCase name (recur body) loc
 
 scopeValue :: [Int] -> ResolvedValue -> ResolvedValue
 scopeValue stack value = case value of
@@ -92,7 +94,7 @@ captureTerm :: ResolvedTerm -> Capture ResolvedTerm
 captureTerm typed = case typed of
   TrCall{} -> return typed
   TrCompose hint terms loc -> TrCompose hint
-    <$> T.mapM captureTerm terms
+    <$> V.mapM captureTerm terms
     <*> pure loc
   TrConstruct{} -> return typed
   TrIntrinsic{} -> return typed
@@ -108,10 +110,17 @@ captureTerm typed = case typed of
     <$> captureTerm a
     <*> captureTerm b
     <*> pure loc
-  TrPush value loc -> TrPush <$> captureValue value <*> pure loc
   TrMakeVector items loc -> TrMakeVector
-    <$> T.mapM captureTerm items
+    <$> V.mapM captureTerm items
     <*> pure loc
+  TrMatch cases loc -> TrMatch
+    <$> V.mapM captureCase cases
+    <*> pure loc
+    where
+    captureCase (TrCase name body loc') = TrCase name
+      <$> captureTerm body
+      <*> pure loc'
+  TrPush value loc -> TrPush <$> captureValue value <*> pure loc
 
 closeLocal :: Int -> Capture (Maybe Int)
 closeLocal index = do
@@ -129,7 +138,7 @@ captureValue value = case value of
   TrChar{} -> return value
   TrClosed{} -> return value
   TrClosure names term x -> TrClosure
-    <$> T.mapM close names
+    <$> V.mapM close names
     <*> pure term
     <*> pure x
     where

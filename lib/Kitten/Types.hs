@@ -38,6 +38,7 @@ import Text.Parsec.Pos
 
 import qualified Data.Char as Char
 import qualified Data.HashMap.Strict as H
+import qualified Kitten.IdMap as I
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -60,6 +61,7 @@ data Program = Program
   , programScalarIdGen :: !(KindedGen Scalar)
   , programStackIdGen :: !(KindedGen Stack)
   , programSymbols :: !(HashMap Text DefId)
+  , programTypes :: !(HashMap Text (Vector Text))
 
   , inferenceClosure :: !(Vector (Type Scalar))
   , inferenceDefs :: !(HashMap Text TypeScheme)
@@ -76,6 +78,8 @@ instance Show Program where
     , show (H.keys programSymbols)
     , ", operators: "
     , show programOperators
+    , ", blocks: "
+    , show . map fst $ I.toList programBlocks
     , " }"
     ]
 
@@ -158,6 +162,7 @@ emptyProgram = Program
   , programScalarIdGen = mkKindedGen
   , programStackIdGen = mkKindedGen
   , programSymbols = H.empty
+  , programTypes = H.empty
   , inferenceClosure = V.empty
   , inferenceDefs = H.empty
   , inferenceDecls = H.empty
@@ -214,14 +219,18 @@ data IrInstruction
   | IrCall !DefId
   | IrClosure !Int
   | IrComment !Text
-  | IrConstruct !Int
+  | IrConstruct !Int !Int
   | IrEnter
   | IrLeave
   | IrLocal !Int
   | IrMakeVector !Int
+  | IrMatch !(Vector IrCase)
   | IrPush !IrValue
   | IrReturn
   | IrTailCall !DefId
+  deriving (Eq)
+
+data IrCase = IrCase !Int !DefId
   deriving (Eq)
 
 type IrBlock = Vector IrInstruction
@@ -253,11 +262,13 @@ instance ToText IrInstruction where
     IrCall target -> ["call", showText target]
     IrClosure index -> ["closure", showText index]
     IrComment comment -> ["\n;", comment]
-    IrConstruct size -> ["construct", showText size]
+    IrConstruct name size -> ["construct", showText name, showText size]
     IrEnter -> ["enter"]
     IrLeave -> ["leave"]
     IrLocal index -> ["local", showText index]
     IrMakeVector size -> ["vector", showText size]
+    IrMatch cases -> (:[]) . T.intercalate "\n"
+      $ "match" : map toText (V.toList cases) ++ ["end"]
     IrPush value -> ["push", showText value]
     IrReturn -> ["ret"]
     IrTailCall target -> ["tailcall", showText target]
@@ -281,6 +292,13 @@ instance ToText IrValue where
       : showText (T.length value)
       : map (\c -> "char " <> showText (Char.ord c))
         (T.unpack value)
+
+instance ToText IrCase where
+  toText (IrCase index target) = T.unwords
+    ["case", showText index, toText target]
+
+instance Show IrCase where
+  show = T.unpack . toText
 
 --------------------------------------------------------------------------------
 -- Intrinsics
@@ -793,6 +811,7 @@ data Token
   | TkInfixRight
   | TkInt !Int !BaseHint
   | TkLayout
+  | TkMatch
   | TkOperator !Text
   | TkReference
   | TkSemicolon
@@ -824,6 +843,7 @@ instance Eq Token where
   -- TkInts are equal regardless of BaseHint.
   TkInt a _      == TkInt b _      = a == b
   TkLayout       == TkLayout       = True
+  TkMatch        == TkMatch        = True
   TkOperator a   == TkOperator b   = a == b
   TkReference    == TkReference    = True
   TkSemicolon    == TkSemicolon    = True
@@ -863,6 +883,7 @@ instance Show Token where
         DecimalHint -> (10, "", ['0'..'9'])
         HexadecimalHint -> (16, "0x", ['0'..'9'] ++ ['A'..'F'])
     TkLayout -> ":"
+    TkMatch -> "match"
     TkOperator word -> T.unpack word
     TkReference -> "\\"
     TkSemicolon -> ";"
@@ -1004,11 +1025,14 @@ data TrTerm a
   = TrIntrinsic !Intrinsic !a
   | TrCall !Fixity !Text !a
   | TrCompose !StackHint !(Vector (TrTerm a)) !a
-  | TrConstruct !Text !Int !a
+  | TrConstruct !Text !Text !Int !a
   | TrLambda !Text !(TrTerm a) !a
   | TrMakePair !(TrTerm a) !(TrTerm a) !a
-  | TrPush !(TrValue a) !a
   | TrMakeVector !(Vector (TrTerm a)) !a
+  | TrMatch !(Vector (TrCase a)) !a
+  | TrPush !(TrValue a) !a
+
+data TrCase a = TrCase !Text !(TrTerm a) !a
 
 instance (Eq a) => Eq (TrTerm a) where
   -- Calls are equal regardless of 'Fixity'.
@@ -1031,16 +1055,22 @@ instance ToText (TrTerm a) where
     TrCall _ label _ -> label
     TrCompose _ terms _ -> T.concat
       ["(", T.intercalate " " (V.toList (V.map toText terms)), ")"]
-    TrConstruct name size _ -> T.concat ["new", name, showText size]
+    TrConstruct name ctor size _ -> T.concat
+      ["new ", name, ".", ctor, "(", showText size, ")"]
     TrIntrinsic intrinsic _ -> toText intrinsic
     TrLambda name term _ -> T.concat ["(\\", name, " ", toText term, ")"]
     TrMakePair a b _ -> T.concat ["(", toText a, ", ", toText b, ")"]
-    TrPush value _ -> toText value
     TrMakeVector terms _ -> T.concat
       ["[", T.intercalate ", " (V.toList (V.map toText terms)), "]"]
+    TrMatch cases _ -> T.unwords
+      $ ["match", "{"] ++ V.toList (V.map toText cases) ++ ["}"]
+    TrPush value _ -> toText value
 
 instance Show (TrTerm a) where
   show = T.unpack . toText
+
+instance ToText (TrCase a) where
+  toText (TrCase name body _) = T.unwords ["case", name, "{", toText body, "}"]
 
 data TrValue a
   = TrBool !Bool !a
@@ -1087,11 +1117,12 @@ termMetadata :: TrTerm a -> a
 termMetadata = \case
   TrCall _ _ x -> x
   TrCompose _ _ x -> x
-  TrConstruct _ _ x -> x
+  TrConstruct _ _ _ x -> x
   TrIntrinsic _ x -> x
   TrLambda _ _ x -> x
   TrMakePair _ _ x -> x
   TrMakeVector _ x -> x
+  TrMatch _ x -> x
   TrPush _ x -> x
 
 typedLocation :: TypedTerm -> Location

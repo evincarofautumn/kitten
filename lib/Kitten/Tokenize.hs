@@ -133,6 +133,7 @@ token = (<?> "token") . located $ choice
       "infix_left" -> TkInfixLeft
       "infix_right" -> TkInfixRight
       "import" -> TkImport
+      "match" -> TkMatch
       "true" -> TkBool True
       _ -> case intrinsicFromText name of
         Just intrinsic -> TkIntrinsic intrinsic

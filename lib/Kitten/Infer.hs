@@ -224,12 +224,12 @@ infer finalProgram resolved = case resolved of
 
     return (TrCompose hint typedTerms (loc, sub finalProgram type_), type_)
 
-  TrConstruct name size loc -> withLocation loc $ do
+  TrConstruct name ctor size loc -> withLocation loc $ do
     r <- freshVarM
-    inputs <- F.foldl (:.) r <$> V.replicateM size freshVarM
+    inputs <- V.foldl (:.) r <$> V.replicateM size freshVarM
     origin <- getsProgram inferenceOrigin
     let type_ = TyFunction inputs (r :. TyCtor (CtorUser name) origin) origin
-    return (TrConstruct name size (loc, sub finalProgram type_), type_)
+    return (TrConstruct name ctor size (loc, sub finalProgram type_), type_)
 
   TrIntrinsic name loc -> asTyped (TrIntrinsic name) loc $ case name of
 
@@ -418,12 +418,6 @@ infer finalProgram resolved = case resolved of
     type_ <- forAll $ \r -> (r --> r :. a :& b) origin
     return (TrMakePair x' y' (loc, sub finalProgram type_), type_)
 
-  TrPush value loc -> withLocation loc $ do
-    (value', a) <- inferValue finalProgram value
-    origin <- getsProgram inferenceOrigin
-    type_ <- forAll $ \r -> (r --> r :. a) origin
-    return (TrPush value' (loc, sub finalProgram type_), type_)
-
   TrMakeVector values loc -> withLocation loc $ do
     (typedValues, types) <- V.mapAndUnzipM recur values
     elementType <- fromConstant =<< unifyEach types
@@ -433,6 +427,31 @@ infer finalProgram resolved = case resolved of
       ( TrMakeVector typedValues (loc, sub finalProgram type_)
       , type_
       )
+
+  TrMatch cases loc -> withLocation loc $ do
+    decls <- getsProgram inferenceDecls
+    (cases', caseTypes) <- flip V.mapAndUnzipM cases $ \ (TrCase name body loc')
+      -> withLocation loc' $ do
+        (body', TyFunction bodyIn bodyOut _) <- recur body
+        case H.lookup name decls of
+          Just (Forall _ _ ctorType) -> do
+            TyFunction fields whole origin <- unquantify ctorType
+            fields === bodyIn
+            let type_ = TyFunction whole bodyOut origin
+            return (TrCase name body' (loc', sub finalProgram type_), type_)
+          Nothing -> liftFailWriter $ throwMany [errorGroup]
+            where
+            errorGroup = ErrorGroup
+              [ CompileError loc' Error $ T.concat
+                ["'", name, "' does not seem to be a defined constructor"] ]
+    type_ <- unifyEach caseTypes
+    return (TrMatch cases' (loc, sub finalProgram type_), type_)
+
+  TrPush value loc -> withLocation loc $ do
+    (value', a) <- inferValue finalProgram value
+    origin <- getsProgram inferenceOrigin
+    type_ <- forAll $ \r -> (r --> r :. a) origin
+    return (TrPush value' (loc, sub finalProgram type_), type_)
 
   where
   recur = infer finalProgram

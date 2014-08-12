@@ -79,7 +79,7 @@ resolveTerm unresolved = case unresolved of
   TrCompose hint terms loc -> TrCompose hint
     <$> guardMapM resolveTerm terms
     <*> pure loc
-  TrConstruct name size loc -> return $ TrConstruct name size loc
+  TrConstruct name ctor size loc -> return $ TrConstruct name ctor size loc
   TrIntrinsic name loc -> return $ TrIntrinsic name loc
   TrLambda name term loc -> withLocal name $ TrLambda name
     <$> resolveTerm term
@@ -88,10 +88,17 @@ resolveTerm unresolved = case unresolved of
     <$> resolveTerm as
     <*> resolveTerm bs
     <*> pure loc
-  TrPush value loc -> TrPush <$> resolveValue value <*> pure loc
   TrMakeVector items loc -> TrMakeVector
     <$> guardMapM resolveTerm items
     <*> pure loc
+  TrMatch cases loc -> TrMatch
+    <$> guardMapM resolveCase cases
+    <*> pure loc
+    where
+    resolveCase (TrCase name body loc') = TrCase name
+      <$> resolveTerm body
+      <*> pure loc'
+  TrPush value loc -> TrPush <$> resolveValue value <*> pure loc
 
 resolveValue :: ParsedValue -> Resolution ResolvedValue
 resolveValue unresolved = case unresolved of

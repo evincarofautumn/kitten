@@ -1,5 +1,6 @@
 module Kitten.Util.List
   ( (!?)
+  , findMap
   , for
   , list
   , mapHead
@@ -12,6 +13,14 @@ _ !? n | n < 0 = Nothing
 (x : _) !? 0 = Just x
 (_ : xs) !? n = xs !? pred n
 [] !? _ = Nothing
+
+findMap :: (a -> Maybe b) -> [a] -> Maybe b
+findMap f = go
+  where
+  go (x : xs) = case f x of
+    y@Just{} -> y
+    Nothing -> go xs
+  go [] = Nothing
 
 for :: [a] -> (a -> b) -> [b]
 for = flip map

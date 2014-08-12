@@ -20,6 +20,7 @@ import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State.Strict
 import Data.HashMap.Strict (HashMap)
 import Data.List
+import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
 import Data.Traversable (traverse)
@@ -36,6 +37,7 @@ import Kitten.Error
 import Kitten.Id
 import Kitten.IdMap (DefIdMap)
 import Kitten.Types
+import Kitten.Util.List
 import Kitten.Util.Monad
 import Kitten.Util.Text (ToText(..), showText)
 import Kitten.Util.Tuple
@@ -66,7 +68,9 @@ irTerm term = case term of
     target' <- getDefM target
     return $ V.singleton (IrCall target')
   TrCompose _ terms _ -> concatMapM irTerm terms
-  TrConstruct _ size _ -> return $ V.singleton (IrConstruct size)
+  TrConstruct name ctor size _ -> do
+    name' <- ctorIndex (Just name) ctor
+    return $ V.singleton (IrConstruct name' size)
   TrIntrinsic intrinsic _ -> return $ V.singleton (IrIntrinsic intrinsic)
   TrLambda _ terms _ -> do
     instructions <- irTerm terms
@@ -75,10 +79,31 @@ irTerm term = case term of
     a' <- irTerm a
     b' <- irTerm b
     return $ a' <> b' <> V.singleton (IrIntrinsic InPair)
-  TrPush value _ -> irValue value
   TrMakeVector values _ -> do
     values' <- concatMapM irTerm values
     return $ values' <> (V.singleton . IrMakeVector $ V.length values)
+  TrMatch cases _ -> V.singleton . IrMatch <$> V.mapM irCase cases
+    where
+    irCase (TrCase name body _) = do
+      instructions <- irTerm body
+      name' <- ctorIndex Nothing name
+      target <- declareBlockM Nothing (terminated instructions)
+      return $ IrCase name' target
+  TrPush value _ -> irValue value
+
+ctorIndex :: Maybe Text -> Text -> K Int
+ctorIndex (Just name) ctor = fromMaybe
+  (error $ concat
+    [ "using non-constructor '"
+    , T.unpack ctor
+    , "' as constructor of '"
+    , T.unpack name
+    , "'"
+    ])
+  . (V.elemIndex ctor =<<) . H.lookup name <$> getsProgram programTypes
+ctorIndex Nothing ctor = fromMaybe
+  (error $ "match on non-constructor '" ++ T.unpack ctor ++ "'")
+  . findMap (V.elemIndex ctor) . H.elems <$> getsProgram programTypes
 
 irValue :: TypedValue -> K IrBlock
 irValue resolved = case resolved of
