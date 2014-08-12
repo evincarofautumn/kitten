@@ -89,17 +89,11 @@ function run_test {
         echo >&2
         exit 1
       fi
-      # FIXME Differentiate compiletime from runtime errors and direct
-      # standard error output here somewhere useful.
-      if ! "$test_file.built" \
+      # TODO Perhaps differentiate compiletime from runtime errors?
+      "$test_file.built" \
         < "$test_in" \
         > "$actual_out" \
-        2> /dev/null; then
-        echo "Test '$test_name' ($mode) FAILED." >&2
-        echo "Running the compiled executable crashed." >&2
-        echo >&2
-        exit 1
-      fi
+        2> "$actual_err"
     else
       echo "Invalid test mode ($mode)." >&2
       exit 1
