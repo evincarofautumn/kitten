@@ -185,31 +185,59 @@ term = locate $ choice
   group = (<?> "group") $ TrCompose StackAny <$> grouped (many1V term)
 
   lambda :: Parser (Location -> ParsedTerm)
-  lambda = (<?> "lambda") $ match TkArrow *> do
-    names <- many1 $ Just <$> named <|> Nothing <$ match TkIgnore
-    (wrap, terms) <- choice
-      [ match TkSemicolon *> ((,) (\_ ts -> ts) <$> blockContents)
-      , (,) (\loc ts -> TrPush (TrQuotation ts loc) loc)
-        <$> block
-      ]
-    return $ \loc -> wrap loc $ foldr
-      (\mLambdaName lambdaTerms -> maybe
-        (TrCompose StackAny (V.fromList
-          [ TrLambda "_" (TrCompose StackAny V.empty loc) loc
-          , lambdaTerms
-          ]) loc)
-        (\lambdaName -> TrLambda lambdaName lambdaTerms loc)
-        mLambdaName)
-      (TrCompose StackAny terms loc)
-      (reverse names)
+  lambda = (<?> "lambda") $ choice
+    [ try plainLambda
+    , do
+      (names, body) <- lambdaBlock
+      return $ \loc -> TrPush (TrQuotation (makeLambda names body loc) loc) loc
+    ]
+
+  plainLambda :: Parser (Location -> ParsedTerm)
+  plainLambda = match TkArrow *> do
+    names <- lambdaNames <* match TkSemicolon
+    body <- blockContents
+    return $ \loc -> makeLambda names body loc
+
+  lambdaNames :: Parser [Maybe Text]
+  lambdaNames = many1 $ Just <$> named <|> Nothing <$ match TkIgnore
+
+  lambdaBlock :: Parser ([Maybe Text], Vector ParsedTerm)
+  lambdaBlock = match TkArrow *> do
+    names <- lambdaNames
+    body <- block
+    return (names, body)
+
+  makeLambda :: [Maybe Text] -> Vector ParsedTerm -> Location -> ParsedTerm
+  makeLambda names terms loc = foldr
+    (\mLambdaName lambdaTerms -> maybe
+      (TrCompose StackAny (V.fromList
+        [ TrLambda "_" (TrCompose StackAny V.empty loc) loc
+        , lambdaTerms
+        ]) loc)
+      (\lambdaName -> TrLambda lambdaName lambdaTerms loc)
+      mLambdaName)
+    (TrCompose StackAny terms loc)
+    (reverse names)
 
   matchCase :: Parser (Location -> ParsedTerm)
   matchCase = (<?> "match") $ match TkMatch *> do
+    mScrutinee <- optionMaybe group <?> "scrutinee"
     patterns <- blocked . manyV . locate $ match TkCase *> do
       name <- named
-      body <- block
-      return $ \loc -> TrCase name (TrCompose StackAny body loc) loc
-    return $ \loc -> TrMatch patterns loc
+      body <- choice
+        [ do
+          body <- block
+          return $ \_ -> body
+        , do
+          (names, body) <- lambdaBlock
+          return $ \loc -> V.singleton (makeLambda names body loc)
+        ]
+      return $ \loc -> TrCase name (TrCompose StackAny (body loc) loc) loc
+    let
+      withScrutinee loc scrutinee x
+        = TrCompose StackAny (V.fromList [scrutinee loc, x]) loc
+    return $ \loc -> maybe id (withScrutinee loc) mScrutinee
+      $ TrMatch patterns loc
 
   pair :: Vector ParsedTerm -> Location -> ParsedTerm
   pair values loc = V.foldr1 (\x y -> TrMakePair x y loc) values
