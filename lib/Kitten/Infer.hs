@@ -430,6 +430,8 @@ infer finalProgram resolved = case resolved of
 
   TrMatch cases loc -> withLocation loc $ do
     decls <- getsProgram inferenceDecls
+    defaultOrigin <- getsProgram inferenceOrigin
+    defaultCase <- forAll $ \r s a -> (r :. a --> s) defaultOrigin
     (cases', caseTypes) <- flip V.mapAndUnzipM cases $ \ (TrCase name body loc')
       -> withLocation loc' $ do
         (body', TyFunction bodyIn bodyOut _) <- recur body
@@ -444,7 +446,7 @@ infer finalProgram resolved = case resolved of
             errorGroup = ErrorGroup
               [ CompileError loc' Error $ T.concat
                 ["'", name, "' does not seem to be a defined constructor"] ]
-    type_ <- unifyEach caseTypes
+    type_ <- unifyEach (V.snoc caseTypes defaultCase)
     return (TrMatch cases' (loc, sub finalProgram type_), type_)
 
   TrPush value loc -> withLocation loc $ do
