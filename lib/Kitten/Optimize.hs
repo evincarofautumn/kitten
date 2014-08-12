@@ -14,6 +14,7 @@ import qualified Data.Vector as V
 import Kitten.IdMap (DefIdMap)
 import Kitten.Types
 import Kitten.Util.Function
+import Kitten.Util.Maybe
 
 import qualified Kitten.IdMap as Id
 
@@ -41,7 +42,8 @@ unusedDefElim defs = Id.filterWithKey
     IrAct x _ _ -> [x]
     IrCall x -> [x]
     IrTailCall x -> [x]
-    IrMatch cases -> V.toList $ V.map (\ (IrCase _ x) -> x) cases
+    IrMatch cases mDefault -> mDefault
+      `consMaybe` V.toList (V.map (\ (IrCase _ x) -> x) cases)
     _ -> []
 
 -- TODO Make more efficient.

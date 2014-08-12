@@ -224,7 +224,7 @@ data IrInstruction
   | IrLeave
   | IrLocal !Int
   | IrMakeVector !Int
-  | IrMatch !(Vector IrCase)
+  | IrMatch !(Vector IrCase) !(Maybe DefId)
   | IrPush !IrValue
   | IrReturn
   | IrTailCall !DefId
@@ -267,8 +267,11 @@ instance ToText IrInstruction where
     IrLeave -> ["leave"]
     IrLocal index -> ["local", showText index]
     IrMakeVector size -> ["vector", showText size]
-    IrMatch cases -> (:[]) . T.intercalate "\n"
-      $ "match" : map toText (V.toList cases) ++ ["end"]
+    IrMatch cases mDefault -> (:[]) . T.unwords $ concat
+      [ "match" : map toText (V.toList cases)
+      , maybe [] (\target -> ["default", showText target]) mDefault
+      , ["end"]
+      ]
     IrPush value -> ["push", showText value]
     IrReturn -> ["ret"]
     IrTailCall target -> ["tailcall", showText target]
@@ -800,6 +803,7 @@ data Token
   | TkComma
   | TkData
   | TkDef
+  | TkDefault
   | TkGroupBegin
   | TkGroupEnd
   | TkFloat !Double
@@ -831,6 +835,7 @@ instance Eq Token where
   TkComma        == TkComma        = True
   TkData         == TkData         = True
   TkDef          == TkDef          = True
+  TkDefault      == TkDefault      = True
   TkGroupBegin   == TkGroupBegin   = True
   TkGroupEnd     == TkGroupEnd     = True
   TkFloat a      == TkFloat b      = a == b
@@ -865,6 +870,7 @@ instance Show Token where
     TkComma -> ","
     TkData -> "data"
     TkDef -> "def"
+    TkDefault -> "default"
     TkIgnore -> "_"
     TkInfix -> "infix"
     TkInfixLeft -> "infix_left"
@@ -1029,7 +1035,7 @@ data TrTerm a
   | TrLambda !Text !(TrTerm a) !a
   | TrMakePair !(TrTerm a) !(TrTerm a) !a
   | TrMakeVector !(Vector (TrTerm a)) !a
-  | TrMatch !(Vector (TrCase a)) !a
+  | TrMatch !(Vector (TrCase a)) !(Maybe (TrTerm a)) !a
   | TrPush !(TrValue a) !a
 
 data TrCase a = TrCase !Text !(TrTerm a) !a
@@ -1062,8 +1068,14 @@ instance ToText (TrTerm a) where
     TrMakePair a b _ -> T.concat ["(", toText a, ", ", toText b, ")"]
     TrMakeVector terms _ -> T.concat
       ["[", T.intercalate ", " (V.toList (V.map toText terms)), "]"]
-    TrMatch cases _ -> T.unwords
-      $ ["match", "{"] ++ V.toList (V.map toText cases) ++ ["}"]
+    TrMatch cases mDefault _ -> T.unwords $ concat
+      [ ["match", "{"]
+      , V.toList $ V.map toText cases
+      , case mDefault of
+        Just body -> ["default", "{", toText body, "}"]
+        Nothing -> []
+      , ["}"]
+      ]
     TrPush value _ -> toText value
 
 instance Show (TrTerm a) where
@@ -1122,7 +1134,7 @@ termMetadata = \case
   TrLambda _ _ x -> x
   TrMakePair _ _ x -> x
   TrMakeVector _ x -> x
-  TrMatch _ x -> x
+  TrMatch _ _ x -> x
   TrPush _ x -> x
 
 typedLocation :: TypedTerm -> Location

@@ -119,15 +119,17 @@ interpretInstruction instruction = case instruction of
   IrMakeVector size -> do
     pushData . Vector . V.reverse =<< V.replicateM size popData
     proceed
-  IrMatch cases -> do
+  IrMatch cases mDefault -> do
     User index fields <- popData
     case V.find (\ (IrCase index' _) -> index == index') cases of
       Just (IrCase _ target) -> do
         V.mapM_ pushData fields
         call target Nothing
-      Nothing -> lift $ do
-        hPutStrLn stderr "pattern match failure"
-        exitWith (ExitFailure 1)
+      Nothing -> case mDefault of
+        Just target -> call target Nothing
+        Nothing -> lift $ do
+          hPutStrLn stderr "pattern match failure"
+          exitWith (ExitFailure 1)
   IrPush value -> pushData (interpreterValue value) >> proceed
   IrReturn -> fix $ \loop -> do
     calls <- asksIO envCalls

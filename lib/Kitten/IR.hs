@@ -82,13 +82,17 @@ irTerm term = case term of
   TrMakeVector values _ -> do
     values' <- concatMapM irTerm values
     return $ values' <> (V.singleton . IrMakeVector $ V.length values)
-  TrMatch cases _ -> V.singleton . IrMatch <$> V.mapM irCase cases
+  TrMatch cases mDefault _ -> V.singleton
+    <$> (IrMatch <$> V.mapM irCase cases <*> traverse irDefault mDefault)
     where
     irCase (TrCase name body _) = do
       instructions <- irTerm body
       name' <- ctorIndex Nothing name
       target <- declareBlockM Nothing (terminated instructions)
       return $ IrCase name' target
+    irDefault body = do
+      instructions <- irTerm body
+      declareBlockM Nothing (terminated instructions)
   TrPush value _ -> irValue value
 
 ctorIndex :: Maybe Text -> Text -> K Int

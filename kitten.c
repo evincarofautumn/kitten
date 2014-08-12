@@ -498,9 +498,9 @@ void k_in_make_vector(const size_t size) {
   });
 }
 
-void* k_in_match(const size_t size, ...) {
+void* k_in_match(const size_t size, void* const defaultCase, ...) {
   va_list args;
-  va_start(args, size);
+  va_start(args, defaultCase);
   const KObject scrutinee = k_data_pop();
   assert(scrutinee.type == K_USER);
   for (size_t i = 0; i < size; ++i) {
@@ -514,6 +514,8 @@ void* k_in_match(const size_t size, ...) {
     }
   }
   va_end(args);
+  if (defaultCase)
+    return defaultCase;
   fprintf(stderr, "pattern match failure\n");
   exit(1);
   return NULL;

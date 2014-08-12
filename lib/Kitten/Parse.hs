@@ -222,22 +222,27 @@ term = locate $ choice
   matchCase :: Parser (Location -> ParsedTerm)
   matchCase = (<?> "match") $ match TkMatch *> do
     mScrutinee <- optionMaybe group <?> "scrutinee"
-    patterns <- blocked . manyV . locate $ match TkCase *> do
-      name <- named
-      body <- choice
-        [ do
-          body <- block
-          return $ \_ -> body
-        , do
-          (names, body) <- lambdaBlock
-          return $ \loc -> V.singleton (makeLambda names body loc)
-        ]
-      return $ \loc -> TrCase name (TrCompose StackAny (body loc) loc) loc
+    (patterns, mDefault) <- blocked $ do
+      patterns <- manyV . locate $ match TkCase *> do
+        name <- named
+        body <- choice
+          [ do
+            body <- block
+            return $ \_ -> body
+          , do
+            (names, body) <- lambdaBlock
+            return $ \loc -> V.singleton (makeLambda names body loc)
+          ]
+        return $ \loc -> TrCase name (TrCompose StackAny (body loc) loc) loc
+      mDefault <- optionMaybe . locate $ match TkDefault *> do
+        body <- block
+        return $ \loc -> TrCompose StackAny body loc
+      return (patterns, mDefault)
     let
       withScrutinee loc scrutinee x
         = TrCompose StackAny (V.fromList [scrutinee loc, x]) loc
     return $ \loc -> maybe id (withScrutinee loc) mScrutinee
-      $ TrMatch patterns loc
+      $ TrMatch patterns mDefault loc
 
   pair :: Vector ParsedTerm -> Location -> ParsedTerm
   pair values loc = V.foldr1 (\x y -> TrMakePair x y loc) values
@@ -333,9 +338,10 @@ rewriteInfix program@Program{..} parsed@Fragment{..} = do
     TrMakeVector terms loc -> do
       terms' <- V.mapM rewriteInfixTerm terms
       return $ TrMakeVector terms' loc
-    TrMatch cases loc -> do
+    TrMatch cases mDefault loc -> do
       cases' <- V.mapM rewriteInfixCase cases
-      return $ TrMatch cases' loc
+      mDefault' <- traverse rewriteInfixTerm mDefault
+      return $ TrMatch cases' mDefault' loc
       where
       rewriteInfixCase (TrCase name body loc') = do
         body' <- rewriteInfixTerm body

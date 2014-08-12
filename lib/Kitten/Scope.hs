@@ -39,7 +39,8 @@ scopeTerm stack typed = case typed of
     loc
   TrMakePair as bs loc -> TrMakePair (recur as) (recur bs) loc
   TrMakeVector items loc -> TrMakeVector (V.map recur items) loc
-  TrMatch cases loc -> TrMatch (V.map scopeCase cases) loc
+  TrMatch cases mDefault loc -> TrMatch
+    (V.map scopeCase cases) (fmap recur mDefault) loc
   TrPush value loc -> TrPush (scopeValue stack value) loc
 
   where
@@ -113,8 +114,9 @@ captureTerm typed = case typed of
   TrMakeVector items loc -> TrMakeVector
     <$> V.mapM captureTerm items
     <*> pure loc
-  TrMatch cases loc -> TrMatch
+  TrMatch cases mDefault loc -> TrMatch
     <$> V.mapM captureCase cases
+    <*> maybe (pure Nothing) (fmap Just . captureTerm) mDefault
     <*> pure loc
     where
     captureCase (TrCase name body loc') = TrCase name

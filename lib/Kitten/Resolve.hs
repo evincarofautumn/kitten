@@ -91,8 +91,9 @@ resolveTerm unresolved = case unresolved of
   TrMakeVector items loc -> TrMakeVector
     <$> guardMapM resolveTerm items
     <*> pure loc
-  TrMatch cases loc -> TrMatch
+  TrMatch cases mDefault loc -> TrMatch
     <$> guardMapM resolveCase cases
+    <*> maybe (pure Nothing) (fmap Just . resolveTerm) mDefault
     <*> pure loc
     where
     resolveCase (TrCase name body loc') = TrCase name

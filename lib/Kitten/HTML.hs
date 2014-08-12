@@ -27,7 +27,7 @@ import Data.Map (Map)
 import Data.Monoid
 import Data.Text (Text)
 
-import qualified Data.Foldable as Foldable
+import qualified Data.Foldable as F
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.Vector as V
@@ -91,7 +91,7 @@ fromFragmentsM lookUpSource fragments = do
 
 flattenFragment :: Fragment TypedTerm -> Writer LocMap ()
 flattenFragment fragment = do
-  Foldable.mapM_ flattenDef (fragmentDefs fragment)
+  F.mapM_ flattenDef (fragmentDefs fragment)
   flattenTerm (fragmentTerm fragment)
 
 flattenDef :: Def TypedTerm -> Writer LocMap ()
@@ -116,9 +116,10 @@ flattenTerm theTerm = case theTerm of
   TrMakeVector terms (loc, type_) -> do
     tellNode loc $ ScalarType type_
     V.mapM_ flattenTerm terms
-  TrMatch cases (loc, type_) -> do
+  TrMatch cases mDefault (loc, type_) -> do
     tellNode loc $ ScalarType type_
     V.mapM_ flattenCase cases
+    F.mapM_ flattenTerm mDefault
     where
     flattenCase (TrCase _ body (loc', type')) = do
       tellNode loc' $ ScalarType type'
