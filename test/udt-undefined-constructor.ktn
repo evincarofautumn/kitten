@@ -1,0 +1,5 @@
+data Defined:
+  case Defined;
+
+match (Defined):
+  case Undefined {}
