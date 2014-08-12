@@ -399,6 +399,17 @@ void k_in_close() {
   fclose(handle.data.as_handle);
 }
 
+void k_in_construct(const size_t size) {
+  KUser* user = k_mem_alloc(1, 2 * sizeof(k_cell_t) + size);
+  user->refs = 1;
+  for (user->size = 0; user->size < size; ++user->size)
+    user->fields[user->size] = *k_data++;
+  k_data_push((KObject) {
+    .data = (KData) { .as_user = user },
+    .type = K_USER
+  });
+}
+
 void k_in_first() {
   const KObject a = k_data_pop();
   assert(a.type == K_PAIR);

@@ -49,7 +49,7 @@ typeFragment fragment = do
     -- Use previously-inferred types (i.e. defTypeScheme def). We cannot
     -- right now because effects are not inferred properly (e.g. for the
     -- effects of the 'map' prelude function).
-    _ <- T.mapM save (fragmentDefs fragment)
+    F.forM_ (fragmentDefs fragment) save
 
     typedDefs <- flip T.mapM (fragmentDefs fragment) $ \def
       -> withOrigin (defOrigin def) $ do
@@ -119,7 +119,8 @@ typeFragment fragment = do
 
   save :: Def a -> K ()
   save def = do
-    scheme <- fromAnno (AnDef (defName def)) (defAnno def)
+    scheme <- fromAnno (AnDef (defName def)) (fragmentTypes fragment)
+      $ defAnno def
     saveDecl (defName def) scheme
     saveDefWith const (defName def) scheme
 
@@ -222,6 +223,13 @@ infer finalProgram resolved = case resolved of
       StackAny -> noop
 
     return (TrCompose hint typedTerms (loc, sub finalProgram type_), type_)
+
+  TrConstruct name size loc -> withLocation loc $ do
+    r <- freshVarM
+    inputs <- F.foldl (:.) r <$> V.replicateM size freshVarM
+    origin <- getsProgram inferenceOrigin
+    let type_ = TyFunction inputs (r :. TyCtor (CtorUser name) origin) origin
+    return (TrConstruct name size (loc, sub finalProgram type_), type_)
 
   TrIntrinsic name loc -> asTyped (TrIntrinsic name) loc $ case name of
 

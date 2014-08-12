@@ -125,6 +125,8 @@ token = (<?> "token") . located $ choice
   word = choice
     [ ffor alphanumeric $ \name -> case name of
       "_" -> TkIgnore
+      "case" -> TkCase
+      "data" -> TkData
       "def" -> TkDef
       "false" -> TkBool False
       "infix" -> TkInfix
@@ -132,7 +134,6 @@ token = (<?> "token") . located $ choice
       "infix_right" -> TkInfixRight
       "import" -> TkImport
       "true" -> TkBool True
-      "type" -> TkType
       _ -> case intrinsicFromText name of
         Just intrinsic -> TkIntrinsic intrinsic
         _ -> TkWord name

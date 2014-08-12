@@ -6,6 +6,7 @@ module Kitten.Parse.Element
   ) where
 
 import Control.Arrow
+import Data.Text (Text)
 
 import qualified Data.HashMap.Strict as H
 import qualified Data.Vector as V
@@ -18,17 +19,19 @@ data Element
   | ImportElement Import
   | OperatorElement Operator
   | TermElement ParsedTerm
+  | TypeElement TypeDef
 
 data Partitioned = Partitioned
   { partDefs :: [Def ParsedTerm]
   , partImports :: [Import]
   , partOperators :: [Operator]
   , partTerms :: [ParsedTerm]
+  , partTypes :: [TypeDef]
   }
 
 partitionElements :: Location -> [Element] -> Fragment ParsedTerm
 partitionElements loc
-  = fromPartitioned loc . foldr go (Partitioned [] [] [] [])
+  = fromPartitioned loc . foldr go (Partitioned [] [] [] [] [])
   where
   go element acc = case element of
     DefElement def -> acc
@@ -39,11 +42,30 @@ partitionElements loc
       { partOperators = operator : partOperators acc }
     TermElement term -> acc
       { partTerms = term : partTerms acc }
+    TypeElement typeDef -> acc
+      { partTypes = typeDef : partTypes acc }
 
 fromPartitioned :: Location -> Partitioned -> Fragment ParsedTerm
 fromPartitioned loc Partitioned{..} = Fragment
-  { fragmentDefs = H.fromList $ map (defName &&& id) partDefs
+  { fragmentDefs = H.fromList
+    $ map (defName &&& id) partDefs
+    ++ concatMap
+      (\typeDef
+        -> map (ctorName &&& defineConstructor (typeDefName typeDef))
+          . V.toList $ typeDefConstructors typeDef)
+      partTypes
   , fragmentImports = partImports
   , fragmentOperators = partOperators
   , fragmentTerm = TrCompose StackAny (V.fromList partTerms) loc
+  , fragmentTypes = H.fromList $ map (typeDefName &&& id) partTypes
+  }
+
+defineConstructor :: Text -> TypeConstructor -> Def ParsedTerm
+defineConstructor name TypeConstructor{..} = Def
+  { defAnno = Anno
+    (AnFunction ctorFields (V.singleton (AnVar name))) ctorLocation
+  , defFixity = Postfix
+  , defLocation = ctorLocation
+  , defName = ctorName
+  , defTerm = mono $ TrConstruct name (V.length ctorFields) ctorLocation
   }

@@ -10,7 +10,9 @@ import Control.Applicative
 import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Either
+import Data.HashMap.Strict (HashMap)
 import Data.List
+import Data.Monoid
 import Data.Set (Set)
 import Data.Text (Text)
 import System.Directory
@@ -127,22 +129,28 @@ substituteImports
   -> Fragment ParsedTerm
   -> IO (Either [ErrorGroup] (Fragment ParsedTerm))
 substituteImports libraryDirectories fragment = runEitherT $ do
-  (substitutedDefs, substitutedOperators) <- go
+  (substitutedDefs, substitutedOperators, substitutedTypes) <- go
     (fragmentImports fragment)
     S.empty
-    (H.toList (fragmentDefs fragment), fragmentOperators fragment)
+    ( H.toList (fragmentDefs fragment)
+    , fragmentOperators fragment
+    , fragmentTypes fragment
+    )
   return fragment
     { fragmentDefs = H.fromList substitutedDefs
     , fragmentOperators = substitutedOperators
+    , fragmentTypes = substitutedTypes
     }
   where
   go
     :: [Import]
     -> Set Text
-    -> ([(Text, Def ParsedTerm)], [Operator])
-    -> EitherT [ErrorGroup] IO ([(Text, Def ParsedTerm)], [Operator])
+    -> ([(Text, Def ParsedTerm)], [Operator], HashMap Text TypeDef)
+    -> EitherT [ErrorGroup] IO
+      ([(Text, Def ParsedTerm)], [Operator], HashMap Text TypeDef)
   go [] _ acc = return acc
-  go (currentModule : remainingModules) seenModules acc@(defs, operators) = let
+  go (currentModule : remainingModules) seenModules
+    acc@(defs, operators, types) = let
     name = importName currentModule
     location = importLocation currentModule
     in if name `S.member` seenModules
@@ -158,6 +166,7 @@ substituteImports libraryDirectories fragment = runEitherT $ do
               (S.insert name seenModules)
               ( H.toList (fragmentDefs parsed) ++ defs
               , fragmentOperators parsed ++ operators
+              , fragmentTypes parsed <> types
               )
           [] -> err location $ T.concat
             ["missing import '", name, "'"]

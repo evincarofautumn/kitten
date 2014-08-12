@@ -108,14 +108,16 @@ interpretInstruction instruction = case instruction of
     pushData =<< getClosed index
     proceed
   IrComment{} -> proceed
+  IrConstruct size -> do
+    pushData . User . V.reverse =<< V.replicateM size popData
+    proceed
   IrEnter -> do
     pushLocal =<< popData
     proceed
   IrLeave -> popLocal >> proceed
   IrLocal index -> (pushData =<< getLocal index) >> proceed
   IrMakeVector size -> do
-    pushData . Vector . V.reverse . V.fromList
-      =<< replicateM size popData
+    pushData . Vector . V.reverse =<< V.replicateM size popData
     proceed
   IrPush value -> pushData (interpreterValue value) >> proceed
   IrReturn -> fix $ \loop -> do
@@ -474,6 +476,7 @@ data InterpreterValue
   | Option !(Maybe InterpreterValue)
   | Pair !InterpreterValue !InterpreterValue
   | Vector !(Vector InterpreterValue)
+  | User !(Vector InterpreterValue)
 
 instance Show InterpreterValue where
   show = T.unpack . toText
@@ -495,6 +498,10 @@ instance ToText InterpreterValue where
       [ "["
       , T.intercalate ", " (V.toList (V.map toText v))
       , "]"
+      ]
+    User fields -> T.concat
+      [ T.unwords . V.toList $ V.map toText fields
+      , "<data ", showText $ V.length fields, ">"
       ]
 
 charsFromString :: String -> Vector InterpreterValue
@@ -580,6 +587,7 @@ typeOfM loc value = case value of
   Vector xs -> case V.safeHead xs of
     Nothing -> liftM2 TyVector freshVarM (return origin)
     Just x -> liftM2 TyVector (recur x) (return origin)
+  User _ -> error "cannot determine user-defined type at runtime"
   where
   recur = typeOfM loc
 

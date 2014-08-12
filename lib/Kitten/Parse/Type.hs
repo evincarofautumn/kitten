@@ -1,7 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Parse.Type
-  ( signature
+  ( baseType
+  , signature
   , typeDefType
   ) where
 

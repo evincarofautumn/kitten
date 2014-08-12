@@ -38,6 +38,7 @@ typedef enum KType {
   K_PAIR,
   K_RIGHT,
   K_SOME,
+  K_USER,
   K_VECTOR,
   K_MAX_TYPE
 } KType;
@@ -45,6 +46,7 @@ typedef enum KType {
 struct KActivation;
 struct KBox;
 struct KPair;
+struct KUser;
 struct KVector;
 
 typedef union KData {
@@ -57,6 +59,7 @@ typedef union KData {
   struct KActivation* as_activation;
   struct KBox* as_box;
   struct KPair* as_pair;
+  struct KUser* as_user;
   struct KVector* as_vector;
 } KData;
 
@@ -82,6 +85,12 @@ typedef struct KBox {
   k_cell_t refs;
   KObject value;
 } KBox;
+
+typedef struct KUser {
+  k_cell_t refs;
+  k_cell_t size;
+  KObject fields[];
+} KUser;
 
 typedef struct KVector {
   k_cell_t refs;
@@ -137,6 +146,7 @@ void k_vector_set(KObject, k_cell_t, KObject);
 void k_in_add_vector(void);
 void k_in_char_to_int(void);
 void k_in_close(void);
+void k_in_construct(size_t);
 void k_in_first(void);
 void k_in_from_box();
 void k_in_get(void);

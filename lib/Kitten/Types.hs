@@ -214,6 +214,7 @@ data IrInstruction
   | IrCall !DefId
   | IrClosure !Int
   | IrComment !Text
+  | IrConstruct !Int
   | IrEnter
   | IrLeave
   | IrLocal !Int
@@ -252,6 +253,7 @@ instance ToText IrInstruction where
     IrCall target -> ["call", showText target]
     IrClosure index -> ["closure", showText index]
     IrComment comment -> ["\n;", comment]
+    IrConstruct size -> ["construct", showText size]
     IrEnter -> ["enter"]
     IrLeave -> ["leave"]
     IrLocal index -> ["local", showText index]
@@ -511,6 +513,7 @@ data Ctor
   | CtorFloat
   | CtorHandle
   | CtorInt
+  | CtorUser !Text
   deriving (Eq)
 
 tyBool, tyChar, tyFloat, tyHandle, tyInt :: Origin -> Type Scalar
@@ -527,6 +530,7 @@ instance ToText Ctor where
     CtorFloat -> "float"
     CtorHandle -> "handle"
     CtorInt -> "int"
+    CtorUser a -> a
 
 instance Show Ctor where
   show = T.unpack . toText
@@ -773,8 +777,10 @@ data Token
   | TkBlockBegin !BlockTypeHint
   | TkBlockEnd
   | TkBool Bool
+  | TkCase
   | TkChar Char
   | TkComma
+  | TkData
   | TkDef
   | TkGroupBegin
   | TkGroupEnd
@@ -791,7 +797,6 @@ data Token
   | TkReference
   | TkSemicolon
   | TkText !Text
-  | TkType
   | TkVectorBegin
   | TkVectorEnd
   | TkWord !Text
@@ -802,8 +807,10 @@ instance Eq Token where
   TkBlockBegin{} == TkBlockBegin{} = True
   TkBlockEnd     == TkBlockEnd     = True
   TkBool a       == TkBool b       = a == b
+  TkCase         == TkCase         = True
   TkChar a       == TkChar b       = a == b
   TkComma        == TkComma        = True
+  TkData         == TkData         = True
   TkDef          == TkDef          = True
   TkGroupBegin   == TkGroupBegin   = True
   TkGroupEnd     == TkGroupEnd     = True
@@ -821,7 +828,6 @@ instance Eq Token where
   TkReference    == TkReference    = True
   TkSemicolon    == TkSemicolon    = True
   TkText a       == TkText b       = a == b
-  TkType         == TkType         = True
   TkVectorBegin  == TkVectorBegin  = True
   TkVectorEnd    == TkVectorEnd    = True
   TkWord a       == TkWord b       = a == b
@@ -834,8 +840,10 @@ instance Show Token where
     TkBlockBegin LayoutBlockHint -> ":"
     TkBlockEnd -> "}"
     TkBool value -> if value then "true" else "false"
+    TkCase -> "case"
     TkChar value -> show value
     TkComma -> ","
+    TkData -> "data"
     TkDef -> "def"
     TkIgnore -> "_"
     TkInfix -> "infix"
@@ -859,7 +867,6 @@ instance Show Token where
     TkReference -> "\\"
     TkSemicolon -> ";"
     TkText value -> show value
-    TkType -> "type"
     TkVectorBegin -> "["
     TkVectorEnd -> "]"
     TkWord word -> T.unpack word
@@ -884,6 +891,21 @@ data Def a = Def
   } deriving (Eq, Foldable, Functor, Show, Traversable)
 
 --------------------------------------------------------------------------------
+-- Type Definitions
+
+data TypeDef = TypeDef
+  { typeDefConstructors :: !(Vector TypeConstructor)
+  , typeDefLocation :: !Location
+  , typeDefName :: !Text
+  } deriving (Eq, Show)
+
+data TypeConstructor = TypeConstructor
+  { ctorFields :: !(Vector AnType)
+  , ctorLocation :: !Location
+  , ctorName :: !Text
+  } deriving (Eq, Show)
+
+--------------------------------------------------------------------------------
 -- Program Fragments
 
 data Fragment a = Fragment
@@ -891,6 +913,7 @@ data Fragment a = Fragment
   , fragmentImports :: [Import]
   , fragmentOperators :: [Operator]
   , fragmentTerm :: !a
+  , fragmentTypes :: !(HashMap Text TypeDef)
   } deriving (Eq, Show)
 
 termFragment :: a -> Fragment a
@@ -899,6 +922,7 @@ termFragment term = Fragment
   , fragmentImports = []
   , fragmentOperators = []
   , fragmentTerm = term
+  , fragmentTypes = H.empty
   }
 
 --------------------------------------------------------------------------------
@@ -980,6 +1004,7 @@ data TrTerm a
   = TrIntrinsic !Intrinsic !a
   | TrCall !Fixity !Text !a
   | TrCompose !StackHint !(Vector (TrTerm a)) !a
+  | TrConstruct !Text !Int !a
   | TrLambda !Text !(TrTerm a) !a
   | TrMakePair !(TrTerm a) !(TrTerm a) !a
   | TrPush !(TrValue a) !a
@@ -1006,6 +1031,7 @@ instance ToText (TrTerm a) where
     TrCall _ label _ -> label
     TrCompose _ terms _ -> T.concat
       ["(", T.intercalate " " (V.toList (V.map toText terms)), ")"]
+    TrConstruct name size _ -> T.concat ["new", name, showText size]
     TrIntrinsic intrinsic _ -> toText intrinsic
     TrLambda name term _ -> T.concat ["(\\", name, " ", toText term, ")"]
     TrMakePair a b _ -> T.concat ["(", toText a, ", ", toText b, ")"]
@@ -1061,11 +1087,12 @@ termMetadata :: TrTerm a -> a
 termMetadata = \case
   TrCall _ _ x -> x
   TrCompose _ _ x -> x
+  TrConstruct _ _ x -> x
   TrIntrinsic _ x -> x
   TrLambda _ _ x -> x
   TrMakePair _ _ x -> x
-  TrPush _ x -> x
   TrMakeVector _ x -> x
+  TrPush _ x -> x
 
 typedLocation :: TypedTerm -> Location
 typedLocation = fst . termMetadata

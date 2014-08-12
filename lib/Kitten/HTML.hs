@@ -105,6 +105,7 @@ flattenTerm theTerm = case theTerm of
   TrCompose _ terms (loc, type_) -> do
     tellNode loc $ ScalarType type_
     V.mapM_ flattenTerm terms
+  TrConstruct _ _ (loc, type_) -> tellNode loc $ ScalarType type_
   TrIntrinsic _intrinsic (loc, type_) -> tellNode loc $ ScalarType type_
   TrLambda _name term (loc, type_) -> do
     tellNode loc $ ScalarType type_

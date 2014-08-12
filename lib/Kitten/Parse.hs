@@ -69,6 +69,7 @@ element = choice
   , ImportElement <$> import_
   , OperatorElement <$> operatorDeclaration
   , TermElement <$> term
+  , TypeElement <$> typeDef
   ]
 
 def :: Parser (Def ParsedTerm)
@@ -87,6 +88,28 @@ def = (<?> "definition") . locate $ do
     , defLocation = loc
     , defName = name
     , defTerm = mono bodyTerm
+    }
+
+typeDef :: Parser TypeDef
+typeDef = (<?> "type definition") . locate $ do
+  void (match TkData)
+  name <- named <?> "type name"
+  constructors <- blocked (manyV typeConstructor)
+  return $ \loc -> TypeDef
+    { typeDefConstructors = constructors
+    , typeDefLocation = loc
+    , typeDefName = name
+    }
+
+typeConstructor :: Parser TypeConstructor
+typeConstructor = (<?> "type constructor") . locate $ do
+  void (match TkCase)
+  name <- named <?> "constructor name"
+  fields <- manyV baseType <* match TkSemicolon
+  return $ \loc -> TypeConstructor
+    { ctorFields = fields
+    , ctorLocation = loc
+    , ctorName = name
     }
 
 import_ :: Parser Import
@@ -261,6 +284,7 @@ rewriteInfix program@Program{..} parsed@Fragment{..} = do
       case Parsec.parse expression' [] terms' of
         Left message -> Left $ parseError message
         Right parseResult -> Right parseResult
+    x@TrConstruct{} -> return x
     x@TrIntrinsic{} -> return x
     TrLambda name body loc -> do
       body' <- rewriteInfixTerm body

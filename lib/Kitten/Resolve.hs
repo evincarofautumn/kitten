@@ -40,7 +40,8 @@ resolve fragment program = do
     (resolveDefs (fragmentDefs fragment))
     (resolveTerm (fragmentTerm fragment))
   where
-  allNamesAndLocs = namesAndLocs (fragmentDefs fragment)
+  allNamesAndLocs = map (fst &&& defLocation . snd) . H.toList
+    $ fragmentDefs fragment
   emptyEnv = Env
     { envDefined = mconcat
       [ S.fromList $ H.keys (programSymbols program)
@@ -48,9 +49,6 @@ resolve fragment program = do
       ]
     , envScope = []
     }
-
-namesAndLocs :: HashMap Text (Def a) -> [(Text, Location)]
-namesAndLocs = map (fst &&& defLocation . snd) . H.toList
 
 reportDuplicateDefs
   :: [(Text, Location)]
@@ -81,6 +79,7 @@ resolveTerm unresolved = case unresolved of
   TrCompose hint terms loc -> TrCompose hint
     <$> guardMapM resolveTerm terms
     <*> pure loc
+  TrConstruct name size loc -> return $ TrConstruct name size loc
   TrIntrinsic name loc -> return $ TrIntrinsic name loc
   TrLambda name term loc -> withLocal name $ TrLambda name
     <$> resolveTerm term

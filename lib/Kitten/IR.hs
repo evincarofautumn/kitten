@@ -66,6 +66,7 @@ irTerm term = case term of
     target' <- getDefM target
     return $ V.singleton (IrCall target')
   TrCompose _ terms _ -> concatMapM irTerm terms
+  TrConstruct _ size _ -> return $ V.singleton (IrConstruct size)
   TrIntrinsic intrinsic _ -> return $ V.singleton (IrIntrinsic intrinsic)
   TrLambda _ terms _ -> do
     instructions <- irTerm terms

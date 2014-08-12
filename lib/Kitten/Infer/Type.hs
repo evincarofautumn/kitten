@@ -10,11 +10,14 @@ module Kitten.Infer.Type
 import Control.Applicative
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
+import Data.HashMap.Strict (HashMap)
 import Data.Map (Map)
+import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
 import Data.Vector (Vector)
 
+import qualified Data.HashMap.Strict as H
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
@@ -36,16 +39,20 @@ data Env = Env
   , envScalars :: !(Map Text (KindedId Scalar))
   -- ^ Map from scalar variable names to scalar variables
   -- themselves.
+
+  , envTypeDefs :: !(HashMap Text TypeDef)
   }
 
 type Converted a = StateT Env K a
 
-fromAnno :: Annotated -> Anno -> K (Scheme (Type Scalar))
-fromAnno annotated (Anno annoType annoLoc) = do
+fromAnno
+  :: Annotated -> HashMap Text TypeDef -> Anno -> K (Scheme (Type Scalar))
+fromAnno annotated typeDefNames (Anno annoType annoLoc) = do
   (type_, env) <- flip runStateT Env
     { envAnonStacks = []
     , envStacks = M.empty
     , envScalars = M.empty
+    , envTypeDefs = typeDefNames
     } $ fromAnnoType' (HiType annotated) annoType
 
   return $ Forall
@@ -117,7 +124,7 @@ fromAnno annotated (Anno annoType annoLoc) = do
     <*> (V.foldl' (:.) rightStack <$> V.mapM fromOutput rightScalars)
     <*> pure origin
 
-fromAnno _ TestAnno = error "cannot make type from test annotation"
+fromAnno _ _ TestAnno = error "cannot make type from test annotation"
 
 -- | Gets a scalar variable by name from the environment.
 annoScalarVar
@@ -132,7 +139,11 @@ annoScalarVar name loc annotated = do
       "float" -> return $ TyCtor CtorFloat origin
       "handle" -> return $ TyCtor CtorHandle origin
       "int" -> return $ TyCtor CtorInt origin
-      _ -> unknown name loc
+      _ -> do
+        userDefined <- gets $ isJust . H.lookup name . envTypeDefs
+        if userDefined
+          then return $ TyCtor (CtorUser name) origin
+          else unknown name loc
   where origin = Origin (HiVar name annotated) loc
 
 -- | Gets a stack variable by name from the environment.

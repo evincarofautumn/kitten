@@ -32,6 +32,7 @@ scopeDef def@Def{..} = def { defTerm = scopeTerm [0] <$> defTerm }
 scopeTerm :: [Int] -> ResolvedTerm -> ResolvedTerm
 scopeTerm stack typed = case typed of
   TrCall{} -> typed
+  TrConstruct{} -> typed
   TrCompose hint terms loc -> TrCompose hint (recur <$> terms) loc
   TrIntrinsic{} -> typed
   TrLambda name term loc -> TrLambda name
@@ -93,6 +94,7 @@ captureTerm typed = case typed of
   TrCompose hint terms loc -> TrCompose hint
     <$> T.mapM captureTerm terms
     <*> pure loc
+  TrConstruct{} -> return typed
   TrIntrinsic{} -> return typed
   TrLambda name terms loc -> let
     inside env@Env{..} = env

@@ -1,0 +1,22 @@
+data Void {}
+
+data Unit: case Unit;
+
+data Option {
+  case None;
+  case Some int;
+}
+
+data Either {
+  case Left int;
+  case Right [char];
+}
+
+data These:
+  case This int;
+  case That char;
+  case These int char;
+
+Unit
+1 Some
+1 'x' These
