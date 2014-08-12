@@ -103,7 +103,18 @@ toC FlattenedProgram{..} = V.concat
     IrLocal index -> return
       $ "k_data_push(k_object_retain(k_locals_get(" <> showText index <> ")));"
     IrMakeVector size -> return $ "k_in_make_vector(" <> showText size <> ");"
-    IrMatch{} -> return "assert(!\"TODO match\");"
+    IrMatch cases -> do
+      next <- newLabel 0
+      return $ T.concat
+        [ "K_IN_CALL(*k_in_match("
+        , T.intercalate ", " $ showText (V.length cases) : concatMap
+          (\ (IrCase index label)
+            -> ["(k_cell_t)" <> showText index, "&&" <> global label])
+          (V.toList cases)
+        , "), "
+        , local next
+        , ");"
+        ]
     IrPush x -> return $ "k_data_push(" <> toCValue x <> ");"
     IrReturn -> return "K_IN_RETURN();"
     IrTailCall label -> return $ "K_IN_TAIL_CALL(" <> global label <> ");"

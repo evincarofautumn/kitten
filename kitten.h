@@ -89,6 +89,7 @@ typedef struct KBox {
 typedef struct KUser {
   k_cell_t refs;
   k_cell_t size;
+  k_cell_t tag;
   KObject fields[];
 } KUser;
 
@@ -146,7 +147,7 @@ void k_vector_set(KObject, k_cell_t, KObject);
 void k_in_add_vector(void);
 void k_in_char_to_int(void);
 void k_in_close(void);
-void k_in_construct(size_t);
+void k_in_construct(k_cell_t, size_t);
 void k_in_first(void);
 void k_in_from_box();
 void k_in_get(void);
@@ -156,6 +157,7 @@ void k_in_int_to_char(void);
 void k_in_left(void);
 void k_in_length(void);
 void k_in_make_vector(size_t);
+void* k_in_match(size_t, ...);
 void k_in_mod_float(void);
 void k_in_pair(void);
 void k_in_print(void);

@@ -399,11 +399,13 @@ void k_in_close() {
   fclose(handle.data.as_handle);
 }
 
-void k_in_construct(const size_t size) {
-  KUser* user = k_mem_alloc(1, 2 * sizeof(k_cell_t) + size);
+void k_in_construct(const k_cell_t tag, size_t size) {
+  KUser* user = k_mem_alloc(1, 3 * sizeof(k_cell_t) + size * sizeof(KObject));
   user->refs = 1;
-  for (user->size = 0; user->size < size; ++user->size)
-    user->fields[user->size] = *k_data++;
+  user->tag = tag;
+  user->size = size;
+  while (size)
+    user->fields[--size] = k_data_pop();
   k_data_push((KObject) {
     .data = (KData) { .as_user = user },
     .type = K_USER
@@ -494,6 +496,27 @@ void k_in_make_vector(const size_t size) {
     .data = (KData) { .as_vector = vector },
     .type = K_VECTOR
   });
+}
+
+void* k_in_match(const size_t size, ...) {
+  va_list args;
+  va_start(args, size);
+  const KObject scrutinee = k_data_pop();
+  assert(scrutinee.type == K_USER);
+  for (size_t i = 0; i < size; ++i) {
+    const k_cell_t tag = va_arg(args, k_cell_t);
+    void* const label = va_arg(args, void*);
+    if (tag == scrutinee.data.as_user->tag) {
+      va_end(args);
+      for (size_t j = 0; j < scrutinee.data.as_user->size; ++j)
+        k_data_push(k_object_retain(scrutinee.data.as_user->fields[j]));
+      return label;
+    }
+  }
+  va_end(args);
+  fprintf(stderr, "pattern match failure\n");
+  exit(1);
+  return NULL;
 }
 
 void k_in_mod_float() {
