@@ -138,6 +138,15 @@ void k_object_release(const KObject object) {
       }
       break;
     }
+  case K_USER:
+    {
+      KUser* const user = object.data.as_user;
+      if (--user->refs == 0) {
+        for (k_cell_t i = 0; i < user->size; ++i)
+          k_object_release(user->fields[i]);
+        k_mem_free(user);
+      }
+    }
   default:
     break;
   }
