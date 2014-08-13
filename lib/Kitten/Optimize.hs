@@ -62,10 +62,12 @@ optimizations =
   ]
 
 callElim :: a -> Optimization
-callElim p (IrCall x : IrReturn locals : xs)
-  = IrTailCall locals x : callElim p xs
-callElim p (x : xs) = x : callElim p xs
-callElim _ [] = []
+callElim _ = go
+  where
+  go (IrCall x : IrReturn n : xs) = IrTailCall n x : go xs
+  go (IrIntrinsic InApply : IrReturn n : xs) = IrTailApply n : go xs
+  go (x : xs) = x : go xs
+  go [] = []
 
 inline :: Program -> Optimization
 inline p (call@(IrCall x) : xs) = ($ inline p xs)

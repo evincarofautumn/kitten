@@ -55,6 +55,8 @@ data FrameEntry
   | FrLocal !InterpreterValue
 
 data CallType = WithoutClosure | WithClosure
+  deriving (Eq)
+
 type Interpret a = ReaderT Env IO a
 type Ip = (DefId, Int)
 type Offset = Maybe (Ip -> Ip)
@@ -139,11 +141,17 @@ interpretInstruction instruction = case instruction of
       FrCall type_ target : rest -> do
         envIp =: target
         envCalls =: rest
-        case type_ of
-          WithClosure -> envClosures ~: tail
-          _ -> noop
+        when (type_ == WithClosure) $ envClosures ~: tail
         proceed
       [] -> return Nothing
+  IrTailApply locals -> do
+    replicateM_ locals popLocal
+    quotation <- popData
+    case quotation of
+      Activation target closure _ -> do
+        envClosures ~: (closure :) . tail
+        return $ Just (const (target, 0))
+      _ -> error "Attempt to tail-apply non-function."
   IrTailCall locals label -> do
     replicateM_ locals popLocal
     return $ Just (const (label, 0))

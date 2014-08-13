@@ -5,7 +5,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 
-KObject** k_closure;
+KClosure** k_closure;
 KObject* k_data;
 KObject* k_locals;
 KCall* k_call;
@@ -17,7 +17,7 @@ static KObject* locals_bottom;
 static KCall* call_top;
 static KObject* data_top;
 static KObject* locals_top;
-static KObject** closure_top;
+static KClosure** closure_top;
 
 static KObject k_box_new(KObject, KType);
 
@@ -35,7 +35,7 @@ int k_object_unique(KObject);
 void k_runtime_init() {
 
   const size_t CLOSURE_SIZE = 1024;
-  k_closure = k_mem_alloc(CLOSURE_SIZE, sizeof(KObject*));
+  k_closure = k_mem_alloc(CLOSURE_SIZE, sizeof(KClosure*));
   closure_top = k_closure;
   k_closure += CLOSURE_SIZE;
 

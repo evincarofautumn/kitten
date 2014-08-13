@@ -105,8 +105,13 @@ typedef struct KCall {
   int closure;
 } KCall;
 
+typedef struct KClosure {
+  k_cell_t size;
+  KObject fields[];
+} KClosure;
+
 extern KCall* k_call;
-extern KObject** k_closure;
+extern KClosure** k_closure;
 extern KObject* k_data;
 extern KObject* k_locals;
 
@@ -171,9 +176,9 @@ void k_in_tail(void);
 ////////////////////////////////////////////////////////////////////////////////
 // Stack manipulation.
 
-static inline void k_closure_drop(const size_t size) {
-  for (size_t i = 0; i < size; ++i)
-    k_object_release(k_closure[0][i]);
+static inline void k_closure_drop() {
+  for (size_t i = 0; i < k_closure[0]->size; ++i)
+    k_object_release(k_closure[0]->fields[i]);
   k_mem_free(k_closure[0]);
   ++k_closure;
 }
@@ -188,14 +193,14 @@ static inline void k_locals_drop(size_t size) {
 }
 
 static inline KObject k_closure_get(const size_t i) {
-  return k_closure[0][i];
+  return k_closure[0]->fields[i];
 }
 
 static inline KObject k_locals_get(const size_t i) {
   return k_locals[i];
 }
 
-static inline void k_closure_push(KObject* const closure) {
+static inline void k_closure_push(KClosure* const closure) {
   *--k_closure = closure;
 }
 
@@ -262,7 +267,7 @@ static inline KObject k_unit_new() {
   do { \
     k_call_push(((KCall) { \
       .address = &&RETURN, \
-      .closure = -1, \
+      .closure = 0, \
     })); \
     goto CALL; \
   } while (0)
@@ -275,10 +280,10 @@ static inline KObject k_unit_new() {
 
 #define K_IN_RETURN(LOCALS) \
   do { \
-    const KCall call = k_call_pop(); \
+    KCall call = k_call_pop(); \
     k_locals_drop(LOCALS); \
-    if (call.closure != -1) \
-      k_closure_drop(call.closure); \
+    if (call.closure) \
+      k_closure_drop(); \
     goto *call.address; \
   } while (0)
 
@@ -288,13 +293,31 @@ static inline KObject k_unit_new() {
     assert(object.type == K_ACTIVATION); \
     const KActivation* const activation = object.data.as_activation; \
     const size_t size = activation->end - activation->begin; \
-    k_closure_push(k_mem_alloc(size, sizeof(KObject))); \
+    k_closure_push(k_mem_alloc(1, sizeof(k_cell_t) + size * sizeof(KObject))); \
+    k_closure[0]->size = size; \
     for (size_t i = 0; i < size; ++i) \
-      k_closure[0][i] = k_object_retain(activation->begin[i]); \
+      k_closure[0]->fields[i] = k_object_retain(activation->begin[i]); \
     k_call_push(((KCall) { \
       .address = &&RETURN, \
-      .closure = size \
+      .closure = 1 \
     })); \
+    void* const function = activation->function; \
+    k_object_release(object); \
+    goto *function; \
+  } while (0)
+
+#define K_IN_TAIL_APPLY(LOCALS) \
+  do { \
+    k_locals_drop(LOCALS); \
+    const KObject object = k_data_pop(); \
+    assert(object.type == K_ACTIVATION); \
+    const KActivation* const activation = object.data.as_activation; \
+    const size_t size = activation->end - activation->begin; \
+    k_closure_drop(); \
+    k_closure_push(k_mem_alloc(1, sizeof(k_cell_t) + size * sizeof(KObject))); \
+    k_closure[0]->size = size; \
+    for (size_t i = 0; i < size; ++i) \
+      k_closure[0]->fields[i] = k_object_retain(activation->begin[i]); \
     void* const function = activation->function; \
     k_object_release(object); \
     goto *function; \

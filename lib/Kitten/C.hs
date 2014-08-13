@@ -120,6 +120,8 @@ toC FlattenedProgram{..} = V.concat
         ]
     IrPush x -> return $ "k_data_push(" <> toCValue x <> ");"
     IrReturn locals -> return $ "K_IN_RETURN(" <> showText locals <> ");"
+    IrTailApply locals -> return
+      $ "K_IN_TAIL_APPLY(" <> showText locals <> ");"
     IrTailCall locals label -> return $ T.concat
       [ "K_IN_TAIL_CALL("
       , showText locals

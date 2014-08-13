@@ -227,6 +227,7 @@ data IrInstruction
   | IrMatch !(Vector IrCase) !(Maybe DefId)
   | IrPush !IrValue
   | IrReturn !Int
+  | IrTailApply !Int
   | IrTailCall !Int !DefId
   deriving (Eq)
 
@@ -274,6 +275,7 @@ instance ToText IrInstruction where
       ]
     IrPush value -> ["push", showText value]
     IrReturn locals -> ["ret", showText locals]
+    IrTailApply locals -> ["tailapply", showText locals]
     IrTailCall locals target -> ["tailcall", showText locals, showText target]
 
 instance Show IrValue where
