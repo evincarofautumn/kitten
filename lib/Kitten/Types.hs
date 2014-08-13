@@ -221,13 +221,13 @@ data IrInstruction
   | IrComment !Text
   | IrConstruct !Int !Int
   | IrEnter
-  | IrLeave
+  | IrLeave !Int
   | IrLocal !Int
   | IrMakeVector !Int
   | IrMatch !(Vector IrCase) !(Maybe DefId)
   | IrPush !IrValue
-  | IrReturn
-  | IrTailCall !DefId
+  | IrReturn !Int
+  | IrTailCall !Int !DefId
   deriving (Eq)
 
 data IrCase = IrCase !Int !DefId
@@ -264,7 +264,7 @@ instance ToText IrInstruction where
     IrComment comment -> ["\n;", comment]
     IrConstruct name size -> ["construct", showText name, showText size]
     IrEnter -> ["enter"]
-    IrLeave -> ["leave"]
+    IrLeave locals -> ["leave", showText locals]
     IrLocal index -> ["local", showText index]
     IrMakeVector size -> ["vector", showText size]
     IrMatch cases mDefault -> (:[]) . T.unwords $ concat
@@ -273,8 +273,8 @@ instance ToText IrInstruction where
       , ["end"]
       ]
     IrPush value -> ["push", showText value]
-    IrReturn -> ["ret"]
-    IrTailCall target -> ["tailcall", showText target]
+    IrReturn locals -> ["ret", showText locals]
+    IrTailCall locals target -> ["tailcall", showText locals, showText target]
 
 instance Show IrValue where
   show = T.unpack . toText

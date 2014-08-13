@@ -102,7 +102,6 @@ typedef struct KVector {
 
 typedef struct KCall {
   void* address;
-  KObject* locals;
   int closure;
 } KCall;
 
@@ -183,8 +182,9 @@ static inline void k_data_drop() {
   k_object_release(*k_data++);
 }
 
-static inline void k_locals_drop() {
-  k_object_release(*k_locals++);
+static inline void k_locals_drop(size_t size) {
+  while (size--)
+    k_object_release(*k_locals++);
 }
 
 static inline KObject k_closure_get(const size_t i) {
@@ -262,23 +262,21 @@ static inline KObject k_unit_new() {
   do { \
     k_call_push(((KCall) { \
       .address = &&RETURN, \
-      .locals = k_locals, \
       .closure = -1, \
     })); \
     goto CALL; \
   } while (0)
 
-#define K_IN_TAIL_CALL(CALL) \
+#define K_IN_TAIL_CALL(LOCALS, CALL) \
   do { \
+    k_locals_drop(LOCALS); \
     goto CALL; \
   } while (0)
 
-#define K_IN_RETURN() \
+#define K_IN_RETURN(LOCALS) \
   do { \
     const KCall call = k_call_pop(); \
-    if (call.locals) \
-      while (k_locals < call.locals) \
-        k_object_release(*k_locals++); \
+    k_locals_drop(LOCALS); \
     if (call.closure != -1) \
       k_closure_drop(call.closure); \
     goto *call.address; \
@@ -295,7 +293,6 @@ static inline KObject k_unit_new() {
       k_closure[0][i] = k_object_retain(activation->begin[i]); \
     k_call_push(((KCall) { \
       .address = &&RETURN, \
-      .locals = k_locals, \
       .closure = size \
     })); \
     void* const function = activation->function; \

@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Kitten.Optimize
@@ -41,7 +42,7 @@ unusedDefElim defs = Id.filterWithKey
   reference = \case
     IrAct x _ _ -> [x]
     IrCall x -> [x]
-    IrTailCall x -> [x]
+    IrTailCall _ x -> [x]
     IrMatch cases mDefault -> mDefault
       `consMaybe` V.toList (V.map (\ (IrCase _ x) -> x) cases)
     _ -> []
@@ -57,10 +58,12 @@ optimizations :: [Program -> Optimization]
 optimizations =
   [ callElim
   , inline
+  , leaveElim
   ]
 
 callElim :: a -> Optimization
-callElim p (IrCall x : IrReturn : xs) = IrTailCall x : callElim p xs
+callElim p (IrCall x : IrReturn locals : xs)
+  = IrTailCall locals x : callElim p xs
 callElim p (x : xs) = x : callElim p xs
 callElim _ [] = []
 
@@ -69,15 +72,23 @@ inline p (call@(IrCall x) : xs) = ($ inline p xs)
   $ case Id.lookup x (programBlocks p) of
     Just block
       | V.length block < inlineThreshold
-        && V.length block >= 1
-        && V.last block == IrReturn
-      -> (V.toList (V.init block) ++)
+      , V.length block >= 1
+      , IrReturn n <- V.last block
+      -> ((V.toList (V.init block) ++ [IrLeave n]) ++)
     _ -> (call :)
 inline p (x : xs) = x : inline p xs
 inline _ [] = []
 
 inlineThreshold :: Int
 inlineThreshold = 10
+
+leaveElim :: a -> Optimization
+leaveElim _ = go
+  where
+  go (IrLeave m : IrLeave n : xs) = IrLeave (m + n) : go xs
+  go (IrLeave m : IrReturn n : xs) = IrReturn (m + n) : go xs
+  go (x : xs) = x : go xs
+  go [] = []
 
 applyOpt
   :: Program

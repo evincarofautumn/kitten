@@ -99,7 +99,7 @@ toC FlattenedProgram{..} = V.concat
       ["k_in_construct(", showText index, ", ", showText size, ");"]
     IrEnter -> return "k_locals_push(k_data_pop());"
     IrIntrinsic intrinsic -> toCIntrinsic intrinsic
-    IrLeave -> return "k_locals_drop();"
+    IrLeave locals -> return $ "k_locals_drop(" <> showText locals <> ");"
     IrLocal index -> return
       $ "k_data_push(k_object_retain(k_locals_get(" <> showText index <> ")));"
     IrMakeVector size -> return $ "k_in_make_vector(" <> showText size <> ");"
@@ -119,8 +119,14 @@ toC FlattenedProgram{..} = V.concat
         , ");"
         ]
     IrPush x -> return $ "k_data_push(" <> toCValue x <> ");"
-    IrReturn -> return "K_IN_RETURN();"
-    IrTailCall label -> return $ "K_IN_TAIL_CALL(" <> global label <> ");"
+    IrReturn locals -> return $ "K_IN_RETURN(" <> showText locals <> ");"
+    IrTailCall locals label -> return $ T.concat
+      [ "K_IN_TAIL_CALL("
+      , showText locals
+      , ", "
+      , global label
+      , ");"
+      ]
 
 toCValue :: IrValue -> Text
 toCValue value = case value of

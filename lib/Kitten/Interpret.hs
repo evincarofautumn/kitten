@@ -114,7 +114,7 @@ interpretInstruction instruction = case instruction of
   IrEnter -> do
     pushLocal =<< popData
     proceed
-  IrLeave -> popLocal >> proceed
+  IrLeave locals -> replicateM_ locals popLocal >> proceed
   IrLocal index -> (pushData =<< getLocal index) >> proceed
   IrMakeVector size -> do
     pushData . Vector . V.reverse =<< V.replicateM size popData
@@ -131,7 +131,7 @@ interpretInstruction instruction = case instruction of
           hPutStrLn stderr "pattern match failure"
           exitWith (ExitFailure 1)
   IrPush value -> pushData (interpreterValue value) >> proceed
-  IrReturn -> fix $ \loop -> do
+  IrReturn _ -> fix $ \loop -> do
     calls <- asksIO envCalls
     case calls of
       -- Discard all locals pushed during this call frame.
@@ -144,7 +144,9 @@ interpretInstruction instruction = case instruction of
           _ -> noop
         proceed
       [] -> return Nothing
-  IrTailCall label -> return $ Just (const (label, 0))
+  IrTailCall locals label -> do
+    replicateM_ locals popLocal
+    return $ Just (const (label, 0))
 
 interpreterValue :: IrValue -> InterpreterValue
 interpreterValue value = case value of
