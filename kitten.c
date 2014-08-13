@@ -519,10 +519,12 @@ void* k_in_match(const size_t size, void* const defaultCase, ...) {
       va_end(args);
       for (size_t j = 0; j < scrutinee.data.as_user->size; ++j)
         k_data_push(k_object_retain(scrutinee.data.as_user->fields[j]));
+      k_object_release(scrutinee);
       return label;
     }
   }
   va_end(args);
+  k_object_release(scrutinee);
   if (defaultCase)
     return defaultCase;
   fprintf(stderr, "pattern match failure\n");
