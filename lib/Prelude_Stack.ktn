@@ -1,3 +1,8 @@
+// Applies a function underneath a value.
+def dip {.r, .s, a}(.r a (.r -> .s) -> .s a):
+  -> x f;
+  f apply x
+
 // Duplicates a value.
 def dup {a}(a -> a a):
   -> x;
