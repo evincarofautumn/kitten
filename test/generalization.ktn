@@ -1,8 +1,7 @@
-def myId (a -> a):
-  ->x
-  x
+def myId {a}(a -> a):
+  ->x; x
 
-def myIdAlias: myId
+def myIdAlias {.r, a}(.r a -> .r a): myId
 
 10 myId sayInt
 "x" myId say

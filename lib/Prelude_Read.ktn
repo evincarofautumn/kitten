@@ -1,11 +1,11 @@
 // Reads a decimal integer from a string.
-def readInt ([Char] -> Int?):
-  -> s
+def readInt ([char] -> int?):
+  -> s;
   none
-  \option s last:
-    -> c
-    \if (c {'0' geChar} {'9' leChar} bothTo &&):
-      drop
-      c '0' {charToInt} toBoth -
-      \option s init readInt: 10 * +
+  option (s last):
+    -> c;
+    if (c {'0' geChar} {'9' leChar} bothTo (&&)):
+      drop;
+      c '0' \charToInt toBoth (-);
+      option (s init readInt): 10 (*) (+)
       some

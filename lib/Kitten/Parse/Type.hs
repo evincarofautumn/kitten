@@ -1,82 +1,75 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Parse.Type
-  ( signature
+  ( baseType
+  , signature
   , typeDefType
   ) where
 
 import Control.Applicative
+import Data.Either
 import Data.Text (Text)
 import Data.Vector (Vector)
 
 import qualified Data.Vector as V
 
-import Kitten.Anno (Anno(..), Type)
 import Kitten.Parse.Monad
 import Kitten.Parsec
 import Kitten.Parse.Primitive
+import Kitten.Types
 import Kitten.Util.Parsec
-
-import qualified Kitten.Anno as Anno
-import qualified Kitten.Token as Token
 
 signature :: Parser Anno
 signature = (<?> "type signature") . locate
-  $ Anno <$> choice
-  [ try . grouped $ Anno.Function V.empty
-    <$> (V.singleton <$> baseType)
-  , grouped functionType
-  ]
+  $ Anno <$> (quantified sig <|> sig)
+  where sig = grouped functionType
 
 typeDefType :: Parser Anno
 typeDefType = locate $ Anno <$> baseType
 
-type_ :: Parser Type
+type_ :: Parser AnType
 type_ = (<?> "type") $ try functionType <|> baseType
 
-functionType :: Parser Type
+quantified :: Parser AnType -> Parser AnType
+quantified thing = do
+  (stacks, scalars) <- partitionEithers <$> between
+    (match $ TkBlockBegin NormalBlockHint)
+    (match TkBlockEnd)
+    (variable `sepEndBy1` match TkComma)
+  AnQuantified (V.fromList stacks) (V.fromList scalars) <$> thing
+  where
+  variable :: Parser (Either Text Text)
+  variable = Left <$> (dot *> word) <|> Right <$> word
+
+dot :: Parser Token
+dot = match (TkOperator ".")
+
+functionType :: Parser AnType
 functionType = (<?> "function type") $ choice
-  [ Anno.Function <$> left <*> right
-  , Anno.RowFunction <$> row <*> left <*> row <*> right
+  [ AnStackFunction <$> (dot *> word) <*> left <*> (dot *> word) <*> right
+  , AnFunction <$> left <*> right
   ]
   where
-
-  left, right :: Parser (Vector Type)
-  left = manyV baseType <* match Token.Arrow
+  left, right :: Parser (Vector AnType)
+  left = manyV baseType <* match TkArrow
   right = manyV type_
 
-  row :: Parser Text
-  row = match (Token.Operator ".") *> littleWord
-
-baseType :: Parser Type
+baseType :: Parser AnType
 baseType = (<?> "base type") $ do
   prefix <- choice
-    [ Anno.Bool <$ match (Token.BigWord "Bool")
-    , Anno.Char <$ match (Token.BigWord "Char")
-    , Anno.Float <$ match (Token.BigWord "Float")
-    , Anno.Handle <$ match (Token.BigWord "Handle")
-    , Anno.Int <$ match (Token.BigWord "Int")
-    , Anno.Var <$> littleWord
-    , Anno.Named <$> bigWord
+    [ AnVar <$> word
     , vector
-    , try unit
     , try $ grouped type_
     ]
   (<?> "") $ choice
-    [ Anno.Choice prefix
-      <$> (match (Token.Operator "|") *> baseType)
-    , Anno.Option prefix <$ match (Token.Operator "?")
-    , Anno.Pair prefix
-      <$> (match (Token.Operator "&") *> baseType)
+    [ AnChoice prefix
+      <$> (match (TkOperator "|") *> baseType)
+    , AnOption prefix <$ match (TkOperator "?")
+    , AnPair prefix
+      <$> (match (TkOperator "&") *> baseType)
     , pure prefix
     ]
 
-vector :: Parser Type
-vector = Anno.Vector <$> between
-  (match Token.VectorBegin)
-  (match Token.VectorEnd)
-  baseType
-
-unit :: Parser Type
-unit = Anno.Unit
-  <$ (match Token.GroupBegin >> match Token.GroupEnd)
+vector :: Parser AnType
+vector = AnVector <$> between
+  (match TkVectorBegin) (match TkVectorEnd) baseType

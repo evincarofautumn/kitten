@@ -5,45 +5,68 @@ module Kitten.Parse.Element
   , partitionElements
   ) where
 
+import Control.Arrow
+import Data.Text (Text)
+
+import qualified Data.HashMap.Strict as H
 import qualified Data.Vector as V
 
-import Kitten.Def
-import Kitten.Fragment
-import Kitten.Import
-import Kitten.Term
-import Kitten.TypeDef
+import Kitten.Location
+import Kitten.Types
 
 data Element
-  = DefElement (Def Term)
+  = DefElement (Def ParsedTerm)
   | ImportElement Import
-  | TermElement Term
+  | OperatorElement Operator
+  | TermElement ParsedTerm
   | TypeElement TypeDef
 
 data Partitioned = Partitioned
-  { partDefs :: [Def Term]
+  { partDefs :: [Def ParsedTerm]
   , partImports :: [Import]
-  , partTerms :: [Term]
-  , partTypeDefs :: [TypeDef]
+  , partOperators :: [Operator]
+  , partTerms :: [ParsedTerm]
+  , partTypes :: [TypeDef]
   }
 
-partitionElements :: [Element] -> Fragment Term
-partitionElements
-  = fromPartitioned . foldr go (Partitioned [] [] [] [])
+partitionElements :: Location -> [Element] -> Fragment ParsedTerm
+partitionElements loc
+  = fromPartitioned loc . foldr go (Partitioned [] [] [] [] [])
   where
   go element acc = case element of
     DefElement def -> acc
       { partDefs = def : partDefs acc }
     ImportElement import_ -> acc
       { partImports = import_ : partImports acc }
+    OperatorElement operator -> acc
+      { partOperators = operator : partOperators acc }
     TermElement term -> acc
       { partTerms = term : partTerms acc }
-    TypeElement type_ -> acc
-      { partTypeDefs = type_ : partTypeDefs acc }
+    TypeElement typeDef -> acc
+      { partTypes = typeDef : partTypes acc }
 
-fromPartitioned :: Partitioned -> Fragment Term
-fromPartitioned Partitioned{..} = Fragment
-  { fragmentDefs = V.fromList partDefs
-  , fragmentImports = V.fromList partImports
-  , fragmentTerms = V.fromList partTerms
-  , fragmentTypeDefs = V.fromList partTypeDefs
+fromPartitioned :: Location -> Partitioned -> Fragment ParsedTerm
+fromPartitioned loc Partitioned{..} = Fragment
+  { fragmentDefs = H.fromList
+    $ map (defName &&& id) partDefs
+    ++ concatMap
+      (\typeDef
+        -> map (ctorName &&& defineConstructor (typeDefName typeDef))
+          . V.toList $ typeDefConstructors typeDef)
+      partTypes
+  , fragmentImports = partImports
+  , fragmentOperators = partOperators
+  , fragmentTerm = TrCompose StackAny (V.fromList partTerms) loc
+  , fragmentTypes = H.fromList $ map (typeDefName &&& id) partTypes
+  }
+
+defineConstructor :: Text -> TypeConstructor -> Def ParsedTerm
+defineConstructor name TypeConstructor{..} = Def
+  { defAnno = Anno
+    (AnFunction ctorFields (V.singleton (AnVar name))) ctorLocation
+  , defFixity = Postfix
+  , defLocation = ctorLocation
+  , defName = ctorName
+  , defTerm = mono
+    $ TrConstruct name ctorName (V.length ctorFields) ctorLocation
   }

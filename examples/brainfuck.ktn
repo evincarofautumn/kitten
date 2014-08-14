@@ -7,235 +7,152 @@
  *
  */
 
-type Instruction Char
-type Program [Instruction]
-type Memory [Int]
-
 ////////////////////////////////////////////////////////////
 // Configuration
 
-def debug: false
+def debug (-> bool): false
 
 // Some programs want 0; some want -1.
-def eofCell(-> Int): -1
+def eofCell (-> int): -1
 
 ////////////////////////////////////////////////////////////
 // Utilities
 
-def lookUp([a & b] a (a a -> Bool) -> b?):
-  ->{key eq}
-  {first key eq@} find
-  {rest} liftOption
-
-// TODO(strager): Find a better name.  'option' is taken.
-def maybe(a? (a -> b) b -> b):
-  ->{mx f z}
-  \option mx: f@
-  else: z
-
-// FIXME(strager): I don't want to write type annotations.
-// TODO(strager): Wouldn't it be awesome if we had lenses?
-def get([a] Int -> a): #!
-def set([a] a Int -> [a]): #=
-def update([a] (a -> a) Int -> [a]): #@
-
 // FIXME(strager): Bad approximation.
-def getCharApprox(-> Char?):
-  getLine ->line
-  line head
-
-def error([Char] ->):
-  ->message
-  ["Error: ", message, "\n"] concat stderr handlePrint
-  1 exit
-
-// TODO(strager): Make this a compiler intrinsic.
-def unfoldN(a Int (a -> b a) -> [b]):
-  ->{z size f}
-  \if size 0 >:
-    z f@ ->{b a}
-    (a size-- f unfoldN)
-    b prepend
-  else:
-    []
-
-def generateN((Int -> a) Int -> [a]):
-  ->{f size}
-  \unfoldN 0 size: ->index
-    index f@
-    index++
-
-// TODO(strager): Make this more efficient.
-def loopN(Int (Int ->) ->):
-  ->{size f}
-  {f@ ()} size generateN drop
-
-////////////////////////////////////////////////////////////
-// Type routines
-
-def eqInstruction(Instruction Instruction -> Bool):
-  from Instruction swap
-  from Instruction eqChar
-
-def createMemory(Int -> Memory):
-  0 swap replicate to Memory
-
-def updateMemory(Memory (Int -> Int) Int -> Memory):
-  ->{memory f index}
-  (memory from Memory) f index update to Memory
-
-def getMemory(Memory Int -> Int):
-  ->{memory index}
-  memory from Memory index get
-
-def setMemory(Memory Int Int -> Memory):
-  ->{memory value index}
-  memory {drop value} index updateMemory
+def getCharApprox (-> char?):
+  getLine head
 
 ////////////////////////////////////////////////////////////
 // Interpreter
 
-def parseProgram([Char] -> Program):
-  {to Instruction} map
-  to Program
-
-def runProgram(Program ->):
-  ->program
-  1024 createMemory ->ram
-
+def runProgram ([char] ->):
+  -> program;
+  0 1024 replicate -> ram;
   program 0 ram 0
   loopProgram
 
-def loopProgram(Program Int Memory Int ->):
-  stepProgram
-  ->running
-  \if running:
+def loopProgram([char] int [int] int ->):
+  stepProgram -> running;
+  if (running):
     loopProgram
   else:
     drop drop drop drop
 
-def stepProgram(Program Int Memory Int -> Program Int Memory Int Bool):
-  ->{program pc ram ramc}
+def stepProgram ([char] int [int] int -> [char] int [int] int bool):
+  -> program pc ram ramc;
 
-  \if debug:
+  if (debug):
     ram ramc dumpMemory
     program pc dumpProgram
 
-  program from Program ->instructions
-
-  [ \pair '<' to Instruction:
-      program pc++ ram ramc--
-
-  , \pair '>' to Instruction:
-      program pc++ ram ramc++
-
-  , \pair '+' to Instruction:
-      program pc++
-      (ram {++} ramc updateMemory) ramc
-
-  , \pair '-' to Instruction:
-      program pc++
-      (ram {--} ramc updateMemory) ramc
-
-  , \pair '[' to Instruction:
-      \if ram ramc getMemory 0 =:
-        \option program pc findMatchingRBracket:
-          ->rbracket
-          program rbracket++ ram ramc
+  [ '<' {
+      program (pc + 1) ram (ramc - 1)
+    } pair
+  , '>' {
+      program (pc + 1) ram (ramc + 1)
+    } pair
+  , '+' {
+      program (pc + 1) ram(ramc @~: (+ 1)) ramc
+    } pair
+  , '-' {
+      program (pc + 1) ram(ramc @~: (- 1)) ramc
+    } pair
+  , '[' {
+      if (ram @! ramc = 0):
+        option (program pc findMatchingRBracket):
+          -> rbracket;
+          program (rbracket + 1) ram ramc
         else:
           ["No matching ] at position ", pc showInt] concat error
-          // FIXME(strager): Compiler can't infer non-termination.
-          program pc ram ramc
       else:
-        program pc++ ram ramc
-
-  , \pair ']' to Instruction:
-      \option program pc findMatchingLBracket:
-        ->lbracket
+        program (pc + 1) ram ramc
+    } pair
+  , ']' {
+      option (program pc findMatchingLBracket):
+        -> lbracket;
         program lbracket ram ramc
       else:
         ["No matching [ at position ", pc showInt] concat error
-        // FIXME(strager): Compiler can't infer non-termination.
-        program pc ram ramc
-
-  , \pair '.' to Instruction:
-      ram ramc getMemory ->cell
-      \option cell intToChar:
+    } pair
+  , '.' {
+      ram @! ramc -> cell;
+      option (cell intToChar):
         vector print
       else:
         ["Tried to print ", cell showInt, ", which is out of range"] concat error
-      program pc++ ram ramc
+      program (pc + 1) ram ramc
+    } pair
+  , ',' {
+      getCharApprox \charToInt eofCell maybe -> cell;
+      program (pc + 1) ram(ramc @= cell) ramc
+    } pair
+  ] -> instructionTable;
 
-  , \pair ',' to Instruction:
-      program pc++
-      getCharApprox {charToInt} eofCell maybe ->cell
-      (ram cell ramc setMemory) ramc
-
-  ] ->instructionTable
-
-  \option instructions pc#:
-    ->instruction
-    \option (instructionTable instruction {eqInstruction} lookUp):
+  option (program @ pc):
+    -> instruction;
+    option (instructionTable instruction \eqChar lookUp):
       apply
     else:
-      program pc++ ram ramc
+      program (pc + 1) ram ramc
     true // Keep running.
   else:
     program pc ram ramc
     false // Halt.
 
-def findLBracket(Program Int Int -> Int?):
-  ->{program pc depth}
-  \option program from Program pc#:
-    [ \pair '[' to Instruction:
-        \if depth 0 =:
+def findLBracket ([char] int int -> int?):
+  -> program pc depth;
+  option (program @ pc):
+    [ '[' {
+        if (depth = 0):
           pc some
         else:
-          program pc-- depth-- findLBracket
-    , \pair ']' to Instruction:
-        program pc-- depth++ findLBracket
-    ] swap {eqInstruction} lookUp
-    \option:
+          program (pc - 1) (depth - 1) findLBracket
+      } pair
+    , ']' {
+        program (pc - 1) (depth + 1) findLBracket
+      } pair
+    ] swap \eqChar lookUp
+    option:
       apply
     else:
-      program pc-- depth findLBracket
+      program (pc - 1) depth findLBracket
   else:
     none
 
-def findMatchingLBracket(Program Int -> Int?):
-  --
-  0 findLBracket
+def findMatchingLBracket([char] int -> int?):
+  (- 1) 0 findLBracket
 
 // TODO(strager): Remove duplication with findLBracket.
-def findRBracket(Program Int Int -> Int?):
-  ->{program pc depth}
-  \option program from Program pc#:
-    [ \pair '[' to Instruction:
-        program pc++ depth++ findRBracket
-    , \pair ']' to Instruction:
-        \if depth 0 =:
+def findRBracket ([char] int int -> int?):
+  -> program pc depth;
+  option (program @ pc):
+    [ '[' {
+        program (pc + 1) (depth + 1) findRBracket
+      } pair
+    , ']' {
+        if (depth = 0):
           pc some
         else:
-          program pc++ depth-- findRBracket
-    ] swap {eqInstruction} lookUp
-    \option:
+          program (pc + 1) (depth - 1) findRBracket
+      } pair
+    ] swap \eqChar lookUp
+    option:
       apply
     else:
-      program pc++ depth findRBracket
+      program (pc + 1) depth findRBracket
   else:
     none
 
-def findMatchingRBracket(Program Int -> Int?):
-  ++
-  0 findRBracket
+def findMatchingRBracket ([char] int -> int?):
+  (+ 1) 0 findRBracket
 
 ////////////////////////////////////////////////////////////
 // Programs
 
-def progHelloWorld:
+def progHelloWorld (-> [char]):
   "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>."
 
-def progRot13:
+def progRot13 (-> [char]):
   [ "-,+[                         Read first character and start outer character reading loop"
   , "    -[                       Skip forward if character is 0"
   , "        >>++++[>++++++++<-]  Set up divisor (32) for division loop"
@@ -266,31 +183,32 @@ def progRot13:
   , "]                            End character reading loop"
   ] concat
 
-def progCat:
+def progCat (-> [char]):
   ",+[-.,+]"
 
-def progSort:
+def progSort (-> [char]):
   ">,+[>,+]<[[[->>+>>-[<]<<<]>[<]<[->>>>+<<<<]>>[>+>+<<-]<<<]>>>>-.[-]>[>]<]"
 
 ////////////////////////////////////////////////////////////
 // Debugging
 
-def dumpMemory(Memory Int ->):
-  ->{ram ramc}
+def dumpMemory ([int] int ->):
+  -> ram ramc;
 
   "Memory:" say
-  \loopN 32: ->index
-    ram index getMemory ->cell
+  upto 32:
+    -> index;
+    ram @! index -> cell;
     ["[", index showInt, "] ", cell showInt] concat print
-    \if index ramc =: " <" print
+    if (index = ramc): " <" print
     newline
 
-def dumpProgram(Program Int ->):
-  ->{_ pc}
+def dumpProgram ([char] int ->):
+  -> _ pc;
   ["Program counter: ", pc showInt] concat say
 
 ////////////////////////////////////////////////////////////
 // Main
 
-progSort
-parseProgram runProgram
+progHelloWorld
+runProgram

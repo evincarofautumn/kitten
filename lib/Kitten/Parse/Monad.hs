@@ -3,6 +3,7 @@
 module Kitten.Parse.Monad
   ( Parser
   , advance
+  , getLocation
   , locate
   , locatedMatch
   , locatedSatisfy
@@ -15,7 +16,7 @@ import Data.Functor.Identity
 
 import Kitten.Location
 import Kitten.Parsec
-import Kitten.Token (Located(..), Token)
+import Kitten.Types
 import Kitten.Util.Maybe
 
 type Parser a = ParsecT [Located] () Identity a
@@ -24,13 +25,23 @@ advance :: SourcePos -> t -> [Located] -> SourcePos
 advance _ _ (Located _ Location{..} : _) = locationStart
 advance sourcePos _ _ = sourcePos
 
-locate :: Parser (Location -> a) -> Parser a
+locate
+  :: (Monad m, Stream s m c)
+  => ParsecT s u m (Location -> a)
+  -> ParsecT s u m a
 locate parser = do
-  start <- getPosition
+  loc <- getLocation
   result <- parser
-  return $ result Location
+  return $ result loc
+
+getLocation
+  :: (Monad m, Stream s m c)
+  => ParsecT s u m Location
+getLocation = do
+  start <- getPosition
+  return Location
     { locationStart = start
-    , locationIndent = -1  -- FIXME
+    , locationIndent = -1  -- FIXME?
     }
 
 locatedMatch :: Token -> Parser Located

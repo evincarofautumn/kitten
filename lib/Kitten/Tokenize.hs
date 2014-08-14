@@ -1,7 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Kitten.Tokenize
   ( tokenize
@@ -20,13 +19,11 @@ import Text.Parsec.Text ()
 import qualified Data.Text as T
 import qualified Text.Parsec as Parsec
 
-import Kitten.Parsec
 import Kitten.Location
-import Kitten.Token
+import Kitten.Parsec
+import Kitten.Types
 import Kitten.Util.Applicative
 import Kitten.Util.Parsec
-
-import qualified Kitten.Builtin as Builtin
 
 type Parser a = ParsecT Text Column Identity a
 
@@ -54,18 +51,24 @@ tokens = token `sepEndBy` silence
 
 token :: Parser Located
 token = (<?> "token") . located $ choice
-  [ BlockBegin NormalBlockHint <$ char '{'
-  , BlockEnd <$ char '}'
-  , Char <$> (char '\'' *> character '\'' <* char '\'')
-  , Comma <$ char ','
-  , GroupBegin <$ char '('
-  , GroupEnd <$ char ')'
-  , Layout <$ char ':'
-  , VectorBegin <$ char '['
-  , VectorEnd <$ char ']'
-  , Text <$> between (char '"') (char '"') text
+  [ TkBlockBegin NormalBlockHint <$ char '{'
+  , TkBlockEnd <$ char '}'
+  , do
+    mc <- char '\'' *> character '\'' <* char '\''
+    case mc of
+      Just c -> return $ TkChar c
+      Nothing -> unexpected "empty character literal"
+  , TkComma <$ char ','
+  , TkGroupBegin <$ char '('
+  , TkGroupEnd <$ char ')'
+  , TkLayout <$ char ':'
+  , TkVectorBegin <$ char '['
+  , TkVectorEnd <$ char ']'
+  , TkReference <$ char '\\'
+  , TkSemicolon <$ char ';'
+  , TkText <$> between (char '"') (char '"') text
   , try number
-  , try $ Arrow <$ (string "->" <|> string "\x2192")
+  , try $ TkArrow <$ (string "->" <|> string "\x2192")
     <* notFollowedBy symbolCharacter
   , word
   ]
@@ -79,7 +82,7 @@ token = (<?> "token") . located $ choice
       applySign = if sign == Just '-' then negate else id
 
     choice
-      [ try . fmap (\(hint, value) -> Int (applySign value) hint)
+      [ try . fmap (\(hint, value) -> TkInt (applySign value) hint)
         $ char '0' *> choice
         [ base 'b' "01" readBin BinaryHint "binary"
         , base 'o' ['0'..'7'] readOct' OctalHint "octal"
@@ -90,51 +93,55 @@ token = (<?> "token") . located $ choice
         integer <- many1 digit
         mFraction <- optionMaybe $ (:) <$> char '.' <*> many1 digit
         return $ case mFraction of
-          Just fraction -> Float . applySign . read $ integer ++ fraction
-          Nothing -> Int (applySign $ read integer) DecimalHint
+          Just fraction -> TkFloat . applySign . read $ integer ++ fraction
+          Nothing -> TkInt (applySign $ read integer) DecimalHint
       ]
 
   base prefix digits readBase hint desc = fmap ((,) hint . readBase)
     $ char prefix *> many1 (oneOf digits <?> (desc ++ " digit"))
 
   text :: Parser Text
-  text = T.pack <$> many (character '"')
+  text = T.pack . catMaybes <$> many (character '"')
 
-  character :: Char -> Parser Char
+  character :: Char -> Parser (Maybe Char)
   character quote
-    = (noneOf ('\\' : [quote]) <?> "character") <|> escape
+    = (Just <$> noneOf ('\\' : [quote]) <?> "character") <|> escape
 
-  escape :: Parser Char
+  escape :: Parser (Maybe Char)
   escape = (<?> "escape") $ char '\\' *> choice
-    [ oneOf "\\\"'"
-    , '\a' <$ char 'a'
-    , '\b' <$ char 'b'
-    , '\f' <$ char 'f'
-    , '\n' <$ char 'n'
-    , '\r' <$ char 'r'
-    , '\t' <$ char 't'
-    , '\v' <$ char 'v'
+    [ Just <$> oneOf "\\\"'"
+    , Just '\a' <$ char 'a'
+    , Just '\b' <$ char 'b'
+    , Just '\f' <$ char 'f'
+    , Just '\n' <$ char 'n'
+    , Just '\r' <$ char 'r'
+    , Just '\t' <$ char 't'
+    , Just '\v' <$ char 'v'
+    , Just . head <$> many1 space
+    , Nothing <$ char '&'
     ]
 
   word :: Parser Token
   word = choice
     [ ffor alphanumeric $ \name -> case name of
-      "def" -> Def
-      "else" -> Else
-      "false" -> Bool False
-      "from" -> From
-      "import" -> Import
-      "to" -> To
-      "true" -> Bool True
-      "type" -> Type
-      (T.unpack -> first : _) | isUpper first -> BigWord name
-      _ -> case Builtin.fromText name of
-        Just builtin -> Builtin builtin
-        _ -> LittleWord name
+      "_" -> TkIgnore
+      "case" -> TkCase
+      "data" -> TkData
+      "def" -> TkDef
+      "default" -> TkDefault
+      "false" -> TkBool False
+      "infix" -> TkInfix
+      "infix_left" -> TkInfixLeft
+      "infix_right" -> TkInfixRight
+      "import" -> TkImport
+      "match" -> TkMatch
+      "true" -> TkBool True
+      _ -> case intrinsicFromText name of
+        Just intrinsic -> TkIntrinsic intrinsic
+        _ -> TkWord name
     , ffor symbolic $ \name -> case name of
-      "\\" -> Do
-      _ | Just builtin <- Builtin.fromText name -> Builtin builtin
-        | otherwise -> Operator name
+      _ | Just intrinsic <- intrinsicFromText name -> TkIntrinsic intrinsic
+        | otherwise -> TkOperator name
     ]
     where
 
@@ -157,7 +164,7 @@ token = (<?> "token") . located $ choice
     *> (Parsec.satisfy isSymbol <|> Parsec.satisfy isPunctuation)
 
   special :: Parser Char
-  special = oneOf "\"'(),:[]_{}"
+  special = oneOf "\"'(),:;[\\]_{}"
 
 readBin :: String -> Int
 readBin = go 0

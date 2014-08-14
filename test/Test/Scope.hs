@@ -3,78 +3,64 @@
 module Test.Scope where
 
 import Control.Monad
-import Data.Monoid
 import Test.Hspec
 
 import qualified Data.Vector as V
 
-import Kitten.ClosedName
-import Kitten.Fragment
 import Kitten.Location
-import Kitten.Name
-import Kitten.Resolved
 import Kitten.Scope
+import Kitten.Types
 import Test.Util
-
-import qualified Kitten.Builtin as Builtin
 
 spec :: Spec
 spec = do
   describe "no change" $ testScope
-    mempty { fragmentTerms = V.fromList [function [scoped [push $ local 0]]] }
-    mempty { fragmentTerms = V.fromList [closure [] [scoped [push $ local 0]]] }
+    (termFragment $ function [scoped [push $ local 0]])
+    (termFragment $ closure [] [scoped [push $ local 0]])
 
   describe "non-nested closure" $ testScope
-    mempty { fragmentTerms = V.fromList [scoped [function [push $ local 0]]] }
-    mempty { fragmentTerms = V.fromList [scoped [closure [closedName 0] [push $ closed 0]]] }
+    (termFragment $ scoped [function [push $ local 0]])
+    (termFragment $ scoped [closure [ClosedName 0] [push $ closed 0]])
 
   describe "nested closure" $ testScope
-    mempty { fragmentTerms = V.fromList [scoped [function [scoped [function [push $ local 1, push $ local 0, biAdd]]]]] }
-    mempty { fragmentTerms = V.fromList
-      [scoped
-        [ closure [closedName 0]
-          [ scoped
-            [ closure [reclosedName 0, closedName 0]
-              [ push $ closed 0
-              , push $ closed 1
-              , biAdd]]]]] }
+    (termFragment $ scoped
+      [function [scoped [function [push $ local 1, push $ local 0, biAdd]]]])
+    (termFragment $ scoped
+      [ closure [ClosedName 0]
+        [ scoped
+          [ closure [ReclosedName 0, ClosedName 0]
+            [ push $ closed 0
+            , push $ closed 1
+            , biAdd ] ] ] ])
 
 testScope
-  :: Fragment Resolved -> Fragment Resolved -> Spec
+  :: Fragment ResolvedTerm -> Fragment ResolvedTerm -> Spec
 testScope source expected
   = let actual = scope source
   in it (show source) . unless (actual == expected)
     $ expectedButGot (show expected) (show actual)
 
-biAdd :: Resolved
-biAdd = Builtin Builtin.AddInt TestLocation
+biAdd :: ResolvedTerm
+biAdd = TrIntrinsic InAddInt TestLocation
 
-closed :: Int -> Value
-closed index = Closed (Name index)
+closed :: Int -> ResolvedValue
+closed index = TrClosed index TestLocation
 
-closedName :: Int -> ClosedName
-closedName = ClosedName . Name
+closure :: [ClosedName] -> [ResolvedTerm] -> ResolvedTerm
+closure names terms = push $ TrClosure
+  (V.fromList names) (compose terms) TestLocation
 
-closure :: [ClosedName] -> [Resolved] -> Resolved
-closure names terms = push $ Closure (V.fromList names) (compose terms)
+compose :: [ResolvedTerm] -> ResolvedTerm
+compose terms = TrCompose StackAny (V.fromList terms) TestLocation
 
-compose :: [Resolved] -> Resolved
-compose terms = Compose (V.fromList terms) TestLocation
+function :: [ResolvedTerm] -> ResolvedTerm
+function terms = push $ TrQuotation (compose terms) TestLocation
 
-function :: [Resolved] -> Resolved
-function terms = push $ Function (compose terms)
+local :: Int -> ResolvedValue
+local index = TrLocal index TestLocation
 
-local :: Int -> Value
-local index = Local (Name index)
+push :: ResolvedValue -> ResolvedTerm
+push value = TrPush value TestLocation
 
-push :: Value -> Resolved
-push value = Push value TestLocation
-
-reclosedName :: Int -> ClosedName
-reclosedName = ReclosedName . Name
-
-scoped :: [Resolved] -> Resolved
-scoped terms = Scoped "testvar" (compose terms) TestLocation
-
-word :: Int -> Resolved
-word index = Call (Name index) TestLocation
+scoped :: [ResolvedTerm] -> ResolvedTerm
+scoped terms = TrLambda "testvar" (compose terms) TestLocation

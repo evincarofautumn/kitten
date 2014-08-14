@@ -1,22 +1,19 @@
+// Applies a function underneath a value.
+def dip {.r, .s, a}(.r a (.r -> .s) -> .s a):
+  -> x f;
+  f apply x
+
 // Duplicates a value.
-def dup (a -> a a):
-  -> x
+def dup {a}(a -> a a):
+  -> x;
   x x
 
-// Operator alias for 'dup'.
-def <> (a -> a a):
-  dup
-
 // Drops a value.
-def drop (a ->):
-  -> x
+def drop {a}(a ->):
+  -> _;
 
 // Swaps two values. Useful for changing argument order when
 // partially applying a function.
-def swap (a b -> b a):
-  -> { a b }
+def swap {a, b}(a b -> b a):
+  -> a b;
   b a
-
-// Operator alias for 'swap'.
-def >< (a b -> b a):
-  swap

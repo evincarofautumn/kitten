@@ -25,9 +25,11 @@ library
     directory == 1.2.*,
     either == 3.4.*,
     filepath == 1.3.*,
+    hashable == 1.2.*,
     parsec == 3.1.*,
     text == 0.11.*,
     transformers == 0.3.*,
+    unordered-containers == 0.2.*,
     vector == 0.10.*
 
   ghc-options:
@@ -46,30 +48,22 @@ library
     lib
 
   exposed-modules:
-    Kitten.AST,
-    Kitten.Anno,
-    Kitten.Builtin,
-    Kitten.ClosedName,
+    Kitten.C,
     Kitten.Compile,
-    Kitten.Compile.Config,
-    Kitten.Def,
     Kitten.Error,
-    Kitten.Fragment,
     Kitten.HTML,
-    Kitten.Import,
+    Kitten.Id,
+    Kitten.IdMap,
     Kitten.Infer,
-    Kitten.Infer.Config,
     Kitten.Infer.Locations,
     Kitten.Infer.Monad,
     Kitten.Infer.Scheme,
     Kitten.Infer.Type,
     Kitten.Infer.Unify,
     Kitten.Interpret,
-    Kitten.Interpret.Monad,
-    Kitten.Kind,
+    Kitten.IR,
     Kitten.Location,
-    Kitten.Name,
-    Kitten.NameMap,
+    Kitten.Optimize,
     Kitten.Parse,
     Kitten.Parse.Element,
     Kitten.Parse.Layout,
@@ -79,15 +73,10 @@ library
     Kitten.Parsec,
     Kitten.Resolve,
     Kitten.Resolve.Monad,
-    Kitten.Resolved,
     Kitten.Scope,
-    Kitten.Term,
-    Kitten.Token,
     Kitten.Tokenize,
-    Kitten.Type,
     Kitten.Type.Tidy,
-    Kitten.TypeDef,
-    Kitten.Typed,
+    Kitten.Types,
     Kitten.Util.Applicative,
     Kitten.Util.Either,
     Kitten.Util.FailWriter,
@@ -100,8 +89,7 @@ library
     Kitten.Util.Show,
     Kitten.Util.Text,
     Kitten.Util.Tuple,
-    Kitten.Util.Vector,
-    Kitten.Yarn
+    Kitten.Util.Vector
 
 executable kitten
 
@@ -115,7 +103,7 @@ executable kitten
     -Wall
 
   if flag(prof)
-    ghc-options: -auto-all
+    ghc-options: -auto-all -prof -rtsopts
 
   build-depends:
     kitten,
@@ -126,8 +114,11 @@ executable kitten
     directory,
     filepath,
     haskeline == 0.7.*,
+    parsec,
+    boxes == 0.1.*,
     text,
     transformers,
+    unordered-containers,
     vector
 
 test-suite test
@@ -151,6 +142,7 @@ test-suite test
     QuickCheck == 2.6.*,
     text,
     transformers,
+    unordered-containers,
     vector
 
   ghc-options:

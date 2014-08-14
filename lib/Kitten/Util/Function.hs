@@ -1,6 +1,13 @@
 module Kitten.Util.Function
-  ( for
+  ( (..:)
+  , compose
   ) where
 
-for :: [a] -> (a -> b) -> [b]
-for = flip map
+(.:) :: (c -> d) -> (a -> b -> c) -> a -> b -> d
+(.:) = (.) . (.)
+
+(..:) :: (d -> e) -> (a -> b -> c -> d) -> a -> b -> c -> e
+(..:) = (.:) . (.)
+
+compose :: [a -> a] -> a -> a
+compose = foldr (.) id

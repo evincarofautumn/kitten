@@ -1,15 +1,15 @@
-def test (Int? ->):
-  { 2 * 5 + } liftOption
+def test (int? ->):
+  { ->x; x * 2 + 5 } liftOption
   {dup sayInt} liftOption drop
 
 0 some test
 5 some test
 none test
 
-0 left {++} liftLeft
-getLeft
-{dup sayInt} liftOption drop
+0 left {(+ 1)} liftLeft
+  getLeft
+  {dup sayInt} liftOption drop
 
-"hi" right { " there" cat } liftRight -> x
+"hi" right { " there" cat } liftRight -> x;
 x getLeft {dup sayInt} liftOption drop
 x getRight {dup say} liftOption drop

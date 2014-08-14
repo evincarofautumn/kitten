@@ -1,0 +1,1 @@
+test/missing-import.ktn:1:1: error: missing import 'Nonexistent'

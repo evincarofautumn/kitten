@@ -1,10 +1,11 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Kitten.Parse.Primitive
-  ( bigWord
-  , blocked
-  , functionName
+  ( blocked
   , grouped
-  , littleWord
-  , operator
+  , named
+  , symbolic
+  , word
   ) where
 
 import Control.Applicative
@@ -12,33 +13,25 @@ import Data.Text (Text)
 
 import Kitten.Parse.Monad
 import Kitten.Parsec
-
-import qualified Kitten.Token as Token
+import Kitten.Types
 
 blocked :: Parser a -> Parser a
 blocked = between
-  (match (Token.BlockBegin Token.NormalBlockHint))
-  (match Token.BlockEnd)
+  (match (TkBlockBegin NormalBlockHint))
+  (match TkBlockEnd)
 
-functionName :: Parser Text
-functionName = littleWord <|> operator
-
-littleWord :: Parser Text
-littleWord = mapOne $ \token -> case token of
-  Token.LittleWord name -> Just name
-  _ -> Nothing
-
-operator :: Parser Text
-operator = mapOne $ \token -> case token of
-  Token.Operator name -> Just name
-  _ -> Nothing
-
-bigWord :: Parser Text
-bigWord = mapOne $ \token -> case token of
-  Token.BigWord name -> Just name
+symbolic :: Parser Text
+symbolic = mapOne $ \case
+  TkOperator name -> Just name
   _ -> Nothing
 
 grouped :: Parser a -> Parser a
-grouped = between
-  (match Token.GroupBegin)
-  (match Token.GroupEnd)
+grouped = between (match TkGroupBegin) (match TkGroupEnd)
+
+named :: Parser Text
+named = mapOne $ \case
+  TkWord name -> Just name
+  _ -> Nothing
+
+word :: Parser Text
+word = named <|> symbolic

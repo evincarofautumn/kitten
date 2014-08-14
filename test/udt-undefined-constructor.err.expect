@@ -1,0 +1,1 @@
+test/udt-undefined-constructor.ktn:5:3: error: 'Undefined' does not seem to be a defined constructor

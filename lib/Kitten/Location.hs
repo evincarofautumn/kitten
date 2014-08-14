@@ -3,6 +3,7 @@
 
 module Kitten.Location
   ( Location(..)
+  , newLocation
   ) where
 
 import Text.Parsec.Pos
@@ -16,14 +17,18 @@ data Location
     { locationStart :: SourcePos
     , locationIndent :: Column
     }
-  | UnknownLocation
   | TestLocation
+
+newLocation :: String -> Line -> Column -> Location
+newLocation name line column = Location
+  { locationStart = newPos name line column
+  , locationIndent = 0
+  }
 
 instance Eq Location where
   Location start1 _ == Location start2 _ = start1 == start2
   TestLocation == _ = True
   _ == TestLocation = True
-  _ == _ = False
 
 -- Location < UnknownLocation
 -- TestLocation = _
@@ -34,8 +39,6 @@ instance Ord Location where
       -> compare (start1, indent1) (start2, indent2)
     (TestLocation, _) -> EQ
     (_, TestLocation) -> EQ
-    (UnknownLocation, _) -> GT
-    (_, UnknownLocation) -> LT
 
 instance Show Location where
   show = T.unpack . toText
@@ -46,5 +49,4 @@ instance ToText Location where
     , showText $ sourceLine locationStart
     , showText $ sourceColumn locationStart
     ]
-  toText UnknownLocation = "(unknown)"
   toText TestLocation = ""

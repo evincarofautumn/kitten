@@ -5,7 +5,6 @@ module Kitten.Resolve.Monad
   ( Env(..)
   , Resolution
   , compileError
-  , defIndices
   , evalResolution
   , getsEnv
   , guardLiftM2
@@ -20,17 +19,11 @@ import Control.Applicative
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.List
-import Data.Monoid
+import Data.Set (Set)
 import Data.Text (Text)
 import Data.Traversable (Traversable)
-import Data.Vector (Vector)
 
-import qualified Data.Vector as V
-
-import Kitten.Def
 import Kitten.Error
-import Kitten.Term (Term)
-import Kitten.Typed (TypedDef)
 import Kitten.Util.FailWriter (FailWriterT, runFailWriterT)
 
 import qualified Kitten.Util.FailWriter as FailWriter
@@ -40,8 +33,7 @@ newtype Resolution a = Resolution
   deriving (Functor, Applicative, Monad)
 
 data Env = Env
-  { envPrelude :: !(Vector TypedDef)
-  , envDefs :: !(Vector (Def Term))
+  { envDefined :: !(Set Text)
   , envScope :: [Text]
   }
 
@@ -49,16 +41,8 @@ data Env = Env
 compileError :: ErrorGroup -> Resolution a
 compileError err = Resolution $ FailWriter.throwMany [err]
 
-defIndices :: Text -> Env -> Vector Int
-defIndices expected Env{..} = findExpected envPrelude
-  <> ((V.length envPrelude +) <$> findExpected envDefs)
-  where
-  findExpected :: Vector (Def a) -> Vector Int
-  findExpected = V.findIndices $ (== expected) . defName
-
 evalResolution :: Env -> Resolution a -> Either [ErrorGroup] a
-evalResolution env (Resolution m)
-  = evalState (runFailWriterT null m) env
+evalResolution env (Resolution m) = evalState (runFailWriterT null m) env
 
 getsEnv :: (Env -> a) -> Resolution a
 getsEnv = Resolution . lift . gets

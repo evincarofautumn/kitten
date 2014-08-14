@@ -27,16 +27,15 @@ import Data.Map (Map)
 import Data.Monoid
 import Data.Text (Text)
 
+import qualified Data.Foldable as F
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.Vector as V
 import qualified Text.Parsec.Pos as ParsecPos
 
-import Kitten.Def
-import Kitten.Fragment
 import Kitten.Location
-import Kitten.Type (Kind(..), Type, unScheme)
-import Kitten.Typed
+import Kitten.Types
+import Kitten.Util.Monad
 import Kitten.Util.Text (toText)
 
 type LocMap = UnionMap FilePath (UnionMap Pos [Node])
@@ -70,7 +69,7 @@ data ScanEnv = ScanEnv
 fromFragmentsM
   :: forall m. (Monad m)
   => (FilePath -> m Text)
-  -> [Fragment Typed]
+  -> [Fragment TypedTerm]
   -> m Text
 fromFragmentsM lookUpSource fragments = do
   let UnionMap locMap = foldMap (execWriter . flattenFragment) fragments
@@ -90,49 +89,56 @@ fromFragmentsM lookUpSource fragments = do
 
 -- * Flattening.
 
-flattenFragment :: Fragment Typed -> Writer LocMap ()
+flattenFragment :: Fragment TypedTerm -> Writer LocMap ()
 flattenFragment fragment = do
-  V.mapM_ flattenDef (fragmentDefs fragment)
-  V.mapM_ flattenTerm (fragmentTerms fragment)
+  F.mapM_ flattenDef (fragmentDefs fragment)
+  flattenTerm (fragmentTerm fragment)
 
-flattenDef :: TypedDef -> Writer LocMap ()
+flattenDef :: Def TypedTerm -> Writer LocMap ()
 flattenDef def = do
   tellNode (defLocation def) $ Definition (defName def)
-  flattenTerm $ unScheme (defTerm def)
+  flattenTerm $ unscheme (defTerm def)
 
-flattenTerm :: Typed -> Writer LocMap ()
+flattenTerm :: TypedTerm -> Writer LocMap ()
 flattenTerm theTerm = case theTerm of
-  Builtin _builtin loc type_ -> tellNode loc $ ScalarType type_
-  Call _name loc type_ -> tellNode loc $ ScalarType type_
-  Compose terms loc type_ -> do
+  TrCall _ _ (loc, type_) -> tellNode loc $ ScalarType type_
+  TrCompose _ terms (loc, type_) -> do
     tellNode loc $ ScalarType type_
     V.mapM_ flattenTerm terms
-  From _name loc type_ -> tellNode loc $ ScalarType type_
-  PairTerm a b loc type_ -> do
-    tellNode loc $ ScalarType type_
-    flattenTerm a >> flattenTerm b
-  Push value loc type_ -> do
-    tellNode loc $ ScalarType type_
-    flattenValue value
-  To _name loc type_ -> tellNode loc $ ScalarType type_
-  Scoped term loc type_ -> do
+  TrConstruct _ _ _ (loc, type_) -> tellNode loc $ ScalarType type_
+  TrIntrinsic _intrinsic (loc, type_) -> tellNode loc $ ScalarType type_
+  TrLambda _name term (loc, type_) -> do
     tellNode loc $ ScalarType type_
     flattenTerm term
-  VectorTerm terms loc type_ -> do
+  TrMakePair a b (loc, type_) -> do
+    tellNode loc $ ScalarType type_
+    flattenTerm a >> flattenTerm b
+  TrMakeVector terms (loc, type_) -> do
     tellNode loc $ ScalarType type_
     V.mapM_ flattenTerm terms
+  TrMatch cases mDefault (loc, type_) -> do
+    tellNode loc $ ScalarType type_
+    V.mapM_ flattenCase cases
+    F.mapM_ flattenTerm mDefault
+    where
+    flattenCase (TrCase _ body (loc', type')) = do
+      tellNode loc' $ ScalarType type'
+      flattenTerm body
+  TrPush value (loc, type_) -> do
+    tellNode loc $ ScalarType type_
+    flattenValue value
 
-flattenValue :: Value -> Writer LocMap ()
+flattenValue :: TypedValue -> Writer LocMap ()
 flattenValue theValue = case theValue of
-  Bool _ -> return ()
-  Char _ -> return ()
-  Closed _ -> return ()
-  Closure _closed term -> flattenTerm term
-  Float _ -> return ()
-  Int _ -> return ()
-  Local _ -> return ()
-  Unit -> return ()
-  String _ -> return ()
+  TrBool{} -> noop
+  TrChar{} -> noop
+  TrClosed{} -> noop
+  TrClosure _closed term _ -> flattenTerm term
+  TrFloat{} -> noop
+  TrInt{} -> noop
+  TrLocal{} -> noop
+  TrQuotation{} -> noop  -- ?
+  TrText{} -> noop
 
 -- * Scanning and HTML generation.
 
@@ -216,7 +222,7 @@ scanChar c = do
   pos <- gets envPos
   nodeMap <- gets envNodeMap
   case Map.lookup pos nodeMap of
-    Nothing -> return ()
+    Nothing -> noop
     Just nodes -> do
       lift . mapM_ closeNode =<< gets envOpened
       lift $ mapM_ openNode nodes
@@ -278,7 +284,7 @@ tellNode location node = case locationPos location of
   Just (path, pos) -> tell
     . UnionMap . Map.singleton path
     . UnionMap $ Map.singleton pos [node]
-  Nothing -> return ()
+  Nothing -> noop
 
 -- | Advances a 'Pos' by a character, a la
 -- Text.Parsec.Pos.updatePosChar.

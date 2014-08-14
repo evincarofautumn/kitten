@@ -1,0 +1,10 @@
+data A:
+  case A int;
+
+data B:
+  case B int;
+
+1 A
+match:
+  case A: sayInt
+  case B: sayInt

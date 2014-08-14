@@ -1,0 +1,8 @@
+data IntOrString:
+  case Int int;
+  case String [char];
+
+match (1 Int):
+  case String: say
+  default:
+    "default" say

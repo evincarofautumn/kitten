@@ -1,2 +1,2 @@
-"What is your name? " prompt -> name
+"What is your name? " prompt -> name;
 ["Hello, ", name, "!"] concat say

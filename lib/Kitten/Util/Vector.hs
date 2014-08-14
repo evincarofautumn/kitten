@@ -5,14 +5,14 @@ module Kitten.Util.Vector
   , safeHead
   ) where
 
-import Control.Monad (liftM, zipWithM)
+import Control.Monad (liftM)
 import Data.Maybe (listToMaybe)
 import Data.Vector (Vector)
 
 import qualified Data.Vector as V
 
 imapM :: (Monad m) => (Int -> a -> m b) -> Vector a -> m (Vector b)
-imapM f = liftM V.fromList . zipWithM f [0..] . V.toList
+imapM f v = V.mapM (uncurry f) $ V.zipWith (,) (V.fromList [0 .. V.length v]) v
 
 iforM :: (Monad m) => Vector a -> (Int -> a -> m b) -> m (Vector b)
 iforM = flip imapM

@@ -1,0 +1,3 @@
+test/udt-mixing-constructors.ktn:8:1: error: cannot match scalar type A with B
+test/udt-mixing-constructors.ktn:2:3: note: A (from A) is from here
+test/udt-mixing-constructors.ktn:5:3: note: B (from B) is from here

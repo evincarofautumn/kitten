@@ -15,7 +15,6 @@ module Kitten.Infer.Unify
 
 import Control.Monad
 import Data.Function
-import Data.Monoid
 import Data.Text (Text)
 
 import qualified Data.Text as T
@@ -25,8 +24,8 @@ import Kitten.Infer.Locations
 import Kitten.Infer.Monad
 import Kitten.Infer.Scheme
 import Kitten.Location
-import Kitten.Type
 import Kitten.Type.Tidy
+import Kitten.Types
 import Kitten.Util.FailWriter
 import Kitten.Util.Maybe
 import Kitten.Util.Text (ToText(..))
@@ -36,50 +35,50 @@ unify
   :: (Unification a, Simplify a)
   => Type a
   -> Type a
-  -> Env
-  -> Either [ErrorGroup] Env
-unify a b env = (unification `on` simplify env) a b env
+  -> Program
+  -> Either [ErrorGroup] Program
+unify a b program = (unification `on` simplify program) a b program
 
 class Unification a where
   unification
     :: Type a
     -> Type a
-    -> Env
-    -> Either [ErrorGroup] Env
+    -> Program
+    -> Either [ErrorGroup] Program
 
-instance Unification Row where
-  unification type1 type2 env = case (type1, type2) of
-    _ | type1 == type2 -> Right env
+instance Unification Stack where
+  unification type1 type2 program = case (type1, type2) of
+    _ | type1 == type2 -> Right program
 
-    (a :. b, c :. d) -> unify b d env >>= unify a c
+    (a :. b, c :. d) -> unify b d program >>= unify a c
 
-    (Var var (Origin hint _), type_) -> unifyVar var (type_ `addHint` hint) env
-    (_, Var{}) -> commutative
+    (TyVar var (Origin hint _), type_) -> unifyVar var (type_ `addHint` hint) program
+    (_, TyVar{}) -> commutative
 
     _ -> Left $ unificationError Nothing
-      (envLocation env) type1 type2
+      (originLocation $ inferenceOrigin program) type1 type2
 
-    where commutative = unification type2 type1 env
+    where commutative = unification type2 type1 program
 
 instance Unification Scalar where
-  unification type1 type2 env = case (type1, type2) of
-    _ | type1 == type2 -> Right env
-    (a :& b, c :& d) -> unify b d env >>= unify a c
-    ((:?) a, (:?) b) -> unify a b env
-    (a :| b, c :| d) -> unify b d env >>= unify a c
-    (Function a b _, Function c d _) -> unify b d env >>= unify a c
-    (Vector a _, Vector b _) -> unify a b env
-    (Var var (Origin hint _), type_) -> unifyVar var (type_ `addHint` hint) env
-    (_, Var{}) -> commutative
-    (Quantified scheme loc, _) -> let
-      (type', env') = instantiate loc scheme env
-      in unify type' type2 env'
-    (_, Quantified{}) -> commutative
+  unification type1 type2 program = case (type1, type2) of
+    _ | type1 == type2 -> Right program
+    (a :& b, c :& d) -> unify b d program >>= unify a c
+    ((:?) a, (:?) b) -> unify a b program
+    (a :| b, c :| d) -> unify b d program >>= unify a c
+    (TyFunction a b _, TyFunction c d _) -> unify b d program >>= unify a c
+    (TyVector a _, TyVector b _) -> unify a b program
+    (TyVar var (Origin hint _), type_) -> unifyVar var (type_ `addHint` hint) program
+    (_, TyVar{}) -> commutative
+    (TyQuantified scheme loc, _) -> let
+      (type', program') = instantiate loc scheme program
+      in unify type' type2 program'
+    (_, TyQuantified{}) -> commutative
 
     _ -> Left $ unificationError Nothing
-      (envLocation env) type1 type2
+      (originLocation $ inferenceOrigin program) type1 type2
 
-    where commutative = unification type2 type1 env
+    where commutative = unification type2 type1 program
 
 unificationError
   :: forall (a :: Kind). (ReifyKind a, TidyType a, ToText (Type a))
@@ -93,11 +92,11 @@ unificationError prefix location type1 type2 = runTidy $ do
   type2' <- tidyType type2
   let
     primaryError = CompileError location Error $ T.unwords
-      $ "cannot solve"
+      $ "cannot match"
       : prefix `consMaybe` toText kind
-      : "type constraint"
+      : "type"
       : toText type1'
-      : "="
+      : "with"
       : toText type2'
       : []
     secondaryErrors = map errorDetail
@@ -105,33 +104,36 @@ unificationError prefix location type1 type2 = runTidy $ do
   return [ErrorGroup (primaryError : secondaryErrors)]
   where
   kind = reifyKind (KindProxy :: KindProxy a)
-  errorDetail (loc, type_) = CompileError loc Note
-    $ toText type_ <> " is from here"
+  errorDetail (origin@(Origin _ loc), type_) = CompileError loc Note $ T.concat
+    [ type_
+    , originSuffix origin
+    , " is from here"
+    ]
 
 -- | Unifies two types, returning the second type.
 unifyM
   :: (Unification a, Simplify a)
   => Type a
   -> Type a
-  -> Inferred (Type a)
+  -> K (Type a)
 unifyM type1 type2 = do
-  env <- getsEnv $ unify type1 type2
-  case env of
-    Right env' -> putEnv env' >> return type2
+  program <- getsProgram $ unify type1 type2
+  case program of
+    Right program' -> putProgram program' >> return type2
     Left errors -> liftFailWriter $ throwMany errors
 
 unifyM_
   :: (Unification a, Simplify a)
   => Type a
   -> Type a
-  -> Inferred ()
+  -> K ()
 unifyM_ = (void .) . unifyM
 
 (===)
   :: (Unification a, Simplify a)
   => Type a
   -> Type a
-  -> Inferred ()
+  -> K ()
 (===) = unifyM_
 
 infix 3 ===
@@ -145,16 +147,16 @@ unifyVar
   , TidyType a
   , ToText (Type a)
   )
-  => TypeName a
+  => KindedId a
   -> Type a
-  -> Env
-  -> Either [ErrorGroup] Env
-unifyVar var1 type_ env = case type_ of
-  Var var2 _ | var1 == var2 -> return env
-  Var{} -> return $ declare var1 type_ env
-  _ | occurs (unTypeName var1) env type_
-    -> let loc = envLocation env in Left $ unificationError
+  -> Program
+  -> Either [ErrorGroup] Program
+unifyVar var1 type_ program = case type_ of
+  TyVar var2 _ | var1 == var2 -> return program
+  TyVar{} -> return $ declare var1 type_ program
+  _ | occurs (unkinded var1) program type_
+    -> let loc = originLocation $ inferenceOrigin program in Left $ unificationError
       (Just "infinite") loc
-      (sub env (Var var1 (Origin NoHint UnknownLocation) :: Type a))
-      (sub env type_)
-  _ -> return $ declare var1 type_ env
+      (sub program (TyVar var1 (Origin HiNone loc) :: Type a))
+      (sub program type_)
+  _ -> return $ declare var1 type_ program

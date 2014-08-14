@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Infer.Type
   ( fromAnno
@@ -9,85 +10,102 @@ module Kitten.Infer.Type
 import Control.Applicative
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
+import Data.HashMap.Strict (HashMap)
 import Data.Map (Map)
+import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
 import Data.Vector (Vector)
 
+import qualified Data.HashMap.Strict as H
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
-import Kitten.Anno (Anno(Anno))
-import Kitten.Infer.Monad (Inferred, freshNameM)
+import Kitten.Error
 import Kitten.Location
-import Kitten.Type
-
-import qualified Kitten.Anno as Anno
+import Kitten.Types
+import Kitten.Util.FailWriter
 
 data Env = Env
-  { envAnonRows :: [TypeName Row]
-  -- ^ Anonymous rows implicit on both sides of an
+  { envAnonStacks :: [KindedId Stack]
+  -- ^ Anonymous stacks implicit on both sides of an
   -- 'Anno.Function' constructor.
 
-  , envRows :: !(Map Text (TypeName Row))
-  -- ^ Map from row variable names to row variables
+  , envStacks :: !(Map Text (KindedId Stack))
+  -- ^ Map from stack variable names to stack variables
   -- themselves.
 
-  , envScalars :: !(Map Text (TypeName Scalar))
+  , envScalars :: !(Map Text (KindedId Scalar))
   -- ^ Map from scalar variable names to scalar variables
   -- themselves.
+
+  , envTypeDefs :: !(HashMap Text TypeDef)
   }
 
-type Converted a = StateT Env Inferred a
+type Converted a = StateT Env K a
 
-fromAnno :: Annotated -> Anno -> Inferred (Scheme (Type Scalar))
-fromAnno annotated (Anno annoType annoLoc) = do
+fromAnno
+  :: Annotated -> HashMap Text TypeDef -> Anno -> K (Scheme (Type Scalar))
+fromAnno annotated typeDefNames (Anno annoType annoLoc) = do
   (type_, env) <- flip runStateT Env
-    { envAnonRows = []
-    , envRows = M.empty
+    { envAnonStacks = []
+    , envStacks = M.empty
     , envScalars = M.empty
-    } $ fromAnnoType' (AnnoType annotated) annoType
+    , envTypeDefs = typeDefNames
+    } $ fromAnnoType' (HiType annotated) annoType
 
   return $ Forall
-    (S.fromList (envAnonRows env <> M.elems (envRows env)))
+    (S.fromList (envAnonStacks env <> M.elems (envStacks env)))
     (S.fromList . M.elems $ envScalars env)
     type_
   where
 
-  fromInput, fromOutput :: Anno.Type -> Converted (Type Scalar)
-  fromInput = fromAnnoType' (AnnoFunctionInput annotated)
-  fromOutput = fromAnnoType' (AnnoFunctionOutput annotated)
+  fromInput, fromOutput :: AnType -> Converted (Type Scalar)
+  fromInput = fromAnnoType' (HiFunctionInput annotated)
+  fromOutput = fromAnnoType' (HiFunctionOutput annotated)
 
-  fromAnnoType' :: Hint -> Anno.Type -> Converted (Type Scalar)
+  fromAnnoType' :: Hint -> AnType -> Converted (Type Scalar)
   fromAnnoType' hint = \case
-    Anno.Bool -> return (Bool origin)
-    Anno.Char -> return (Char origin)
-    Anno.Choice a b -> (:|)
-      <$> fromAnnoType' NoHint a
-      <*> fromAnnoType' NoHint b
-    Anno.Function a b -> do
-      r <- lift freshNameM
-      let rVar = Var r origin
+    AnChoice a b -> (:|)
+      <$> fromAnnoType' HiNone a
+      <*> fromAnnoType' HiNone b
+    AnFunction a b -> do
+      r <- lift freshStackIdM
+      let rVar = TyVar r origin
       scheme <- Forall (S.singleton r) S.empty
         <$> makeFunction origin rVar a rVar b
-      return $ Quantified scheme origin
-    Anno.Float -> return (Float origin)
-    Anno.Handle -> return (Handle origin)
-    Anno.Int -> return (Int origin)
-    Anno.Named name -> return (Named name origin)
-    Anno.Option a -> (:?)
-      <$> fromAnnoType' NoHint a
-    Anno.Pair a b -> (:&)
-      <$> fromAnnoType' NoHint a
-      <*> fromAnnoType' NoHint b
-    Anno.RowFunction leftRow leftScalars rightRow rightScalars -> do
-      leftRowVar <- rowVar leftRow loc annotated
-      rightRowVar <- rowVar rightRow loc annotated
-      makeFunction origin leftRowVar leftScalars rightRowVar rightScalars
-    Anno.Unit -> return (Unit origin)
-    Anno.Var name -> scalarVar name loc annotated
-    Anno.Vector a -> Vector <$> fromAnnoType' NoHint a <*> pure origin
+      return $ TyQuantified scheme origin
+    AnOption a -> (:?)
+      <$> fromAnnoType' HiNone a
+    AnPair a b -> (:&)
+      <$> fromAnnoType' HiNone a
+      <*> fromAnnoType' HiNone b
+    AnQuantified stacks scalars type_ -> do
+      stackVars <- V.mapM declareStack stacks
+      scalarVars <- V.mapM declareScalar scalars
+      scheme <- Forall
+        (S.fromList (V.toList stackVars))
+        (S.fromList (V.toList scalarVars))
+        <$> fromAnnoType' HiNone type_
+      return $ TyQuantified scheme origin
+      where
+      declareScalar name = do
+        var <- lift freshScalarIdM
+        modify $ \env -> env
+          { envScalars = M.insert name var (envScalars env) }
+        return var
+      declareStack name = do
+        var <- lift freshStackIdM
+        modify $ \env -> env
+          { envStacks = M.insert name var (envStacks env) }
+        return var
+    AnStackFunction leftStack leftScalars rightStack rightScalars -> do
+      leftStackVar <- annoStackVar leftStack loc annotated
+      rightStackVar <- annoStackVar rightStack loc annotated
+      makeFunction origin leftStackVar leftScalars rightStackVar rightScalars
+    AnVar name -> annoScalarVar name loc annotated
+    AnVector a -> TyVector <$> fromAnnoType' HiNone a <*> pure origin
     where
     origin :: Origin
     origin = Origin hint loc
@@ -96,47 +114,49 @@ fromAnno annotated (Anno annoType annoLoc) = do
 
   makeFunction
     :: Origin
-    -> Type Row
-    -> Vector Anno.Type
-    -> Type Row
-    -> Vector Anno.Type
+    -> Type Stack
+    -> Vector AnType
+    -> Type Stack
+    -> Vector AnType
     -> Converted (Type Scalar)
-  makeFunction origin leftRow leftScalars rightRow rightScalars = Function
-    <$> (V.foldl' (:.) leftRow <$> V.mapM fromInput leftScalars)
-    <*> (V.foldl' (:.) rightRow <$> V.mapM fromOutput rightScalars)
+  makeFunction origin leftStack leftScalars rightStack rightScalars = TyFunction
+    <$> (V.foldl' (:.) leftStack <$> V.mapM fromInput leftScalars)
+    <*> (V.foldl' (:.) rightStack <$> V.mapM fromOutput rightScalars)
     <*> pure origin
 
+fromAnno _ _ TestAnno = error "cannot make type from test annotation"
+
 -- | Gets a scalar variable by name from the environment.
-scalarVar :: Text -> Location -> Annotated -> Converted (Type Scalar)
-scalarVar = annoVar
-  (\name -> M.lookup name . envScalars)
-  (\name var env -> env
-    { envScalars = M.insert name var (envScalars env) })
+annoScalarVar
+  :: Text -> Location -> Annotated -> Converted (Type Scalar)
+annoScalarVar name loc annotated = do
+  existing <- gets $ M.lookup name . envScalars
+  case existing of
+    Just var -> return $ TyVar var origin
+    Nothing -> case name of
+      "bool" -> return $ TyCtor CtorBool origin
+      "char" -> return $ TyCtor CtorChar origin
+      "float" -> return $ TyCtor CtorFloat origin
+      "handle" -> return $ TyCtor CtorHandle origin
+      "int" -> return $ TyCtor CtorInt origin
+      _ -> do
+        userDefined <- gets $ isJust . H.lookup name . envTypeDefs
+        if userDefined
+          then return $ TyCtor (CtorUser name) origin
+          else unknown name loc
+  where origin = Origin (HiVar name annotated) loc
 
--- | Gets a row variable by name from the environment.
-rowVar :: Text -> Location -> Annotated -> Converted (Type Row)
-rowVar = annoVar
-  (\name -> M.lookup name . envRows)
-  (\name var env -> env
-    { envRows = M.insert name var (envRows env) })
+-- | Gets a stack variable by name from the environment.
+annoStackVar
+  :: Text -> Location -> Annotated -> Converted (Type Stack)
+annoStackVar name loc annotated = do
+  existing <- gets $ M.lookup name . envStacks
+  case existing of
+    Just var -> return $ TyVar var (Origin (HiVar name annotated) loc)
+    Nothing -> unknown name loc
 
--- | Gets a variable by name from the environment, creating
--- it if it does not exist.
-annoVar
-  :: (Text -> Env -> Maybe (TypeName a))
-  -> (Text -> TypeName a -> Env -> Env)
-  -> Text
-  -> Location
-  -> Annotated
-  -> Converted (Type a)
-annoVar retrieve save name loc annotated = do
-  mExisting <- gets $ retrieve name
-  case mExisting of
-    Just existing -> return (Var existing origin)
-    Nothing -> do
-      var <- lift freshNameM
-      modify $ save name var
-      return (Var var origin)
-  where
-  origin :: Origin
-  origin = Origin (AnnoVar name annotated) loc
+unknown :: Text -> Location -> Converted a
+unknown name loc = lift . liftFailWriter . throwMany . (:[]) $ ErrorGroup
+  [ CompileError loc Error
+    $ "unknown type or undeclared type variable " <> name
+  ]

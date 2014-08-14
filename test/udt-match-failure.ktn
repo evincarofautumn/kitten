@@ -1,0 +1,5 @@
+data Example:
+  case Example;
+
+Example
+match {}

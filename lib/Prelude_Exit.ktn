@@ -1,3 +1,8 @@
+def error {.r, .s}(.r [char] -> .s):
+  -> message;
+  ["Error: ", message, "\n"] concat stderr handlePrint
+  1 exit
+
 // Exits the program with an implementation-defined status code.
-def exit (Int ->):
+def exit {.r, .s}(.r int -> .s):
   __exit

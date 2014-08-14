@@ -1,47 +1,58 @@
+// Binds computations on option values.
+def bindOption {a, b}(a? (a -> b?) -> b?):
+  \none option___else_
+
 // Safely gets a value from an option value.
-def fromOption (a? a -> a):
-  -> { m z }
-  \option m {} else: z
+def fromOption {a}(a? a -> a):
+  -> m z;
+  option (m) {} else {z}
 
 // Unsafely gets the value from an option.
-def fromSome (a? -> a):
+def fromSome {a}(a? -> a):
   __from_some
 
 // Whether an option is empty.
-def isNone (a? -> Bool):
-  \option:
+def isNone {a}(a? -> bool):
+  option:
     drop false
   else:
     true
 
 // Whether an option contains a value.
-def isSome (a? -> Bool):
-  \option:
+def isSome {a}(a? -> bool):
+  option:
     drop true
   else:
     false
 
 // Maps a function over an option value.
-def liftOption (a? (a -> b) -> b?):
-  -> f
-  \option:
-    f@ some
+def liftOption {a, b}(a? (a -> b) -> b?):
+  -> f;
+  option:
+    f apply some
   else:
     none
 
 // Combines two option values with a function.
-def liftOption2 (a? b? (a b -> c) -> c?):
-  -> { mx my f }
-  \option mx: -> x
-    \option my: -> y
-      x y f@ some
-    else: none
-  else: none
+def liftOption2 {a, b, c}(a? b? (a b -> c) -> c?):
+  -> mx my f;
+  none
+  option (mx) -> x:
+    option (my) -> y:
+      drop x y f apply some
 
 // Constructs an empty option.
-def none (-> a?):
+def none {a}(-> a?):
   __none
 
 // Constructs an option with a value.
-def some (a -> a?):
+def some {a}(a -> a?):
   __some
+
+// TODO(strager): Find a better name.  'option' is taken.
+def maybe {a, b}(a? (a -> b) b -> b):
+  -> mx f z;
+  option (mx):
+    f apply
+  else:
+    z

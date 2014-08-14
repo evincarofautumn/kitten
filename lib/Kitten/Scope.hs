@@ -11,145 +11,138 @@ import Control.Monad.Trans.State
 import Data.Monoid
 import Data.Vector (Vector)
 
-import qualified Data.Traversable as T
+import qualified Data.HashMap.Strict as H
 import qualified Data.Vector as V
 
-import Kitten.ClosedName
-import Kitten.Def
-import Kitten.Fragment
-import Kitten.Name
-import Kitten.Resolved
+import Kitten.Types
 import Kitten.Util.List
 
-scope :: Fragment Resolved -> Fragment Resolved
+-- Converts quotations containing references to local variables in enclosing
+-- scopes into explicit closures.
+scope :: Fragment ResolvedTerm -> Fragment ResolvedTerm
 scope fragment@Fragment{..} = fragment
-  { fragmentDefs = scopeDef <$> fragmentDefs
-  , fragmentTerms = scopeTerm [0] <$> fragmentTerms
+  { fragmentDefs = H.map scopeDef fragmentDefs
+  , fragmentTerm = scopeTerm [0] fragmentTerm
   }
 
-scopeDef :: Def Resolved -> Def Resolved
-scopeDef def@Def{..} = def
-  { defTerm = scopeTerm [0] defTerm }
+scopeDef :: Def ResolvedTerm -> Def ResolvedTerm
+scopeDef def@Def{..} = def { defTerm = scopeTerm [0] <$> defTerm }
 
-scopeTerm :: [Int] -> Resolved -> Resolved
+scopeTerm :: [Int] -> ResolvedTerm -> ResolvedTerm
 scopeTerm stack typed = case typed of
-  Builtin{} -> typed
-  Call{} -> typed
-  Compose terms loc -> Compose (recur <$> terms) loc
-  From{} -> typed
-  PairTerm as bs loc -> PairTerm (recur as) (recur bs) loc
-  Push value loc -> Push (scopeValue stack value) loc
-  Scoped name term loc -> Scoped name
+  TrCall{} -> typed
+  TrConstruct{} -> typed
+  TrCompose hint terms loc -> TrCompose hint (V.map recur terms) loc
+  TrIntrinsic{} -> typed
+  TrLambda name term loc -> TrLambda name
     (scopeTerm (mapHead succ stack) term)
     loc
-  To{} -> typed
-  VectorTerm items loc -> VectorTerm (recur <$> items) loc
+  TrMakePair as bs loc -> TrMakePair (recur as) (recur bs) loc
+  TrMakeVector items loc -> TrMakeVector (V.map recur items) loc
+  TrMatch cases mDefault loc -> TrMatch
+    (V.map scopeCase cases) (fmap recur mDefault) loc
+  TrPush value loc -> TrPush (scopeValue stack value) loc
 
   where
-  recur :: Resolved -> Resolved
+  recur :: ResolvedTerm -> ResolvedTerm
   recur = scopeTerm stack
 
-scopeValue :: [Int] -> Value -> Value
+  scopeCase (TrCase name body loc) = TrCase name (recur body) loc
+
+scopeValue :: [Int] -> ResolvedValue -> ResolvedValue
 scopeValue stack value = case value of
-  Bool{} -> value
-  Char{} -> value
-  Closed{} -> value
-  Closure{} -> value
-  Float{} -> value
-
-  Function funTerm
-    -> Closure (ClosedName <$> capturedNames) capturedTerm
+  TrBool{} -> value
+  TrChar{} -> value
+  TrClosed{} -> value
+  TrClosure{} -> value
+  TrFloat{} -> value
+  TrInt{} -> value
+  TrLocal{} -> value
+  TrQuotation body x
+    -> TrClosure (ClosedName <$> capturedNames) capturedTerm x
     where
-
-    capturedTerm :: Resolved
-    capturedNames :: Vector Name
-    (capturedTerm, capturedNames)
-      = runCapture stack'
-      $ captureTerm scopedTerm
-
-    scopedTerm :: Resolved
-    scopedTerm = scopeTerm stack' funTerm
-
+    capturedTerm :: ResolvedTerm
+    capturedNames :: Vector Int
+    (capturedTerm, capturedNames) = runCapture stack' $ captureTerm scopedTerm
+    scopedTerm :: ResolvedTerm
+    scopedTerm = scopeTerm stack' body
     stack' :: [Int]
     stack' = 0 : stack
-
-  Int{} -> value
-  Local{} -> value
-  Unit -> Unit
-  String{} -> value
+  TrText{} -> value
 
 data Env = Env
   { envStack :: [Int]
   , envDepth :: Int
   }
 
-type Capture a = ReaderT Env (State (Vector Name)) a
+type Capture a = ReaderT Env (State (Vector Int)) a
 
-runCapture :: [Int] -> Capture a -> (a, Vector Name)
+runCapture :: [Int] -> Capture a -> (a, Vector Int)
 runCapture stack
   = flip runState V.empty
   . flip runReaderT Env { envStack = stack, envDepth = 0 }
 
-addName :: Name -> Capture Name
+addName :: Int -> Capture Int
 addName name = do
   names <- lift get
   case V.elemIndex name names of
-    Just existing -> return $ Name existing
+    Just existing -> return existing
     Nothing -> do
       lift $ put (names <> V.singleton name)
-      return . Name $ V.length names
+      return $ V.length names
 
-captureTerm :: Resolved -> Capture Resolved
+captureTerm :: ResolvedTerm -> Capture ResolvedTerm
 captureTerm typed = case typed of
-  Builtin{} -> return typed
-  Call{} -> return typed
-
-  Compose terms loc -> Compose
-    <$> T.mapM captureTerm terms
+  TrCall{} -> return typed
+  TrCompose hint terms loc -> TrCompose hint
+    <$> V.mapM captureTerm terms
     <*> pure loc
-
-  From{} -> return typed
-
-  PairTerm a b loc -> PairTerm
-    <$> captureTerm a
-    <*> captureTerm b
-    <*> pure loc
-
-  Push value loc -> Push <$> captureValue value <*> pure loc
-
-  Scoped name terms loc -> let
+  TrConstruct{} -> return typed
+  TrIntrinsic{} -> return typed
+  TrLambda name terms loc -> let
     inside env@Env{..} = env
       { envStack = mapHead succ envStack
       , envDepth = succ envDepth
       }
-    in Scoped name
+    in TrLambda name
       <$> local inside (captureTerm terms)
       <*> pure loc
-
-  To{} -> return typed
-
-  VectorTerm items loc -> VectorTerm
-    <$> T.mapM captureTerm items
+  TrMakePair a b loc -> TrMakePair
+    <$> captureTerm a
+    <*> captureTerm b
     <*> pure loc
+  TrMakeVector items loc -> TrMakeVector
+    <$> V.mapM captureTerm items
+    <*> pure loc
+  TrMatch cases mDefault loc -> TrMatch
+    <$> V.mapM captureCase cases
+    <*> maybe (pure Nothing) (fmap Just . captureTerm) mDefault
+    <*> pure loc
+    where
+    captureCase (TrCase name body loc') = TrCase name
+      <$> captureTerm body
+      <*> pure loc'
+  TrPush value loc -> TrPush <$> captureValue value <*> pure loc
 
-closeLocal :: Name -> Capture (Maybe Name)
-closeLocal (Name index) = do
+closeLocal :: Int -> Capture (Maybe Int)
+closeLocal index = do
   stack <- asks envStack
   depth <- asks envDepth
   case stack of
     (here : _)
       | index >= here
-      -> Just <$> addName (Name $ index - depth)
+      -> Just <$> addName (index - depth)
     _ -> return Nothing
 
-captureValue :: Value -> Capture Value
+captureValue :: ResolvedValue -> Capture ResolvedValue
 captureValue value = case value of
-  Bool{} -> return value
-  Char{} -> return value
-  Closed{} -> return value
-  Closure names term -> Closure
-    <$> T.mapM close names
+  TrBool{} -> return value
+  TrChar{} -> return value
+  TrClosed{} -> return value
+  TrClosure names term x -> TrClosure
+    <$> V.mapM close names
     <*> pure term
+    <*> pure x
     where
     close :: ClosedName -> Capture ClosedName
     close original@(ClosedName name) = do
@@ -158,18 +151,14 @@ captureValue value = case value of
         Nothing -> original
         Just closedLocal -> ReclosedName closedLocal
     close original@(ReclosedName _) = return original
-
-  Float{} -> return value
-  Function terms -> let
+  TrFloat{} -> return value
+  TrInt{} -> return value
+  TrQuotation terms x -> let
     inside env@Env{..} = env { envStack = 0 : envStack }
-    in Function <$> local inside (captureTerm terms)
-  Int{} -> return value
-
-  Local name -> do
+    in TrQuotation <$> local inside (captureTerm terms) <*> pure x
+  TrLocal name x -> do
     closed <- closeLocal name
     return $ case closed of
       Nothing -> value
-      Just closedName -> Closed closedName
-
-  Unit{} -> return value
-  String{} -> return value
+      Just closedName -> TrClosed closedName x
+  TrText{} -> return value

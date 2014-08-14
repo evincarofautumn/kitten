@@ -1,1 +1,1 @@
-def example (a -> Int) { }
+def example {a}(a -> int) { }

@@ -7,30 +7,30 @@ module Kitten.Type.Tidy
   ( Tidy
   , TidyType(..)
   , runTidy
-  , tidyRow
-  , tidyRowType
   , tidyScalar
   , tidyScalarType
+  , tidyStack
+  , tidyStackType
   ) where
 
 import Control.Applicative hiding (Const)
 import Control.Monad.Trans.State
 
-import Kitten.Name
-import Kitten.NameMap (NameMap)
-import Kitten.Type
+import Kitten.Id
+import Kitten.IdMap (IdMap)
+import Kitten.Types
 
-import qualified Kitten.NameMap as NameMap
+import qualified Kitten.IdMap as Id
 import qualified Kitten.Util.Set as Set
 
 data TidyKindState a = TidyKindState
-  { names :: !(NameMap (TypeName a))
-  , nameGen :: !NameGen
+  { ids :: !(IdMap TypeSpace (KindedId a))
+  , idGen :: !(IdGen TypeSpace)
   }
 
 data TidyState = TidyState
   { scalars :: !(TidyKindState Scalar)
-  , rows :: !(TidyKindState Row)
+  , stacks :: !(TidyKindState Stack)
   }
 
 newtype Tidy a = Tidy (State TidyState a)
@@ -42,85 +42,79 @@ class TidyType (a :: Kind) where
 instance TidyType Scalar where
   tidyType = tidyScalarType
 
-instance TidyType Row where
-  tidyType = tidyRowType
+instance TidyType Stack where
+  tidyType = tidyStackType
 
 emptyKindState :: TidyKindState a
 emptyKindState = TidyKindState
-  { names = NameMap.empty
-  , nameGen = mkNameGenFrom (Name 1)
+  { ids = Id.empty
+  , idGen = mkIdGenFrom (Id 1)
   }
 
 runTidy :: Tidy a -> a
 runTidy (Tidy m) = evalState m TidyState
   { scalars = emptyKindState
-  , rows = emptyKindState
+  , stacks = emptyKindState
   }
 
-tidyName
-  :: TypeName a
+tidyId
+  :: KindedId a
   -> TidyKindState a
-  -> (TypeName a, TidyKindState a)
-tidyName (TypeName name) kindState
-  = case NameMap.lookup name (names kindState) of
-    Just typeName -> (typeName, kindState)
-    Nothing -> (TypeName name', kindState')
+  -> (KindedId a, TidyKindState a)
+tidyId (KindedId i) kindState
+  = case Id.lookup i (ids kindState) of
+    Just typeId -> (typeId, kindState)
+    Nothing -> (KindedId i', kindState')
       where
-      (name', gen') = genName (nameGen kindState)
+      (i', gen') = genId (idGen kindState)
       kindState' = kindState
-        { names = NameMap.insert name
-          (TypeName name') (names kindState)
-        , nameGen = gen'
+        { ids = Id.insert i
+          (KindedId i') (ids kindState)
+        , idGen = gen'
         }
 
-tidyNameM
+tidyIdM
   :: (TidyState -> TidyKindState a)               -- ^ Get.
   -> (TidyKindState a -> TidyState -> TidyState)  -- ^ Put.
-  -> TypeName a
-  -> Tidy (TypeName a)
-tidyNameM getKindState putKindState typeName = Tidy $ do
+  -> KindedId a
+  -> Tidy (KindedId a)
+tidyIdM getKindState putKindState typeId = Tidy $ do
   kindState <- gets getKindState
-  let (typeName', kindState') = tidyName typeName kindState
+  let (typeId', kindState') = tidyId typeId kindState
   modify (putKindState kindState')
-  return typeName'
+  return typeId'
 
-tidyScalar :: TypeName Scalar -> Tidy (TypeName Scalar)
-tidyScalar = tidyNameM scalars
+tidyScalar :: KindedId Scalar -> Tidy (KindedId Scalar)
+tidyScalar = tidyIdM scalars
   (\scalars' s -> s { scalars = scalars' })
 
-tidyRow :: TypeName Row -> Tidy (TypeName Row)
-tidyRow = tidyNameM rows
-  (\rows' s -> s { rows = rows' })
+tidyStack :: KindedId Stack -> Tidy (KindedId Stack)
+tidyStack = tidyIdM stacks
+  (\stacks' s -> s { stacks = stacks' })
 
 tidyScalarType :: Type Scalar -> Tidy (Type Scalar)
 tidyScalarType type_ = case type_ of
   t1 :& t2 -> (:&) <$> tidyScalarType t1 <*> tidyScalarType t2
   (:?) t -> (:?) <$> tidyScalarType t
   t1 :| t2 -> (:|) <$> tidyScalarType t1 <*> tidyScalarType t2
-  Bool{} -> pure type_
-  Char{} -> pure type_
-  Const name loc -> Const <$> tidyScalar name <*> pure loc
-  Float{} -> pure type_
-  Function r1 r2 loc -> Function
-    <$> tidyRowType r1
-    <*> tidyRowType r2
+  TyConst i loc -> TyConst <$> tidyScalar i <*> pure loc
+  TyCtor{} -> pure type_
+  TyFunction r1 r2 loc -> TyFunction
+    <$> tidyStackType r1
+    <*> tidyStackType r2
     <*> pure loc
-  Handle{} -> pure type_
-  Int{} -> pure type_
-  Named{} -> pure type_
-  Quantified (Forall r s t) loc -> Quantified
+  TyQuantified (Forall r s t) loc -> TyQuantified
     <$> (Forall
-      <$> Set.mapM tidyRow r
+      <$> Set.mapM tidyStack r
       <*> Set.mapM tidyScalar s
       <*> tidyScalarType t)
     <*> pure loc
-  Var name loc -> Var <$> tidyScalar name <*> pure loc
-  Unit{} -> pure type_
-  Vector t loc -> Vector <$> tidyScalarType t <*> pure loc
+  TyVar i loc -> TyVar <$> tidyScalar i <*> pure loc
+  TyVector t loc -> TyVector <$> tidyScalarType t <*> pure loc
 
-tidyRowType :: Type Row -> Tidy (Type Row)
-tidyRowType type_ = case type_ of
-  t1 :. t2 -> (:.) <$> tidyRowType t1 <*> tidyScalarType t2
-  Const name loc -> Const <$> tidyRow name <*> pure loc
-  Empty{} -> pure type_
-  Var name loc -> Var <$> tidyRow name <*> pure loc
+tidyStackType :: Type Stack -> Tidy (Type Stack)
+tidyStackType type_ = case type_ of
+  t1 :. t2 -> (:.) <$> tidyStackType t1 <*> tidyScalarType t2
+  TyConst i loc -> TyConst <$> tidyStack i <*> pure loc
+  TyEmpty{} -> pure type_
+  TyVar i loc -> TyVar <$> tidyStack i <*> pure loc

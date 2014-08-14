@@ -3,44 +3,44 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Kitten.Compile
-  ( Compile.Config(..)
-  , compile
-  , locateImport
-  , substituteImports
+  ( compile
   ) where
 
 import Control.Applicative
 import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Either
+import Data.HashMap.Strict (HashMap)
 import Data.List
 import Data.Monoid
+import Data.Set (Set)
 import Data.Text (Text)
 import System.Directory
 import System.FilePath
 import System.IO
 import System.IO.Error
 import Text.Parsec.Error
+import Text.Parsec.Pos
 
+import qualified Data.HashMap.Strict as H
+import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
 import Kitten.Error
-import Kitten.Fragment
-import Kitten.Import
 import Kitten.Infer
-import Kitten.Name (NameGen)
+import Kitten.IR
+import Kitten.Location
+import Kitten.Optimize
 import Kitten.Parse
 import Kitten.Resolve
 import Kitten.Scope
-import Kitten.Term (Term)
 import Kitten.Tokenize
-import Kitten.Type
-import Kitten.Typed (Typed)
+import Kitten.Types
 import Kitten.Util.Either
-import Kitten.Util.Function
+import Kitten.Util.Monad
 
-import qualified Kitten.Compile.Config as Compile
+import qualified Kitten.IdMap as Id
 import qualified Kitten.Util.Text as T
 
 liftParseError :: Either ParseError a -> Either [ErrorGroup] a
@@ -50,30 +50,61 @@ parseSource
   :: Int
   -> String
   -> Text
-  -> Either [ErrorGroup] (Fragment Term)
+  -> Either [ErrorGroup] (Fragment ParsedTerm)
 parseSource line name source = do
   tokenized <- liftParseError $ tokenize line name source
-  liftParseError $ parse name tokenized
+  mapLeft (:[]) $ parse name tokenized
 
 compile
-  :: Compile.Config
-  -> NameGen
-  -> IO (Either [ErrorGroup] (NameGen, Fragment Typed, Type Scalar))
-compile Compile.Config{..} nameGen = liftM (mapLeft sort) . runEitherT $ do
-  parsed <- hoistEither $ parseSource firstLine name source
-  substituted <- hoistEither
-    =<< lift (substituteImports libraryDirectories parsed [])
-  resolved <- hoistEither $ resolve prelude substituted
+  :: Config
+  -> Program
+  -> IO (Either [ErrorGroup] (Program, Int, Type Scalar))
+compile config@Config{..} program
+  = liftM (mapLeft sort) . runEitherT $ do
+  parsed <- fmap
+    (\fragment -> if configImplicitPrelude then fragment
+      { fragmentImports = Import
+        { importName = "Prelude"
+        , importLocation = Location
+          { locationStart = initialPos "Prelude"
+          , locationIndent = 0
+          }
+        } : fragmentImports fragment
+      } else fragment)
+    $ hoistEither (parseSource configFirstLine configName configSource)
 
-  when dumpResolved . lift $ hPrint stderr resolved
+  substituted <- hoistEither
+    =<< lift (substituteImports configLibraryDirectories parsed)
+
+  -- Applicative rewriting must take place after imports have been
+  -- substituted, so that all operator declarations are in scope.
+  (postfix, program') <- hoistEither . mapLeft (:[]) $ rewriteInfix program substituted
+  resolved <- hoistEither $ resolve postfix program'
+
+  when configDumpResolved . lift $ hPrint stderr resolved
 
   let scoped = scope resolved
-  when dumpScoped . lift $ hPrint stderr scoped
+  when configDumpScoped . lift $ hPrint stderr scoped
 
-  (nameGen', typed, type_) <- hoistEither
-    $ typeFragment inferConfig stackTypes prelude scoped nameGen
+  let (mTypedAndType, program'') = runK program' config $ typeFragment scoped
+  (typed, type_) <- hoistEither mTypedAndType
 
-  return (nameGen', typed, type_)
+  let
+    (mErrors, program''') = ir typed
+      program''
+        { programTypes = programTypes program''
+          <> H.map (V.map ctorName . typeDefConstructors)
+            (fragmentTypes typed) }
+      config
+  void $ hoistEither mErrors
+
+  let program'''' = optimize configOptimizations program'''
+
+  return
+    ( program''''
+    , maybe 0 V.length $ Id.lookup entryId (programBlocks program)
+    , type_
+    )
 
 locateImport
   :: [FilePath]
@@ -90,51 +121,61 @@ locateImport libraryDirectories importName = do
       : libraryDirectories
       ++ [currentDirectory, currentDirectory </> "lib"]
 
-  nub <$> (filterM doesFileExist
-    =<< mapM canonicalImport searchDirectories)
+  fmap nub $ filterM doesFileExist
+    =<< mapMaybeM canonicalImport searchDirectories
 
   where
-  canonicalImport :: FilePath -> IO FilePath
+  canonicalImport :: FilePath -> IO (Maybe FilePath)
   canonicalImport path = catchIOError
-    (canonicalizePath $ path </> T.unpack importName <.> "ktn")
-    $ \e -> if isDoesNotExistError e
-      then return "" else ioError e
+    (Just <$> canonicalizePath (path </> T.unpack importName <.> "ktn"))
+    $ \e -> if isDoesNotExistError e then return Nothing else ioError e
 
 substituteImports
   :: [FilePath]
-  -> Fragment Term
-  -> [Import]
-  -> IO (Either [ErrorGroup] (Fragment Term))
-substituteImports libraryDirectories fragment inScope
-  = runEitherT $ do
-
-    let inScope' = V.toList (fragmentImports fragment) \\ inScope
-
-    imports <- lift . forM inScope'
-      $ \import_ -> do
-        located <- locateImport libraryDirectories (importName import_)
-        return (import_, located)
-
-    imported <- forM imports $ \(import_, possible) -> case possible of
-      [filename] -> do
-        source <- lift $ T.readFileUtf8 filename
-        parsed <- hoistEither $ parseSource 1 filename source
-        hoistEither =<< lift
-          (substituteImports libraryDirectories parsed inScope')
-
-      -- FIXME fail with "hoistEither . Left . CompileError" or something
-      -- FIXME better error messages
-      [] -> (fail . T.unpack . T.concat)
-        [ "unable to find import '"
-        , importName import_
-        , "'"
-        ]
-      _ -> (fail . T.unpack . T.concat)
-        [ "ambiguous import '"
-        , importName import_
-        , "'"
-        ]
-
-    return $ foldr (<>) fragment
-      $ for imported
-      $ (\defs -> mempty { fragmentDefs = defs }) . fragmentDefs
+  -> Fragment ParsedTerm
+  -> IO (Either [ErrorGroup] (Fragment ParsedTerm))
+substituteImports libraryDirectories fragment = runEitherT $ do
+  (substitutedDefs, substitutedOperators, substitutedTypes) <- go
+    (fragmentImports fragment)
+    S.empty
+    ( H.toList (fragmentDefs fragment)
+    , fragmentOperators fragment
+    , fragmentTypes fragment
+    )
+  return fragment
+    { fragmentDefs = H.fromList substitutedDefs
+    , fragmentOperators = substitutedOperators
+    , fragmentTypes = substitutedTypes
+    }
+  where
+  go
+    :: [Import]
+    -> Set Text
+    -> ([(Text, Def ParsedTerm)], [Operator], HashMap Text TypeDef)
+    -> EitherT [ErrorGroup] IO
+      ([(Text, Def ParsedTerm)], [Operator], HashMap Text TypeDef)
+  go [] _ acc = return acc
+  go (currentModule : remainingModules) seenModules
+    acc@(defs, operators, types) = let
+    name = importName currentModule
+    location = importLocation currentModule
+    in if name `S.member` seenModules
+      then go remainingModules seenModules acc
+      else do
+        possible <- lift $ locateImport libraryDirectories name
+        case possible of
+          [filename] -> do
+            source <- lift $ T.readFileUtf8 filename
+            parsed <- hoistEither $ parseSource 1 filename source
+            go
+              (fragmentImports parsed ++ remainingModules)
+              (S.insert name seenModules)
+              ( H.toList (fragmentDefs parsed) ++ defs
+              , fragmentOperators parsed ++ operators
+              , fragmentTypes parsed <> types
+              )
+          [] -> err location $ T.concat
+            ["missing import '", name, "'"]
+          _ -> err location $ T.concat
+            ["ambiguous import '", name, "'"]
+  err loc = left . (:[]) . oneError . CompileError loc Error
