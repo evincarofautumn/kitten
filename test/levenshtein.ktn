@@ -10,20 +10,15 @@ def levenshtein ([char] [char] -> int):
   0 (columns + 1) replicate (rows + 1) replicate
 
   // Distance from any first string to empty second string.
-  from (0) to (rows):
-    -> row;
+  from (0) to (rows) -> row:
     (row, 0) @@= row
 
   // Distance from any second string to empty first string.
-  from (0) to (columns):
-    -> column;
+  from (0) to (columns) -> column:
     (0, column) @@= column
 
-  from (1) to (rows):
-    -> row;
-    from (1) to (columns):
-      -> distances column;
-
+  from (1) to (rows) -> row:
+    from (1) to (columns) -> distances column:
       first @! (row - 1) -> firstChar;
       second @! (column - 1) -> secondChar;
 
