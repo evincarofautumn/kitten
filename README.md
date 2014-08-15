@@ -1,6 +1,14 @@
 # The Kitten Programming Language
 
-**Kitten** is a statically typed, stack-based functional programming language with concatenative semantics. This is an in-progress implementation of that language.
+**Kitten** is a statically typed, [stack-based functional programming language][concatenative] designed for simplicity, speed, and safety. This is an in-progress implementation of that language, including:
+
+ * An interactive console for testing code.
+
+ * An interpreter.
+
+ * A compiler targeting C99.
+
+# Resources
 
  * Visit the [official site][site].
 
@@ -9,8 +17,6 @@
  * Skim a quick [intro][intro].
 
  * Read a (work in progress) [tutorial][tutorial].
-
-The original implementation was compiled to C. In the interest of faster iteration on language features, the current implementation is interpreted.
 
 # Building
 
@@ -24,6 +30,7 @@ cd kitten
 make all
 ```
 
+[concatenative]: http://concatenative.org/
 [examples]: https://github.com/evincarofautumn/kitten/tree/master/examples
 [intro]: http://kittenlang.org/intro/
 [site]: http://kittenlang.org/
