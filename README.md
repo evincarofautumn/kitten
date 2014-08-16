@@ -25,7 +25,7 @@
 To build the compiler, you need GHC ≥7.6. Simply run:
 
 ```
-git clone git://github.com/evincarofautumn/kitten.git
+git clone https://github.com/evincarofautumn/kitten.git
 cd kitten
 make all
 ```
