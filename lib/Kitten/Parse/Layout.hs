@@ -58,12 +58,13 @@ insertBraces = (concat <$> many unit) <* eof
       { locatedLocation = colonLoc@Location { locationIndent = colonIndent }
       } <- locatedMatch TkLayout
     let
-      validFirst (Located _ loc)
-        = sourceColumn (locationStart loc) > colonIndent
+      validFirst (Located _ loc) = let
+        column = sourceColumn (locationStart loc)
+        in column > 1 && column >= colonIndent
     Located
       { locatedLocation = Location { locationStart = firstTokenLoc }
       } <- lookAhead (locatedSatisfy validFirst)
-      <?> "token indented more than start of layout block"
+      <?> "token indented no less than start of layout block"
     let
       inside (Located _ loc)
         = sourceColumn (locationStart loc) >= sourceColumn firstTokenLoc
