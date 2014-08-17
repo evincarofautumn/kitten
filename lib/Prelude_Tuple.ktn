@@ -1,39 +1,39 @@
 // Gets the first element of a tuple or pair.
-def first {a, b}(a & b -> a):
+def first @a b (a & b -> a):
   __first
 
 // Gets the second element of a tuple.
-def second {a, b, c}(a & b & c -> b):
+def second @a b c (a & b & c -> b):
   rest first
 
 // Gets the third element of a tuple.
-def third {a, b, c, d}(a & b & c & d -> c):
+def third @a b c d (a & b & c & d -> c):
   rest rest first
 
 // Flips the elements of a pair.
-def flip {a, b}(a & b -> b & a):
+def flip @a b (a & b -> b & a):
   unpair swap pair
 
 // Gets the fourth element of a tuple.
-def fourth {a, b, c, d, e}(a & b & c & d & e -> d):
+def fourth @a b c d e (a & b & c & d & e -> d):
   rest rest rest first
 
 // Constructs a pair.
-def pair {a, b}(a b -> a & b):
+def pair @a b (a b -> a & b):
   __pair
 
 // Constructs a triple.
-def triple {a, b, c}(a b c -> a & b & c):
+def triple @a b c (a b c -> a & b & c):
   pair pair
 
 // Gets the second element of a pair or the tail of a tuple.
-def rest {a, b}(a & b -> b):
+def rest @a b (a & b -> b):
   __rest
 
 // Extracts a pair.
-def unpair {a, b}(a & b -> a b):
+def unpair @a b (a & b -> a b):
   \first \rest bothTo
 
 // Extracts a triple.
-def untriple {a, b, c}(a & b & c -> a b c):
+def untriple @a b c (a & b & c -> a b c):
   unpair unpair

@@ -1,1 +1,1 @@
-def example {a}(-> a): 10
+def example @a (-> a): 10

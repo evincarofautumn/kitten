@@ -1,4 +1,4 @@
-def test {a}(a? (a -> [char]) ->):
+def test @a (a? (a -> [char]) ->):
   -> x show;
   option (x):
     show apply say

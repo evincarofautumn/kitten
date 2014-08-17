@@ -597,9 +597,9 @@ instance ToText (Type Stack) where
   toText = \case
     t1 :. t2 -> T.unwords [toText t1, toText t2]
     TyConst (KindedId (Id i)) _
-      -> ".s" <> showText i  -- TODO Show differently?
+      -> "s" <> showText i <> "..."  -- TODO Show differently?
     TyEmpty _ -> "<empty>"
-    TyVar (KindedId (Id i)) _ -> ".s" <> showText i
+    TyVar (KindedId (Id i)) _ -> "s" <> showText i <> "..."
 
 originSuffix :: Origin -> Text
 originSuffix (Origin hint _) = case hint of
@@ -696,9 +696,8 @@ instance (ToText a) => Show (Scheme a) where
   show = T.unpack . toText
 
 instance (ToText a) => ToText (Scheme a) where
-  toText (Forall stacks scalars type_) = T.concat
-    $ (if null variables then []
-      else ["{", T.intercalate ", " variables, "}"])
+  toText (Forall stacks scalars type_) = T.unwords
+    $ (if null variables then [] else "@" : variables)
     ++ [toText type_]
 
     where

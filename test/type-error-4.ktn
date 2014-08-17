@@ -1,2 +1,2 @@
-def foo {a}([a] -> a):
+def foo @a ([a] -> a):
   ->q; q __from_some

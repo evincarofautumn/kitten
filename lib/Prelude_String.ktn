@@ -55,7 +55,7 @@ def showInts ([int] -> [char]):
   \showInt showVector
 
 // Shows a vector as a string.
-def showVector {a}([a] (a -> [char]) -> [char]):
+def showVector @a ([a] (a -> [char]) -> [char]):
   -> v f;
   [
     "[",

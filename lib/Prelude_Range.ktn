@@ -25,8 +25,16 @@ def rangeUntil (int int -> [int]):
   else:
     start end {(- 1)} \<= rangeFor
 
-// Inclusive range (shorthand)
-def .. (int int -> [int]) { rangeTo }
+// Operator alias for inclusive range.
+def -- (int int -> [int]):
+  rangeTo
 
-// Non-inclusive range (shorthand)
-def ... (int int -> [int]) { rangeUntil }
+def – (int int -> [int]):
+  (--)
+
+// Operator alias for non-inclusive range.
+def --- (int int -> [int]):
+  rangeUntil
+
+def — (int int -> [int]):
+  (---)

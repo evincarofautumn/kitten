@@ -2,6 +2,7 @@
 
 module Kitten.Parse.Type
   ( baseType
+  , quantifier
   , signature
   , typeDefType
   ) where
@@ -18,6 +19,7 @@ import Kitten.Parsec
 import Kitten.Parse.Primitive
 import Kitten.Types
 import Kitten.Util.Parsec
+import Kitten.Util.Tuple
 
 signature :: Parser Anno
 signature = (<?> "type signature") . locate
@@ -30,23 +32,25 @@ typeDefType = locate $ Anno <$> baseType
 type_ :: Parser AnType
 type_ = (<?> "type") $ try functionType <|> baseType
 
-quantified :: Parser AnType -> Parser AnType
-quantified thing = do
-  (stacks, scalars) <- partitionEithers <$> between
-    (match $ TkBlockBegin NormalBlockHint)
-    (match TkBlockEnd)
-    (variable `sepEndBy1` match TkComma)
-  AnQuantified (V.fromList stacks) (V.fromList scalars) <$> thing
+quantifier :: Parser (Vector Text, Vector Text)
+quantifier = both V.fromList . partitionEithers
+  <$> (forAll *> many1 variable)
   where
-  variable :: Parser (Either Text Text)
-  variable = Left <$> (dot *> word) <|> Right <$> word
+  variable = do
+    name <- word
+    ($ name) <$> option Right (Left <$ ellipsis)
+  forAll = match (TkOperator "@") <|> match (TkOperator "\x2200")
 
-dot :: Parser Token
-dot = match (TkOperator ".")
+quantified :: Parser AnType -> Parser AnType
+quantified thing = uncurry AnQuantified <$> quantifier <*> thing
+
+ellipsis :: Parser Token
+ellipsis = match (TkOperator "...") <|> match (TkOperator "\x2026")
 
 functionType :: Parser AnType
 functionType = (<?> "function type") $ choice
-  [ AnStackFunction <$> (dot *> word) <*> left <*> (dot *> word) <*> right
+  [ try $ AnStackFunction
+    <$> (word <* ellipsis) <*> left <*> (word <* ellipsis) <*> right
   , AnFunction <$> left <*> right
   ]
   where

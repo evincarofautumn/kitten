@@ -130,7 +130,7 @@ def newBoard (-> [char]): ' ' 9 replicate
 
 def editBoard ([char] int char -> [char]):
   -> number player;
-  number cellNumberToIndex @= player
+  number cellNumberToIndex .= player
 
 def printBoard ([char] ->):
   showBoard print
@@ -155,7 +155,7 @@ def showBoardRow ([char] int -> [char]):
   ]
 
 def showBoardCellAt ([char] int -> char):
-  cellNumberToIndex (@!) showBoardCell
+  cellNumberToIndex (!) showBoardCell
 
 def cellNumberToIndex (int -> int):
   (8 -)
@@ -167,7 +167,7 @@ def showBoardCell (char -> char) {}
 def readMoveLine ([char] -> (int & int)?):
   -> chars;
   if (chars length = 2):
-    (chars @! 0) (chars @! 1) readXY
+    (chars!0) (chars!1) readXY
   else:
     none
 
