@@ -42,7 +42,7 @@ type LabelIdMap = IdMap LabelSpace
 type TypeIdMap = IdMap TypeSpace
 
 (!) :: IdMap n a -> Id n -> a
-IdMap ids ! Id index = ids I.! index
+(!) (IdMap ids) (Id index) = ids I.! index
 
 adjust :: (a -> a) -> Id n -> IdMap n a -> IdMap n a
 adjust f (Id i) (IdMap ids) = IdMap $ I.adjust f i ids

@@ -230,7 +230,7 @@ term = locate $ choice
         body <- choice
           [ do
             body <- block
-            return $ \_ -> body
+            return $ const body
           , do
             (names, body) <- lambdaBlock
             return $ \loc -> V.singleton (makeLambda names body loc)
@@ -446,8 +446,8 @@ rewriteInfix program@Program{..} parsed@Fragment{..} = do
     useDefault name fixity = fixity == Infix
       && not (any ((name ==) . operatorName) allOperators)
     flat = allOperators
-      ++ (map (Operator LeftAssociative 6)
-        $ H.keys $ H.filterWithKey useDefault allFixities)
+      ++ map (Operator LeftAssociative 6)
+        (H.keys $ H.filterWithKey useDefault allFixities)
     in for [9,8..0] $ \p -> filter ((p ==) . operatorPrecedence) flat
 
   toOp :: Operator -> E.Operator [ParsedTerm] () Identity ParsedTerm

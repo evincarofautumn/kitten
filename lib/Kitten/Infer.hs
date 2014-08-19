@@ -42,61 +42,61 @@ import qualified Kitten.Util.Vector as V
 typeFragment
   :: Fragment ResolvedTerm
   -> K (Fragment TypedTerm, Type Scalar)
-typeFragment fragment = do
-  rec
-    -- Populate environment with definition types.
-    --
-    -- FIXME(strager):
-    -- Use previously-inferred types (i.e. defTypeScheme def). We cannot
-    -- right now because effects are not inferred properly (e.g. for the
-    -- effects of the 'map' prelude function).
-    F.forM_ (fragmentDefs fragment) save
+typeFragment fragment = mdo
+  -- Populate environment with definition types.
+  --
+  -- FIXME(strager):
+  -- Use previously-inferred types (i.e. defTypeScheme def). We cannot
+  -- right now because effects are not inferred properly (e.g. for the
+  -- effects of the 'map' prelude function).
+  F.forM_ (fragmentDefs fragment) save
 
-    typedDefs <- flip T.mapM (fragmentDefs fragment) $ \def
-      -> withOrigin (defOrigin def) $ do
-        (typedDefTerm, inferredScheme) <- generalize
-          . infer finalProgram . unscheme $ defTerm def  -- See note [scheming defs].
-        declaredScheme <- do
-          decls <- getsProgram inferenceDecls
-          case H.lookup (defName def) decls of
-            Just decl -> return decl
-            Nothing -> do
-              origin <- getsProgram inferenceOrigin
-              fmap mono . forAll $ \r s -> TyFunction r s origin
-        saveDefWith (flip const) (defName def) inferredScheme
-        instanceCheck inferredScheme declaredScheme $ let
-          item = CompileError (defLocation def)
-          in ErrorGroup
-          [ item Error $ T.unwords
-            [ "inferred type of"
-            , defName def
-            , "is not an instance of its declared type"
-            ]
-          , item Note $ T.unwords ["inferred", toText inferredScheme]
-          , item Note $ T.unwords ["declared", toText declaredScheme]
+  typedDefs <- flip T.mapM (fragmentDefs fragment) $ \def
+    -> withOrigin (defOrigin def) $ do
+      (typedDefTerm, inferredScheme) <- generalize
+        . infer finalProgram . unscheme  -- See note [scheming defs].
+        $ defTerm def
+      declaredScheme <- do
+        decls <- getsProgram inferenceDecls
+        case H.lookup (defName def) decls of
+          Just decl -> return decl
+          Nothing -> do
+            origin <- getsProgram inferenceOrigin
+            fmap mono . forAll $ \r s -> TyFunction r s origin
+      saveDefWith (flip const) (defName def) inferredScheme
+      instanceCheck inferredScheme declaredScheme $ let
+        item = CompileError (defLocation def)
+        in ErrorGroup
+        [ item Error $ T.unwords
+          [ "inferred type of"
+          , defName def
+          , "is not an instance of its declared type"
           ]
-        return def { defTerm = typedDefTerm <$ inferredScheme }
+        , item Note $ T.unwords ["inferred", toText inferredScheme]
+        , item Note $ T.unwords ["declared", toText declaredScheme]
+        ]
+      return def { defTerm = typedDefTerm <$ inferredScheme }
 
-    topLevel <- getsProgram (originLocation . inferenceOrigin)
-    (typedTerm, fragmentType) <- infer finalProgram $ fragmentTerm fragment
+  topLevel <- getsProgram (originLocation . inferenceOrigin)
+  (typedTerm, fragmentType) <- infer finalProgram $ fragmentTerm fragment
 
-    -- Equate the bottom of the stack with stackTypes.
-    do
-      let TyFunction consumption _ _ = fragmentType
-      bottom <- freshVarM
-      enforce <- asksConfig configEnforceBottom
-      when enforce $ bottom === TyEmpty (Origin HiNone topLevel)
-      stackTypes <- asksConfig configStackTypes
-      let stackType = F.foldl (:.) bottom stackTypes
-      stackType === consumption
+  -- Equate the bottom of the stack with stackTypes.
+  do
+    let TyFunction consumption _ _ = fragmentType
+    bottom <- freshVarM
+    enforce <- asksConfig configEnforceBottom
+    when enforce $ bottom === TyEmpty (Origin HiNone topLevel)
+    stackTypes <- asksConfig configStackTypes
+    let stackType = F.foldl (:.) bottom stackTypes
+    stackType === consumption
 
-    let
-      typedFragment = fragment
-        { fragmentDefs = typedDefs
-        , fragmentTerm = typedTerm
-        }
+  let
+    typedFragment = fragment
+      { fragmentDefs = typedDefs
+      , fragmentTerm = typedTerm
+      }
 
-    finalProgram <- getProgram
+  finalProgram <- getProgram
 
   return (typedFragment, sub finalProgram fragmentType)
 
@@ -563,13 +563,12 @@ inferValue finalProgram value = getsProgram inferenceOrigin >>= \origin -> case 
 unifyEach :: Vector (Type Scalar) -> K (Type Scalar)
 unifyEach xs = go 0
   where
-  go i = if i >= V.length xs
-    then freshVarM
-    else if i == V.length xs - 1
-      then return (xs V.! i)
-      else do
-        xs V.! i === xs V.! (i + 1)
-        go (i + 1)
+  go i
+    | i >= V.length xs = freshVarM
+    | i == V.length xs - 1 = return (xs V.! i)
+    | otherwise = do
+      xs V.! i === xs V.! (i + 1)
+      go (i + 1)
 
 inferCompose
   :: Type Stack -> Type Stack

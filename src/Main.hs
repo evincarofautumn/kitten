@@ -73,7 +73,7 @@ interpretAll entryPoints Arguments{..} config
         printCompileErrors compileErrors
         exitFailure
       Right (result, ip, _type) -> do
-        out <- maybe (return stdout) (flip openFile WriteMode) argsOutputPath
+        out <- maybe (return stdout) (`openFile` WriteMode) argsOutputPath
         case argsCompileMode of
           CheckMode -> noop
           CompileMode OutputIr -> V.mapM_ (hPrint out)

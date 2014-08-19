@@ -61,17 +61,9 @@ compile
   -> IO (Either [ErrorGroup] (Program, Int, Type Scalar))
 compile config@Config{..} program
   = liftM (mapLeft sort) . runEitherT $ do
-  parsed <- fmap
-    (\fragment -> if configImplicitPrelude then fragment
-      { fragmentImports = Import
-        { importName = "Prelude"
-        , importLocation = Location
-          { locationStart = initialPos "Prelude"
-          , locationIndent = 0
-          }
-        } : fragmentImports fragment
-      } else fragment)
-    $ hoistEither (parseSource configFirstLine configName configSource)
+
+  parsed <- addPreludeImport <$> hoistEither
+    (parseSource configFirstLine configName configSource)
 
   substituted <- hoistEither
     =<< lift (substituteImports configLibraryDirectories parsed)
@@ -103,6 +95,18 @@ compile config@Config{..} program
     , maybe 0 V.length $ Id.lookup entryId (programBlocks program)
     , type_
     )
+  where
+  addPreludeImport fragment
+    | configImplicitPrelude = fragment
+      { fragmentImports = Import
+        { importName = "Prelude"
+        , importLocation = Location
+          { locationStart = initialPos "Prelude"
+          , locationIndent = 0
+          }
+        } : fragmentImports fragment
+      }
+    | otherwise = fragment
 
 locateImport
   :: [FilePath]

@@ -26,7 +26,7 @@ optimize config program = program
   where
   startingFuel :: Int
   startingFuel = 100
-  go = \loop blocks fuel -> let
+  go loop blocks fuel = let
     blocks' = foldl' (applyOpt program) blocks optimizations
     in if fuel == 0 || blocks' == blocks
       then blocks
