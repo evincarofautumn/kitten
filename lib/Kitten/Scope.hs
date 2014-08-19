@@ -9,6 +9,7 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
 import Data.Monoid
+import Data.Traversable (traverse)
 import Data.Vector (Vector)
 
 import qualified Data.HashMap.Strict as H
@@ -40,14 +41,14 @@ scopeTerm stack typed = case typed of
   TrMakePair as bs loc -> TrMakePair (recur as) (recur bs) loc
   TrMakeVector items loc -> TrMakeVector (V.map recur items) loc
   TrMatch cases mDefault loc -> TrMatch
-    (V.map scopeCase cases) (fmap recur mDefault) loc
+    (V.map scopeCase cases) (fmap (scopeValue stack) mDefault) loc
   TrPush value loc -> TrPush (scopeValue stack value) loc
 
   where
   recur :: ResolvedTerm -> ResolvedTerm
   recur = scopeTerm stack
 
-  scopeCase (TrCase name body loc) = TrCase name (recur body) loc
+  scopeCase (TrCase name body loc) = TrCase name (scopeValue stack body) loc
 
 scopeValue :: [Int] -> ResolvedValue -> ResolvedValue
 scopeValue stack value = case value of
@@ -116,11 +117,11 @@ captureTerm typed = case typed of
     <*> pure loc
   TrMatch cases mDefault loc -> TrMatch
     <$> V.mapM captureCase cases
-    <*> maybe (pure Nothing) (fmap Just . captureTerm) mDefault
+    <*> traverse captureValue mDefault
     <*> pure loc
     where
     captureCase (TrCase name body loc') = TrCase name
-      <$> captureTerm body
+      <$> captureValue body
       <*> pure loc'
   TrPush value loc -> TrPush <$> captureValue value <*> pure loc
 

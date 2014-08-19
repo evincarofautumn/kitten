@@ -85,29 +85,33 @@ irTerm term = case term of
   TrMatch cases mDefault _ -> V.singleton
     <$> (IrMatch <$> V.mapM irCase cases <*> traverse irDefault mDefault)
     where
-    irCase (TrCase name body _) = do
+    irCase (TrCase name (TrClosure names body (_, type_)) _) = do
       instructions <- irTerm body
-      name' <- ctorIndex Nothing name
       target <- declareBlockM Nothing (terminated instructions)
-      return $ IrCase name' target
-    irDefault body = do
+      name' <- ctorIndex Nothing name
+      return $ IrCase name' (target, names, type_)
+    irDefault (TrClosure names body (_, type_)) = do
       instructions <- irTerm body
-      declareBlockM Nothing (terminated instructions)
+      target <- declareBlockM Nothing (terminated instructions)
+      return (target, names, type_)
   TrPush value _ -> irValue value
 
 ctorIndex :: Maybe Text -> Text -> K Int
-ctorIndex (Just name) ctor = fromMaybe
-  (error $ concat
-    [ "using non-constructor '"
-    , T.unpack ctor
-    , "' as constructor of '"
-    , T.unpack name
-    , "'"
-    ])
-  . (V.elemIndex ctor =<<) . H.lookup name <$> getsProgram programTypes
-ctorIndex Nothing ctor = fromMaybe
-  (error $ "match on non-constructor '" ++ T.unpack ctor ++ "'")
-  . findMap (V.elemIndex ctor) . H.elems <$> getsProgram programTypes
+ctorIndex mName ctor = case mName of
+  Just name -> fromMaybe
+    (error $ concat
+      [ "using non-constructor '"
+      , T.unpack ctor
+      , "' as constructor of '"
+      , T.unpack name
+      , "'"
+      ])
+    . (findCtor =<<) . H.lookup name <$> getsProgram programTypes
+  Nothing -> fromMaybe
+    (error $ "match on non-constructor '" ++ T.unpack ctor ++ "'")
+    . findMap findCtor . H.elems <$> getsProgram programTypes
+  where
+  findCtor = V.findIndex ((ctor ==) . ctorName) . typeDefConstructors
 
 irValue :: TypedValue -> K IrBlock
 irValue resolved = case resolved of
@@ -117,7 +121,7 @@ irValue resolved = case resolved of
   TrClosure names terms (loc, type_) -> do
     instructions <- irTerm terms
     target <- declareBlockM Nothing (terminated instructions)
-    return $ V.singleton (IrAct target names type_)
+    return $ V.singleton (IrAct (target, names, type_))
   TrFloat x _ -> value $ IrFloat x
   TrInt x _ -> value $ IrInt x
   TrLocal index _ -> return $ V.singleton (IrLocal index)

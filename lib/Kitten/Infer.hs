@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PostfixOperators #-}
@@ -224,11 +225,14 @@ infer finalProgram resolved = case resolved of
 
     return (TrCompose hint typedTerms (loc, sub finalProgram type_), type_)
 
+  -- HACK This is essentially untyped and relies on the constructor definition's
+  -- type annotation in order to be safe.
   TrConstruct name ctor size loc -> withLocation loc $ do
     r <- freshVarM
     inputs <- V.foldl (:.) r <$> V.replicateM size freshVarM
     origin <- getsProgram inferenceOrigin
-    let type_ = TyFunction inputs (r :. TyCtor (CtorUser name) origin) origin
+    a <- freshVarM
+    let type_ = TyFunction inputs (r :. a) origin
     return (TrConstruct name ctor size (loc, sub finalProgram type_), type_)
 
   TrIntrinsic name loc -> asTyped (TrIntrinsic name) loc $ case name of
@@ -432,28 +436,41 @@ infer finalProgram resolved = case resolved of
     decls <- getsProgram inferenceDecls
     defaultOrigin <- getsProgram inferenceOrigin
     (mDefault', defaultType) <- case mDefault of
-      Just term -> do
-        (term', TyFunction bodyIn bodyOut origin) <- recur term
+      Just (TrClosure names term loc') -> do
+        closedTypes <- V.mapM getClosedName names
+        (term', type_@(TyFunction bodyIn bodyOut origin))
+          <- withClosure closedTypes $ recur term
         a <- freshVarM
-        return (Just term', TyFunction (bodyIn :. a) bodyOut origin)
+        return
+          ( Just (TrClosure names term' (loc', type_))
+          , TyFunction (bodyIn :. a) bodyOut origin
+          )
+      Just _ -> error "non-closure appeared in match default during inference"
       Nothing -> do
         type_ <- forAll $ \r s a -> (r :. a --> s) defaultOrigin
         return (Nothing, type_)
-    (cases', caseTypes) <- flip V.mapAndUnzipM cases $ \ (TrCase name body loc')
-      -> withLocation loc' $ do
-        (body', TyFunction bodyIn bodyOut _) <- recur body
+    (cases', caseTypes) <- flip V.mapAndUnzipM cases $ \case
+      TrCase name (TrClosure names body loc'') loc'-> withLocation loc' $ do
+        closedTypes <- V.mapM getClosedName names
+        (body', TyFunction bodyIn bodyOut _)
+          <- withClosure closedTypes $ recur body
         case H.lookup name decls of
           Just (Forall _ _ ctorType) -> do
             TyFunction fields whole origin <- unquantify ctorType
             fields === bodyIn
             let type_ = TyFunction whole bodyOut origin
-            return (TrCase name body' (loc', sub finalProgram type_), type_)
+            return
+              ( TrCase name (TrClosure names body' (loc'', type_))
+                (loc', sub finalProgram type_)
+              , type_
+              )
           Nothing -> liftFailWriter $ throwMany [errorGroup]
             where
             errorGroup = ErrorGroup
               [ CompileError loc' Error $ T.concat
                 ["'", name, "' does not seem to be a defined constructor"] ]
-    type_ <- unifyEach (V.snoc caseTypes defaultType)
+      _ -> error "non-closure appeared in match case during inference"
+    type_ <- unifyEach (V.cons defaultType caseTypes)
     return (TrMatch cases' mDefault' (loc, sub finalProgram type_), type_)
 
   TrPush value loc -> withLocation loc $ do

@@ -18,6 +18,7 @@ import Data.Function
 import Data.Text (Text)
 
 import qualified Data.Text as T
+import qualified Data.Vector as V
 
 import Kitten.Error
 import Kitten.Infer.Locations
@@ -65,6 +66,14 @@ instance Unification Scalar where
     _ | type1 == type2 -> Right program
     (a :& b, c :& d) -> unify b d program >>= unify a c
     ((:?) a, (:?) b) -> unify a b program
+    (a :@ as, b) | V.null as -> unify a b program
+    (a, b :@ bs) | V.null bs -> unify a b program
+    (a :@ as, b :@ bs) -> do
+      program' <- unify a b program
+      if V.length as /= V.length bs
+        then Left $ unificationError Nothing
+          (originLocation $ inferenceOrigin program) type1 type2
+        else V.foldM (\p (x, y) -> unify x y p) program' $ V.zip as bs
     (a :| b, c :| d) -> unify b d program >>= unify a c
     (TyFunction a b _, TyFunction c d _) -> unify b d program >>= unify a c
     (TyVector a _, TyVector b _) -> unify a b program

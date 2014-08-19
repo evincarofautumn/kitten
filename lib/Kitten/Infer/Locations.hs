@@ -7,6 +7,8 @@ module Kitten.Infer.Locations
 
 import Data.Text (Text)
 
+import qualified Data.Foldable as F
+
 import Kitten.Util.Text (ToText(..))
 import Kitten.Types
 
@@ -19,6 +21,7 @@ diagnosticLocations type_ = case type_ of
   a :& b -> locations a ++ locations b
   a :. b -> locations a ++ locations b
   (:?) a -> locations a
+  a :@ bs -> locations a ++ F.foldMap locations bs
   a :| b -> locations a ++ locations b
   TyConst _ loc -> yield loc
   TyCtor _ loc -> yield loc

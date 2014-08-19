@@ -94,11 +94,13 @@ typeDef :: Parser TypeDef
 typeDef = (<?> "type definition") . locate $ do
   void (match TkData)
   name <- named <?> "type name"
+  scalars <- option mempty scalarQuantifier
   constructors <- blocked (manyV typeConstructor)
   return $ \loc -> TypeDef
     { typeDefConstructors = constructors
     , typeDefLocation = loc
     , typeDefName = name
+    , typeDefScalars = scalars
     }
 
 typeConstructor :: Parser TypeConstructor
@@ -233,10 +235,11 @@ term = locate $ choice
             (names, body) <- lambdaBlock
             return $ \loc -> V.singleton (makeLambda names body loc)
           ]
-        return $ \loc -> TrCase name (TrCompose StackAny (body loc) loc) loc
+        return $ \loc -> TrCase name
+          (TrQuotation (TrCompose StackAny (body loc) loc) loc) loc
       mDefault <- optionMaybe . locate $ match TkDefault *> do
         body <- block
-        return $ \loc -> TrCompose StackAny body loc
+        return $ \loc -> TrQuotation (TrCompose StackAny body loc) loc
       return (patterns, mDefault)
     let
       withScrutinee loc scrutinee x
@@ -340,11 +343,11 @@ rewriteInfix program@Program{..} parsed@Fragment{..} = do
       return $ TrMakeVector terms' loc
     TrMatch cases mDefault loc -> do
       cases' <- V.mapM rewriteInfixCase cases
-      mDefault' <- traverse rewriteInfixTerm mDefault
+      mDefault' <- traverse rewriteInfixValue mDefault
       return $ TrMatch cases' mDefault' loc
       where
       rewriteInfixCase (TrCase name body loc') = do
-        body' <- rewriteInfixTerm body
+        body' <- rewriteInfixValue body
         return $ TrCase name body' loc'
     TrPush value loc -> do
       value' <- rewriteInfixValue value

@@ -1,0 +1,24 @@
+data Option @ a:
+  case Some a;
+  case None;
+
+match (1 Some):
+  case Some: sayInt
+  case None: "None" say
+
+def eqOption @a (Option@a Option@a (a a -> bool) -> bool):
+  -> eq;
+  match:
+  case Some:
+    swap match:
+    case Some: eq apply
+    default: drop false
+  case None:
+    match:
+    case None: true
+    default: false
+
+(1 Some) (1 Some) \= eqOption sayBool
+(1 Some) (2 Some) \= eqOption sayBool
+(1 Some) None \= eqOption sayBool
+None None \= eqOption sayBool

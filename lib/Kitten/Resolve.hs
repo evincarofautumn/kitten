@@ -93,11 +93,11 @@ resolveTerm unresolved = case unresolved of
     <*> pure loc
   TrMatch cases mDefault loc -> TrMatch
     <$> guardMapM resolveCase cases
-    <*> maybe (pure Nothing) (fmap Just . resolveTerm) mDefault
+    <*> traverse resolveValue mDefault
     <*> pure loc
     where
     resolveCase (TrCase name body loc') = TrCase name
-      <$> resolveTerm body
+      <$> resolveValue body
       <*> pure loc'
   TrPush value loc -> TrPush <$> resolveValue value <*> pure loc
 

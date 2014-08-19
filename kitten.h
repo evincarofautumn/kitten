@@ -133,7 +133,7 @@ void k_object_release(KObject);
 int k_object_unique(KObject);
 
 // Value creation.
-KObject k_activation_new(void*, size_t, ...);
+KObject k_activation_new(void*, ...);
 KObject k_left_new(KObject);
 KObject k_pair_new(KObject, KObject);
 KObject k_right_new(KObject);
@@ -161,7 +161,7 @@ void k_in_int_to_char(void);
 void k_in_left(void);
 void k_in_length(void);
 void k_in_make_vector(size_t);
-void* k_in_match(size_t, void*, ...);
+void k_in_match(size_t, ...);
 void k_in_mod_float(void);
 void k_in_pair(void);
 void k_in_print(void);

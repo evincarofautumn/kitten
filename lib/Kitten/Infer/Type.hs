@@ -67,6 +67,9 @@ fromAnno annotated typeDefNames (Anno annoType annoLoc) = do
 
   fromAnnoType' :: Hint -> AnType -> Converted (Type Scalar)
   fromAnnoType' hint = \case
+    AnApp a bs -> (:@)
+      <$> fromAnnoType' HiNone a
+      <*> V.mapM (fromAnnoType' HiNone) bs
     AnChoice a b -> (:|)
       <$> fromAnnoType' HiNone a
       <*> fromAnnoType' HiNone b

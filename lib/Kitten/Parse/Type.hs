@@ -2,7 +2,7 @@
 
 module Kitten.Parse.Type
   ( baseType
-  , quantifier
+  , scalarQuantifier
   , signature
   , typeDefType
   ) where
@@ -32,14 +32,18 @@ typeDefType = locate $ Anno <$> baseType
 type_ :: Parser AnType
 type_ = (<?> "type") $ try functionType <|> baseType
 
+scalarQuantifier :: Parser (Vector Text)
+scalarQuantifier = V.fromList <$> (forAll *> many1 word)
+
 quantifier :: Parser (Vector Text, Vector Text)
-quantifier = both V.fromList . partitionEithers
-  <$> (forAll *> many1 variable)
+quantifier = both V.fromList . partitionEithers <$> (forAll *> many1 variable)
   where
   variable = do
     name <- word
     ($ name) <$> option Right (Left <$ ellipsis)
-  forAll = match (TkOperator "@") <|> match (TkOperator "\x2200")
+
+forAll :: Parser Token
+forAll = match (TkOperator "@") <|> match (TkOperator "\x2200")
 
 quantified :: Parser AnType -> Parser AnType
 quantified thing = uncurry AnQuantified <$> quantifier <*> thing
@@ -71,6 +75,11 @@ baseType = (<?> "base type") $ do
     , AnOption prefix <$ match (TkOperator "?")
     , AnPair prefix
       <$> (match (TkOperator "&") *> baseType)
+    , AnApp prefix
+      <$> (forAll *> choice
+        [ grouped (baseType `sepEndBy1V` match TkComma)
+        , V.singleton <$> baseType
+        ])
     , pure prefix
     ]
 

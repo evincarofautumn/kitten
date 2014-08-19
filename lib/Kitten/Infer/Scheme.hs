@@ -33,7 +33,9 @@ import Data.List
 import Data.Monoid
 import Data.Set (Set)
 
+import qualified Data.Foldable as F
 import qualified Data.Set as S
+import qualified Data.Vector as V
 
 import Kitten.Id
 import Kitten.Infer.Monad
@@ -209,6 +211,7 @@ instance Free (Type Scalar) where
   free type_ = case type_ of
     a :& b -> free a <> free b
     (:?) a -> free a
+    a :@ bs -> free a <> F.foldMap free bs
     a :| b -> free a <> free b
     TyFunction a b _ -> free a <> free b
     TyConst name _ -> ([], [name])
@@ -266,6 +269,7 @@ instance Occurrences Scalar where
   occurrences kind name program type_ = case type_ of
     a :& b -> recur a + recur b
     (:?) a -> recur a
+    a :@ bs -> recur a + V.sum (V.map recur bs)
     a :| b -> recur a + recur b
     TyFunction a b _ -> recur a + recur b
     TyConst typeName@(KindedId name') _ -> case retrieve program typeName of
@@ -315,23 +319,24 @@ instance Substitute Stack where
 
 instance Substitute Scalar where
   sub program type_ = case type_ of
-    TyFunction a b origin -> TyFunction
-      (sub program a)
-      (sub program b)
-      origin
-    a :& b -> sub program a :& sub program b
-    (:?) a -> (sub program a :?)
-    a :| b -> sub program a :| sub program b
+    TyFunction a b origin -> TyFunction (recur a) (recur b) origin
+    a :& b -> recur a :& recur b
+    (:?) a -> (recur a :?)
+    a :@ bs -> recur a :@ V.map recur bs
+    a :| b -> recur a :| recur b
     TyConst{} -> type_  -- See Note [Constant Substitution].
     TyCtor{} -> type_
     TyQuantified (Forall r s t) loc
-      -> TyQuantified (Forall r s (sub program t)) loc
+      -> TyQuantified (Forall r s (recur t)) loc
     TyVar name (Origin hint _loc)
       | Right type' <- retrieve program name
-      -> sub program type' `addHint` hint
+      -> recur type' `addHint` hint
       | otherwise
       -> type_
-    TyVector a origin -> TyVector (sub program a) origin
+    TyVector a origin -> TyVector (recur a) origin
+    where
+    recur :: (Substitute a) => Type a -> Type a
+    recur = sub program
 
 -- Note [Constant Substitution]:
 --

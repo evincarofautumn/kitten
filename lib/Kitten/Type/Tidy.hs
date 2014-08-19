@@ -16,6 +16,8 @@ module Kitten.Type.Tidy
 import Control.Applicative hiding (Const)
 import Control.Monad.Trans.State
 
+import qualified Data.Vector as V
+
 import Kitten.Id
 import Kitten.IdMap (IdMap)
 import Kitten.Types
@@ -96,6 +98,7 @@ tidyScalarType :: Type Scalar -> Tidy (Type Scalar)
 tidyScalarType type_ = case type_ of
   t1 :& t2 -> (:&) <$> tidyScalarType t1 <*> tidyScalarType t2
   (:?) t -> (:?) <$> tidyScalarType t
+  t1 :@ ts -> (:@) <$> tidyScalarType t1 <*> V.mapM tidyScalarType ts
   t1 :| t2 -> (:|) <$> tidyScalarType t1 <*> tidyScalarType t2
   TyConst i loc -> TyConst <$> tidyScalar i <*> pure loc
   TyCtor{} -> pure type_

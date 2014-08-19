@@ -61,7 +61,7 @@ data Program = Program
   , programScalarIdGen :: !(KindedGen Scalar)
   , programStackIdGen :: !(KindedGen Stack)
   , programSymbols :: !(HashMap Text DefId)
-  , programTypes :: !(HashMap Text (Vector Text))
+  , programTypes :: !(HashMap Text TypeDef)
 
   , inferenceClosure :: !(Vector (Type Scalar))
   , inferenceDefs :: !(HashMap Text TypeScheme)
@@ -214,7 +214,7 @@ freshM action = do
 -- Intermediate Representation
 
 data IrInstruction
-  = IrAct !DefId !(Vector ClosedName) !(Type Scalar)
+  = IrAct !IrAct
   | IrIntrinsic !Intrinsic
   | IrCall !DefId
   | IrClosure !Int
@@ -224,14 +224,16 @@ data IrInstruction
   | IrLeave !Int
   | IrLocal !Int
   | IrMakeVector !Int
-  | IrMatch !(Vector IrCase) !(Maybe DefId)
+  | IrMatch !(Vector IrCase) !(Maybe IrAct)
   | IrPush !IrValue
   | IrReturn !Int
   | IrTailApply !Int
   | IrTailCall !Int !DefId
   deriving (Eq)
 
-data IrCase = IrCase !Int !DefId
+type IrAct = (DefId, Vector ClosedName, Type Scalar)
+
+data IrCase = IrCase !Int !IrAct
   deriving (Eq)
 
 type IrBlock = Vector IrInstruction
@@ -252,7 +254,7 @@ instance Show IrInstruction where
 
 instance ToText IrInstruction where
   toText instruction = T.unwords $ case instruction of
-    IrAct target names _
+    IrAct (target, names, _)
       -> "act" : showText target : map showClosedName (V.toList names)
       where
       showClosedName :: ClosedName -> Text
@@ -299,7 +301,7 @@ instance ToText IrValue where
         (T.unpack value)
 
 instance ToText IrCase where
-  toText (IrCase index target) = T.unwords
+  toText (IrCase index (target, _, _)) = T.unwords
     ["case", showText index, toText target]
 
 instance Show IrCase where
@@ -507,6 +509,7 @@ data Type (a :: Kind) where
   (:&) :: !(Type Scalar) -> !(Type Scalar) -> Type Scalar
   (:.) :: !(Type Stack) -> !(Type Scalar) -> Type Stack
   (:?) :: !(Type Scalar) -> Type Scalar
+  (:@) :: !(Type Scalar) -> !(Vector (Type Scalar)) -> Type Scalar
   (:|) :: !(Type Scalar) -> !(Type Scalar) -> Type Scalar
   TyConst :: !(KindedId a) -> !Origin -> Type a
   TyCtor :: !Ctor -> !Origin -> Type Scalar
@@ -521,6 +524,7 @@ typeOrigin = \case
   (:&){} -> Nothing
   (:.){} -> Nothing
   (:?){} -> Nothing
+  (:@){} -> Nothing
   (:|){} -> Nothing
   TyConst _ o -> Just o
   TyCtor _ o -> Just o
@@ -583,6 +587,10 @@ instance ToText (Type Scalar) where
   toText = \case
     t1 :& t2 -> T.concat ["(", toText t1, " & ", toText t2, ")"]
     (:?) t -> toText t <> "?"
+    t1 :@ ts -> toText t1 <> case V.toList ts of
+      [] -> ""
+      [t] -> "@" <> toText t
+      ts' -> T.concat ["@(", T.intercalate ", " $ map toText ts', ")"]
     t1 :| t2 -> T.concat ["(", toText t1, " | ", toText t2, ")"]
     TyConst (KindedId (Id i)) _
       -> "t" <> showText i  -- TODO Show differently?
@@ -742,6 +750,7 @@ addHint type_ hint = case type_ of
   _ :& _ -> type_
   _ :. _ -> type_
   (:?) _ -> type_
+  _ :@ _ -> type_
   _ :| _ -> type_
   TyEmpty o -> TyEmpty (f o)
   TyConst i o -> TyConst i (f o)
@@ -925,6 +934,7 @@ data TypeDef = TypeDef
   { typeDefConstructors :: !(Vector TypeConstructor)
   , typeDefLocation :: !Location
   , typeDefName :: !Text
+  , typeDefScalars :: !(Vector Text)
   } deriving (Eq, Show)
 
 data TypeConstructor = TypeConstructor
@@ -965,7 +975,8 @@ instance Eq Anno where
   Anno type1 loc1 == Anno type2 loc2 = (type1, loc1) == (type2, loc2)
 
 data AnType
-  = AnFunction !(Vector AnType) !(Vector AnType)
+  = AnApp !AnType !(Vector AnType)
+  | AnFunction !(Vector AnType) !(Vector AnType)
   | AnChoice !AnType !AnType
   | AnOption !AnType
   | AnPair !AnType !AnType
@@ -1036,10 +1047,10 @@ data TrTerm a
   | TrLambda !Text !(TrTerm a) !a
   | TrMakePair !(TrTerm a) !(TrTerm a) !a
   | TrMakeVector !(Vector (TrTerm a)) !a
-  | TrMatch !(Vector (TrCase a)) !(Maybe (TrTerm a)) !a
+  | TrMatch !(Vector (TrCase a)) !(Maybe (TrValue a)) !a
   | TrPush !(TrValue a) !a
 
-data TrCase a = TrCase !Text !(TrTerm a) !a
+data TrCase a = TrCase !Text !(TrValue a) !a
 
 instance (Eq a) => Eq (TrTerm a) where
   -- Calls are equal regardless of 'Fixity'.

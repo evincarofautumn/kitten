@@ -21,6 +21,9 @@ static KClosure** closure_top;
 
 static KObject k_box_new(KObject, KType);
 
+static KObject k_get_closed(KClosedName, int);
+static KObject k_activation_new_va(void*, va_list);
+
 static KObject k_vector_append_mutating(KObject, KObject);
 static KObject k_vector_append_mutating_moving(KObject, KObject);
 static KObject k_vector_prepend_mutating(KObject, KObject);
@@ -158,32 +161,30 @@ int k_object_unique(const KObject object) {
 ////////////////////////////////////////////////////////////////////////////////
 // Value creation.
 
-KObject k_activation_new(void* const function, const size_t size, ...) {
+static KObject k_activation_new_va(void* const target, va_list args) {
   KActivation* const activation = k_mem_alloc(1, sizeof(KActivation));
   activation->refs = 1;
-  activation->function = function;
+  activation->function = target;
+  const int size = va_arg(args, int);
   activation->begin = k_mem_alloc(size, sizeof(KObject));
   activation->end = activation->begin + size;
-  va_list args;
-  va_start(args, size);
   for (size_t i = 0; i < size; ++i) {
     const KClosedName namespace = va_arg(args, KClosedName);
-    assert(namespace == K_CLOSED || namespace == K_RECLOSED);
     const int index = va_arg(args, int);
-    switch (namespace) {
-    case K_CLOSED:
-      activation->begin[i] = k_object_retain(k_locals_get(index));
-      break;
-    case K_RECLOSED:
-      activation->begin[i] = k_object_retain(k_closure_get(index));
-      break;
-    }
+    activation->begin[i] = k_object_retain(k_get_closed(namespace, index));
   }
-  va_end(args);
   return (KObject) {
     .data = (KData) { .as_activation = activation },
     .type = K_ACTIVATION
   };
+}
+
+KObject k_activation_new(void* const target, ...) {
+  va_list args;
+  va_start(args, target);
+  const KObject activation = k_activation_new_va(target, args);
+  va_end(args);
+  return activation;
 }
 
 KObject k_left_new(const KObject value) {
@@ -369,6 +370,15 @@ k_cell_t k_vector_size(const KObject object) {
 ////////////////////////////////////////////////////////////////////////////////
 // Intrinsics.
 
+static KObject k_get_closed(const KClosedName namespace, const int index) {
+  switch (namespace) {
+  case K_CLOSED:
+    return k_locals_get(index);
+  case K_RECLOSED:
+    return k_closure_get(index);
+  }
+}
+
 void k_in_add_vector() {
   KObject b = k_data_pop();
   KObject a = k_data_pop();
@@ -506,29 +516,38 @@ void k_in_make_vector(const size_t size) {
   });
 }
 
-void* k_in_match(const size_t size, void* const defaultCase, ...) {
+void k_in_match(const size_t size, ...) {
   va_list args;
-  va_start(args, defaultCase);
+  va_start(args, size);
   const KObject scrutinee = k_data_pop();
   assert(scrutinee.type == K_USER);
   for (size_t i = 0; i < size; ++i) {
     const k_cell_t tag = va_arg(args, k_cell_t);
-    void* const label = va_arg(args, void*);
+    void* const target = va_arg(args, void*);
     if (tag == scrutinee.data.as_user->tag) {
+      const KObject activation = k_activation_new_va(target, args);
       va_end(args);
       for (size_t j = 0; j < scrutinee.data.as_user->size; ++j)
         k_data_push(k_object_retain(scrutinee.data.as_user->fields[j]));
       k_object_release(scrutinee);
-      return label;
+      k_data_push(activation);
+      return;
+    }
+    int closure_size = va_arg(args, int);
+    for (int j = 0; j < closure_size; ++j) {
+      va_arg(args, KClosedName);
+      va_arg(args, int);
     }
   }
-  va_end(args);
   k_object_release(scrutinee);
-  if (defaultCase)
-    return defaultCase;
-  fprintf(stderr, "pattern match failure\n");
-  exit(1);
-  return NULL;
+  void* const defaultCase = va_arg(args, void*);
+  if (!defaultCase) {
+    fprintf(stderr, "pattern match failure\n");
+    exit(1);
+  }
+  const KObject activation = k_activation_new_va(defaultCase, args);
+  va_end(args);
+  k_data_push(activation);
 }
 
 void k_in_mod_float() {

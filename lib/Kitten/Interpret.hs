@@ -100,9 +100,9 @@ currentInstruction = do
 
 interpretInstruction :: IrInstruction -> Interpret Offset
 interpretInstruction instruction = case instruction of
-  IrAct label closure type_ -> do
+  IrAct (target, closure, type_) -> do
     values <- V.mapM getClosedName closure
-    pushData (Activation label values type_)
+    pushData (Activation target values type_)
     proceed
   IrIntrinsic intrinsic -> interpretIntrinsic intrinsic
   IrCall label -> call label Nothing
@@ -124,11 +124,14 @@ interpretInstruction instruction = case instruction of
   IrMatch cases mDefault -> do
     User index fields <- popData
     case V.find (\ (IrCase index' _) -> index == index') cases of
-      Just (IrCase _ target) -> do
+      Just (IrCase _ (target, closure, type_)) -> do
         V.mapM_ pushData fields
-        call target Nothing
+        values <- V.mapM getClosedName closure
+        interpretQuotation (Activation target values type_)
       Nothing -> case mDefault of
-        Just target -> call target Nothing
+        Just (target, closure, type_) -> do
+          values <- V.mapM getClosedName closure
+          interpretQuotation (Activation target values type_)
         Nothing -> lift $ do
           hPutStrLn stderr "pattern match failure"
           exitWith (ExitFailure 1)

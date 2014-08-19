@@ -83,12 +83,8 @@ toC FlattenedProgram{..} = V.concat
 
   go :: Int -> IrInstruction -> State Env Text
   go ip instruction = (<>) <$> advance ip <*> case instruction of
-    IrAct label names _ -> return $ "K_IN_ACT(" <> global label <> ", "
-      <> T.intercalate ", " (showText (V.length names)
-        : map closedName (V.toList names)) <> ");"
-      where
-      closedName (ClosedName index) = "K_CLOSED, " <> showText index
-      closedName (ReclosedName index) = "K_RECLOSED, " <> showText index
+    IrAct (label, names, _) -> return $ T.concat
+      ["K_IN_ACT(", global label, ", ", closure names, ");"]
     IrCall label -> do
       next <- newLabel 0
       return $ "K_IN_CALL(" <> global label <> ", " <> local next <> ");"
@@ -106,17 +102,19 @@ toC FlattenedProgram{..} = V.concat
     IrMatch cases mDefault -> do
       next <- newLabel 0
       return $ T.concat
-        [ "K_IN_CALL(*k_in_match("
+        [ "k_in_match("
         , T.intercalate ", "
           $ showText (V.length cases)
-          : maybe "NULL" (("&&" <>) . global) mDefault
           : concatMap
-            (\ (IrCase index label)
-              -> ["(k_cell_t)" <> showText index, "&&" <> global label])
+            (\ (IrCase index (target, names, _)) ->
+              [ "(k_cell_t)" <> showText index
+              , caseClosure target names
+              ])
             (V.toList cases)
-        , "), "
-        , local next
-        , ");"
+          ++ [maybe "NULL"
+            (\ (target, names, _) -> caseClosure target names)
+            mDefault]
+        , "); K_IN_APPLY(", local next, ");"
         ]
     IrPush x -> return $ "k_data_push(" <> toCValue x <> ");"
     IrReturn locals -> return $ "K_IN_RETURN(" <> showText locals <> ");"
@@ -129,6 +127,18 @@ toC FlattenedProgram{..} = V.concat
       , global label
       , ");"
       ]
+
+  closedName :: ClosedName -> Text
+  closedName (ClosedName index) = "K_CLOSED, " <> showText index
+  closedName (ReclosedName index) = "K_RECLOSED, " <> showText index
+
+  closure :: Vector ClosedName -> Text
+  closure names = T.intercalate ", "
+    $ showText (V.length names) : map closedName (V.toList names)
+
+  caseClosure :: DefId -> Vector ClosedName -> Text
+  caseClosure target names = T.concat
+    ["&&", global target, ", ", closure names]
 
 toCValue :: IrValue -> Text
 toCValue value = case value of

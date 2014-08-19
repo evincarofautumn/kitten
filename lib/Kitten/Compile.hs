@@ -92,9 +92,7 @@ compile config@Config{..} program
   let
     (mErrors, program''') = ir typed
       program''
-        { programTypes = programTypes program''
-          <> H.map (V.map ctorName . typeDefConstructors)
-            (fragmentTypes typed) }
+        { programTypes = programTypes program'' <> fragmentTypes typed }
       config
   void $ hoistEither mErrors
 

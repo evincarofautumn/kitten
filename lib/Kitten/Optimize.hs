@@ -6,6 +6,7 @@ module Kitten.Optimize
   ( optimize
   ) where
 
+import Control.Applicative
 import Data.Function
 import Data.List
 
@@ -21,13 +22,15 @@ import qualified Kitten.IdMap as Id
 
 optimize :: OptConfig -> Program -> Program
 optimize config program = program
-  { programBlocks = whole config $ fix go (programBlocks program) }
+  { programBlocks = whole config $ fix go (programBlocks program) startingFuel }
   where
-  go = \loop blocks -> let
+  startingFuel :: Int
+  startingFuel = 100
+  go = \loop blocks fuel -> let
     blocks' = foldl' (applyOpt program) blocks optimizations
-    in if blocks' == blocks
+    in if fuel == 0 || blocks' == blocks
       then blocks
-      else loop blocks'
+      else loop blocks' (pred fuel)
 
 whole :: OptConfig -> DefIdMap IrBlock -> DefIdMap IrBlock
 whole OptConfig{..} = compose [unusedDefElim | optUnusedDefElim]
@@ -40,11 +43,11 @@ unusedDefElim defs = Id.filterWithKey
   references = concatMap (\ (a, b) -> map ((,) a) (S.toList b))
     $ Id.toList $ Id.map (S.fromList . concatMap reference . V.toList) defs
   reference = \case
-    IrAct x _ _ -> [x]
+    IrAct (x, _, _) -> [x]
     IrCall x -> [x]
     IrTailCall _ x -> [x]
-    IrMatch cases mDefault -> mDefault
-      `consMaybe` V.toList (V.map (\ (IrCase _ x) -> x) cases)
+    IrMatch cases mDefault -> ((\ (x, _, _) -> x) <$> mDefault)
+      `consMaybe` V.toList (V.map (\ (IrCase _ (x, _, _)) -> x) cases)
     _ -> []
 
 -- TODO Make more efficient.

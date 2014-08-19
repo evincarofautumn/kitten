@@ -6,7 +6,6 @@ module Kitten.Parse.Element
   ) where
 
 import Control.Arrow
-import Data.Text (Text)
 
 import qualified Data.HashMap.Strict as H
 import qualified Data.Vector as V
@@ -51,7 +50,7 @@ fromPartitioned loc Partitioned{..} = Fragment
     $ map (defName &&& id) partDefs
     ++ concatMap
       (\typeDef
-        -> map (ctorName &&& defineConstructor (typeDefName typeDef))
+        -> map (ctorName &&& defineConstructor typeDef)
           . V.toList $ typeDefConstructors typeDef)
       partTypes
   , fragmentImports = partImports
@@ -60,13 +59,18 @@ fromPartitioned loc Partitioned{..} = Fragment
   , fragmentTypes = H.fromList $ map (typeDefName &&& id) partTypes
   }
 
-defineConstructor :: Text -> TypeConstructor -> Def ParsedTerm
-defineConstructor name TypeConstructor{..} = Def
+-- TODO This desugaring could probably happen somewhere more logical.
+defineConstructor :: TypeDef -> TypeConstructor -> Def ParsedTerm
+defineConstructor TypeDef{..} TypeConstructor{..} = Def
   { defAnno = Anno
-    (AnFunction ctorFields (V.singleton (AnVar name))) ctorLocation
+    (AnQuantified V.empty typeDefScalars
+      (AnFunction ctorFields
+        (V.singleton
+          (AnApp (AnVar typeDefName) (V.map AnVar typeDefScalars)))))
+    ctorLocation
   , defFixity = Postfix
   , defLocation = ctorLocation
   , defName = ctorName
   , defTerm = mono
-    $ TrConstruct name ctorName (V.length ctorFields) ctorLocation
+    $ TrConstruct typeDefName ctorName (V.length ctorFields) ctorLocation
   }

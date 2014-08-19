@@ -119,11 +119,11 @@ flattenTerm theTerm = case theTerm of
   TrMatch cases mDefault (loc, type_) -> do
     tellNode loc $ ScalarType type_
     V.mapM_ flattenCase cases
-    F.mapM_ flattenTerm mDefault
+    F.mapM_ flattenValue mDefault
     where
     flattenCase (TrCase _ body (loc', type')) = do
       tellNode loc' $ ScalarType type'
-      flattenTerm body
+      flattenValue body
   TrPush value (loc, type_) -> do
     tellNode loc $ ScalarType type_
     flattenValue value
