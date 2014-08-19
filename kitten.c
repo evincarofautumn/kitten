@@ -376,6 +376,9 @@ static KObject k_get_closed(const KClosedName namespace, const int index) {
     return k_locals_get(index);
   case K_RECLOSED:
     return k_closure_get(index);
+  default:
+    fprintf(stderr, "the impossible has happened\n");
+    exit(1);
   }
 }
 
