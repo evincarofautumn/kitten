@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -68,9 +69,9 @@ irTerm term = case term of
     target' <- getDefM target
     return $ V.singleton (IrCall target')
   TrCompose _ terms _ -> concatMapM irTerm terms
-  TrConstruct name ctor size _ -> do
+  TrConstruct name ctor size (_, TyFunction _ (_ :. type_) _) -> do
     name' <- ctorIndex (Just name) ctor
-    return $ V.singleton (IrConstruct name' size)
+    return $ V.singleton (IrConstruct name' size type_)
   TrIntrinsic intrinsic _ -> return $ V.singleton (IrIntrinsic intrinsic)
   TrLambda _ terms _ -> do
     instructions <- irTerm terms

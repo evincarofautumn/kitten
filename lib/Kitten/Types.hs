@@ -219,7 +219,7 @@ data IrInstruction
   | IrCall !DefId
   | IrClosure !Int
   | IrComment !Text
-  | IrConstruct !Int !Int
+  | IrConstruct !Int !Int !(Type Scalar)
   | IrEnter
   | IrLeave !Int
   | IrLocal !Int
@@ -265,7 +265,7 @@ instance ToText IrInstruction where
     IrCall target -> ["call", showText target]
     IrClosure index -> ["closure", showText index]
     IrComment comment -> ["\n;", comment]
-    IrConstruct name size -> ["construct", showText name, showText size]
+    IrConstruct name size _ -> ["construct", showText name, showText size]
     IrEnter -> ["enter"]
     IrLeave locals -> ["leave", showText locals]
     IrLocal index -> ["local", showText index]

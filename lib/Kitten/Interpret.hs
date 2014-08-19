@@ -110,8 +110,9 @@ interpretInstruction instruction = case instruction of
     pushData =<< getClosed index
     proceed
   IrComment{} -> proceed
-  IrConstruct index size -> do
-    pushData . User index . V.reverse =<< V.replicateM size popData
+  IrConstruct index size type_ -> do
+    let user closure = User index closure type_
+    pushData . user . V.reverse =<< V.replicateM size popData
     proceed
   IrEnter -> do
     pushLocal =<< popData
@@ -122,7 +123,7 @@ interpretInstruction instruction = case instruction of
     pushData . Vector . V.reverse =<< V.replicateM size popData
     proceed
   IrMatch cases mDefault -> do
-    User index fields <- popData
+    User index fields _ <- popData
     case V.find (\ (IrCase index' _) -> index == index') cases of
       Just (IrCase _ (target, closure, type_)) -> do
         V.mapM_ pushData fields
@@ -500,7 +501,7 @@ data InterpreterValue
   | Option !(Maybe InterpreterValue)
   | Pair !InterpreterValue !InterpreterValue
   | Vector !(Vector InterpreterValue)
-  | User !Int !(Vector InterpreterValue)
+  | User !Int !(Vector InterpreterValue) !(Type Scalar)
 
 instance Show InterpreterValue where
   show = T.unpack . toText
@@ -523,7 +524,7 @@ instance ToText InterpreterValue where
       , T.intercalate ", " (V.toList (V.map toText v))
       , "]"
       ]
-    User index fields -> T.concat
+    User index fields _ -> T.concat
       [ T.unwords . V.toList $ V.map toText fields
       , "<data ", showText index, " ", showText $ V.length fields, ">"
       ]
@@ -611,7 +612,7 @@ typeOfM loc value = case value of
   Vector xs -> case V.safeHead xs of
     Nothing -> liftM2 TyVector freshVarM (return origin)
     Just x -> liftM2 TyVector (recur x) (return origin)
-  User{} -> error "cannot determine user-defined type at runtime"
+  User _ _ type_ -> return type_
   where
   recur = typeOfM loc
 
