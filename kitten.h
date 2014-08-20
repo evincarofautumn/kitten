@@ -442,6 +442,7 @@ static inline KObject k_unit_new() {
     const KObject b = k_data_pop(); \
     KObject* const a = &k_data[0]; \
     assert(a->type == b.type); \
+    a->type = K_BOOL; \
     a->data.as_##TYPE = (a->data.as_##TYPE) OPERATION (b.data.as_##TYPE); \
   } while (0)
 
