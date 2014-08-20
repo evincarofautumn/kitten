@@ -595,7 +595,7 @@ void k_in_set() {
   const KObject value = k_data_pop();
   const KObject index = k_data_pop();
   assert(index.type == K_INT);
-  assert(data[0].type == K_VECTOR);
+  assert(k_data[0].type == K_VECTOR);
   if (k_object_unique(k_data[0])) {
     k_vector_set(k_data[0], index.data.as_int, value);
   } else {
@@ -668,13 +668,13 @@ void k_in_tail() {
 #ifndef NDEBUG
 static void dump_object(const KObject object) {
   if (object.type == K_BOOL) {
-    fprintf(stderr, "%s", object.data ? "true" : "false");
+    fprintf(stderr, "%s", object.data.as_bool ? "true" : "false");
   } else if (object.type == K_CHAR) {
-    fprintf(stderr, "'%c'", (char)(object.data));
+    fprintf(stderr, "'%c'", (char)(object.data.as_char));
   } else if (object.type == K_FLOAT) {
     fprintf(stderr, "%f", object.data.as_float);
   } else if (object.type == K_INT) {
-    fprintf(stderr, "%"PRId64"", object.data);
+    fprintf(stderr, "%"PRId64"", object.data.as_int);
   } else if (object.type == K_NONE) {
     fprintf(stderr, "none");
   } else if (object.type == K_UNIT) {
@@ -685,28 +685,28 @@ static void dump_object(const KObject object) {
     fprintf(stderr, "<handle>");
   } else if (object.type == K_LEFT) {
     fprintf(stderr, "(");
-    dump_object(object.as_box->value);
+    dump_object(object.data.as_box->value);
     fprintf(stderr, " left)");
   } else if (object.type == K_PAIR) {
     fprintf(stderr, "(");
-    dump_object(k_pair_first(object));
+    dump_object(object.data.as_pair->first);
     fprintf(stderr, " ");
-    dump_object(k_pair_rest(object));
+    dump_object(object.data.as_pair->rest);
     fprintf(stderr, " pair)");
   } else if (object.type == K_RIGHT) {
     fprintf(stderr, "(");
-    dump_object(object.as_box->value);
+    dump_object(object.data.as_box->value);
     fprintf(stderr, " right)");
   } else if (object.type == K_SOME) {
     fprintf(stderr, "(");
-    dump_object(object.as_box->value);
+    dump_object(object.data.as_box->value);
     fprintf(stderr, " some)");
   } else if (object.type == K_VECTOR) {
     if (k_vector_size(object) > 0 && k_vector_get(object, 0).type == K_CHAR) {
       fputc('"', stderr);
       for (const KObject* c = object.data.as_vector->begin;
            c != object.data.as_vector->end; ++c) {
-        fputc(isprint(c->data) ? c->data : '.', stderr);
+        fputc(isprint(c->data.as_char) ? c->data.as_char : '.', stderr);
       }
       fputc('"', stderr);
     } else {
@@ -718,7 +718,7 @@ static void dump_object(const KObject object) {
       fprintf(stderr, " ]");
     }
   } else {
-    fprintf(stderr, "<unknown:%"PRId64">", object.type);
+    fprintf(stderr, "<unknown:%ud>", object.type);
   }
 }
 
