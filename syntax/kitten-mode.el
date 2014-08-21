@@ -11,11 +11,13 @@
 (defvar kitten-font-lock-keywords
   (list
    '("__[0-9a-z_]+" . font-lock-builtin-face)
-   '("\\<\\(true\\|false\\)\\>" . font-lock-constant-face)
+   '("\\<\\(true\\|false\\|0b[01]+\\|0o[0-7]+\\|0x[0-9A-Fa-f]+\\|[0-9]+\\(\\.[0-9]+\\)?\\)\\>"
+     . font-lock-constant-face)
    '("\\<\\([A-Z][0-9A-Za-z_]*\\)\\>" . font-lock-type-face)
-   '("\\s_+" . font-lock-variable-name-face)
-   '("\\<\\(choice\\|def\\|else\\|from\\|i\\(f\\|mport\\)\\|option\\|to\\)\\>" . font-lock-keyword-face)
-   '("\\([a-z][0-9A-Za-z_]*\\)" 1 font-lock-default-face t))
+   '("\\(\\s_+\\)" 1 font-lock-variable-name-face)
+   '("\\<\\([a-z][0-9A-Za-z_]*\\)\\>" 1 font-lock-function-name-face)
+   '("\\<\\(case\\|choice\\|data\\|def\\|default\\|else\\|if\\|infix\\|infix_left\\|infix_right\\|import\\|match\\|option\\)\\>"
+     0 font-lock-keyword-face t))
   "Default highlighting for Kitten mode")
 
 ; (defun kitten-indent-line ()
@@ -24,18 +26,24 @@
 
 (defvar kitten-mode-syntax-table
   (let ((table (make-syntax-table)))
+    ; Multi-line comment start/end (nestable).
     (modify-syntax-entry ?/ "_ 124b" table)
-    (modify-syntax-entry ?* "_ 23" table)
+    ; Multi-line comment end.
+    (modify-syntax-entry ?* "_ 23n" table)
+    ; Single-line comment end.
     (modify-syntax-entry ?\n "> b" table)
     (modify-syntax-entry ?! "_" table)
     (modify-syntax-entry ?# "_" table)
     (modify-syntax-entry ?$ "_" table)
     (modify-syntax-entry ?% "_" table)
     (modify-syntax-entry ?& "_" table)
+    ; Single quotes are also used for primes, so we can't use "/"
+    ; (character quote).
+    (modify-syntax-entry ?' "_" table)
     (modify-syntax-entry ?+ "_" table)
     (modify-syntax-entry ?- "_" table)
     (modify-syntax-entry ?. "_" table)
-    (modify-syntax-entry ?; "_" table)
+    ; (modify-syntax-entry ?; "_" table)
     (modify-syntax-entry ?< "_" table)
     (modify-syntax-entry ?= "_" table)
     (modify-syntax-entry ?> "_" table)
@@ -43,10 +51,9 @@
     (modify-syntax-entry ?@ "_" table)
     (modify-syntax-entry ?\\ "\\" table)
     (modify-syntax-entry ?^ "_" table)
+    (modify-syntax-entry ?_ "w" table)
     (modify-syntax-entry ?| "_" table)
     (modify-syntax-entry ?~ "_" table)
-    (modify-syntax-entry ?_ "_" table)
-    (modify-syntax-entry ?' "\"" table)
     table)
   "Syntax table for Kitten mode")
 
