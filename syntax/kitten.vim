@@ -10,9 +10,9 @@ syn keyword kittenBool false true
 syn keyword kittenKeyword case choice data def default else if infix infix_left infix_right import match option
 syn keyword kittenTodo FIXME HACK NOTE TODO XXX
 
-syn match kittenEscape /\\"/
-syn match kittenEscape /\\\\/
-syn match kittenEscape /\\[abfnrtv]/
+syn match kittenEscape /\\"/ contained
+syn match kittenEscape /\\\\/ contained
+syn match kittenEscape /\\[abfnrtv]/ contained
 
 syn match kittenFloat /[+\-]\d\+\.\d\+/
 syn match kittenFloat /\d\+\.\d\+/
