@@ -1,0 +1,35 @@
+def sayIntStream (Stream@int ->):
+  streamToVector sayInts
+
+1 streamRepeat -> ones;
+ones
+  5 keepStream
+  sayIntStream;
+
+1 streamFrom -> naturals;
+naturals
+  10 tossStream
+  5 keepStream
+  sayIntStream;
+
+naturals
+  5 keepStream
+naturals
+  5 tossStream
+  5 keepStream
+catStreams sayIntStream;
+
+naturals
+  3 keepStream
+  streamCycle
+  9 keepStream
+  sayIntStream;
+
+"ABC" vectorToStream
+  streamCycle
+  9 keepStream
+  streamToVector say;
+
+[1, 2, 3] vectorToStream
+  { dup (*) } mapStream
+  sayIntStream;
