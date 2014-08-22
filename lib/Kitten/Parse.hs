@@ -74,7 +74,7 @@ element = choice
 
 def :: Parser (Def ParsedTerm)
 def = (<?> "definition") . locate $ do
-  void (match TkDef)
+  void (match TkDefine)
   (fixity, name) <- choice
     [ (,) Postfix <$> named
     , (,) Infix <$> symbolic

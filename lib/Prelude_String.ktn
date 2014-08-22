@@ -1,61 +1,61 @@
 // Character equality.
-def eqChar (char char -> bool):
+define eqChar (char char -> bool):
   \charToInt toBoth (=)
 
 // String equality.
-def eqString ([char] [char] -> bool):
+define eqString ([char] [char] -> bool):
   \eqChar eqVector
 
 // Character greater than or equal.
-def geChar (char char -> bool):
+define geChar (char char -> bool):
   \charToInt toBoth (>=)
 
 // Character greater than.
-def gtChar (char char -> bool):
+define gtChar (char char -> bool):
   \charToInt toBoth (>)
 
 // Character less than or equal.
-def leChar (char char -> bool):
+define leChar (char char -> bool):
   \charToInt toBoth (<=)
 
 // Character less than.
-def ltChar (char char -> bool):
+define ltChar (char char -> bool):
   \charToInt toBoth (<)
 
 // Character inequality.
-def neChar (char char -> bool):
+define neChar (char char -> bool):
   \charToInt toBoth (!=)
 
 // Shows a Boolean as a string.
-def showBool (bool -> [char]):
+define showBool (bool -> [char]):
   {"true"} {"false"} if__else_
 
 // Shows a Boolean vector as a string.
-def showBools ([bool] -> [char]):
+define showBools ([bool] -> [char]):
   \showBool showVector
 
 // Shows a string vector as a string.
-def showStrings ([[char]] -> [char]):
+define showStrings ([[char]] -> [char]):
   {} showVector
 
 // Shows a floating-point number as a string.
-def showFloat (float -> [char]):
+define showFloat (float -> [char]):
   __show_float
 
 // Shows a floating-point vector as a string.
-def showFloats ([float] -> [char]):
+define showFloats ([float] -> [char]):
   \showFloat showVector
 
 // Shows an integer as a string.
-def showInt (int -> [char]):
+define showInt (int -> [char]):
   __show_int
 
 // Shows an integer vector as a string.
-def showInts ([int] -> [char]):
+define showInts ([int] -> [char]):
   \showInt showVector
 
 // Shows a vector as a string.
-def showVector @a ([a] (a -> [char]) -> [char]):
+define showVector @a ([a] (a -> [char]) -> [char]):
   -> v f;
   [
     "[",

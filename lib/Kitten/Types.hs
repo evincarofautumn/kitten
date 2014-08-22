@@ -816,8 +816,8 @@ data Token
   | TkChar Char
   | TkComma
   | TkData
-  | TkDef
   | TkDefault
+  | TkDefine
   | TkGroupBegin
   | TkGroupEnd
   | TkFloat !Double
@@ -848,8 +848,8 @@ instance Eq Token where
   TkChar a       == TkChar b       = a == b
   TkComma        == TkComma        = True
   TkData         == TkData         = True
-  TkDef          == TkDef          = True
   TkDefault      == TkDefault      = True
+  TkDefine       == TkDefine       = True
   TkGroupBegin   == TkGroupBegin   = True
   TkGroupEnd     == TkGroupEnd     = True
   TkFloat a      == TkFloat b      = a == b
@@ -883,8 +883,8 @@ instance Show Token where
     TkChar value -> show value
     TkComma -> ","
     TkData -> "data"
-    TkDef -> "def"
     TkDefault -> "default"
+    TkDefine -> "define"
     TkIgnore -> "_"
     TkInfix -> "infix"
     TkInfixLeft -> "infix_left"

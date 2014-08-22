@@ -10,35 +10,35 @@
 ////////////////////////////////////////////////////////////
 // Configuration
 
-def debug (-> bool): false
+define debug (-> bool): false
 
 // Some programs want 0; some want -1.
-def eofCell (-> int): -1
+define eofCell (-> int): -1
 
 ////////////////////////////////////////////////////////////
 // Utilities
 
 // FIXME(strager): Bad approximation.
-def getCharApprox (-> char?):
+define getCharApprox (-> char?):
   getLine head
 
 ////////////////////////////////////////////////////////////
 // Interpreter
 
-def runProgram ([char] ->):
+define runProgram ([char] ->):
   -> program;
   0 1024 replicate -> ram;
   program 0 ram 0
   loopProgram
 
-def loopProgram([char] int [int] int ->):
+define loopProgram([char] int [int] int ->):
   stepProgram -> running;
   if (running):
     loopProgram
   else:
     drop drop drop drop
 
-def stepProgram ([char] int [int] int -> [char] int [int] int bool):
+define stepProgram ([char] int [int] int -> [char] int [int] int bool):
   -> program pc ram ramc;
 
   if (debug):
@@ -99,7 +99,7 @@ def stepProgram ([char] int [int] int -> [char] int [int] int bool):
     program pc ram ramc
     false // Halt.
 
-def findLBracket ([char] int int -> int?):
+define findLBracket ([char] int int -> int?):
   -> program pc depth;
   option (program.(pc)):
     [ '[' {
@@ -119,11 +119,11 @@ def findLBracket ([char] int int -> int?):
   else:
     none
 
-def findMatchingLBracket([char] int -> int?):
+define findMatchingLBracket([char] int -> int?):
   (- 1) 0 findLBracket
 
 // TODO(strager): Remove duplication with findLBracket.
-def findRBracket ([char] int int -> int?):
+define findRBracket ([char] int int -> int?):
   -> program pc depth;
   option (program.(pc)):
     [ '[' {
@@ -143,16 +143,16 @@ def findRBracket ([char] int int -> int?):
   else:
     none
 
-def findMatchingRBracket ([char] int -> int?):
+define findMatchingRBracket ([char] int -> int?):
   (+ 1) 0 findRBracket
 
 ////////////////////////////////////////////////////////////
 // Programs
 
-def progHelloWorld (-> [char]):
+define progHelloWorld (-> [char]):
   "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>."
 
-def progRot13 (-> [char]):
+define progRot13 (-> [char]):
   [ "-,+[                         Read first character and start outer character reading loop"
   , "    -[                       Skip forward if character is 0"
   , "        >>++++[>++++++++<-]  Set up divisor (32) for division loop"
@@ -183,16 +183,16 @@ def progRot13 (-> [char]):
   , "]                            End character reading loop"
   ] concat
 
-def progCat (-> [char]):
+define progCat (-> [char]):
   ",+[-.,+]"
 
-def progSort (-> [char]):
+define progSort (-> [char]):
   ">,+[>,+]<[[[->>+>>-[<]<<<]>[<]<[->>>>+<<<<]>>[>+>+<<-]<<<]>>>>-.[-]>[>]<]"
 
 ////////////////////////////////////////////////////////////
 // Debugging
 
-def dumpMemory ([int] int ->):
+define dumpMemory ([int] int ->):
   -> ram ramc;
 
   "Memory:" say
@@ -203,7 +203,7 @@ def dumpMemory ([int] int ->):
     if (index = ramc): " <" print
     newline
 
-def dumpProgram ([char] int ->):
+define dumpProgram ([char] int ->):
   -> _ pc;
   ["Program counter: ", pc showInt] concat say
 

@@ -125,7 +125,7 @@ spec = do
         , push $ quotation [word "two"] ]
 
     testTerm
-      "def option__else_ (->) {}\n\
+      "define option__else_ (->) {}\n\
       \option (0 some):\n\
       \  drop // This comment is necessary.\n\
       \else:\n\
@@ -166,22 +166,22 @@ spec = do
   describe "definition" $ do
 
     testTerm
-      "def pi (-> Float): 3"
+      "define pi (-> Float): 3"
       $ emptyFragment { fragmentDefs = defList
         [def "pi" $ compose [pushi 3]] }
 
     testTerm
-      "def inc (int -> int) {\n\
+      "define inc (int -> int) {\n\
       \  1 (+)\n\
       \}\n"
       $ emptyFragment { fragmentDefs = defList
         [def "inc" $ compose [pushi 1, word "+"]] }
 
     testTerm
-      "def inc (int -> int):\n\
+      "define inc (int -> int):\n\
       \  1 (+)\n\
       \\n\
-      \def dec (int -> int):\n\
+      \define dec (int -> int):\n\
       \  1 (-)\n\
       \\n"
       $ emptyFragment { fragmentDefs = defList
@@ -189,7 +189,7 @@ spec = do
         , def "dec" $ compose [pushi 1, word "-"] ] }
 
   describe "type" $ testTerm
-    "def curriedAdd (int -> int -> int) {\n\
+    "define curriedAdd (int -> int -> int) {\n\
     \  ->x;\n\
     \  { ->y; x y (+) }\n\
     \}"

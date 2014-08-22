@@ -127,8 +127,8 @@ token = (<?> "token") . located $ choice
       "_" -> TkIgnore
       "case" -> TkCase
       "data" -> TkData
-      "def" -> TkDef
       "default" -> TkDefault
+      "define" -> TkDefine
       "false" -> TkBool False
       "infix" -> TkInfix
       "infix_left" -> TkInfixLeft

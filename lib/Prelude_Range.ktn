@@ -1,6 +1,6 @@
 // Range of integers from start to finish generating
 // based on a given next and compare functions
-def rangeFor (int int (int -> int) (int int -> bool) -> [int]):
+define rangeFor (int int (int -> int) (int int -> bool) -> [int]):
   -> start end next cmp;
   if (start end cmp apply):
     []
@@ -10,7 +10,7 @@ def rangeFor (int int (int -> int) (int int -> bool) -> [int]):
     start prepend
 
 // Inclusive range
-def rangeTo (int int -> [int]):
+define rangeTo (int int -> [int]):
   -> start end;
   if (start < end):
     start end {(+ 1)} \> rangeFor
@@ -18,7 +18,7 @@ def rangeTo (int int -> [int]):
     start end {(- 1)} \< rangeFor
 
 // Non-inclusive range
-def rangeUntil (int int -> [int]):
+define rangeUntil (int int -> [int]):
   -> start end;
   if (start < end):
     start end {(+ 1)} \>= rangeFor
@@ -26,15 +26,15 @@ def rangeUntil (int int -> [int]):
     start end {(- 1)} \<= rangeFor
 
 // Operator alias for inclusive range.
-def -- (int int -> [int]):
+define -- (int int -> [int]):
   rangeTo
 
-def – (int int -> [int]):
+define – (int int -> [int]):
   (--)
 
 // Operator alias for non-inclusive range.
-def --- (int int -> [int]):
+define --- (int int -> [int]):
   rangeUntil
 
-def — (int int -> [int]):
+define — (int int -> [int]):
   (---)

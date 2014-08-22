@@ -14,13 +14,13 @@ vec init sayInts
 3 -> z;
 [x, y, z] sayInts
 
-def a (->) {}
+define a (->) {}
 
-def b (->) {}
+define b (->) {}
 
 [\a, \b] length sayInt
 
-def f (int int -> int): (+)
+define f (int int -> int): (+)
 
 [1 + 2, 3 * 4, 5 6 f] sayInts
 

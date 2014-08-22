@@ -1,114 +1,114 @@
 // Reads a line from standard input.
-def getLine (-> [char]):
+define getLine (-> [char]):
   stdin __get_line
 
 // Closes a handle.
-def handleClose (handle ->):
+define handleClose (handle ->):
   __close
 
 // Reads a line from a handle.
-def handleGetLine (handle -> [char]):
+define handleGetLine (handle -> [char]):
   __get_line
 
 // Writes a string to a handle.
-def handlePrint ([char] handle ->):
+define handlePrint ([char] handle ->):
   __print
 
 // Writes a newline to standard output.
-def newline (->):
+define newline (->):
   "\n" print
 
 // Opens a file for input.
-def openInput ([char] -> handle):
+define openInput ([char] -> handle):
   __open_in
 
 // Opens a file for output.
-def openOutput ([char] -> handle):
+define openOutput ([char] -> handle):
   __open_out
 
 // Writes a string to standard output.
-def print ([char] ->):
+define print ([char] ->):
   stdout __print
 
 // Prints a Boolean.
-def printBool (bool ->):
+define printBool (bool ->):
   showBool print
 
 // Prints a Boolean vector.
-def printBools ([bool] ->):
+define printBools ([bool] ->):
   showBools print
 
 // Prints a string vector.
-def printStrings ([[char]] ->):
+define printStrings ([[char]] ->):
   showStrings print
 
 // Prints a floating-point number.
-def printFloat (float ->):
+define printFloat (float ->):
   showFloat print
 
 // Prints a floating-point vector.
-def printFloats ([float] ->):
+define printFloats ([float] ->):
   showFloats print
 
 // Prints an integer.
-def printInt (int ->):
+define printInt (int ->):
   showInt print
 
 // Prints an integer vector.
-def printInts ([int] ->):
+define printInts ([int] ->):
   showInts print
 
-def prompt ([char] -> [char]):
+define prompt ([char] -> [char]):
   print getLine
 
 // Prints a string followed by a newline.
-def say ([char] ->):
+define say ([char] ->):
   print newline
 
 // Says a Boolean.
-def sayBool (bool ->):
+define sayBool (bool ->):
   printBool newline
 
 // Says a Boolean vector.
-def sayBools ([bool] ->):
+define sayBools ([bool] ->):
   printBools newline
 
 // Says a string vector.
-def sayStrings ([[char]] ->):
+define sayStrings ([[char]] ->):
   printStrings newline
 
 // Says a floating-point number.
-def sayFloat (float ->):
+define sayFloat (float ->):
   printFloat newline
 
 // Says a floating-point vector.
-def sayFloats ([float] ->):
+define sayFloats ([float] ->):
   printFloats newline
 
 // Says an integer.
-def sayInt (int ->):
+define sayInt (int ->):
   printInt newline
 
 // Says an integer vector.
-def sayInts ([int] ->):
+define sayInts ([int] ->):
   printInts newline
 
 // Prints a space to standard output.
-def space (->):
+define space (->):
   " " print
 
 // The standard error handle.
-def stderr (-> handle):
+define stderr (-> handle):
   __stderr
 
 // The standard input handle.
-def stdin (-> handle):
+define stdin (-> handle):
   __stdin
 
 // The standard output handle.
-def stdout (-> handle):
+define stdout (-> handle):
   __stdout
 
 // Prints a tab character to standard output.
-def tab (->):
+define tab (->):
   "\t" print
