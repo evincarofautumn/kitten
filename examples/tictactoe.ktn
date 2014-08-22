@@ -76,10 +76,10 @@ def checkSets (-> [[int]]):
 // ' ', 'x', or 'o'
 def getCheckSetWinner ([char] [int] -> char):
   getAll -> players;
-  if (players { {'x' eqChar} {false} option___else_ } all):
+  if (players { option {'x' eqChar} else {false} } all):
     'x'
   else:
-    if (players { {'o' eqChar} {false} option___else_ } all):
+    if (players { option {'o' eqChar} else {false} } all):
       'o'
     else:
       ' '

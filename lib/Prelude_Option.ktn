@@ -1,6 +1,6 @@
 // Binds computations on option values.
 def bindOption @a b (a? (a -> b?) -> b?):
-  \none option___else_
+  \none option__else_
 
 // Safely gets a value from an option value.
 def fromOption @a (a? a -> a):

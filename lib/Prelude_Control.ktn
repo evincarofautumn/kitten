@@ -11,12 +11,12 @@ def choice_ @ r... a b (r... (a | b) (r... a -> r...) -> r...):
   __choice
 
 // Applies one of two functions to the branches of a choice.
-def choice___else_ @ r... s... a b
+def choice__else_ @ r... s... a b
   (r... (a | b) (r... a -> s...) (r... b -> s...) -> s...):
   __choice_else
 
 // Same as 'choice___else_' but taking the discriminant from the stack.
-def choice__else_ @ r... s... a b
+def choice_else_ @ r... s... a b
   (r... (a | b) (r... a -> s...) (r... b -> s...) -> s...):
   __choice_else
 
@@ -29,11 +29,11 @@ def if_ @ r... (r... bool (r... -> r...) -> r...):
   __if
 
 // Applies one of two functions according to a condition.
-def if___else_ @ r... s... (r... bool (r... -> s...) (r... -> s...) -> s...):
+def if__else_ @ r... s... (r... bool (r... -> s...) (r... -> s...) -> s...):
   __if_else
 
 // Same as 'if___else_' but taking the discriminant from the stack.
-def if__else_ @ r... s... (r... bool (r... -> s...) (r... -> s...) -> s...):
+def if_else_ @ r... s... (r... bool (r... -> s...) (r... -> s...) -> s...):
   __if_else
 
 // Applies a function to the value of some option.
@@ -46,12 +46,12 @@ def option_ @ r... a (r... a? (r... a -> r...) -> r...):
 
 // Applies a function to the value of some option, or else a
 // default function.
-def option___else_ @ r... s... a
+def option__else_ @ r... s... a
   (r... a? (r... a -> s...) (r... -> s...) -> s...):
   __option_else
 
 // Same as 'option___else_' but taking the discriminant from the stack.
-def option__else_ @ r... s... a
+def option_else_ @ r... s... a
   (r... a? (r... a -> s...) (r... -> s...) -> s...):
   __option_else
 

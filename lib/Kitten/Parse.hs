@@ -373,14 +373,14 @@ rewriteInfix program@Program{..} parsed@Fragment{..} = do
       loc
 
     mixfixName :: [Text] -> TermParser ([ParsedTerm], Text)
-    mixfixName = fmap (fmap (T.intercalate "_")) . go
+    mixfixName = fmap (fmap T.concat) . go
       where
-      go ("" : parts) = do
+      go ("_" : parts) = do
         operand <- satisfyTerm $ \case
           TrCall{} -> False
           _ -> True
         (operands, name) <- go parts
-        return (operand : operands, "" : name)
+        return (operand : operands, "_" : name)
       go (part : parts) = do
         void . satisfyTerm $ \case
           TrCall _ part' _ | part' == part -> True
@@ -396,7 +396,7 @@ rewriteInfix program@Program{..} parsed@Fragment{..} = do
     in traceShow x x
 
   toMixfixParts :: Text -> Maybe [Text]
-  toMixfixParts name = case T.splitOn "_" name of
+  toMixfixParts name = case T.groupBy (\x y -> x /= '_' && y /= '_') name of
     [_] -> Nothing
     parts -> Just parts
 

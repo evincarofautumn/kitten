@@ -96,7 +96,7 @@ def generateN @ a ((int -> a) int -> [a]):
     index + 1
 
 // TODO (strager): Make this a compiler intrinsic.
-def from__unfold__ @ a b (a int (a -> b a) -> [b]):
+def from_unfold__ @ a b (a int (a -> b a) -> [b]):
   -> z size f;
   if (size > 0):
     z f apply -> b a;
@@ -130,7 +130,7 @@ def for__ @ a b ([a] (a -> b) -> [b]):
   map
 
 // Same as 'each' but prefix.
-def for_each__ @ a ([a] (a ->) ->):
+def forEach__ @ a ([a] (a ->) ->):
   each
 
 // Same as 'mapConcat' but prefix.
@@ -138,7 +138,7 @@ def forConcat__ @ a b ([a] (a -> [b]) -> [b]):
   mapConcat
 
 // Same as 'mapRange' but prefix.
-def from__to__ @ a (a int int (a int -> a) -> a):
+def from_to__ @ a (a int int (a int -> a) -> a):
   mapRange
 
 // Unsafe left-associative non-empty vector fold.
