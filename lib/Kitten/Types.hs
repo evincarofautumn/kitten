@@ -38,7 +38,6 @@ import Text.Parsec.Pos
 
 import qualified Data.Char as Char
 import qualified Data.HashMap.Strict as H
-import qualified Kitten.IdMap as I
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -51,7 +50,7 @@ import Kitten.Util.FailWriter
 import Kitten.Util.Text (ToText(..), showText)
 import Kitten.Util.Tuple
 
-import qualified Kitten.IdMap as Id
+import qualified Kitten.IdMap as I
 
 data Program = Program
   { programBlocks :: !(DefIdMap IrBlock)
@@ -155,7 +154,7 @@ liftFailWriter = KT
 
 emptyProgram :: Program
 emptyProgram = Program
-  { programBlocks = Id.singleton entryId V.empty
+  { programBlocks = I.singleton entryId V.empty
   , programDefIdGen = mkIdGenFrom (succ entryId)
   , programFixities = H.empty
   , programOperators = []
@@ -171,8 +170,8 @@ emptyProgram = Program
     { locationStart = initialPos "<unknown>"
     , locationIndent = 0
     }
-  , inferenceScalars = Id.empty
-  , inferenceStacks = Id.empty
+  , inferenceScalars = I.empty
+  , inferenceStacks = I.empty
   }
 
 entryId :: DefId
