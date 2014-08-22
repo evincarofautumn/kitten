@@ -10,7 +10,7 @@
 
 (defvar kitten-font-lock-keywords
   (list
-   '("__[0-9a-z_]+" . font-lock-builtin-face)
+   '("\\<__[0-9a-z_]+\\>" . font-lock-builtin-face)
    '("\\<\\(true\\|false\\|0b[01]+\\|0o[0-7]+\\|0x[0-9A-Fa-f]+\\|[0-9]+\\(\\.[0-9]+\\)?\\)\\>"
      . font-lock-constant-face)
    '("'\\([^']\\|\\\\.[^']*\\)'" . font-lock-string-face)
