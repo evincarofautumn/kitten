@@ -13,11 +13,14 @@
    '("__[0-9a-z_]+" . font-lock-builtin-face)
    '("\\<\\(true\\|false\\|0b[01]+\\|0o[0-7]+\\|0x[0-9A-Fa-f]+\\|[0-9]+\\(\\.[0-9]+\\)?\\)\\>"
      . font-lock-constant-face)
-   '("\\<\\([A-Z][0-9A-Za-z_]*\\)\\>" . font-lock-type-face)
-   '("\\(\\s_+\\)" 1 font-lock-variable-name-face)
-   '("\\<\\([a-z][0-9A-Za-z_]*\\)\\>" 1 font-lock-function-name-face)
+   '("'\\([^']\\|\\\\.[^']*\\)'" . font-lock-string-face)
+   '("\\<\\([A-Z][0-9A-Za-z_]*'*\\)\\>" . font-lock-type-face)
+   '("\\<\\(bool\\|char\\|float\\|handle\\|int\\)\\>"
+     0 font-lock-type-face)
+   '("\\s_+" 0 font-lock-variable-name-face)
    '("\\<\\(case\\|choice\\|data\\|def\\|default\\|else\\|if\\|infix\\|infix_left\\|infix_right\\|import\\|match\\|option\\)\\>"
-     0 font-lock-keyword-face t))
+     0 font-lock-keyword-face)
+   '("\\<\\([a-z][0-9A-Za-z_]*'*\\)\\>" 1 font-lock-function-name-face))
   "Default highlighting for Kitten mode")
 
 ; (defun kitten-indent-line ()
@@ -39,7 +42,7 @@
     (modify-syntax-entry ?& "_" table)
     ; Single quotes are also used for primes, so we can't use "/"
     ; (character quote).
-    (modify-syntax-entry ?' "_" table)
+    (modify-syntax-entry ?' "w" table)
     (modify-syntax-entry ?+ "_" table)
     (modify-syntax-entry ?- "_" table)
     (modify-syntax-entry ?. "_" table)
