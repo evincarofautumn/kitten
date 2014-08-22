@@ -79,7 +79,7 @@ inline p (call@(IrCall x) : xs) = ($ inline p xs)
       | V.length block < inlineThreshold
       , V.length block >= 1
       , IrReturn n <- V.last block
-      -> ((V.toList (V.init block) ++ [IrLeave n]) ++)
+      -> ((V.toList (V.init block) ++ [IrLeave n | n /= 0]) ++)
     _ -> (call :)
 inline p (x : xs) = x : inline p xs
 inline _ [] = []
