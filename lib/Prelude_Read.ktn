@@ -1,5 +1,5 @@
 // Reads a decimal integer from a string.
-def readInt ([char] -> int?):
+define readInt ([char] -> int?):
   -> s;
   none
   option (s last):

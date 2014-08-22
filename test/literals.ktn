@@ -1,4 +1,4 @@
-def i (int ->): sayInt
+define i (int ->): sayInt
 
 0 i
 1 i

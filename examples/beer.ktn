@@ -1,12 +1,12 @@
 99 bottlesOfBeer
 
-def bottlesOfBeer (int ->):
+define bottlesOfBeer (int ->):
   -> x;
   x verse
   if (x > 1):
     (x - 1) bottlesOfBeer
 
-def verse (int ->):
+define verse (int ->):
   -> x;
   x wall newline
   x beer newline
@@ -14,16 +14,16 @@ def verse (int ->):
   (x - 1) wall newline
   newline
 
-def beer (int ->):
+define beer (int ->):
   bottles " of beer" print
 
-def wall (int ->):
+define wall (int ->):
   beer " on the wall" print
 
-def take (->):
+define take (->):
   "take one down, pass it around" print
 
-def bottles (int ->):
+define bottles (int ->):
   -> x;
   if (x = 0):
     "no more bottles"

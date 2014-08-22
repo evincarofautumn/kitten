@@ -1,12 +1,12 @@
 test/instance-checks-3.ktn:1:1: error: expected scalar type t1 but got int
-test/instance-checks-3.ktn:1:13: note: int (type of x) is from here
+test/instance-checks-3.ktn:1:16: note: int (type of x) is from here
 test/instance-checks-3.ktn:1:1: note: t1 (from example) is from here
 
 test/instance-checks-3.ktn:1:1: error: expected stack type s2... t2 but got s1... t1
-test/instance-checks-3.ktn:1:28: note: t1 (type of x) is from here
+test/instance-checks-3.ktn:1:31: note: t1 (type of x) is from here
 test/instance-checks-3.ktn:1:1: note: t2 (from example) is from here
 
 test/instance-checks-3.ktn:1:1: error: expected scalar type (s2... t2 -> s2... int) but got (s1... t1 -> s1... t1)
-test/instance-checks-3.ktn:1:26: note: (s1... t1 -> s1... t1) is from here
-test/instance-checks-3.ktn:1:13: note: (s2... t2 -> s2... int) is from here
-test/instance-checks-3.ktn:1:13: note: int (from example) is from here
+test/instance-checks-3.ktn:1:29: note: (s1... t1 -> s1... t1) is from here
+test/instance-checks-3.ktn:1:16: note: (s2... t2 -> s2... int) is from here
+test/instance-checks-3.ktn:1:16: note: int (from example) is from here

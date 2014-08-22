@@ -12,10 +12,10 @@ if false:
 
 if (2 + 2 = 4): "true" say
 
-def f (->):
+define f (->):
   if (2 * 2 = 4):
     "true" say
 
-def g (->) {}
+define g (->) {}
 
 f

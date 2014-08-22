@@ -1,24 +1,24 @@
 // Curried function.
-def curriedAdd (int -> int -> int):
+define curriedAdd (int -> int -> int):
   ->x; { ->y; x + y }
 
 1 2 curriedAdd apply sayInt;
 
 // Multi-in function returning multi-in, multi-out function.
-def curriedAdd2 (int int -> int int -> int int):
+define curriedAdd2 (int int -> int int -> int int):
   -> a b; { -> c d; (a + c) (b + d) }
 
 1 2 3 4 curriedAdd2 apply sayInt sayInt
 
 // Pure function returning impure function.
-def curriedImpure (int -> int -> int):
+define curriedImpure (int -> int -> int):
   ->x;
   { ->y; (x + y) dup sayInt }
 
 32 42 curriedImpure apply (+ 1) sayInt
 
 // Impure function returning pure function.
-def curriedImpure2 (int -> (int -> int)):
+define curriedImpure2 (int -> (int -> int)):
   ->x;
   { ->y; x + y }
   x sayInt

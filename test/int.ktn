@@ -1,18 +1,18 @@
-def unary (-> int):
+define unary (-> int):
   1
 
-def binary (-> int int):
+define binary (-> int int):
   1 2
 
-def ii ((int -> int) ->):
+define ii ((int -> int) ->):
   -> f;
   unary f apply sayInt
 
-def iib ((int int -> bool) ->):
+define iib ((int int -> bool) ->):
   -> f;
   binary f apply sayBool
 
-def iii ((int int -> int) ->):
+define iii ((int int -> int) ->):
   -> f;
   binary f apply sayInt
 

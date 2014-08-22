@@ -24,7 +24,7 @@ Unit match:
 1 Left LR
 "foo" Right LR
 
-def LR (Either ->):
+define LR (Either ->):
   match:
     case Left: drop "Left" say
     case Right: drop "Right" say

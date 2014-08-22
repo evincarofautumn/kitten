@@ -1,11 +1,11 @@
 test/type-error-4.ktn:1:1: error: expected scalar type [t2] but got t1?
 test/type-error-4.ktn:2:10: note: t1 is from here
-test/type-error-4.ktn:1:9: note: [t2] (input to foo) is from here
+test/type-error-4.ktn:1:12: note: [t2] (input to foo) is from here
 
 test/type-error-4.ktn:1:1: error: expected stack type s2... [t2] but got s1... t1?
 
 test/type-error-4.ktn:1:1: error: expected scalar type (s2... [t2] -> s2... t2) but got (s1... t1? -> s1... t1)
-test/type-error-4.ktn:1:22: note: (s1... t1? -> s1... t1) is from here
+test/type-error-4.ktn:1:25: note: (s1... t1? -> s1... t1) is from here
 test/type-error-4.ktn:2:10: note: t1 (output of __from_some) is from here
-test/type-error-4.ktn:1:9: note: (s2... [t2] -> s2... t2) is from here
+test/type-error-4.ktn:1:12: note: (s2... [t2] -> s2... t2) is from here
 test/type-error-4.ktn:1:1: note: t2 (from foo) is from here

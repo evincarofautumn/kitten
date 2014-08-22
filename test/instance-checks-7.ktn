@@ -1,1 +1,1 @@
-def example (->): ->x; x
+define example (->): ->x; x

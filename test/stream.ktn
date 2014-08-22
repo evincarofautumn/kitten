@@ -1,4 +1,4 @@
-def sayIntStream (Stream@int ->):
+define sayIntStream (Stream@int ->):
   streamToVector sayInts
 
 1 streamRepeat -> ones;
