@@ -75,7 +75,7 @@ irTerm term = case term of
   TrIntrinsic intrinsic _ -> return $ V.singleton (IrIntrinsic intrinsic)
   TrLambda _ terms _ -> do
     instructions <- irTerm terms
-    return $ V.singleton IrEnter <> instructions <> V.singleton (IrLeave 1)
+    return $ V.singleton (IrEnter 1) <> instructions <> V.singleton (IrLeave 1)
   TrMakePair a b _ -> do
     a' <- irTerm a
     b' <- irTerm b

@@ -222,7 +222,7 @@ data IrInstruction
   | IrClosure !Int
   | IrComment !Text
   | IrConstruct !Int !Int !(Type Scalar)
-  | IrEnter
+  | IrEnter !Int
   | IrLeave !Int
   | IrLocal !Int
   | IrMakeVector !Int
@@ -268,7 +268,7 @@ instance ToText IrInstruction where
     IrClosure index -> ["closure", showText index]
     IrComment comment -> ["\n;", comment]
     IrConstruct name size _ -> ["construct", showText name, showText size]
-    IrEnter -> ["enter"]
+    IrEnter locals -> ["enter", showText locals]
     IrLeave locals -> ["leave", showText locals]
     IrLocal index -> ["local", showText index]
     IrMakeVector size -> ["vector", showText size]

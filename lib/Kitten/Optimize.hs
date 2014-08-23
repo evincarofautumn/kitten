@@ -60,6 +60,7 @@ type Optimization = [IrInstruction] -> [IrInstruction]
 optimizations :: [Program -> Optimization]
 optimizations =
   [ callElim
+  , enterElim
   , inline
   , leaveElim
   ]
@@ -86,6 +87,13 @@ inline _ [] = []
 
 inlineThreshold :: Int
 inlineThreshold = 10
+
+enterElim :: a -> Optimization
+enterElim _ = go
+  where
+  go (IrEnter m : IrEnter n : xs) = IrEnter (m + n) : go xs
+  go (x : xs) = x : go xs
+  go [] = []
 
 leaveElim :: a -> Optimization
 leaveElim _ = go

@@ -208,16 +208,17 @@ static inline void k_call_push(const KCall call) {
   *--k_call = call;
 }
 
-static inline void k_locals_push(const KObject object) {
-  *--k_locals = object;
-}
-
 static inline void k_data_push(const KObject object) {
   *--k_data = object;
 }
 
 static inline KObject k_data_pop() {
   return *k_data++;
+}
+
+static inline void k_locals_enter(size_t size) {
+  while (size--)
+    *--k_locals = k_data_pop();
 }
 
 static inline KCall k_call_pop() {

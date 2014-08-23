@@ -93,7 +93,7 @@ toC FlattenedProgram{..} = V.concat
     IrComment text -> return $ "/* " <> text <> "*/"
     IrConstruct index size _ -> return $ T.concat
       ["k_in_construct(", showText index, ", ", showText size, ");"]
-    IrEnter -> return "k_locals_push(k_data_pop());"
+    IrEnter locals -> return $ "k_locals_enter(" <> showText locals <> ");"
     IrIntrinsic intrinsic -> toCIntrinsic intrinsic
     IrLeave locals -> return $ "k_locals_drop(" <> showText locals <> ");"
     IrLocal index -> return

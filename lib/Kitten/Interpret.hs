@@ -114,8 +114,8 @@ interpretInstruction instruction = case instruction of
     let user closure = User index closure type_
     pushData . user . V.reverse =<< V.replicateM size popData
     proceed
-  IrEnter -> do
-    pushLocal =<< popData
+  IrEnter locals -> do
+    replicateM_ locals (pushLocal =<< popData)
     proceed
   IrLeave locals -> replicateM_ locals popLocal >> proceed
   IrLocal index -> (pushData =<< getLocal index) >> proceed
