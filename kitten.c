@@ -64,8 +64,7 @@ void k_runtime_init() {
 
 void k_runtime_quit() {
   k_mem_free(closure_top);
-  while (k_data < data_bottom)
-    k_data_drop();
+  k_data_drop(data_bottom - k_data);
   k_mem_free(data_top);
   k_locals_drop(locals_bottom - k_locals);
   k_mem_free(locals_top);

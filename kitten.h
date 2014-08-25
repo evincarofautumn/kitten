@@ -183,8 +183,9 @@ static inline void k_closure_drop() {
   ++k_closure;
 }
 
-static inline void k_data_drop() {
-  k_object_release(*k_data++);
+static inline void k_data_drop(size_t size) {
+  while (size--)
+    k_object_release(*k_data++);
 }
 
 static inline void k_locals_drop(size_t size) {

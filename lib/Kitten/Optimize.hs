@@ -92,6 +92,8 @@ enterElim :: a -> Optimization
 enterElim _ = go
   where
   go (IrEnter m : IrEnter n : xs) = IrEnter (m + n) : go xs
+  go (IrEnter m : IrLeave n : xs)
+    | m > n = IrEnter (m - n) : IrDrop n : go xs
   go (x : xs) = x : go xs
   go [] = []
 
