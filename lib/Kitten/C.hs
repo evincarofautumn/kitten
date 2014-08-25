@@ -23,7 +23,7 @@ import Kitten.IdMap (LabelIdMap)
 import Kitten.IR
 import Kitten.Types
 import Kitten.Util.Maybe
-import Kitten.Util.Text (showText)
+import Kitten.Util.Text (showText, toText)
 import Kitten.Util.Tuple
 
 import qualified Kitten.IdMap as Id
@@ -90,11 +90,11 @@ toC FlattenedProgram{..} = V.concat
       return $ "K_IN_CALL(" <> global label <> ", " <> local next <> ");"
     IrClosure index -> return
       $ "k_data_push(k_object_retain(k_closure_get(" <> showText index <> ")));"
-    IrComment text -> return $ "/* " <> text <> "*/"
     IrConstruct index size _ -> return $ T.concat
       ["k_in_construct(", showText index, ", ", showText size, ");"]
     IrEnter locals -> return $ "k_locals_enter(" <> showText locals <> ");"
     IrIntrinsic intrinsic -> toCIntrinsic intrinsic
+    IrLabel target -> return $ "/* " <> toText target <> " */"
     IrLeave locals -> return $ "k_locals_drop(" <> showText locals <> ");"
     IrLocal index -> return
       $ "k_data_push(k_object_retain(k_locals_get(" <> showText index <> ")));"

@@ -176,8 +176,10 @@ flattenProgram program@Program{..} = FlattenedProgram{..}
   flattenedSymbols = inverseSymbols program
 
   go :: (IrBlock, DefIdMap Int) -> (DefId, IrBlock) -> (IrBlock, DefIdMap Int)
-  go (blocks, names) (name, block)
-    = (blocks <> block, Id.insert name (V.length blocks) names)
+  go (blocks, names) (name, block) =
+    ( blocks <> V.singleton (IrLabel name) <> block
+    , Id.insert name (V.length blocks) names
+    )
 
   instructions :: DefIdMap IrBlock
   instructions = Id.adjust terminated entryId programBlocks

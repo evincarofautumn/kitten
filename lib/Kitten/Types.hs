@@ -220,9 +220,9 @@ data IrInstruction
   | IrIntrinsic !Intrinsic
   | IrCall !DefId
   | IrClosure !Int
-  | IrComment !Text
   | IrConstruct !Int !Int !(Type Scalar)
   | IrEnter !Int
+  | IrLabel !DefId
   | IrLeave !Int
   | IrLocal !Int
   | IrMakeVector !Int
@@ -256,26 +256,19 @@ instance Show IrInstruction where
 
 instance ToText IrInstruction where
   toText instruction = T.unwords $ case instruction of
-    IrAct (target, names, _)
-      -> "act" : showText target : map showClosedName (V.toList names)
-      where
-      showClosedName :: ClosedName -> Text
-      showClosedName (ClosedName index) = "local:" <> showText index
-      showClosedName (ReclosedName index) = "closure:" <> showText index
-
+    IrAct act -> ["act", actToText act]
     IrIntrinsic intrinsic -> ["intrinsic", toText intrinsic]
-    IrCall target -> ["call", showText target]
+    IrCall target -> ["call", toText target]
     IrClosure index -> ["closure", showText index]
-    IrComment comment -> ["\n;", comment]
     IrConstruct name size _ -> ["construct", showText name, showText size]
+    IrLabel target -> ["label", toText target]
     IrEnter locals -> ["enter", showText locals]
     IrLeave locals -> ["leave", showText locals]
     IrLocal index -> ["local", showText index]
     IrMakeVector size -> ["vector", showText size]
     IrMatch cases mDefault -> (:[]) . T.unwords $ concat
       [ "match" : map toText (V.toList cases)
-      , maybe [] (\target -> ["default", showText target]) mDefault
-      , ["end"]
+      , maybe [] (\target -> ["default", actToText target]) mDefault
       ]
     IrPush value -> ["push", showText value]
     IrReturn locals -> ["ret", showText locals]
@@ -297,14 +290,20 @@ instance ToText IrValue where
     IrOption (Just value) -> ["some", toText value]
     IrPair a b -> ["pair", toText a, toText b]
     IrString value
-      -> "vector"
-      : showText (T.length value)
-      : map (\c -> "char " <> showText (Char.ord c))
-        (T.unpack value)
+      -> "string" : showText (T.length value)
+      : map (showText . Char.ord) (T.unpack value)
 
 instance ToText IrCase where
-  toText (IrCase index (target, _, _)) = T.unwords
-    ["case", showText index, toText target]
+  toText (IrCase index act) = T.unwords
+    [showText index, actToText act]
+
+actToText :: IrAct -> Text
+actToText (target, names, _) = T.unwords
+  $ showText target : map showClosedName (V.toList names)
+
+showClosedName :: ClosedName -> Text
+showClosedName (ClosedName index) = "local:" <> showText index
+showClosedName (ReclosedName index) = "closure:" <> showText index
 
 instance Show IrCase where
   show = T.unpack . toText

@@ -109,7 +109,6 @@ interpretInstruction instruction = case instruction of
   IrClosure index -> do
     pushData =<< getClosed index
     proceed
-  IrComment{} -> proceed
   IrConstruct index size type_ -> do
     let user closure = User index closure type_
     pushData . user . V.reverse =<< V.replicateM size popData
@@ -117,6 +116,7 @@ interpretInstruction instruction = case instruction of
   IrEnter locals -> do
     replicateM_ locals (pushLocal =<< popData)
     proceed
+  IrLabel{} -> proceed
   IrLeave locals -> replicateM_ locals popLocal >> proceed
   IrLocal index -> (pushData =<< getLocal index) >> proceed
   IrMakeVector size -> do

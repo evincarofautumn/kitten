@@ -18,8 +18,6 @@ module Kitten.Id
   , mkIdGenFrom
   ) where
 
-import Data.Monoid
-
 import qualified Data.Text as T
 
 import Kitten.Util.Text
@@ -40,7 +38,7 @@ instance Show (Id n) where
   show = T.unpack . toText
 
 instance ToText (Id n) where
-  toText (Id i) = "_" <> showText i
+  toText (Id i) = showText i
 
 newtype IdGen (n :: Namespace) = IdGen (Id n)
   deriving (Show)
