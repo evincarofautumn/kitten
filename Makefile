@@ -11,6 +11,7 @@ BUILDDIR = ./dist/build/kitten
 EXAMPLES = $(wildcard examples/*.ktn)
 KITTEN = $(BUILDDIR)/kitten
 PRELUDE = $(BUILDDIR)/Prelude.ktn
+RUNTIME = kitten.o
 TESTER = ./test/run.sh
 TESTS = $(basename $(notdir $(wildcard test/*.ktn)))
 
@@ -77,12 +78,15 @@ default : $(default_DEPS)
 all : $(all_DEPS)
 
 .PHONY : build
-build : $(KITTEN)
+build : $(KITTEN) $(RUNTIME)
 
 .PHONY : $(KITTEN)
 $(KITTEN) :
 	$(CABAL) build
 $(call SOFT_DEP_RULE,$(KITTEN),$(build_DEPS))
+
+$(RUNTIME) :
+	$(CC) -c kitten.c -I . -o $(RUNTIME) -Wall -Werror
 
 .PHONY : clean
 clean :
