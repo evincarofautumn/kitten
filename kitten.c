@@ -19,7 +19,7 @@ static KObject* data_top;
 static KObject* locals_top;
 static KClosure** closure_top;
 
-static KObject k_box_new(KObject, KType);
+static KObject k_choice_new(KObject, k_cell_t);
 
 static KObject k_get_closed(KClosedName, int);
 static KObject k_activation_new_va(void*, va_list);
@@ -106,14 +106,21 @@ void k_object_release(const KObject object) {
       }
       break;
     }
-  case K_LEFT:
-  case K_RIGHT:
-  case K_SOME:
+  case K_CHOICE:
     {
-      KBox* const box = object.data.as_box;
-      if (--box->refs == 0) {
-        k_object_release(box->value);
-        k_mem_free(box);
+      KChoice* const choice = object.data.as_choice;
+      if (--choice->refs == 0) {
+        k_object_release(choice->value);
+        k_mem_free(choice);
+      }
+      break;
+    }
+  case K_OPTION:
+    {
+      KOption* const option = object.data.as_option;
+      if (option && --option->refs == 0) {
+        k_object_release(option->value);
+        k_mem_free(option);
       }
       break;
     }
@@ -186,8 +193,19 @@ KObject k_activation_new(void* const target, ...) {
   return activation;
 }
 
+static KObject k_choice_new(const KObject value, const k_cell_t which) {
+  KChoice* const data = k_mem_alloc(1, sizeof(KChoice));
+  data->refs = 1;
+  data->which = which;
+  data->value = value;
+  return (KObject) {
+    .data = (KData) { .as_choice = data },
+    .type = K_CHOICE
+  };
+}
+
 KObject k_left_new(const KObject value) {
-  return k_box_new(value, K_LEFT);
+  return k_choice_new(value, 0);
 }
 
 KObject k_pair_new(const KObject first, const KObject rest) {
@@ -199,11 +217,14 @@ KObject k_pair_new(const KObject first, const KObject rest) {
 }
 
 KObject k_right_new(const KObject value) {
-  return k_box_new(value, K_RIGHT);
+  return k_choice_new(value, 1);
 }
 
 KObject k_some_new(const KObject value) {
-  return k_box_new(value, K_SOME);
+  KOption* option = k_mem_alloc(1, sizeof(KOption));
+  option->refs = 1;
+  option->value = value;
+  return (KObject) { .data = (KData) { .as_option = option }, .type = K_OPTION };
 }
 
 // Creates a new vector with uninitialized elements.
@@ -216,19 +237,6 @@ KObject k_vector_new(const size_t size) {
   return (KObject) {
     .data = (KData) { .as_vector = vector },
     .type = K_VECTOR
-  };
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Box operations.
-
-static KObject k_box_new(const KObject value, const KType type) {
-  KBox* const data = k_mem_alloc(1, sizeof(KBox));
-  data->refs = 1;
-  data->value = value;
-  return (KObject) {
-    .data = (KData) { .as_box = data },
-    .type = type
   };
 }
 
@@ -376,8 +384,7 @@ static KObject k_get_closed(const KClosedName namespace, const int index) {
   case K_RECLOSED:
     return k_closure_get(index);
   default:
-    fprintf(stderr, "the impossible has happened\n");
-    exit(1);
+    K_ASSERT_IMPOSSIBLE();
   }
 }
 
@@ -439,9 +446,24 @@ void k_in_first() {
   k_object_release(a);
 }
 
-void k_in_from_box() {
+void k_in_from_left() {
   const KObject a = k_data_pop();
-  k_data_push(k_object_retain(a.data.as_box->value));
+  assert(a.type == K_CHOICE && a.data.as_choice->which == 0);
+  k_data_push(k_object_retain(a.data.as_choice->value));
+  k_object_release(a);
+}
+
+void k_in_from_right() {
+  const KObject a = k_data_pop();
+  assert(a.type == K_CHOICE && a.data.as_choice->which == 1);
+  k_data_push(k_object_retain(a.data.as_choice->value));
+  k_object_release(a);
+}
+
+void k_in_from_some() {
+  const KObject a = k_data_pop();
+  assert(a.type == K_OPTION && a.data.as_option);
+  k_data_push(k_object_retain(a.data.as_option->value));
   k_object_release(a);
 }
 

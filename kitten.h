@@ -30,21 +30,19 @@ typedef enum KType {
   K_FLOAT,
   K_HANDLE,
   K_INT,
-  K_NONE,
   K_UNIT,
   K_BOXED = 0x10,
   K_ACTIVATION = K_BOXED + 1,
-  K_LEFT,
+  K_CHOICE,
+  K_OPTION,
   K_PAIR,
-  K_RIGHT,
-  K_SOME,
   K_USER,
   K_VECTOR,
   K_MAX_TYPE
 } KType;
 
 struct KActivation;
-struct KBox;
+struct KChoice;
 struct KPair;
 struct KUser;
 struct KVector;
@@ -57,7 +55,8 @@ typedef union KData {
   k_handle_t as_handle;
   k_cell_t* as_refs;
   struct KActivation* as_activation;
-  struct KBox* as_box;
+  struct KChoice* as_choice;
+  struct KOption* as_option;
   struct KPair* as_pair;
   struct KUser* as_user;
   struct KVector* as_vector;
@@ -81,10 +80,16 @@ typedef struct KPair {
   KObject rest;
 } KPair;
 
-typedef struct KBox {
+typedef struct KChoice {
+  k_cell_t refs;
+  k_cell_t which;
+  KObject value;
+} KChoice;
+
+typedef struct KOption {
   k_cell_t refs;
   KObject value;
-} KBox;
+} KOption;
 
 typedef struct KUser {
   k_cell_t refs;
@@ -125,7 +130,8 @@ void k_mem_free(void*);
 void* k_mem_realloc(void*, size_t, size_t);
 
 static inline KObject k_object_retain(const KObject object) {
-  if (object.type > K_BOXED) ++*object.data.as_refs;
+  if (object.type > K_BOXED && object.data.as_refs)
+    ++*object.data.as_refs;
   return object;
 }
 
@@ -153,7 +159,9 @@ void k_in_char_to_int(void);
 void k_in_close(void);
 void k_in_construct(k_cell_t, size_t);
 void k_in_first(void);
-void k_in_from_box();
+void k_in_from_left(void);
+void k_in_from_right(void);
+void k_in_from_some(void);
 void k_in_get(void);
 void k_in_get_line(void);
 void k_in_init(void);
@@ -172,6 +180,12 @@ void k_in_show_float(void);
 void k_in_show_int(void);
 void k_in_some(void);
 void k_in_tail(void);
+
+#define K_ASSERT_IMPOSSIBLE() \
+  do { \
+    fprintf(stderr, "the impossible has happened\n"); \
+    exit(1); \
+  } while (0)
 
 ////////////////////////////////////////////////////////////////////////////////
 // Stack manipulation.
@@ -250,7 +264,7 @@ static inline KObject k_int_new(const k_int_t value) {
 }
 
 static inline KObject k_none_new() {
-  return (KObject) { .data = (KData) { .as_int = 0 }, .type = K_NONE };
+  return (KObject) { .data = (KData) { .as_option = NULL }, .type = K_OPTION };
 }
 
 static inline KObject k_unit_new() {
@@ -333,9 +347,9 @@ static inline KObject k_unit_new() {
     const KObject left = k_data_pop(); \
     assert(left.type == K_ACTIVATION); \
     const KObject choice = k_data_pop(); \
-    assert(choice.type == K_LEFT || choice.type == K_RIGHT); \
-    if (choice.type == K_LEFT) { \
-      k_data_push(k_object_retain(choice.data.as_box->value)); \
+    assert(choice.type == K_CHOICE); \
+    if (choice.data.as_choice->which == 0) { \
+      k_data_push(k_object_retain(choice.data.as_choice->value)); \
       k_object_release(choice); \
       k_data_push(left); \
       K_IN_APPLY(CAT(here, __LINE__)); CAT(here, __LINE__): (void)0; \
@@ -349,15 +363,20 @@ static inline KObject k_unit_new() {
     const KObject left = k_data_pop(); \
     assert(left.type == K_ACTIVATION); \
     const KObject choice = k_data_pop(); \
-    assert(choice.type == K_LEFT || choice.type == K_RIGHT); \
-    if (choice.type == K_LEFT) { \
-      k_data_push(k_object_retain(choice.data.as_box->value)); \
+    assert(choice.type == K_CHOICE); \
+    switch (choice.data.as_choice->which) { \
+    case 0: \
+      k_data_push(k_object_retain(choice.data.as_choice->value)); \
       k_object_release(choice); \
       k_data_push(left); \
-    } else if (choice.type == K_RIGHT) { \
-      k_data_push(k_object_retain(choice.data.as_box->value)); \
+      break; \
+    case 1: \
+      k_data_push(k_object_retain(choice.data.as_choice->value)); \
       k_object_release(choice); \
       k_data_push(right); \
+      break; \
+    default: \
+      K_ASSERT_IMPOSSIBLE(); \
     } \
     K_IN_APPLY(CAT(here, __LINE__)); CAT(here, __LINE__): (void)0; \
   } while (0)
@@ -399,9 +418,9 @@ static inline KObject k_unit_new() {
     const KObject some = k_data_pop(); \
     assert(some.type == K_ACTIVATION); \
     const KObject option = k_data_pop(); \
-    assert(option.type == K_SOME || option.type == K_NONE); \
-    if (option.type == K_SOME) { \
-      k_data_push(k_object_retain(option.data.as_box->value)); \
+    assert(option.type == K_OPTION); \
+    if (option.data.as_option) { \
+      k_data_push(k_object_retain(option.data.as_option->value)); \
       k_object_release(option); \
       k_data_push(some); \
       K_IN_APPLY(CAT(here, __LINE__)); CAT(here, __LINE__): (void)0; \
@@ -418,13 +437,13 @@ static inline KObject k_unit_new() {
     const KObject some = k_data_pop(); \
     assert(some.type == K_ACTIVATION); \
     const KObject option = k_data_pop(); \
-    assert(option.type == K_SOME || option.type == K_NONE); \
-    if (option.type == K_SOME) { \
-      k_data_push(k_object_retain(option.data.as_box->value)); \
+    assert(option.type == K_OPTION); \
+    if (option.data.as_option) { \
+      k_data_push(k_object_retain(option.data.as_option->value)); \
       k_object_release(option); \
       k_data_push(some); \
       k_object_release(none); \
-    } else if (option.type == K_NONE) { \
+    } else { \
       k_data_push(none); \
       k_object_release(some); \
     } \
