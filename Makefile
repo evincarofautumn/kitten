@@ -151,7 +151,13 @@ lint :
 
 .PHONY : loc
 loc :
-	@ find src lib test \
-		\( -name '*.hs' -o -name '*.ktn' \) \
+	@ find . \
+		-type f \
+		-not -path './dist/*' \
+		-not -path './test/*.c' \
+		\( -name '*.hs' \
+			-o -name '*.ktn' \
+			-o -name '*.h' \
+			-o -name '*.c' \) \
 		-exec wc -l {} + \
 		| sort -n
