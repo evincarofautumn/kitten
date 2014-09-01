@@ -10,6 +10,9 @@ KObject* k_data;
 KObject* k_locals;
 KCall* k_call;
 
+int k_argc;
+char** k_argv;
+
 static KCall* call_bottom;
 static KObject* data_bottom;
 static KObject* locals_bottom;
@@ -35,7 +38,10 @@ int k_object_unique(KObject);
 ////////////////////////////////////////////////////////////////////////////////
 // Runtime initialization.
 
-void k_runtime_init(int, char**) {
+void k_runtime_init(int argc, char** argv) {
+
+  k_argc = argc;
+  k_argv = argv;
 
   const size_t CLOSURE_SIZE = 1024;
   k_closure = k_mem_alloc(CLOSURE_SIZE, sizeof(KClosure*));
