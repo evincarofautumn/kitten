@@ -35,7 +35,7 @@ int k_object_unique(KObject);
 ////////////////////////////////////////////////////////////////////////////////
 // Runtime initialization.
 
-void k_runtime_init() {
+void k_runtime_init(int, char**) {
 
   const size_t CLOSURE_SIZE = 1024;
   k_closure = k_mem_alloc(CLOSURE_SIZE, sizeof(KClosure*));
@@ -171,7 +171,7 @@ static KObject k_activation_new_va(void* const target, va_list args) {
   KActivation* const activation = k_mem_alloc(1, sizeof(KActivation));
   activation->refs = 1;
   activation->function = target;
-  const int size = va_arg(args, int);
+  const size_t size = va_arg(args, size_t);
   activation->begin = k_mem_alloc(size, sizeof(KObject));
   activation->end = activation->begin + size;
   for (size_t i = 0; i < size; ++i) {
@@ -328,7 +328,7 @@ static void k_vector_push(const KObject object, const KObject value) {
 static void k_vector_reserve(const KObject object, const k_cell_t capacity) {
   assert(object.type == K_VECTOR);
   KVector* const vector = object.data.as_vector;
-  if (vector->capacity - vector->begin >= capacity)
+  if (vector->begin + capacity <= vector->capacity)
     return;
   const k_cell_t size = vector->end - vector->begin;
   vector->begin = k_mem_realloc
@@ -472,9 +472,9 @@ void k_in_get() {
   assert(index.type == K_INT);
   const KObject vector = k_data_pop();
   assert(vector.type == K_VECTOR);
-  const k_int_t i = index.data.as_int;
+  const k_cell_t i = (k_cell_t)index.data.as_int;
   const k_cell_t size = k_vector_size(vector);
-  k_data_push(i < 0 || i >= size
+  k_data_push(i >= size
     ? k_none_new() : k_some_new(k_object_retain(k_vector_get(vector, i))));
   k_object_release(vector);
 }
@@ -564,12 +564,12 @@ void k_in_match(const size_t size, ...) {
     }
   }
   k_object_release(scrutinee);
-  void* const defaultCase = va_arg(args, void*);
-  if (!defaultCase) {
+  void* const default_case = va_arg(args, void*);
+  if (!default_case) {
     fprintf(stderr, "pattern match failure\n");
     exit(1);
   }
-  const KObject activation = k_activation_new_va(defaultCase, args);
+  const KObject activation = k_activation_new_va(default_case, args);
   va_end(args);
   k_data_push(activation);
 }
@@ -624,7 +624,7 @@ void k_in_set() {
     const k_cell_t size = k_vector_size(vector);
     const KObject result = k_vector_new(size);
     for (k_cell_t i = 0; i < size; ++i) {
-      if (i == index.data.as_int) {
+      if (i == (k_cell_t)index.data.as_int) {
         k_vector_set(result, i, value);
         continue;
       }
@@ -649,7 +649,7 @@ void k_in_show_float() {
   snprintf(buffer, sizeof(buffer),
     "%f%n", x.data.as_float, &length);
   const KObject string = k_vector_new(length);
-  for (size_t i = 0; i < length; ++i)
+  for (size_t i = 0; i < (size_t)length; ++i)
     k_vector_set(string, i, k_char_new(buffer[i]));
   k_data_push(string);
 }
@@ -662,7 +662,7 @@ void k_in_show_int() {
   snprintf(buffer, sizeof(buffer),
     "%"PRId64"%n", x.data.as_int, &length);
   const KObject string = k_vector_new(length);
-  for (size_t i = 0; i < length; ++i)
+  for (size_t i = 0; i < (size_t)length; ++i)
     k_vector_set(string, i, k_char_new(buffer[i]));
   k_data_push(string);
 }

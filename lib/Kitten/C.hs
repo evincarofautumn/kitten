@@ -73,7 +73,7 @@ toC FlattenedProgram{..} = V.concat
   begin = "\
     \#include \"kitten.h\"\n\
     \int main(int argc, char** argv) {\n\
-      \k_runtime_init();\n\
+      \k_runtime_init(argc, argv);\n\
       \K_IN_CALL(" <> global entryId <> ", exit);"
   end = "\
     \exit:\n\
@@ -135,7 +135,7 @@ toC FlattenedProgram{..} = V.concat
 
   closure :: Vector ClosedName -> Text
   closure names = T.intercalate ", "
-    $ showText (V.length names) : map closedName (V.toList names)
+    $ "(size_t)" <> showText (V.length names) : map closedName (V.toList names)
 
   caseClosure :: DefId -> Vector ClosedName -> Text
   caseClosure target names = T.concat

@@ -121,7 +121,7 @@ extern KObject* k_data;
 extern KObject* k_locals;
 
 // Runtime initialization.
-void k_runtime_init(void);
+void k_runtime_init(int, char**);
 void k_runtime_quit(void);
 
 // Memory and reference counting.

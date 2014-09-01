@@ -11,5 +11,6 @@
 /test/*.out.interpreted
 /test/*.dSYM/
 /dist
+/*.o
 
 !/.travis.yaml

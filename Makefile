@@ -86,7 +86,7 @@ $(KITTEN) :
 $(call SOFT_DEP_RULE,$(KITTEN),$(build_DEPS))
 
 $(RUNTIME) :
-	$(CC) -c kitten.c -I . -o $(RUNTIME) -Wall -Werror
+	$(CC) -c kitten.c -I . -o $(RUNTIME) -Wall -Werror -Wextra -std=c99
 
 .PHONY : clean
 clean :
@@ -96,6 +96,7 @@ clean :
 	rm -f test/*.err.interpreted
 	rm -f test/*.out.c
 	rm -f test/*.out.interpreted
+	rm -f $(RUNTIME)
 
 .PHONY : configure
 configure :
@@ -128,8 +129,10 @@ endef
 .PHONY : $(foreach EXAMPLE,$(EXAMPLES),example-$(EXAMPLE))
 $(foreach EXAMPLE,$(EXAMPLES),$(eval $(call EXAMPLE_RULE,$(EXAMPLE))))
 
+.PHONY : test
+
 define TEST_RULE
-test-$1 : $(KITTEN) $(PRELUDE) $(TESTER)
+test-$1 : $(KITTEN) $(PRELUDE) $(TESTER) $(RUNTIME)
 	@$(TESTER) $$(realpath $(KITTEN)) "$1"
 $(call SOFT_DEP_RULE,test-$1,$(test_DEPS))
 test : test-$1
