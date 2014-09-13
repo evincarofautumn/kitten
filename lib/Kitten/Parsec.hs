@@ -4,7 +4,6 @@ module Kitten.Parsec
 
 import Text.Parsec as Parsec hiding
   ( (<|>)
-  , Empty
   , many
   , newline
   , optional
