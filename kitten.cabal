@@ -34,7 +34,6 @@ library
 
   ghc-options:
     -Wall
-    -Werror
     -O2
 
     -- http://ghc.haskell.org/trac/ghc/ticket/5550
