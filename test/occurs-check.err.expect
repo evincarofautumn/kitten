@@ -1,0 +1,17 @@
+test/occurs-check.ktn:6:3: error: expected stack type s1... int but got s1...
+test/occurs-check.ktn:1:7: note: int (from f) is from here
+test/occurs-check.ktn:6:3: note: this typically indicates a wrong number of arguments to a function
+
+test/occurs-check.ktn:6:3: error: expected stack type s2... int but got s1...
+
+test/occurs-check.ktn:6:3: error: expected scalar type (s2... -> s3... int) but got (s1... -> s1... int)
+test/occurs-check.ktn:9:7: note: (s1... -> s1... int) (input to h) is from here
+test/occurs-check.ktn:9:7: note: int (from h) is from here
+test/occurs-check.ktn:6:3: note: (s2... -> s3... int) is from here
+
+test/occurs-check.ktn:6:3: error: expected scalar type @ s3... (s3... -> s3... int) but got (s1... -> s2... int)
+test/occurs-check.ktn:6:3: note: (s1... -> s2... int) is from here
+test/occurs-check.ktn:9:7: note: @ s3... (s3... -> s3... int) (input to h) is from here
+
+test/occurs-check.ktn:6:3: error: expected stack type s4... @ s5... (s5... -> s5... int) but got s1... (s2... -> s3... int)
+test/occurs-check.ktn:9:7: note: @ s5... (s5... -> s5... int) (input to h) is from here

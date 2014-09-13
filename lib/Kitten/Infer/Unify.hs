@@ -15,7 +15,6 @@ module Kitten.Infer.Unify
 
 import Control.Monad
 import Data.Function
-import Data.Text (Text)
 
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -29,7 +28,6 @@ import Kitten.Type.Tidy
 import Kitten.Types
 import Kitten.Util.Either
 import Kitten.Util.FailWriter
-import Kitten.Util.Maybe
 import Kitten.Util.Text (ToText(..))
 
 -- | Simplifies and unifies two types.
@@ -57,7 +55,7 @@ instance Unification Stack where
       -> withContext' $ unifyVar var (type_ `addHint` hint) program
     (type_, TyVar var (Origin hint _))
       -> withContext' $ unifyVar var (type_ `addHint` hint) program
-    _ -> Left $ unificationError Nothing loc have want
+    _ -> Left $ unificationError Finite loc have want
     where
     withContext' = withContext have want loc
     loc = originLocation $ inferenceOrigin program
@@ -72,7 +70,7 @@ instance Unification Scalar where
     (a :@ as, b :@ bs) -> withContext' $ do
       program' <- unify a b program
       if V.length as /= V.length bs
-        then Left $ unificationError Nothing loc have want
+        then Left $ unificationError Finite loc have want
         else V.foldM (\p (x, y) -> unify x y p) program' $ V.zip as bs
     (a :| b, c :| d) -> withContext' $ unify b d program >>= unify a c
     (TyFunction a b _, TyFunction c d _)
@@ -88,7 +86,7 @@ instance Unification Scalar where
     (type_, TyQuantified scheme loc') -> withContext' $ let
       (type', program') = instantiate loc' scheme program
       in unify type' type_ program'
-    _ -> Left $ unificationError Nothing loc have want
+    _ -> Left $ unificationError Finite loc have want
     where
     withContext' = withContext have want loc
     loc = originLocation $ inferenceOrigin program
@@ -99,31 +97,37 @@ withContext
   => Type a -> Type a -> Location
   -> Either [ErrorGroup] b -> Either [ErrorGroup] b
 withContext have want loc
-  = mapLeft (++ unificationError Nothing loc have want)
+  = mapLeft (++ unificationError Finite loc have want)
+
+data Infinitude = Finite | Infinite
 
 unificationError
   :: forall (a :: Kind)
   . (DiagnosticLocations a, ReifyKind a, TidyType a, ToText (Type a))
-  => Maybe Text
+  => Infinitude
   -> Location
   -> Type a
   -> Type a
   -> [ErrorGroup]
-unificationError prefix location have want = runTidy $ do
+unificationError finitude location have want = runTidy $ do
   have' <- tidyType have
   want' <- tidyType want
   let
     primaryError = CompileError location Error $ T.unwords
-      $ "expected"
-      : prefix `consMaybe` toText kind
-      : "type"
-      : toText want'
-      : "but got"
-      : toText have'
-      : []
+      [ "expected"
+      , toText kind
+      , "type"
+      , toText want'
+      , "but got"
+      , toText have'
+      ]
     secondaryErrors = map errorDetail
       $ diagnosticLocations have' ++ diagnosticLocations want'
-  return [ErrorGroup (primaryError : secondaryErrors)]
+    tertiaryErrors = case finitude of
+      Finite -> []
+      Infinite -> (:[]) $ CompileError location Note
+        "this typically indicates a wrong number of arguments to a function"
+  return [ErrorGroup (primaryError : secondaryErrors ++ tertiaryErrors)]
   where
   kind = reifyKind (KindProxy :: KindProxy a)
   errorDetail (origin@(Origin _ loc), type_) = CompileError loc Note $ T.concat
@@ -178,7 +182,7 @@ unifyVar var1 type_ program = case type_ of
   TyVar{} -> return $ declare var1 type_ program
   _ | occurs (unkinded var1) program type_
     -> let loc = originLocation $ inferenceOrigin program in Left $ unificationError
-      (Just "infinite") loc
+      Infinite loc
       (sub program (TyVar var1 (Origin HiNone loc) :: Type a))
       (sub program type_)
   _ -> return $ declare var1 type_ program
