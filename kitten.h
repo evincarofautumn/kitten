@@ -342,7 +342,7 @@ static inline KObject k_unit_new() {
 #define CAT_(A, B) A##B
 #define CAT(A, B) CAT_(A, B)
 
-#define K_IN_CHOICE() \
+#define K_IN_CHOICE(RETURN) \
   do { \
     const KObject left = k_data_pop(); \
     assert(left.type == K_ACTIVATION); \
@@ -352,11 +352,11 @@ static inline KObject k_unit_new() {
       k_data_push(k_object_retain(choice.data.as_choice->value)); \
       k_object_release(choice); \
       k_data_push(left); \
-      K_IN_APPLY(CAT(here, __LINE__)); CAT(here, __LINE__): (void)0; \
+      K_IN_APPLY(RETURN); \
     } \
   } while (0)
 
-#define K_IN_CHOICE_ELSE() \
+#define K_IN_CHOICE_ELSE(RETURN) \
   do { \
     const KObject right = k_data_pop(); \
     assert(right.type == K_ACTIVATION); \
@@ -378,10 +378,10 @@ static inline KObject k_unit_new() {
     default: \
       K_ASSERT_IMPOSSIBLE(); \
     } \
-    K_IN_APPLY(CAT(here, __LINE__)); CAT(here, __LINE__): (void)0; \
+    K_IN_APPLY(RETURN); \
   } while (0)
 
-#define K_IN_IF() \
+#define K_IN_IF(RETURN) \
   do { \
     const KObject true = k_data_pop(); \
     assert(true.type == K_ACTIVATION); \
@@ -389,13 +389,13 @@ static inline KObject k_unit_new() {
     assert(cond.type == K_BOOL); \
     if (cond.data.as_bool) { \
       k_data_push(true); \
-      K_IN_APPLY(CAT(here, __LINE__)); CAT(here, __LINE__): (void)0; \
+      K_IN_APPLY(RETURN); \
     } else { \
       k_object_release(true); \
     } \
   } while (0)
 
-#define K_IN_IF_ELSE() \
+#define K_IN_IF_ELSE(RETURN) \
   do { \
     const KObject false = k_data_pop(); \
     assert(false.type == K_ACTIVATION); \
@@ -410,10 +410,10 @@ static inline KObject k_unit_new() {
       k_object_release(true); \
       k_data_push(false); \
     } \
-    K_IN_APPLY(CAT(here, __LINE__)); CAT(here, __LINE__): (void)0; \
+    K_IN_APPLY(RETURN); \
   } while (0)
 
-#define K_IN_OPTION() \
+#define K_IN_OPTION(RETURN) \
   do { \
     const KObject some = k_data_pop(); \
     assert(some.type == K_ACTIVATION); \
@@ -423,14 +423,14 @@ static inline KObject k_unit_new() {
       k_data_push(k_object_retain(option.data.as_option->value)); \
       k_object_release(option); \
       k_data_push(some); \
-      K_IN_APPLY(CAT(here, __LINE__)); CAT(here, __LINE__): (void)0; \
+      K_IN_APPLY(RETURN); \
     } else { \
       k_object_release(option); \
       k_object_release(some); \
     } \
   } while (0)
 
-#define K_IN_OPTION_ELSE() \
+#define K_IN_OPTION_ELSE(RETURN) \
   do { \
     const KObject none = k_data_pop(); \
     assert(none.type == K_ACTIVATION); \
@@ -447,7 +447,7 @@ static inline KObject k_unit_new() {
       k_data_push(none); \
       k_object_release(some); \
     } \
-    K_IN_APPLY(CAT(here, __LINE__)); CAT(here, __LINE__): (void)0; \
+    K_IN_APPLY(RETURN); \
   } while (0)
 
 #define K_IN_BINARY(TYPE, OPERATION) \

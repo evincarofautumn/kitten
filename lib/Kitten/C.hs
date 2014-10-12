@@ -174,8 +174,12 @@ toCIntrinsic intrinsic = case intrinsic of
     next <- newLabel 0
     return $ "K_IN_APPLY(" <> local next <> ");"
   InCharToInt -> return "k_in_char_to_int();"
-  InChoice -> return "K_IN_CHOICE();"
-  InChoiceElse -> return "K_IN_CHOICE_ELSE();"
+  InChoice -> do
+    next <- newLabel 0
+    return $ "K_IN_CHOICE(" <> local next <> ");"
+  InChoiceElse -> do
+    next <- newLabel 0
+    return $ "K_IN_CHOICE_ELSE(" <> local next <> ");"
   InClose -> return "k_in_close();"
   InDivFloat -> binary "float" "/"
   InDivInt -> binary "int" "/"
@@ -192,8 +196,12 @@ toCIntrinsic intrinsic = case intrinsic of
   InGetLine -> return "k_in_get_line();"
   InGtFloat -> relational "float" ">"
   InGtInt -> relational "int" ">"
-  InIf -> return "K_IN_IF();"
-  InIfElse -> return "K_IN_IF_ELSE();"
+  InIf -> do
+    next <- newLabel 0
+    return $ "K_IN_IF(" <> local next <> ");"
+  InIfElse -> do
+    next <- newLabel 0
+    return $ "K_IN_IF_ELSE(" <> local next <> ");"
   InInit -> return "k_in_init();"
   InIntToChar -> return "k_in_int_to_char();"
   InLeFloat -> relational "float" "<="
@@ -213,8 +221,12 @@ toCIntrinsic intrinsic = case intrinsic of
   InNone -> return "k_data_push(k_none_new());"
   InNotBool -> unary "int" "!"
   InNotInt -> unary "int" "~"
-  InOption -> return "K_IN_OPTION();"
-  InOptionElse -> return "K_IN_OPTION_ELSE();"
+  InOption -> do
+    next <- newLabel 0
+    return $ "K_IN_OPTION(" <> local next <> ");"
+  InOptionElse -> do
+    next <- newLabel 0
+    return $ "K_IN_OPTION_ELSE(" <> local next <> ");"
   InOrBool -> relational "int" "||"
   InOrInt -> binary "int" "|"
   InPair -> return "k_in_pair();"
