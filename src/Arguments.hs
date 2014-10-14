@@ -15,6 +15,7 @@ data Arguments = Arguments
   { argsCompileMode :: CompileMode
   , argsDumpResolved :: Bool
   , argsDumpScoped :: Bool
+  , argsDumpTyped :: Bool
   , argsEnableImplicitPrelude :: Bool
   , argsEntryPoints :: [FilePath]
   , argsLibraryDirectories :: [FilePath]
@@ -56,6 +57,7 @@ argumentsMode = mode "kitten" defaultArguments
     { argsCompileMode = InterpretMode
     , argsDumpResolved = False
     , argsDumpScoped = False
+    , argsDumpTyped = False
     , argsEnableImplicitPrelude = True
     , argsEntryPoints = []
     , argsLibraryDirectories = []
@@ -112,6 +114,11 @@ argumentsMode = mode "kitten" defaultArguments
       "Output result of scope resolution."
       $ \flag acc@Arguments{..} -> acc
       { argsDumpScoped = flag }
+
+    , flagBool' ["dump-typed"]
+      "Output result of type inference."
+      $ \flag acc@Arguments{..} -> acc
+      { argsDumpTyped = flag }
 
     , flagReq' ["L", "library"] "DIR"
       "Add library search directory."

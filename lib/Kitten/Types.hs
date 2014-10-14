@@ -91,6 +91,7 @@ data ClosedName
 data Config = Config
   { configDumpResolved :: !Bool
   , configDumpScoped :: !Bool
+  , configDumpTyped :: !Bool
   , configEnforceBottom :: !Bool
   , configFirstLine :: !Int
   , configImplicitPrelude :: !Bool

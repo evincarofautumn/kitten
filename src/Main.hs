@@ -37,6 +37,7 @@ main = do
     defaultConfig = Config
       { configDumpResolved = argsDumpResolved arguments
       , configDumpScoped = argsDumpScoped arguments
+      , configDumpTyped = argsDumpTyped arguments
       , configEnforceBottom = True
       , configFirstLine = 1
       , configImplicitPrelude = argsEnableImplicitPrelude arguments

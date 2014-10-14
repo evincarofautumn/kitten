@@ -81,6 +81,8 @@ compile config@Config{..} program
   let (mTypedAndType, program'') = runK program' config $ typeFragment scoped
   (typed, type_) <- hoistEither mTypedAndType
 
+  when configDumpTyped . lift $ hPrint stderr typed
+
   let
     (mErrors, program''') = ir typed
       program''
