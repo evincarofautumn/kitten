@@ -1,7 +1,7 @@
-define myId @a (a -> a):
+define myId<a> (a -> a):
   ->x; x
 
-define myIdAlias @r... a (r... a -> r... a): myId
+define myIdAlias<r..., a> (r... a -> r... a): myId
 
 10 myId sayInt
 "x" myId say

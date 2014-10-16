@@ -1,4 +1,4 @@
-define test @a (a? (a -> [char]) ->):
+define test<a> (a? (a -> [char]) ->):
   -> x show;
   option (x):
     show apply say

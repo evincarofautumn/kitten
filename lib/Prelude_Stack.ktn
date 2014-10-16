@@ -1,19 +1,19 @@
 // Applies a function underneath a value.
-define dip @r... s... a (r... a (r... -> s...) -> s... a):
+define dip<r..., s..., a> (r... a (r... -> s...) -> s... a):
   -> x f;
   f apply x
 
 // Duplicates a value.
-define dup @a (a -> a a):
+define dup<a> (a -> a a):
   -> x;
   x x
 
 // Drops a value.
-define drop @a (a ->):
+define drop<a> (a ->):
   -> _;
 
 // Swaps two values. Useful for changing argument order when
 // partially applying a function.
-define swap @a b (a b -> b a):
+define swap<a, b> (a b -> b a):
   -> a b;
   b a

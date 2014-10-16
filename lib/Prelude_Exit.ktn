@@ -1,8 +1,8 @@
-define error @r... s... (r... [char] -> s...):
+define error<r..., s...> (r... [char] -> s...):
   -> message;
   ["Error: ", message, "\n"] concat stderr handlePrint
   1 exit
 
 // Exits the program with an implementation-defined status code.
-define exit @r... s... (r... int -> s...):
+define exit<r..., s...> (r... int -> s...):
   __exit

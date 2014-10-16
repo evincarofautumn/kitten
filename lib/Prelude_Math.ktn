@@ -15,7 +15,7 @@ define absFloat (float -> float):
     x
 
 // Whether all elements of a vector satisfy a predicate.
-define all @a ([a] (a -> bool) -> bool):
+define all<a> ([a] (a -> bool) -> bool):
   map and
 
 // Whether all elements of a vector are true.
@@ -23,7 +23,7 @@ define and ([bool] -> bool):
   true \&& foldl
 
 // Whether any element of a vector satisfies a predicate.
-define any @a ([a] (a -> bool) -> bool):
+define any<a> ([a] (a -> bool) -> bool):
   map or
 
 // Whether a floating-point number is even.

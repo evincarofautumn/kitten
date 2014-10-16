@@ -1,4 +1,4 @@
 // TODO(strager): Improve error reporting.
 
-define baz @a ([a] [char] -> int):
+define baz<a> ([a] [char] -> int):
   ->x; [x] __add_vector

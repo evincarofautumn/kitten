@@ -55,7 +55,7 @@ define showInts ([int] -> [char]):
   \showInt showVector
 
 // Shows a vector as a string.
-define showVector @a ([a] (a -> [char]) -> [char]):
+define showVector<a> ([a] (a -> [char]) -> [char]):
   -> v f;
   [
     "[",

@@ -1,26 +1,26 @@
-define ↔ ∀a b (a b → b a):
+define ↔ <a, b> (a b → b a):
   swap
 
 1 2 (↔) (−) sayInt
 
-define latter ∀α β(α β → β):
+define latter<α, β> (α β → β):
   swap drop
 
 3 4 latter sayInt
 
 // In reality, former.
-define latter' ∀γ δ(γ δ → γ):
+define latter'<γ, δ> (γ δ → γ):
   drop
 
 5 6 latter' sayInt
 
 // With a real prime.
-define latter′ ∀ε ζ(ε ζ → ζ):
+define latter′<ε, ζ> (ε ζ → ζ):
   latter
 
 7 8 latter′ sayInt
 
 // Stack-polymorphic.
-define identity ∀r… (r… → r…) {}
+define identity<r…> (r… → r…) {}
 
 identity

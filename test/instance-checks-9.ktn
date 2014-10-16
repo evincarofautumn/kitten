@@ -1,1 +1,1 @@
-define example @a (int a -> a a): ->x y; x y
+define example<a> (int a -> a a): ->x y; x y

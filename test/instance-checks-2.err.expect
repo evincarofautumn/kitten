@@ -3,9 +3,9 @@ test/instance-checks-2.ktn:1:1: note: t1 (type of x) is from here
 test/instance-checks-2.ktn:1:1: note: t2 (from example) is from here
 
 test/instance-checks-2.ktn:1:1: error: expected stack type s2... t2 but got s1... t1
-test/instance-checks-2.ktn:1:31: note: t1 (type of x) is from here
+test/instance-checks-2.ktn:1:32: note: t1 (type of x) is from here
 
 test/instance-checks-2.ktn:1:1: error: expected scalar type (s2... t2 -> s2... t3) but got (s1... t1 -> s1... t1)
-test/instance-checks-2.ktn:1:29: note: (s1... t1 -> s1... t1) is from here
-test/instance-checks-2.ktn:1:16: note: (s2... t2 -> s2... t3) is from here
+test/instance-checks-2.ktn:1:30: note: (s1... t1 -> s1... t1) is from here
+test/instance-checks-2.ktn:1:15: note: (s2... t2 -> s2... t3) is from here
 test/instance-checks-2.ktn:1:1: note: t3 (from example) is from here

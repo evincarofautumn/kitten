@@ -1,4 +1,4 @@
-data Option @ a:
+data Option<a>:
   case Some a;
   case None;
 
@@ -6,7 +6,7 @@ match (1 Some):
   case Some: sayInt
   case None: "None" say
 
-define eqOption @a (Option@a Option@a (a a -> bool) -> bool):
+define eqOption<a> (Option@a Option@a (a a -> bool) -> bool):
   -> eq;
   match:
   case Some:

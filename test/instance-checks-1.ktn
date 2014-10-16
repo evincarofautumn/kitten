@@ -1,1 +1,1 @@
-define example @a (-> a): 10
+define example<a> (-> a): 10

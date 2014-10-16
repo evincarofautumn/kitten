@@ -33,23 +33,27 @@ type_ :: Parser AnType
 type_ = (<?> "type") $ try functionType <|> baseType
 
 scalarQuantifier :: Parser (Vector Text)
-scalarQuantifier = V.fromList <$> (forAll *> many1 word)
+scalarQuantifier = V.fromList <$> angled (word `sepEndBy1` comma)
 
 quantifier :: Parser (Vector Text, Vector Text)
-quantifier = both V.fromList . partitionEithers <$> (forAll *> many1 variable)
+quantifier = both V.fromList . partitionEithers
+  <$> angled (variable `sepEndBy1` comma)
   where
   variable = do
     name <- word
     ($ name) <$> option Right (Left <$ ellipsis)
 
-forAll :: Parser Token
-forAll = match (TkOperator "@") <|> match (TkOperator "\x2200")
+angled :: Parser a -> Parser a
+angled = between leftAngle rightAngle
+  where
+  leftAngle = match (TkOperator "<")
+  rightAngle = match (TkOperator ">")
 
 quantified :: Parser AnType -> Parser AnType
 quantified thing = uncurry AnQuantified <$> quantifier <*> thing
 
 ellipsis :: Parser Token
-ellipsis = match (TkOperator "...") <|> match (TkOperator "\x2026")
+ellipsis = match TkEllipsis
 
 functionType :: Parser AnType
 functionType = (<?> "function type") $ choice
@@ -78,11 +82,17 @@ baseType = (<?> "base type") $ do
       <$> (match (TkOperator "&") *> baseType)
     , AnApp prefix
       <$> (forAll *> choice
-        [ grouped (baseType `sepEndBy1V` match TkComma)
+        [ grouped (baseType `sepEndBy1V` comma)
         , V.singleton <$> baseType
         ])
     , pure prefix
     ]
+
+forAll :: Parser Token
+forAll = match (TkOperator "@") <|> match (TkOperator "\x2200")
+
+comma :: Parser Token
+comma = match TkComma
 
 vector :: Parser AnType
 vector = AnVector <$> between

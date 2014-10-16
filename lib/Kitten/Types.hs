@@ -818,9 +818,10 @@ data Token
   | TkData
   | TkDefault
   | TkDefine
+  | TkEllipsis
+  | TkFloat !Double
   | TkGroupBegin
   | TkGroupEnd
-  | TkFloat !Double
   | TkIgnore
   | TkIntrinsic !Intrinsic
   | TkImport
@@ -850,9 +851,10 @@ instance Eq Token where
   TkData         == TkData         = True
   TkDefault      == TkDefault      = True
   TkDefine       == TkDefine       = True
+  TkEllipsis     == TkEllipsis     = True
+  TkFloat a      == TkFloat b      = a == b
   TkGroupBegin   == TkGroupBegin   = True
   TkGroupEnd     == TkGroupEnd     = True
-  TkFloat a      == TkFloat b      = a == b
   TkIgnore       == TkIgnore       = True
   TkInfix        == TkInfix        = True
   TkInfixLeft    == TkInfixLeft    = True
@@ -885,14 +887,15 @@ instance Show Token where
     TkData -> "data"
     TkDefault -> "default"
     TkDefine -> "define"
+    TkEllipsis -> "..."
+    TkFloat value -> show value
+    TkGroupBegin -> "("
+    TkGroupEnd -> ")"
     TkIgnore -> "_"
     TkInfix -> "infix"
     TkInfixLeft -> "infix_left"
     TkInfixRight -> "infix_right"
     TkIntrinsic name -> T.unpack (toText name)
-    TkGroupBegin -> "("
-    TkGroupEnd -> ")"
-    TkFloat value -> show value
     TkImport -> "import"
     TkInt value hint -> if value < 0 then '-' : shown else shown
       where

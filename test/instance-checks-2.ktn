@@ -1,1 +1,1 @@
-define example @a b (a -> b): ->x; x
+define example<a, b> (a -> b): ->x; x

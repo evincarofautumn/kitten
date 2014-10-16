@@ -1,32 +1,32 @@
 // Binds computations on option values.
-define bindOption @a b (a? (a -> b?) -> b?):
+define bindOption<a, b> (a? (a -> b?) -> b?):
   \none option__else_
 
 // Safely gets a value from an option value.
-define fromOption @a (a? a -> a):
+define fromOption<a> (a? a -> a):
   -> m z;
   option (m) {} else {z}
 
 // Unsafely gets the value from an option.
-define fromSome @a (a? -> a):
+define fromSome<a> (a? -> a):
   __from_some
 
 // Whether an option is empty.
-define isNone @a (a? -> bool):
+define isNone<a> (a? -> bool):
   option:
     drop false
   else:
     true
 
 // Whether an option contains a value.
-define isSome @a (a? -> bool):
+define isSome<a> (a? -> bool):
   option:
     drop true
   else:
     false
 
 // Maps a function over an option value.
-define liftOption @a b (a? (a -> b) -> b?):
+define liftOption<a, b> (a? (a -> b) -> b?):
   -> f;
   option:
     f apply some
@@ -34,7 +34,7 @@ define liftOption @a b (a? (a -> b) -> b?):
     none
 
 // Combines two option values with a function.
-define liftOption2 @a b c (a? b? (a b -> c) -> c?):
+define liftOption2<a, b, c> (a? b? (a b -> c) -> c?):
   -> mx my f;
   none
   option (mx) -> x:
@@ -42,15 +42,15 @@ define liftOption2 @a b c (a? b? (a b -> c) -> c?):
       drop x y f apply some
 
 // Constructs an empty option.
-define none @a (-> a?):
+define none<a> (-> a?):
   __none
 
 // Constructs an option with a value.
-define some @a (a -> a?):
+define some<a> (a -> a?):
   __some
 
 // TODO(strager): Find a better name.  'option' is taken.
-define maybe @a b (a? (a -> b) b -> b):
+define maybe<a, b> (a? (a -> b) b -> b):
   -> mx f z;
   option (mx):
     f apply

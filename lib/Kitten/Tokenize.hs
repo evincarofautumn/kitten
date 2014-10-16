@@ -59,6 +59,7 @@ token = (<?> "token") . located $ choice
       Just c -> return $ TkChar c
       Nothing -> unexpected "empty character literal"
   , TkComma <$ char ','
+  , try $ TkEllipsis <$ (string "..." <|> string "\x2026")
   , TkGroupBegin <$ char '('
   , TkGroupEnd <$ char ')'
   , TkLayout <$ char ':'
