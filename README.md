@@ -27,8 +27,10 @@ To build the compiler, you need GHC ≥7.6. Simply run:
 ```
 git clone https://github.com/evincarofautumn/kitten.git
 cd kitten
-make all
+make
 ```
+
+You can run the integration tests concurrently with `make -jn`, where `n` is the number of concurrent jobs. If you are working on the compiler, you can use `make dev` to avoid checking the library dependencies on every rebuild.
 
 [concatenative]: http://concatenative.org/
 [examples]: https://github.com/evincarofautumn/kitten/tree/master/examples

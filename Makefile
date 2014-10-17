@@ -41,15 +41,15 @@ define SOFT_DEP_RULE_WITH
 $1 : | $(filter $2,$3)
 endef
 
-default_DEPS = build prelude unit example test
-all_DEPS = deps configure $(default_DEPS) lint
+dev_DEPS = build prelude unit example test
+default_DEPS = deps configure $(dev_DEPS)
 
 BUILDING_PHONY_TARGETS = $(filter $(PHONY_TARGETS),$(MAKECMDGOALS))
-ifeq ($(MAKECMDGOALS)$(filter-out default,$(MAKECMDGOALS)),)
-BUILDING_PHONY_TARGETS += $(default_DEPS)
+ifeq ($(MAKECMDGOALS)$(filter-out dev,$(MAKECMDGOALS)),)
+BUILDING_PHONY_TARGETS += $(dev_DEPS)
 else
-ifeq ($(filter-out all,$(MAKECMDGOALS)),)
-BUILDING_PHONY_TARGETS += $(all_DEPS)
+ifeq ($(filter-out default,$(MAKECMDGOALS)),)
+BUILDING_PHONY_TARGETS += $(default_DEPS)
 endif
 endif
 
@@ -74,8 +74,8 @@ $(foreach PHONY_TARGET,$(PHONY_TARGETS),$(eval $(call \
 .PHONY : default
 default : $(default_DEPS)
 
-.PHONY : all
-all : $(all_DEPS)
+.PHONY : dev
+dev : $(dev_DEPS)
 
 .PHONY : build
 build : $(KITTEN) $(RUNTIME)
