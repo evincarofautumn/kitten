@@ -33,7 +33,7 @@ install:
 script:
  # - which hlint # See Note [hlint].
  - export CFLAGS="-I $HOME/include -L $HOME/lib"
- - make all
+ - make
  # TODO(strager): cabal sdist, cabal check, etc.
 
 # Note [hlint]:
