@@ -82,3 +82,4 @@ interpretAll entryPoints Arguments{..} config
           CompileMode OutputC -> V.mapM_ (hPutStrLn out . T.unpack)
             $ toC $ flattenProgram result
           InterpretMode -> void $ interpret (Just ip) [] result
+        hClose out
