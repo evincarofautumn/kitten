@@ -1,6 +1,6 @@
 test/type-error-3.ktn:3:1: error: expected scalar type [char] but got char
-test/type-error-3.ktn:3:9: note: char (type of x) is from here
-test/type-error-3.ktn:3:9: note: [char] (input to baq) is from here
+test/type-error-3.ktn:3:12: note: char (type of x) is from here
+test/type-error-3.ktn:3:12: note: [char] (input to baq) is from here
 
 test/type-error-3.ktn:3:1: error: expected stack type s2... [char] but got s1... t1
 test/type-error-3.ktn:5:3: note: t1 (type of x) is from here
@@ -9,6 +9,6 @@ test/type-error-3.ktn:3:1: error: expected stack type s2... [char] [char] but go
 test/type-error-3.ktn:4:12: note: [t2] (type of q) is from here
 
 test/type-error-3.ktn:3:1: error: expected scalar type (s2... [char] [char] -> s2... char) but got (s1... t1 [t2] -> s1... t1)
-test/type-error-3.ktn:3:32: note: (s1... t1 [t2] -> s1... t1) is from here
-test/type-error-3.ktn:3:9: note: (s2... [char] [char] -> s2... char) (type of baq) is from here
-test/type-error-3.ktn:3:9: note: char (from baq) is from here
+test/type-error-3.ktn:3:35: note: (s1... t1 [t2] -> s1... t1) is from here
+test/type-error-3.ktn:3:12: note: (s2... [char] [char] -> s2... char) (type of baq) is from here
+test/type-error-3.ktn:3:12: note: char (from baq) is from here

@@ -1,4 +1,4 @@
-def test ([int] [int] ->):
+define test ([int] [int] ->):
   -> actual expected;
   if ((actual expected \= eqVector) not):
     "Expected " print expected sayInts

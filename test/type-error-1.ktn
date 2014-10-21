@@ -1,4 +1,4 @@
 // TODO(strager): Improve error reporting.
 
-def bar @a (a [a] -> char):
+define bar @a (a [a] -> char):
   ->x; [x] 1 __add_int

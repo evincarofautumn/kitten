@@ -1,9 +1,9 @@
 some_undefined_name
 
-def fun1 (->):
+define fun1 (->):
   some_undefined_name
 
-def fun2 (->):
+define fun2 (->):
   some_other_undefined_name
 
 { ->x; y y z }

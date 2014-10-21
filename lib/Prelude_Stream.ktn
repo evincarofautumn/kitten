@@ -4,12 +4,12 @@ data Stream @ a:
 
 // Operator alias for 'StreamValue'.
 infix_right 5 +>
-def +> @ a (a (-> Stream@a) -> Stream@a):
+define +> @ a (a (-> Stream@a) -> Stream@a):
   StreamValue
 
 // Concatenates two streams. If the first stream is infinite, the result
 // is the first stream.
-def catStreams @ a (Stream@a Stream@a -> Stream@a):
+define catStreams @ a (Stream@a Stream@a -> Stream@a):
   -> xs ys;
   match (xs):
   case EmptyStream: ys
@@ -18,7 +18,7 @@ def catStreams @ a (Stream@a Stream@a -> Stream@a):
 
 // Concatenates a stream of streams. If the first stream is infinite,
 // the result is the first stream.
-def concatStreams @ a (Stream@Stream@a -> Stream@a):
+define concatStreams @ a (Stream@Stream@a -> Stream@a):
   match:
   case EmptyStream: EmptyStream
   case StreamValue -> streams:
@@ -28,7 +28,7 @@ def concatStreams @ a (Stream@Stream@a -> Stream@a):
       value +>: (values apply +> streams) concatStreams
 
 // Keeps a stream of the first n elements of a stream, tossing the rest.
-def keepStream @ a (Stream@a int -> Stream@a):
+define keepStream @ a (Stream@a int -> Stream@a):
   -> n;
   if (n <= 0): drop EmptyStream
   else:
@@ -38,7 +38,7 @@ def keepStream @ a (Stream@a int -> Stream@a):
       x +>: xs apply (n - 1) keepStream
 
 // Lifts a function on values to a function on streams.
-def mapStream @ a b (Stream@a (a -> b) -> Stream@b):
+define mapStream @ a b (Stream@a (a -> b) -> Stream@b):
   -> f;
   match:
   case EmptyStream: EmptyStream
@@ -46,25 +46,25 @@ def mapStream @ a b (Stream@a (a -> b) -> Stream@b):
     x f apply +>: xs apply f mapStream
 
 // Repeats a stream infinitely.
-def streamCycle @ a (Stream@a -> Stream@a):
+define streamCycle @ a (Stream@a -> Stream@a):
   streamRepeat concatStreams
 
 // Generates a stream counting up from a starting integer.
-def streamFrom (int -> Stream@int):
+define streamFrom (int -> Stream@int):
   -> x; x +>: (x + 1) streamFrom
 
 // Whether a stream is empty.
-def streamIsEmpty @ a (Stream@a -> bool):
+define streamIsEmpty @ a (Stream@a -> bool):
   match:
   case EmptyStream: true
   default: false
 
 // Repeats a value infinitely.
-def streamRepeat @ a (a -> Stream@a):
+define streamRepeat @ a (a -> Stream@a):
   -> x; x +>: x streamRepeat
 
 // Converts a finite stream to a vector.
-def streamToVector @ a (Stream@a -> [a]):
+define streamToVector @ a (Stream@a -> [a]):
   match:
   case EmptyStream: []
   case StreamValue -> x xs:
@@ -72,7 +72,7 @@ def streamToVector @ a (Stream@a -> [a]):
     x prepend
 
 // Tosses the first n elements of a stream.
-def tossStream @ a (Stream@a int -> Stream@a):
+define tossStream @ a (Stream@a int -> Stream@a):
   -> n;
   if (n > 0):
     match:
@@ -81,7 +81,7 @@ def tossStream @ a (Stream@a int -> Stream@a):
       xs apply (n - 1) tossStream
 
 // Converts vector to a finite stream.
-def vectorToStream @ a ([a] -> Stream@a):
+define vectorToStream @ a ([a] -> Stream@a):
   -> xs;
   option (xs head) -> x: x +>: xs tail vectorToStream
   else: EmptyStream

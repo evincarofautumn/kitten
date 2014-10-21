@@ -1,4 +1,4 @@
-def test @a (a? (a -> [char]) ->):
+define test @a (a? (a -> [char]) ->):
   -> x show;
   option (x):
     show apply say
@@ -9,14 +9,14 @@ def test @a (a? (a -> [char]) ->):
 "meow" some {} test
 none {} test
 
-def or0 (int? -> int):
+define or0 (int? -> int):
   0 fromOption
 
 10 some or0 sayInt
 none or0 sayInt
 
 infix_left 7 /?
-def /? (int int -> int?):
+define /? (int int -> int?):
   -> x y;
   if (y = 0) {none} else { (x / y) some }
 

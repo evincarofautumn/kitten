@@ -1,1 +1,1 @@
-def example @a (a -> int): ->x; x
+define example @a (a -> int): ->x; x

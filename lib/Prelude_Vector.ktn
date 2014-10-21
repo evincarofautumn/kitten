@@ -1,34 +1,34 @@
 // Appends a value to the end of a vector.
-def append @ a ([a] a -> [a]):
+define append @ a ([a] a -> [a]):
   vector cat
 
 // The Cartesian product of two vectors.
-def cartesian @ a b ([a] [b] -> [a & b]):
+define cartesian @ a b ([a] [b] -> [a & b]):
   \pair cartesianWith
 
 // The Cartesian product of two vectors with a generalized
 // tupling function.
-def cartesianWith @ a b c ([a] [b] (a b -> c) -> [c]):
+define cartesianWith @ a b c ([a] [b] (a b -> c) -> [c]):
   -> xs ys function;
   forConcat (xs) -> x:
     for (ys) -> y:
       x y function apply
 
 // Concatenates two vectors.
-def cat @ a ([a] [a] -> [a]):
+define cat @ a ([a] [a] -> [a]):
   __add_vector
 
 // Operator alias for 'cat'.
 infix_right 5 <>
-def <> @ a ([a] [a] -> [a]):
+define <> @ a ([a] [a] -> [a]):
   cat
 
 // Concatenates a vector of vectors.
-def concat @ a ([[a]] -> [a]):
+define concat @ a ([[a]] -> [a]):
   [] \<> foldl
 
 // Lifts an impure function on values to one on vectors.
-def each @ a ([a] (a ->) ->):
+define each @ a ([a] (a ->) ->):
   -> xs f;
   option (xs head):
     f apply;
@@ -36,21 +36,21 @@ def each @ a ([a] (a ->) ->):
 
 // Whether an element is present in a vector according to
 // the given equality predicate.
-def elem @ a ([a] a (a a -> bool) -> bool):
+define elem @ a ([a] a (a a -> bool) -> bool):
   -> xs x f;
   xs { x f apply } any
 
 // Whether a character is present in a string.
-def elemChar ([char] char -> bool):
+define elemChar ([char] char -> bool):
   \eqChar elem
 
 // Whether an integer is present in an integer vector.
-def elemInt ([int] int -> bool):
+define elemInt ([int] int -> bool):
   \= elem
 
 // Whether two vectors are equal according to the given
 // equality predicate.
-def eqVector @ a ([a] [a] (a a -> bool) -> bool):
+define eqVector @ a ([a] [a] (a a -> bool) -> bool):
   -> xs ys eq;
   if (xs length != ys length):
     false
@@ -58,7 +58,7 @@ def eqVector @ a ([a] [a] (a a -> bool) -> bool):
     xs ys eq zipWith and
 
 // Filters a vector by a predicate.
-def filter @ a ([a] (a -> bool) -> [a]):
+define filter @ a ([a] (a -> bool) -> [a]):
   -> v f;
   option (v head) -> x:
     if (x f apply):
@@ -70,11 +70,11 @@ def filter @ a ([a] (a -> bool) -> [a]):
     []
 
 // Finds the first element of a vector matching a predicate.
-def find @ a ([a] (a -> bool) -> a?):
+define find @ a ([a] (a -> bool) -> a?):
   filter head
 
 // Folds elements of a vector right-associatively.
-def foldr @ a b ([a] b (a b -> b) -> b):
+define foldr @ a b ([a] b (a b -> b) -> b):
   -> xs z k;
   option (xs last) -> x:
     (xs init) (x z k apply) k foldr
@@ -82,21 +82,21 @@ def foldr @ a b ([a] b (a b -> b) -> b):
     z
 
 // Right-associative non-empty vector fold.
-def foldr1 @ a ([a] (a a -> a) -> a?):
+define foldr1 @ a ([a] (a a -> a) -> a?):
   -> xs fn;
   option (xs last) -> x:
     (xs init) x fn foldr some
   else:
     none
 
-def generateN @ a ((int -> a) int -> [a]):
+define generateN @ a ((int -> a) int -> [a]):
   -> f size;
   from (0) unfold (size) -> index:
     index f apply;
     index + 1
 
 // TODO (strager): Make this a compiler intrinsic.
-def from_unfold__ @ a b (a int (a -> b a) -> [b]):
+define from_unfold__ @ a b (a int (a -> b a) -> [b]):
   -> z size f;
   if (size > 0):
     z f apply -> b a;
@@ -105,12 +105,12 @@ def from_unfold__ @ a b (a int (a -> b a) -> [b]):
     []
 
 // Unsafe right-associative non-empty vector fold.
-def unsafeFoldr1 @ a ([a] (a a -> a) -> a):
+define unsafeFoldr1 @ a ([a] (a a -> a) -> a):
   -> xs fn;
   xs init (xs unsafeLast) fn foldr
 
 // Folds elements of a vector left-associatively.
-def foldl @ a b ([b] a (a b -> a) -> a):
+define foldl @ a b ([b] a (a b -> a) -> a):
   -> xs z k;
   option (xs head) -> x:
     xs tail (z x k apply) k foldl
@@ -118,7 +118,7 @@ def foldl @ a b ([b] a (a b -> a) -> a):
     z
 
 // Left-associative non-empty vector fold.
-def foldl1 @ a ([a] (a a -> a) -> a?):
+define foldl1 @ a ([a] (a a -> a) -> a?):
   -> xs fn;
   option (xs head) -> x:
     xs tail x fn foldl some
@@ -126,47 +126,47 @@ def foldl1 @ a ([a] (a a -> a) -> a?):
     none
 
 // Same as 'map' but prefix.
-def for__ @ a b ([a] (a -> b) -> [b]):
+define for__ @ a b ([a] (a -> b) -> [b]):
   map
 
 // Same as 'each' but prefix.
-def forEach__ @ a ([a] (a ->) ->):
+define forEach__ @ a ([a] (a ->) ->):
   each
 
 // Same as 'mapConcat' but prefix.
-def forConcat__ @ a b ([a] (a -> [b]) -> [b]):
+define forConcat__ @ a b ([a] (a -> [b]) -> [b]):
   mapConcat
 
 // Same as 'mapRange' but prefix.
-def from_to__ @ a (a int int (a int -> a) -> a):
+define from_to__ @ a (a int int (a int -> a) -> a):
   mapRange
 
 // Unsafe left-associative non-empty vector fold.
-def unsafeFoldl1 @ a ([a] (a a -> a) -> a):
+define unsafeFoldl1 @ a ([a] (a a -> a) -> a):
   -> xs fn;
   xs tail (xs unsafeHead) fn foldl
 
 // Gets multiple elements of a vector.
-def getAll @ a ([a] [int] -> [a?]):
+define getAll @ a ([a] [int] -> [a?]):
   -> xs indices;
   indices {(xs .)} map
 
 // Gets the first element of a vector.
-def head @ a ([a] -> a?):
+define head @ a ([a] -> a?):
   (.(0))
 
 // Splits a vector into its head and tail.
-def headTail @ a ([a] -> a? [a]):
+define headTail @ a ([a] -> a? [a]):
   \head \tail bothTo
 
 // Unsafely removes the last element of a vector.
-def init @ a ([a] -> [a]):
+define init @ a ([a] -> [a]):
   __init
 
 // Inserts a value at each possible index in a vector; given
 // a value n and a vector xs, generates a matrix with n on
 // the main diagonal and xs wrapped to the remainder.
-def insertEverywhere @ a ([a] a -> [[a]]):
+define insertEverywhere @ a ([a] a -> [[a]]):
   -> xs n;
   option (xs head) -> x:
     (xs tail) n insertEverywhere
@@ -176,7 +176,7 @@ def insertEverywhere @ a ([a] a -> [[a]]):
   else:
     [[n]]
 
-def insert @ a ([a] a (a a -> bool) -> [a]):
+define insert @ a ([a] a (a a -> bool) -> [a]):
   -> xs n lt;
   option (xs head) -> x:
     if (x n lt apply):
@@ -188,7 +188,7 @@ def insert @ a ([a] a (a a -> bool) -> [a]):
     [n]
 
 // Intersperses a value between the values of a vector.
-def intersperse @ a ([a] a -> [a]):
+define intersperse @ a ([a] a -> [a]):
   -> xs sep;
   option (xs head) -> x:
     xs tail sep prependToAll
@@ -197,15 +197,15 @@ def intersperse @ a ([a] a -> [a]):
     []
 
 // Whether a vector is empty.
-def isEmpty @ a ([a] -> bool):
+define isEmpty @ a ([a] -> bool):
   length (= 0)
 
 // Joins a vector with a separator.
-def join @ a ([[a]] [a] -> [a]):
+define join @ a ([[a]] [a] -> [a]):
   intersperse concat
 
 // Keeps the first n elements of a vector, tossing the rest.
-def keep @ a ([a] int -> [a]):
+define keep @ a ([a] int -> [a]):
   -> xs n;
   if (n <= 0):
     []
@@ -217,7 +217,7 @@ def keep @ a ([a] int -> [a]):
       []
 
 // Keeps elements of a vector while a predicate holds.
-def keepWhile @ a ([a] (a -> bool) -> [a]):
+define keepWhile @ a ([a] (a -> bool) -> [a]):
   -> xs f;
   []
   option (xs head) -> x:
@@ -227,22 +227,22 @@ def keepWhile @ a ([a] (a -> bool) -> [a]):
       x prepend
 
 // Gets the last element of a vector.
-def last @ a ([a] -> a?):
+define last @ a ([a] -> a?):
   -> xs;
   xs.(xs length - 1)
 
 // Gets the length of a vector.
-def length @ a ([a] -> int):
+define length @ a ([a] -> int):
   __length
 
 // Looks up a value in an association list by an equality predicate.
-def lookUp @ a b ([a & b] a (a a -> bool) -> b?):
+define lookUp @ a b ([a & b] a (a a -> bool) -> b?):
   -> key eq;
   { first key eq apply } find
   \rest liftOption
 
 // Lifts a function on values to a function on vectors.
-def map @ a b ([a] (a -> b) -> [b]):
+define map @ a b ([a] (a -> b) -> [b]):
   -> xs f;
   option (xs head):
     f apply vector
@@ -252,11 +252,11 @@ def map @ a b ([a] (a -> b) -> [b]):
     []
 
 // Maps a function over a vector and concatenates the results.
-def mapConcat @ a b ([a] (a -> [b]) -> [b]):
+define mapConcat @ a b ([a] (a -> [b]) -> [b]):
   map concat
 
 // Maps a function over part of a vector.
-def mapFrom @ a ([a] (a -> a) int -> [a]):
+define mapFrom @ a ([a] (a -> a) int -> [a]):
   -> vec function offset;
   if (vec isEmpty || offset >= vec length):
     vec
@@ -265,7 +265,7 @@ def mapFrom @ a ([a] (a -> a) int -> [a]):
     function (offset + 1) mapFrom
 
 // Maps a function over a value for each integer in a range.
-def mapRange @ a (a int int (a int -> a) -> a):
+define mapRange @ a (a int int (a int -> a) -> a):
   -> value start end function;
   if (start <= end):
     value start function apply;
@@ -274,15 +274,15 @@ def mapRange @ a (a int int (a int -> a) -> a):
     value
 
 // Generates all permutations of a vector.
-def permutations @ a ([a] -> [[a]]):
+define permutations @ a ([a] -> [[a]]):
   [[]] { -> x; {x insertEverywhere} mapConcat } foldl
 
 // Prepends a value to the head of a vector.
-def prepend @ a ([a] a -> [a]):
+define prepend @ a ([a] a -> [a]):
   -> xs x;
   x vector xs cat
 
-def prependToAll @ a ([a] a -> [a]):
+define prependToAll @ a ([a] a -> [a]):
   -> xs sep;
   option (xs head) -> x:
     xs tail sep prependToAll
@@ -292,7 +292,7 @@ def prependToAll @ a ([a] a -> [a]):
     []
 
 // Produces a vector with some number of copies of a value.
-def replicate @ a (a int -> [a]):
+define replicate @ a (a int -> [a]):
   -> value count;
   if (count <= 0):
     []
@@ -301,7 +301,7 @@ def replicate @ a (a int -> [a]):
     value prepend
 
 // Reverses a vector.
-def reverse @ a ([a] -> [a]):
+define reverse @ a ([a] -> [a]):
   -> xs;
   option (xs head) -> x:
     xs tail reverse
@@ -310,17 +310,17 @@ def reverse @ a ([a] -> [a]):
     []
 
 // Produce a list of fold-left results
-def scanl @ a b ([b] a (a b -> a) -> [a]):
+define scanl @ a b ([b] a (a b -> a) -> [a]):
   -> xs z k;
   xs z k scanlRest z prepend
 
 // Scan left with vector head as accumulator
-def scanl1 @ a ([a] (a a -> a) -> [a]):
+define scanl1 @ a ([a] (a a -> a) -> [a]):
   -> xs k;
   xs tail (xs unsafeHead) k scanl
 
 // Scan fold of remaining elements
-def scanlRest @ a b ([b] a (a b -> a) -> [a]):
+define scanlRest @ a b ([b] a (a b -> a) -> [a]):
   -> xs z k;
   option (xs head) -> x:
     z x k apply -> q;
@@ -330,7 +330,7 @@ def scanlRest @ a b ([b] a (a b -> a) -> [a]):
     []
 
 // Produce a list of fold-right results
-def scanr @ a b ([a] b (a b -> b) -> [b]):
+define scanr @ a b ([a] b (a b -> b) -> [b]):
   -> xs z k;
   option (xs head) -> x:
     (xs tail) z k scanr dup unsafeHead
@@ -340,31 +340,31 @@ def scanr @ a b ([a] b (a b -> b) -> [b]):
     [z]
 
 // Scan right with vector last as accumulator
-def scanr1 @ a ([a] (a a -> a) -> [a]):
+define scanr1 @ a ([a] (a a -> a) -> [a]):
   -> xs k;
   xs init (xs unsafeLast) k scanr
 
-def sort @ a ([a] (a a -> bool) -> [a]):
+define sort @ a ([a] (a a -> bool) -> [a]):
   -> lt;
   [] {lt insert} foldl
 
-def span @ a ([a] (a -> bool) -> [a] [a]):
+define span @ a ([a] (a -> bool) -> [a] [a]):
   -> xs f;
   xs f keepWhile
   xs f tossWhile
 
 // Splits a vector into two parts at the given index.
-def splitAt @ a ([a] int -> [a] [a]):
+define splitAt @ a ([a] int -> [a] [a]):
   -> xs n;
   xs n keep
   xs n toss
 
 // Unsafely removes the first element of a vector.
-def tail @ a ([a] -> [a]):
+define tail @ a ([a] -> [a]):
   __tail
 
 // Tosses the first n elements of a vector, keeping the rest.
-def toss @ a ([a] int -> [a]):
+define toss @ a ([a] int -> [a]):
   -> xs n;
   if (n <= 0 || xs isEmpty):
     xs
@@ -372,7 +372,7 @@ def toss @ a ([a] int -> [a]):
     xs tail (n - 1) toss
 
 // Tosses elements of a vector while a predicate holds.
-def tossWhile @ a ([a] (a -> bool) -> [a]):
+define tossWhile @ a ([a] (a -> bool) -> [a]):
   -> xs f;
   xs
   option (xs head) -> x:
@@ -380,7 +380,7 @@ def tossWhile @ a ([a] (a -> bool) -> [a]):
       tail f tossWhile
 
 // Transposes the rows and columns of a 2D vector.
-def transpose @ a ([[a]] -> [[a]]):
+define transpose @ a ([[a]] -> [[a]]):
   -> xss;
   if (xss isEmpty):
     []
@@ -396,7 +396,7 @@ def transpose @ a ([[a]] -> [[a]]):
 
 // Strips duplicate elements from a vector according the
 // given equality predicate.
-def unique @ a ([a] (a a -> bool) -> [a]):
+define unique @ a ([a] (a a -> bool) -> [a]):
   -> xs eq;
   option (xs head) -> x:
     (xs tail {x (eq apply) not} filter) eq unique
@@ -404,25 +404,25 @@ def unique @ a ([a] (a a -> bool) -> [a]):
   else:
     []
 
-def unsafeHead @ a ([a] -> a):
+define unsafeHead @ a ([a] -> a):
   head fromSome
 
-def unsafeHeadTail @ a ([a] -> a [a]):
+define unsafeHeadTail @ a ([a] -> a [a]):
   \unsafeHead \tail bothTo
 
-def unsafeLast @ a ([a] -> a):
+define unsafeLast @ a ([a] -> a):
   last fromSome
 
 // Wraps a value in a vector.
-def vector @ a (a -> [a]):
+define vector @ a (a -> [a]):
   -> x; [x]
 
 // Zips two lists together as pairs.
-def zip @ a b ([a] [b] -> [a & b]):
+define zip @ a b ([a] [b] -> [a & b]):
   \pair zipWith
 
 // Zips two lists together with a function.
-def zipWith @ a b c ([a] [b] (a b -> c) -> [c]):
+define zipWith @ a b c ([a] [b] (a b -> c) -> [c]):
   -> as bs f;
   []
   option (as head) -> a:
@@ -432,19 +432,19 @@ def zipWith @ a b c ([a] [b] (a b -> c) -> [c]):
       a b f apply; prepend
 
 // Gets an element of a vector.
-def . @ a ([a] int -> a?):
+define . @ a ([a] int -> a?):
   __get
 
 // Unsafely gets an element of a vector.
-def ! @ a ([a] int -> a):
+define ! @ a ([a] int -> a):
   (.) fromSome
 
 // Sets the value at an index in a vector.
-def .= @ a ([a] int a -> [a]):
+define .= @ a ([a] int a -> [a]):
   __set
 
 // Maps a function over an element of a vector.
-def .~ @ a ([a] int (a -> a) -> [a]):
+define .~ @ a ([a] int (a -> a) -> [a]):
   -> vec offset function;
   option (vec.(offset)):
     function apply -> value;
@@ -453,16 +453,16 @@ def .~ @ a ([a] int (a -> a) -> [a]):
     vec
 
 // Gets a value from a 2D vector.
-def .. @ a ([[a]] (int & int) -> a?):
+define .. @ a ([[a]] (int & int) -> a?):
   -> p;
   (. p first) {(. p rest)} bindOption
 
 // Unsafely gets a value from a 2D vector.
-def !! @ a ([[a]] (int & int) -> a):
+define !! @ a ([[a]] (int & int) -> a):
   -> p;
   (! p first) (! p rest)
 
 // Sets a value in a 2D vector.
-def !!= @ a ([[a]] (int & int) a -> [[a]]):
+define !!= @ a ([[a]] (int & int) a -> [[a]]):
   -> p x;
   p first .~: p rest .= x

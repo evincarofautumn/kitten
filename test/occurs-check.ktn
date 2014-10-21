@@ -1,11 +1,11 @@
-def f (int int -> int) {
+define f (int int -> int) {
   (+)
 }
 
-def g (-> int) {
+define g (-> int) {
   { 1 f } h
 }
 
-def h ((-> int) -> int) {
+define h ((-> int) -> int) {
   apply
 }

@@ -80,7 +80,7 @@ spec = do
     testTokens "false" [TkBool False]
 
   describe "tokenize keyword" $ do
-    testTokens "def" [TkDef]
+    testTokens "define" [TkDefine]
     testTokens "import" [TkImport]
 
   describe "tokenize builtin" $ do
@@ -99,14 +99,14 @@ spec = do
 
   describe "locations" $ do
     testLocations 1 "1 2 3" [loc 1 1, loc 1 3, loc 1 5]
-    testLocations 1 "def f {1} def f {2}" $ locs
-      [ (1, 1), (1, 5), (1, 7), (1, 8), (1, 9), (1, 11), (1, 15), (1, 17)
-      , (1, 18), (1, 19)
+    testLocations 1 "define f {1} define f {2}" $ locs
+      [ (1, 1), (1, 8), (1, 10), (1, 11), (1, 12), (1, 14), (1, 21), (1, 23)
+      , (1, 24), (1, 25)
       ]
-    testLocations 2 "def f {1}" $ locs
-      [(2, 1), (2, 5), (2, 7), (2, 8), (2, 9)]
-    testLocations 1 "  def f {1}" $ locs
-      [(1, 3), (1, 7), (1, 9), (1, 10), (1, 11)]
+    testLocations 2 "define f {1}" $ locs
+      [(2, 1), (2, 8), (2, 10), (2, 11), (2, 12)]
+    testLocations 1 "  define f {1}" $ locs
+      [(1, 3), (1, 10), (1, 12), (1, 13), (1, 14)]
 
 locs :: [(Line, Column)] -> [Location]
 locs = map (uncurry loc)

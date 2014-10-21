@@ -9,10 +9,10 @@
 
 ticTacToe
 
-def ticTacToe (->):
+define ticTacToe (->):
   { game playAgain } loopWhile
 
-def game (->):
+define game (->):
   newBoard 'x' gameLoop -> finalBoard winner;
 
   newline
@@ -24,7 +24,7 @@ def game (->):
 
   finalBoard printBoard
 
-def gameLoop ([char] char -> [char] char):
+define gameLoop ([char] char -> [char] char):
   -> board player;
 
   board getWinner -> winner;
@@ -34,7 +34,7 @@ def gameLoop ([char] char -> [char] char):
     board player askTurn
     player nextPlayer gameLoop
 
-def askTurn ([char] char -> [char]):
+define askTurn ([char] char -> [char]):
   -> board player;
 
   board printBoard
@@ -62,11 +62,11 @@ def askTurn ([char] char -> [char]):
       cat say
       board player askTurn
 
-def nextPlayer (char -> char):
+define nextPlayer (char -> char):
   -> p;
   if (p 'x' eqChar) {'o'} else {'x'}
 
-def checkSets (-> [[int]]):
+define checkSets (-> [[int]]):
   [
     [0, 1, 2], [3, 4, 5], [6, 7, 8],  // Rows
     [0, 3, 6], [1, 4, 7], [2, 5, 8],  // Columns
@@ -74,7 +74,7 @@ def checkSets (-> [[int]]):
   ]
 
 // ' ', 'x', or 'o'
-def getCheckSetWinner ([char] [int] -> char):
+define getCheckSetWinner ([char] [int] -> char):
   getAll -> players;
   if (players { option {'x' eqChar} else {false} } all):
     'x'
@@ -85,7 +85,7 @@ def getCheckSetWinner ([char] [int] -> char):
       ' '
 
 // ' ', 'x', 'o', or '*'
-def getWinner ([char] -> char):
+define getWinner ([char] -> char):
   -> board;
 
   board
@@ -111,7 +111,7 @@ def getWinner ([char] -> char):
         else:
           '*'
 
-def playAgain (-> bool):
+define playAgain (-> bool):
   "Play another game? [yN] " prompt -> input;
   if (input isYes):
     newline true
@@ -121,21 +121,21 @@ def playAgain (-> bool):
     else:
       playAgain
 
-def isYes ([char] -> bool): { "yY" swap elemChar } any
-def isNo ([char] -> bool): { "nN" swap elemChar } any
+define isYes ([char] -> bool): { "yY" swap elemChar } any
+define isNo ([char] -> bool): { "nN" swap elemChar } any
 
 // Board
 
-def newBoard (-> [char]): ' ' 9 replicate
+define newBoard (-> [char]): ' ' 9 replicate
 
-def editBoard ([char] int char -> [char]):
+define editBoard ([char] int char -> [char]):
   -> number player;
   number cellNumberToIndex .= player
 
-def printBoard ([char] ->):
+define printBoard ([char] ->):
   showBoard print
 
-def showBoard ([char] -> [char]):
+define showBoard ([char] -> [char]):
   -> board;
   "  --+-+--\n" -> divider;
   "   A B C\n" -> heading;
@@ -145,7 +145,7 @@ def showBoard ([char] -> [char]):
     divider, "3 ", board 2 showBoardRow, "\n",
   ] concat
 
-def showBoardRow ([char] int -> [char]):
+define showBoardRow ([char] int -> [char]):
   -> board rowIndex;
   rowIndex * 3 -> index;
   [
@@ -154,24 +154,24 @@ def showBoardRow ([char] int -> [char]):
     '|', board (2 + index) showBoardCellAt,
   ]
 
-def showBoardCellAt ([char] int -> char):
+define showBoardCellAt ([char] int -> char):
   cellNumberToIndex (!) showBoardCell
 
-def cellNumberToIndex (int -> int):
+define cellNumberToIndex (int -> int):
   (8 -)
 
-def showBoardCell (char -> char) {}
+define showBoardCell (char -> char) {}
 
 // Input
 
-def readMoveLine ([char] -> (int & int)?):
+define readMoveLine ([char] -> (int & int)?):
   -> chars;
   if (chars length = 2):
     (chars!0) (chars!1) readXY
   else:
     none
 
-def readXY (char char -> (int & int)?):
+define readXY (char char -> (int & int)?):
   -> x y;
   x y readXY_ -> mxy;
   option (mxy):
@@ -179,11 +179,11 @@ def readXY (char char -> (int & int)?):
   else:
     y x readXY_
 
-def readXY_ (char char -> (int & int)?):
+define readXY_ (char char -> (int & int)?):
   \readX \readY both -> mx my;
   mx my \pair liftOption2
 
-def readX (char -> int?):
+define readX (char -> int?):
   -> c;
   if ("aA" c elemChar): 0 some
   else:
@@ -192,7 +192,7 @@ def readX (char -> int?):
       if ("cC" c elemChar): 2 some
       else: none
 
-def readY (char -> int?):
+define readY (char -> int?):
   -> c;
   if ("1!" c elemChar): 0 some
   else:
@@ -201,6 +201,6 @@ def readY (char -> int?):
       if ("3#" c elemChar): 2 some
       else: none
 
-def xyToCellNumber (int int -> int):
+define xyToCellNumber (int int -> int):
   -> x y;
   y * 3 + x

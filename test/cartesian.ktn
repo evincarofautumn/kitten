@@ -1,4 +1,4 @@
-def showPoint (int & int -> [char]):
+define showPoint (int & int -> [char]):
   -> p;
   [ "("
   , p first showInt

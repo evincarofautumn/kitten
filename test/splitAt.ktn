@@ -1,4 +1,4 @@
-def test ([int] [int] [int] [int] ->):
+define test ([int] [int] [int] [int] ->):
   -> actualL actualR expectedL expectedR;
   if ((actualL expectedL \= eqVector) not
    || (actualR expectedR \= eqVector) not):

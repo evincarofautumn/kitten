@@ -1,45 +1,45 @@
 // Unsafely gets the left branch of a choice.
-def fromLeft @ a b (a | b -> a):
+define fromLeft @ a b (a | b -> a):
   __from_left
 
 // Unsafely gets the right branch of a choice.
-def fromRight @ a b (a | b -> b):
+define fromRight @ a b (a | b -> b):
   __from_right
 
 // Safely gets the left branch of a choice.
-def getLeft @ a b (a | b -> a?):
+define getLeft @ a b (a | b -> a?):
   choice:
     some
   else:
     drop none
 
 // Safely gets the right branch of a choice.
-def getRight @ a b (a | b -> b?):
+define getRight @ a b (a | b -> b?):
   choice:
     drop none
   else:
     some
 
 // Whether a choice is left.
-def isLeft @ a b (a | b -> bool):
+define isLeft @ a b (a | b -> bool):
   choice:
     drop true
   else:
     drop false
 
 // Whether a choice is right.
-def isRight @ a b (a | b -> bool):
+define isRight @ a b (a | b -> bool):
   choice:
     drop false
   else:
     drop true
 
 // Constructs a left choice.
-def left @ a b (a -> a | b):
+define left @ a b (a -> a | b):
   __left
 
 // Maps a function over the left branch of a choice.
-def liftLeft @ a b c ((a | b) (a -> c) -> c | b):
+define liftLeft @ a b c ((a | b) (a -> c) -> c | b):
   -> f;
   choice:
     f apply left
@@ -47,7 +47,7 @@ def liftLeft @ a b c ((a | b) (a -> c) -> c | b):
     right
 
 // Maps a function over the right branch of a choice.
-def liftRight @ a b c ((a | b) (b -> c) -> a | c):
+define liftRight @ a b c ((a | b) (b -> c) -> a | c):
   -> f;
   choice:
     left
@@ -55,5 +55,5 @@ def liftRight @ a b c ((a | b) (b -> c) -> a | c):
     f apply right
 
 // Constructs a right choice.
-def right @ a b (b -> a | b):
+define right @ a b (b -> a | b):
   __right
