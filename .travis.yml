@@ -22,7 +22,7 @@ before_install:
  - sudo apt-get install $CABAL_PACKAGE ghc-$GHC_VERSION
  - export PATH=/opt/ghc/$GHC_VERSION/bin:$HOME/.cabal/bin:$PATH # HACK
  - $CABAL update
- - $CABAL install $CABAL_PACKAGE
+ - $CABAL install cabal-install
  # See Note [hlint].
  # - $CABAL install $CABAL_INSTALL_FLAGS happy # Needed for hlint.
  # - $CABAL install $CABAL_INSTALL_FLAGS hlint
