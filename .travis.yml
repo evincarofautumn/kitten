@@ -4,9 +4,9 @@
 language: c
 
 env:
- - GHC_VERSION=7.6.3 CABAL_PACKAGE=cabal-install      CABAL=cabal      CABAL_INSTALL_FLAGS=
- - GHC_VERSION=7.6.3 CABAL_PACKAGE=cabal-install-1.18 CABAL=cabal-1.18 CABAL_INSTALL_FLAGS=-j
- - GHC_VERSION=head  CABAL_PACKAGE=cabal-install-1.18 CABAL=cabal-1.18 CABAL_INSTALL_FLAGS=-j
+ - GHC_VERSION=7.8.3 CABAL_PACKAGE=cabal-install      CABAL=cabal      CABAL_INSTALL_FLAGS=
+ - GHC_VERSION=7.8.3 CABAL_PACKAGE=cabal-install-1.20 CABAL=cabal-1.20 CABAL_INSTALL_FLAGS=-j
+ - GHC_VERSION=head CABAL_PACKAGE=cabal-install-1.20 CABAL=cabal-1.20 CABAL_INSTALL_FLAGS=-j
 
 compiler:
  - gcc
@@ -15,7 +15,7 @@ compiler:
 matrix:
  allow_failures:
   # NOTE(strager): Spacing must exactly match that in 'env'.
-  - env: GHC_VERSION=head  CABAL_PACKAGE=cabal-install-1.18 CABAL=cabal-1.18 CABAL_INSTALL_FLAGS=-j
+  - env: GHC_VERSION=head CABAL_PACKAGE=cabal-install-1.20 CABAL=cabal-1.10 CABAL_INSTALL_FLAGS=-j
 
 before_install:
  - sudo add-apt-repository -y ppa:hvr/ghc
