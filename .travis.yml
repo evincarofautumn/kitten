@@ -4,7 +4,7 @@
 language: c
 
 env:
- - GHC_VERSION=7.8.3 CABAL_PACKAGE=cabal-install      CABAL=cabal      CABAL_INSTALL_FLAGS=
+ - GHC_VERSION=7.8.3 CABAL_PACKAGE=cabal-install CABAL=cabal CABAL_INSTALL_FLAGS=
  - GHC_VERSION=7.8.3 CABAL_PACKAGE=cabal-install-1.20 CABAL=cabal-1.20 CABAL_INSTALL_FLAGS=-j
  - GHC_VERSION=head CABAL_PACKAGE=cabal-install-1.20 CABAL=cabal-1.20 CABAL_INSTALL_FLAGS=-j
 
@@ -14,7 +14,6 @@ compiler:
 
 matrix:
  allow_failures:
-  # NOTE(strager): Spacing must exactly match that in 'env'.
   - env: GHC_VERSION=head CABAL_PACKAGE=cabal-install-1.20 CABAL=cabal-1.10 CABAL_INSTALL_FLAGS=-j
 
 before_install:
