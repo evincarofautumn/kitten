@@ -23,6 +23,7 @@ PHONY_TARGETS = \
 	example \
 	test \
 	prelude \
+	sandbox \
 	lint \
 	loc \
 	clean
@@ -42,7 +43,7 @@ $1 : | $(filter $2,$3)
 endef
 
 dev_DEPS = build prelude unit example test
-default_DEPS = deps configure $(dev_DEPS)
+default_DEPS = sandbox deps configure $(dev_DEPS)
 
 BUILDING_PHONY_TARGETS = $(filter $(PHONY_TARGETS),$(MAKECMDGOALS))
 ifeq ($(MAKECMDGOALS)$(filter-out dev,$(MAKECMDGOALS)),)
@@ -101,6 +102,10 @@ clean :
 .PHONY : configure
 configure :
 	$(CABAL) configure $(CABALFLAGS)
+
+.PHONY : sandbox
+sandbox :
+	$(CABAL) sandbox init
 
 .PHONY : deps
 deps :
