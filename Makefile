@@ -108,7 +108,7 @@ sandbox :
 	$(CABAL) sandbox init
 
 .PHONY : deps
-deps :
+deps : sandbox
 	$(CABAL) install $(CABALFLAGS) --only-dependencies
 
 .PHONY : prelude
