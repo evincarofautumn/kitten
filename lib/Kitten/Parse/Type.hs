@@ -65,7 +65,8 @@ functionType = (<?> "function type") $ choice
 baseType :: Parser AnType
 baseType = (<?> "base type") $ do
   prefix <- choice
-    [ AnVar <$> word
+    [ try $ quantified type_
+    , AnVar <$> word
     , vector
     , try $ grouped type_
     ]
@@ -85,4 +86,4 @@ baseType = (<?> "base type") $ do
 
 vector :: Parser AnType
 vector = AnVector <$> between
-  (match TkVectorBegin) (match TkVectorEnd) baseType
+  (match TkVectorBegin) (match TkVectorEnd) type_
