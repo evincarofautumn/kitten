@@ -1,6 +1,6 @@
 data Stream<a>:
-  case EmptyStream;
-  case StreamValue a (-> Stream@a);
+  case EmptyStream
+  case StreamValue (a, -> Stream@a)
 
 // Operator alias for 'StreamValue'.
 infix right 5 +>

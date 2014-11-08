@@ -1,6 +1,6 @@
 data Option<a>:
-  case Some a;
-  case None;
+  case Some (a)
+  case None
 
 match (1 Some):
   case Some: sayInt

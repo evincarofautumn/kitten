@@ -1,5 +1,5 @@
 data Example:
-  case Example int int;
+  case Example (int, int)
 
 0 1 Example match: case Example: (+) sayInt
 

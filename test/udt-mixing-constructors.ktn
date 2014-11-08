@@ -1,8 +1,8 @@
 data A:
-  case A int;
+  case A (int)
 
 data B:
-  case B int;
+  case B (int)
 
 1 A
 match:

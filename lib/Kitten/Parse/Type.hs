@@ -5,6 +5,7 @@ module Kitten.Parse.Type
   , scalarQuantifier
   , signature
   , typeDefType
+  , type_
   ) where
 
 import Control.Applicative

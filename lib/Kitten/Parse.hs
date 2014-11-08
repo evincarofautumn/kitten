@@ -115,7 +115,7 @@ typeConstructor :: Parser TypeConstructor
 typeConstructor = (<?> "type constructor") . locate $ do
   void (match TkCase)
   name <- named <?> "constructor name"
-  fields <- manyV baseType <* match TkSemicolon
+  fields <- option V.empty $ grouped (type_ `sepEndByV` match TkComma)
   return $ \loc -> TypeConstructor
     { ctorFields = fields
     , ctorLocation = loc

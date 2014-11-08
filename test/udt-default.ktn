@@ -1,6 +1,6 @@
 data IntOrString:
-  case Int int;
-  case String [char];
+  case Int (int)
+  case String ([char])
 
 match (1 Int):
   case String: say
