@@ -80,8 +80,12 @@ def = (<?> "definition") . locate $ do
     , (,) Infix <$> symbolic
     ] <?> "definition name"
   anno <- signature
-  bodyTerm <- locate (TrCompose StackAny <$> block)
-    <?> "definition body"
+  bodyTerm <- (<?> "definition body") . locate $ choice
+    [ TrCompose StackAny <$> block
+    , do
+      (names, body) <- lambdaBlock
+      return $ makeLambda names body
+    ]
   return $ \loc -> Def
     { defAnno = anno
     , defFixity = fixity
@@ -186,41 +190,6 @@ term = locate $ choice
   group :: Parser (Location -> ParsedTerm)
   group = (<?> "group") $ TrCompose StackAny <$> grouped (many1V term)
 
-  lambda :: Parser (Location -> ParsedTerm)
-  lambda = (<?> "lambda") $ choice
-    [ try plainLambda
-    , do
-      (names, body) <- lambdaBlock
-      return $ \loc -> TrPush (TrQuotation (makeLambda names body loc) loc) loc
-    ]
-
-  plainLambda :: Parser (Location -> ParsedTerm)
-  plainLambda = match TkArrow *> do
-    names <- lambdaNames <* match TkSemicolon
-    body <- blockContents
-    return $ \loc -> makeLambda names body loc
-
-  lambdaNames :: Parser [Maybe Text]
-  lambdaNames = many1 $ Just <$> named <|> Nothing <$ match TkIgnore
-
-  lambdaBlock :: Parser ([Maybe Text], Vector ParsedTerm)
-  lambdaBlock = match TkArrow *> do
-    names <- lambdaNames
-    body <- block
-    return (names, body)
-
-  makeLambda :: [Maybe Text] -> Vector ParsedTerm -> Location -> ParsedTerm
-  makeLambda names terms loc = foldr
-    (\mLambdaName lambdaTerms -> maybe
-      (TrCompose StackAny (V.fromList
-        [ TrLambda "_" (TrCompose StackAny V.empty loc) loc
-        , lambdaTerms
-        ]) loc)
-      (\lambdaName -> TrLambda lambdaName lambdaTerms loc)
-      mLambdaName)
-    (TrCompose StackAny terms loc)
-    (reverse names)
-
   matchCase :: Parser (Location -> ParsedTerm)
   matchCase = (<?> "match") $ match TkMatch *> do
     mScrutinee <- optionMaybe group <?> "scrutinee"
@@ -267,6 +236,41 @@ term = locate $ choice
     (locate (TrCompose StackAny <$> many1V term)
       `sepEndByV` match TkComma)
     <?> "vector"
+
+lambda :: Parser (Location -> ParsedTerm)
+lambda = (<?> "lambda") $ choice
+  [ try plainLambda
+  , do
+    (names, body) <- lambdaBlock
+    return $ \loc -> TrPush (TrQuotation (makeLambda names body loc) loc) loc
+  ]
+
+plainLambda :: Parser (Location -> ParsedTerm)
+plainLambda = match TkArrow *> do
+  names <- lambdaNames <* match TkSemicolon
+  body <- blockContents
+  return $ \loc -> makeLambda names body loc
+
+lambdaNames :: Parser [Maybe Text]
+lambdaNames = many1 $ Just <$> named <|> Nothing <$ match TkIgnore
+
+lambdaBlock :: Parser ([Maybe Text], Vector ParsedTerm)
+lambdaBlock = match TkArrow *> do
+  names <- lambdaNames
+  body <- block
+  return (names, body)
+
+makeLambda :: [Maybe Text] -> Vector ParsedTerm -> Location -> ParsedTerm
+makeLambda names terms loc = foldr
+  (\mLambdaName lambdaTerms -> maybe
+    (TrCompose StackAny (V.fromList
+      [ TrLambda "_" (TrCompose StackAny V.empty loc) loc
+      , lambdaTerms
+      ]) loc)
+    (\lambdaName -> TrLambda lambdaName lambdaTerms loc)
+    mLambdaName)
+  (TrCompose StackAny terms loc)
+  (reverse names)
 
 blockValue :: Parser ParsedValue
 blockValue = (<?> "function") . locate $ do
