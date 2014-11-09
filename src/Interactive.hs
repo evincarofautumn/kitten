@@ -306,7 +306,7 @@ help = do
         , [ text "<expression>"
           , text "Evaluate <expression> and print the result"
           ]
-        , [ text "def <name> (<signature>) <body>"
+        , [ text "define <name> (<signature>) <body>"
           , text "Introduce a definition"
           ]
         ]
