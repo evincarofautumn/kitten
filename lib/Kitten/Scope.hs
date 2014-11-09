@@ -15,7 +15,10 @@ import Data.Vector (Vector)
 import qualified Data.HashMap.Strict as H
 import qualified Data.Vector as V
 
-import Kitten.Types
+import Kitten.ClosedName
+import Kitten.Definition
+import Kitten.Fragment
+import Kitten.Term
 import Kitten.Util.List
 
 -- Converts quotations containing references to local variables in enclosing

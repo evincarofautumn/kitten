@@ -7,7 +7,6 @@ module Kitten.Util.Maybe
   ) where
 
 import Control.Monad
-import Control.Monad.Instances ()
 import Data.Maybe
 
 applyMaybe :: (a -> Maybe a) -> a -> a

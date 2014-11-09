@@ -23,9 +23,12 @@ import Kitten.Error
 import Kitten.Infer.Locations
 import Kitten.Infer.Monad
 import Kitten.Infer.Scheme
+import Kitten.Kind
+import Kitten.KindedId
 import Kitten.Location
+import Kitten.Program
+import Kitten.Type
 import Kitten.Type.Tidy
-import Kitten.Types
 import Kitten.Util.Either
 import Kitten.Util.FailWriter
 import Kitten.Util.Text (ToText(..))

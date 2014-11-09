@@ -22,9 +22,14 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
+import Kitten.Annotation
 import Kitten.Error
+import Kitten.Kind
+import Kitten.KindedId
 import Kitten.Location
-import Kitten.Types
+import Kitten.Program
+import Kitten.Type
+import Kitten.TypeDefinition
 import Kitten.Util.FailWriter
 
 data Env = Env

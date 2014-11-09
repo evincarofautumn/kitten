@@ -20,7 +20,9 @@ import qualified Data.Vector as V
 
 import Kitten.Id
 import Kitten.IdMap (IdMap)
-import Kitten.Types
+import Kitten.Kind
+import Kitten.KindedId
+import Kitten.Type
 
 import qualified Kitten.IdMap as Id
 import qualified Kitten.Util.Set as Set

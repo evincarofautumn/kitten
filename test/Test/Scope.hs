@@ -7,9 +7,13 @@ import Test.Hspec
 
 import qualified Data.Vector as V
 
+import Kitten.ClosedName
+import Kitten.Fragment
+import Kitten.Intrinsic
 import Kitten.Location
 import Kitten.Scope
-import Kitten.Types
+import Kitten.Term
+import Kitten.Type
 import Test.Util
 
 spec :: Spec

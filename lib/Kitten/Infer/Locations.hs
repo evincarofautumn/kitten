@@ -10,7 +10,8 @@ import Data.Text (Text)
 
 import qualified Data.Foldable as F
 
-import Kitten.Types
+import Kitten.Kind
+import Kitten.Type
 import Kitten.Util.Text (ToText(..))
 
 -- | A list of locations and associated types, suitable for

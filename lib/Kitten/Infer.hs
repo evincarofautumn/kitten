@@ -26,13 +26,21 @@ import qualified Data.Text as T
 import qualified Data.Traversable as T
 import qualified Data.Vector as V
 
+import Kitten.ClosedName
+import Kitten.Config
+import Kitten.Definition
 import Kitten.Error
+import Kitten.Fragment
 import Kitten.Infer.Monad
 import Kitten.Infer.Scheme
 import Kitten.Infer.Type
 import Kitten.Infer.Unify
+import Kitten.Intrinsic
+import Kitten.Kind
 import Kitten.Location
-import Kitten.Types
+import Kitten.Program
+import Kitten.Term
+import Kitten.Type
 import Kitten.Util.FailWriter
 import Kitten.Util.Monad
 import Kitten.Util.Text (toText)

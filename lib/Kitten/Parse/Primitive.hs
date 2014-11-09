@@ -13,7 +13,7 @@ import Data.Text (Text)
 
 import Kitten.Parse.Monad
 import Kitten.Parsec
-import Kitten.Types
+import Kitten.Token
 
 blocked :: Parser a -> Parser a
 blocked = between

@@ -16,10 +16,10 @@ import qualified Data.Vector as V
 
 import Kitten.C
 import Kitten.Compile
+import Kitten.Config
 import Kitten.Error
-import Kitten.Interpret
 import Kitten.IR
-import Kitten.Types
+import Kitten.Interpret
 import Kitten.Util.Monad
 
 import qualified Kitten.Util.Text as T

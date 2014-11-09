@@ -33,8 +33,12 @@ import qualified Data.Text as Text
 import qualified Data.Vector as V
 import qualified Text.Parsec.Pos as ParsecPos
 
+import Kitten.Definition
+import Kitten.Fragment
+import Kitten.Kind
 import Kitten.Location
-import Kitten.Types
+import Kitten.Term
+import Kitten.Type
 import Kitten.Util.Monad
 import Kitten.Util.Text (toText)
 

@@ -13,11 +13,17 @@ import qualified Data.HashMap.Strict as H
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
+import Kitten.Annotation
+import Kitten.Definition
 import Kitten.Error
+import Kitten.Fragment
 import Kitten.Location
+import Kitten.Operator
 import Kitten.Parse
+import Kitten.Program
+import Kitten.Term
 import Kitten.Tokenize
-import Kitten.Types
+import Kitten.Type
 import Kitten.Util.Either
 import Kitten.Util.Monad
 import Kitten.Util.Text (ToText(..))

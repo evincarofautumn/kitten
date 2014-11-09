@@ -7,7 +7,7 @@ import Control.Applicative
 import Kitten.Location
 import Kitten.Parse.Monad
 import Kitten.Parsec
-import Kitten.Types
+import Kitten.Token
 import Kitten.Util.List
 
 insertBraces :: Parser [Located]

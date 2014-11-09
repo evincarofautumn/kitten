@@ -9,9 +9,10 @@ import Text.Parsec.Pos
 
 import Test.Util
 
+import Kitten.Intrinsic
 import Kitten.Location
+import Kitten.Token
 import Kitten.Tokenize
-import Kitten.Types
 import Kitten.Util.Monad
 
 spec :: Spec

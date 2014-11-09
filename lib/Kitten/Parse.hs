@@ -26,23 +26,27 @@ import qualified Data.Vector as V
 import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Expr as E
 
+import Kitten.Definition
 import Kitten.Error
+import Kitten.Fragment
 import Kitten.Location
-import Kitten.Parsec
+import Kitten.Operator
 import Kitten.Parse.Element
 import Kitten.Parse.Layout
 import Kitten.Parse.Monad
 import Kitten.Parse.Primitive
 import Kitten.Parse.Type
-import Kitten.Types
+import Kitten.Parsec
+import Kitten.Term
+import Kitten.Import
+import Kitten.Program
+import Kitten.Token
+import Kitten.Type
+import Kitten.TypeDefinition
 import Kitten.Util.Either
 import Kitten.Util.List
 import Kitten.Util.Maybe
 import Kitten.Util.Parsec
-
---import Debug.Trace
-traceShow :: a -> a -> a
-traceShow _ x = x
 
 parse
   :: String
@@ -394,10 +398,9 @@ rewriteInfix program@Program{..} parsed@Fragment{..} = do
       go [] = return ([], [])
 
   mixfixTable :: [[Text]]
-  mixfixTable = let
-    x = sortBy (flip (comparing length)) . mapMaybe toMixfixParts
+  mixfixTable
+    = sortBy (flip (comparing length)) . mapMaybe toMixfixParts
       $ H.keys fragmentDefs ++ H.keys programSymbols
-    in traceShow x x
 
   toMixfixParts :: Text -> Maybe [Text]
   toMixfixParts name = case T.groupBy (\x y -> x /= '_' && y /= '_') name of

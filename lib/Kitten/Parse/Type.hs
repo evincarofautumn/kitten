@@ -14,10 +14,11 @@ import Data.Vector (Vector)
 
 import qualified Data.Vector as V
 
+import Kitten.Annotation
 import Kitten.Parse.Monad
-import Kitten.Parsec
 import Kitten.Parse.Primitive
-import Kitten.Types
+import Kitten.Parsec
+import Kitten.Token
 import Kitten.Util.Parsec
 import Kitten.Util.Tuple
 

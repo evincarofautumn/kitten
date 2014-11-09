@@ -1,9 +1,8 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-
-{-# OPTIONS_GHC -w #-}
 
 module Kitten.IR
   ( FlattenedProgram(..)
@@ -16,32 +15,34 @@ module Kitten.IR
   ) where
 
 import Control.Applicative hiding (some)
-import Control.Monad.Trans.Class
-import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State.Strict
-import Data.HashMap.Strict (HashMap)
 import Data.List
 import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
 import Data.Traversable (traverse)
-import Data.Vector (Vector)
-import System.IO
 
-import qualified Data.Char as Char
 import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as H
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
+import Kitten.Config
+import Kitten.Definition
 import Kitten.Error
+import Kitten.Fragment
 import Kitten.Id
 import Kitten.IdMap (DefIdMap)
-import Kitten.Types
+import Kitten.Intrinsic
+
+import Kitten.Program
+import Kitten.Term
+import Kitten.Type
+import Kitten.TypeDefinition
 import Kitten.Util.List
 import Kitten.Util.Monad
-import Kitten.Util.Text (ToText(..), showText)
-import Kitten.Util.Tuple
+
+
 
 import qualified Kitten.IdMap as Id
 
@@ -72,6 +73,7 @@ irTerm term = case term of
   TrConstruct name ctor size (_, TyFunction _ (_ :. type_) _) -> do
     name' <- ctorIndex (Just name) ctor
     return $ V.singleton (IrConstruct name' size type_)
+  TrConstruct{} -> error "constructor with non-function type"
   TrIntrinsic intrinsic _ -> return $ V.singleton (IrIntrinsic intrinsic)
   TrLambda _ terms _ -> do
     instructions <- irTerm terms
@@ -91,10 +93,12 @@ irTerm term = case term of
       target <- declareBlockM Nothing (terminated instructions)
       name' <- ctorIndex Nothing name
       return $ IrCase name' (target, names, type_)
+    irCase TrCase{} = error "case with non-closure body"
     irDefault (TrClosure names body (_, type_)) = do
       instructions <- irTerm body
       target <- declareBlockM Nothing (terminated instructions)
       return (target, names, type_)
+    irDefault _ = error "default with non-closure body"
   TrPush value _ -> irValue value
 
 ctorIndex :: Maybe Text -> Text -> K Int
@@ -119,7 +123,7 @@ irValue resolved = case resolved of
   TrBool x _ -> value $ IrBool x
   TrChar x _ -> value $ IrChar x
   TrClosed index _ -> return $ V.singleton (IrClosure index)
-  TrClosure names terms (loc, type_) -> do
+  TrClosure names terms (_, type_) -> do
     instructions <- irTerm terms
     target <- declareBlockM Nothing (terminated instructions)
     return $ V.singleton (IrAct (target, names, type_))

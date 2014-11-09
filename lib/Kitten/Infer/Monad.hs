@@ -22,9 +22,12 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import Kitten.Error
-import Kitten.Location
 import Kitten.Id
-import Kitten.Types
+import Kitten.Kind
+import Kitten.KindedId
+import Kitten.Location
+import Kitten.Program
+import Kitten.Type
 import Kitten.Util.Maybe
 import Kitten.Util.Text (ToText(..))
 

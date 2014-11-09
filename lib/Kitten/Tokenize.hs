@@ -19,9 +19,10 @@ import Text.Parsec.Text ()
 import qualified Data.Text as T
 import qualified Text.Parsec as Parsec
 
+import Kitten.Intrinsic
 import Kitten.Location
 import Kitten.Parsec
-import Kitten.Types
+import Kitten.Token
 import Kitten.Util.Applicative
 import Kitten.Util.Parsec
 

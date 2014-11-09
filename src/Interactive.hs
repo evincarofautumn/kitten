@@ -29,12 +29,16 @@ import qualified Data.Text.IO as T
 import qualified Data.Vector as V
 
 import Kitten.Compile (compile)
+import Kitten.Config
 import Kitten.Error
-import Kitten.Interpret
 import Kitten.IR
+import Kitten.Interpret
+import Kitten.Intrinsic
+import Kitten.Kind
 import Kitten.Location
+import Kitten.Program
+import Kitten.Type
 import Kitten.Type.Tidy
-import Kitten.Types
 import Kitten.Util.List
 import Kitten.Util.Monad
 

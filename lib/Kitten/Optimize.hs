@@ -13,8 +13,10 @@ import Data.List
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
+import Kitten.Config
 import Kitten.IdMap (DefIdMap)
-import Kitten.Types
+import Kitten.Intrinsic
+import Kitten.Program
 import Kitten.Util.Function
 import Kitten.Util.Maybe
 

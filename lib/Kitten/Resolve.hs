@@ -17,10 +17,14 @@ import qualified Data.HashMap.Strict as H
 import qualified Data.Set as S
 import qualified Data.Text as T
 
+import Kitten.Definition
 import Kitten.Error
+import Kitten.Fragment
 import Kitten.Location
+import Kitten.Operator
+import Kitten.Program
 import Kitten.Resolve.Monad
-import Kitten.Types
+import Kitten.Term
 import Kitten.Util.List
 import Kitten.Util.Monad
 

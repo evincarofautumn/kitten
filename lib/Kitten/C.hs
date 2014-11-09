@@ -18,10 +18,12 @@ import qualified Data.IntMap as I
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
+import Kitten.ClosedName
+import Kitten.IR
 import Kitten.Id
 import Kitten.IdMap (LabelIdMap)
-import Kitten.IR
-import Kitten.Types
+import Kitten.Intrinsic
+import Kitten.Program
 import Kitten.Util.Maybe
 import Kitten.Util.Text (showText, toText)
 import Kitten.Util.Tuple

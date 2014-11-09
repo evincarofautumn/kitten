@@ -38,7 +38,10 @@ import qualified Data.Vector as V
 
 import Kitten.Id
 import Kitten.Infer.Monad
-import Kitten.Types
+import Kitten.Kind
+import Kitten.KindedId
+import Kitten.Program
+import Kitten.Type
 import Kitten.Util.Function
 import Kitten.Util.Monad
 

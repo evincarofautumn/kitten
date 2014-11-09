@@ -24,16 +24,21 @@ import Data.Text (Text)
 import Data.Vector (Vector, (!))
 import System.Exit
 import System.IO
-import Text.Printf
+import Text.Printf hiding (fromChar)
 
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
-import Kitten.Id
+import Kitten.ClosedName
 import Kitten.IR
-import Kitten.Location
+import Kitten.Id
 import Kitten.IdMap (DefIdMap)
-import Kitten.Types
+import Kitten.Intrinsic
+import Kitten.Kind
+import Kitten.KindedId
+import Kitten.Location
+import Kitten.Program
+import Kitten.Type
 import Kitten.Util.Monad
 import Kitten.Util.Text (ToText(..), showText)
 
