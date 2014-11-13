@@ -21,6 +21,7 @@ import qualified Text.Parsec as Parsec
 
 import Kitten.Intrinsic
 import Kitten.Location
+import Kitten.Name
 import Kitten.Parsec
 import Kitten.Token
 import Kitten.Util.Applicative
@@ -140,10 +141,10 @@ token = (<?> "token") . located $ choice
       "true" -> TkBool True
       _ -> case intrinsicFromText name of
         Just intrinsic -> TkIntrinsic intrinsic
-        _ -> TkWord name
+        _ -> TkWord (Unqualified name)
     , ffor symbolic $ \name -> case name of
       _ | Just intrinsic <- intrinsicFromText name -> TkIntrinsic intrinsic
-        | otherwise -> TkOperator name
+        | otherwise -> TkOperator (Unqualified name)
     ]
     where
 

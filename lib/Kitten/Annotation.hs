@@ -1,9 +1,9 @@
 module Kitten.Annotation where
 
-import Data.Text (Text)
 import Data.Vector (Vector)
 
 import Kitten.Location
+import Kitten.Name
 
 data Anno = Anno AnType Location | TestAnno
   deriving (Show)
@@ -19,8 +19,8 @@ data AnType
   | AnChoice !AnType !AnType
   | AnOption !AnType
   | AnPair !AnType !AnType
-  | AnQuantified !(Vector Text) !(Vector Text) !AnType
-  | AnStackFunction !Text !(Vector AnType) !Text !(Vector AnType)
-  | AnVar !Text
+  | AnQuantified !(Vector Name) !(Vector Name) !AnType
+  | AnStackFunction !Name !(Vector AnType) !Name !(Vector AnType)
+  | AnVar !Name
   | AnVector !AnType
   deriving (Eq, Show)

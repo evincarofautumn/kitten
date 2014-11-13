@@ -20,7 +20,6 @@ import Data.Function
 import Data.IORef
 import Data.Maybe
 import Data.Monoid
-import Data.Text (Text)
 import Data.Vector (Vector, (!))
 import System.Exit
 import System.IO
@@ -37,6 +36,7 @@ import Kitten.Intrinsic
 import Kitten.Kind
 import Kitten.KindedId
 import Kitten.Location
+import Kitten.Name
 import Kitten.Program
 import Kitten.Type
 import Kitten.Util.Monad
@@ -52,7 +52,7 @@ data Env = Env
   , envInstructions :: !(DefIdMap IrBlock)
   , envIp :: !(IORef Ip)
   , envLocation :: !(IORef Location)
-  , envSymbols :: !(DefIdMap [Text])
+  , envSymbols :: !(DefIdMap [Name])
   }
 
 data FrameEntry

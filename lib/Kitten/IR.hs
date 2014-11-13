@@ -19,12 +19,10 @@ import Control.Monad.Trans.State.Strict
 import Data.List
 import Data.Maybe
 import Data.Monoid
-import Data.Text (Text)
 import Data.Traversable (traverse)
 
 import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as H
-import qualified Data.Text as T
 import qualified Data.Vector as V
 
 import Kitten.Config
@@ -34,15 +32,13 @@ import Kitten.Fragment
 import Kitten.Id
 import Kitten.IdMap (DefIdMap)
 import Kitten.Intrinsic
-
+import Kitten.Name
 import Kitten.Program
 import Kitten.Term
 import Kitten.Type
 import Kitten.TypeDefinition
 import Kitten.Util.List
 import Kitten.Util.Monad
-
-
 
 import qualified Kitten.IdMap as Id
 
@@ -101,19 +97,19 @@ irTerm term = case term of
     irDefault _ = error "default with non-closure body"
   TrPush value _ -> irValue value
 
-ctorIndex :: Maybe Text -> Text -> K Int
+ctorIndex :: Maybe Name -> Name -> K Int
 ctorIndex mName ctor = case mName of
   Just name -> fromMaybe
     (error $ concat
       [ "using non-constructor '"
-      , T.unpack ctor
+      , show ctor
       , "' as constructor of '"
-      , T.unpack name
+      , show name
       , "'"
       ])
     . (findCtor =<<) . H.lookup name <$> getsProgram programTypes
   Nothing -> fromMaybe
-    (error $ "match on non-constructor '" ++ T.unpack ctor ++ "'")
+    (error $ "match on non-constructor '" ++ show ctor ++ "'")
     . findMap findCtor . H.elems <$> getsProgram programTypes
   where
   findCtor = V.findIndex ((ctor ==) . ctorName) . typeDefConstructors
@@ -142,13 +138,13 @@ terminated = (<> V.singleton (IrReturn 0))
 data FlattenedProgram = FlattenedProgram
   { flattenedBlock :: !IrBlock
   , flattenedNames :: !(DefIdMap Int)
-  , flattenedSymbols :: !(DefIdMap [Text])
+  , flattenedSymbols :: !(DefIdMap [Name])
   }
 
-declareBlockM :: Maybe Text -> IrBlock -> K DefId
+declareBlockM :: Maybe Name -> IrBlock -> K DefId
 declareBlockM name block = liftState $ state (declareBlock name block)
 
-declareBlock :: Maybe Text -> IrBlock -> Program -> (DefId, Program)
+declareBlock :: Maybe Name -> IrBlock -> Program -> (DefId, Program)
 declareBlock mSymbol block program@Program{..} = let
   (i, program') = freshDefId program
   in (,) i program'
@@ -156,10 +152,10 @@ declareBlock mSymbol block program@Program{..} = let
     , programSymbols = maybe id (`H.insert` i) mSymbol programSymbols
     }
 
-getDefM :: Text -> K DefId
+getDefM :: Name -> K DefId
 getDefM = liftState . state . getDef
 
-getDef :: Text -> Program -> (DefId, Program)
+getDef :: Name -> Program -> (DefId, Program)
 getDef name program@Program{..} = case H.lookup name programSymbols of
   Just id' -> (id', program)
   Nothing -> let
@@ -167,7 +163,7 @@ getDef name program@Program{..} = case H.lookup name programSymbols of
     in (,) id' program'
       { programSymbols = H.insert name id' programSymbols }
 
-inverseSymbols :: Program -> DefIdMap [Text]
+inverseSymbols :: Program -> DefIdMap [Name]
 inverseSymbols Program{..}
   = foldl' (\symbols (symbol, name)
     -> Id.insertWith (++) name [symbol] symbols) Id.empty

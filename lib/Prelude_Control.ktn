@@ -3,55 +3,55 @@ define apply<r..., s...> (r... (r... -> s...) -> s...):
   __apply
 
 // Applies a function to the left branch of a choice.
-define choice__<r..., a, b> (r... (a | b) (r... a -> r...) -> r...):
+define choice()()<r..., a, b> (r... (a | b) (r... a -> r...) -> r...):
   __choice
 
 // Same as 'choice__' but taking the discriminant from the stack.
-define choice_<r..., a, b> (r... (a | b) (r... a -> r...) -> r...):
+define choice()<r..., a, b> (r... (a | b) (r... a -> r...) -> r...):
   __choice
 
 // Applies one of two functions to the branches of a choice.
-define choice__else_<r..., s..., a, b>
+define choice()()else()<r..., s..., a, b>
   (r... (a | b) (r... a -> s...) (r... b -> s...) -> s...):
   __choice_else
 
-// Same as 'choice___else_' but taking the discriminant from the stack.
-define choice_else_<r..., s..., a, b>
+// Same as 'choice()()else()' but taking the discriminant from the stack.
+define choice()else()<r..., s..., a, b>
   (r... (a | b) (r... a -> s...) (r... b -> s...) -> s...):
   __choice_else
 
 // Applies a function if a condition is met.
-define if__<r...> (r... bool (r... -> r...) -> r...):
+define if()()<r...> (r... bool (r... -> r...) -> r...):
   __if
 
-// Same as 'if__' but taking the discriminant from the stack.
-define if_<r...> (r... bool (r... -> r...) -> r...):
+// Same as 'if()()' but taking the discriminant from the stack.
+define if()<r...> (r... bool (r... -> r...) -> r...):
   __if
 
 // Applies one of two functions according to a condition.
-define if__else_<r..., s...> (r... bool (r... -> s...) (r... -> s...) -> s...):
+define if()()else()<r..., s...> (r... bool (r... -> s...) (r... -> s...) -> s...):
   __if_else
 
-// Same as 'if___else_' but taking the discriminant from the stack.
-define if_else_<r..., s...> (r... bool (r... -> s...) (r... -> s...) -> s...):
+// Same as 'if()()else()' but taking the discriminant from the stack.
+define if()else()<r..., s...> (r... bool (r... -> s...) (r... -> s...) -> s...):
   __if_else
 
 // Applies a function to the value of some option.
-define option__<r..., a> (r... a? (r... a -> r...) -> r...):
+define option()()<r..., a> (r... a? (r... a -> r...) -> r...):
   __option
 
-// Same as 'option__' but taking the discriminant from the stack.
-define option_<r..., a> (r... a? (r... a -> r...) -> r...):
+// Same as 'option()()' but taking the discriminant from the stack.
+define option()<r..., a> (r... a? (r... a -> r...) -> r...):
   __option
 
 // Applies a function to the value of some option, or else a
 // default function.
-define option__else_<r..., s..., a>
+define option()()else()<r..., s..., a>
   (r... a? (r... a -> s...) (r... -> s...) -> s...):
   __option_else
 
-// Same as 'option___else_' but taking the discriminant from the stack.
-define option_else_<r..., s..., a>
+// Same as 'option()()else()' but taking the discriminant from the stack.
+define option()else()<r..., s..., a>
   (r... a? (r... a -> s...) (r... -> s...) -> s...):
   __option_else
 
@@ -94,7 +94,7 @@ define cond1<a, b, c> (
     x (ps tail) cond1
 
 // TODO(strager): Make this more efficient.
-define upto__ (int (int ->) ->):
+define upto()() (int (int ->) ->):
   -> size f;
   { f apply none } size generateN drop
 

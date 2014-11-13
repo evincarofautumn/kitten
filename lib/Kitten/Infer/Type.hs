@@ -11,14 +11,11 @@ import Control.Applicative
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.HashMap.Strict (HashMap)
-import Data.Map (Map)
 import Data.Maybe
 import Data.Monoid
-import Data.Text (Text)
 import Data.Vector (Vector)
 
 import qualified Data.HashMap.Strict as H
-import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
@@ -27,42 +24,44 @@ import Kitten.Error
 import Kitten.Kind
 import Kitten.KindedId
 import Kitten.Location
+import Kitten.Name
 import Kitten.Program
 import Kitten.Type
 import Kitten.TypeDefinition
 import Kitten.Util.FailWriter
+import Kitten.Util.Text (ToText(..))
 
 data Env = Env
   { envAnonStacks :: [KindedId Stack]
   -- ^ Anonymous stacks implicit on both sides of an
   -- 'Anno.Function' constructor.
 
-  , envStacks :: !(Map Text (KindedId Stack))
+  , envStacks :: !(HashMap Name (KindedId Stack))
   -- ^ Map from stack variable names to stack variables
   -- themselves.
 
-  , envScalars :: !(Map Text (KindedId Scalar))
+  , envScalars :: !(HashMap Name (KindedId Scalar))
   -- ^ Map from scalar variable names to scalar variables
   -- themselves.
 
-  , envTypeDefs :: !(HashMap Text TypeDef)
+  , envTypeDefs :: !(HashMap Name TypeDef)
   }
 
 type Converted a = StateT Env K a
 
 fromAnno
-  :: Annotated -> HashMap Text TypeDef -> Anno -> K (Scheme (Type Scalar))
+  :: Annotated -> HashMap Name TypeDef -> Anno -> K (Scheme (Type Scalar))
 fromAnno annotated typeDefNames (Anno annoType annoLoc) = do
   (type_, env) <- flip runStateT Env
     { envAnonStacks = []
-    , envStacks = M.empty
-    , envScalars = M.empty
+    , envStacks = H.empty
+    , envScalars = H.empty
     , envTypeDefs = typeDefNames
     } $ fromAnnoType' (HiType annotated) annoType
 
   return $ Forall
-    (S.fromList (envAnonStacks env <> M.elems (envStacks env)))
-    (S.fromList . M.elems $ envScalars env)
+    (S.fromList (envAnonStacks env <> H.elems (envStacks env)))
+    (S.fromList . H.elems $ envScalars env)
     type_
   where
 
@@ -101,12 +100,12 @@ fromAnno annotated typeDefNames (Anno annoType annoLoc) = do
       declareScalar name = do
         var <- lift freshScalarIdM
         modify $ \env -> env
-          { envScalars = M.insert name var (envScalars env) }
+          { envScalars = H.insert name var (envScalars env) }
         return var
       declareStack name = do
         var <- lift freshStackIdM
         modify $ \env -> env
-          { envStacks = M.insert name var (envStacks env) }
+          { envStacks = H.insert name var (envStacks env) }
         return var
     AnStackFunction leftStack leftScalars rightStack rightScalars -> do
       leftStackVar <- annoStackVar leftStack loc annotated
@@ -136,9 +135,9 @@ fromAnno _ _ TestAnno = error "cannot make type from test annotation"
 
 -- | Gets a scalar variable by name from the environment.
 annoScalarVar
-  :: Text -> Location -> Annotated -> Converted (Type Scalar)
+  :: Name -> Location -> Annotated -> Converted (Type Scalar)
 annoScalarVar name loc annotated = do
-  existing <- gets $ M.lookup name . envScalars
+  existing <- gets $ H.lookup name . envScalars
   case existing of
     Just var -> return $ TyVar var origin
     Nothing -> case name of
@@ -156,15 +155,15 @@ annoScalarVar name loc annotated = do
 
 -- | Gets a stack variable by name from the environment.
 annoStackVar
-  :: Text -> Location -> Annotated -> Converted (Type Stack)
+  :: Name -> Location -> Annotated -> Converted (Type Stack)
 annoStackVar name loc annotated = do
-  existing <- gets $ M.lookup name . envStacks
+  existing <- gets $ H.lookup name . envStacks
   case existing of
     Just var -> return $ TyVar var (Origin (HiVar name annotated) loc)
     Nothing -> unknown name loc
 
-unknown :: Text -> Location -> Converted a
+unknown :: Name -> Location -> Converted a
 unknown name loc = lift . liftFailWriter . throwMany . (:[]) $ ErrorGroup
   [ CompileError loc Error
-    $ "unknown type or undeclared type variable " <> name
+    $ "unknown type or undeclared type variable " <> toText name
   ]

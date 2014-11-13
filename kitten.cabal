@@ -47,6 +47,7 @@ library
     lib
 
   exposed-modules:
+
     Kitten.Annotation
     Kitten.C
     Kitten.ClosedName
@@ -71,6 +72,7 @@ library
     Kitten.Kind
     Kitten.KindedId
     Kitten.Location
+    Kitten.Name
     Kitten.Operator
     Kitten.Optimize
     Kitten.Parse

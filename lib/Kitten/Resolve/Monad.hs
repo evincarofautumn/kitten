@@ -20,10 +20,10 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.List
 import Data.Set (Set)
-import Data.Text (Text)
 import Data.Traversable (Traversable)
 
 import Kitten.Error
+import Kitten.Name
 import Kitten.Util.FailWriter (FailWriterT, runFailWriterT)
 
 import qualified Kitten.Util.FailWriter as FailWriter
@@ -33,8 +33,8 @@ newtype Resolution a = Resolution
   deriving (Functor, Applicative, Monad)
 
 data Env = Env
-  { envDefined :: !(Set Text)
-  , envScope :: [Text]
+  { envDefined :: !(Set Name)
+  , envScope :: [Name]
   }
 
 -- | Halts resolution with a compilation error.
@@ -61,13 +61,13 @@ guardMapM f xs
 guardReturn :: Resolution a -> Resolution (Maybe a)
 guardReturn = Resolution . FailWriter.guardReturn . unResolution
 
-localIndex :: Text -> Env -> Maybe Int
+localIndex :: Name -> Env -> Maybe Int
 localIndex name = elemIndex name . envScope
 
 modifyEnv :: (Env -> Env) -> Resolution ()
 modifyEnv = Resolution . lift . modify
 
-withLocal :: Text -> Resolution a -> Resolution a
+withLocal :: Name -> Resolution a -> Resolution a
 withLocal name action = do
   modifyEnv $ \env@Env{..} -> env { envScope = name : envScope }
   result <- action

@@ -9,7 +9,6 @@ import Control.Arrow
 import Data.HashMap.Strict (HashMap)
 import Data.Maybe
 import Data.Monoid
-import Data.Text (Text)
 import Data.Traversable (traverse)
 import GHC.Exts
 
@@ -21,12 +20,14 @@ import Kitten.Definition
 import Kitten.Error
 import Kitten.Fragment
 import Kitten.Location
+import Kitten.Name
 import Kitten.Operator
 import Kitten.Program
 import Kitten.Resolve.Monad
 import Kitten.Term
 import Kitten.Util.List
 import Kitten.Util.Monad
+import Kitten.Util.Text (ToText(..))
 
 resolve
   :: Fragment ParsedTerm
@@ -55,7 +56,7 @@ resolve fragment program = do
     }
 
 reportDuplicateDefs
-  :: [(Text, Location)]
+  :: [(Name, Location)]
   -> [ErrorGroup]
 reportDuplicateDefs param = mapMaybe reportDuplicate . groupWith fst $ param
   where
@@ -63,13 +64,13 @@ reportDuplicateDefs param = mapMaybe reportDuplicate . groupWith fst $ param
     [] -> Nothing
     [_] -> Nothing
     ((name, loc) : duplicates) -> Just . ErrorGroup
-      $ CompileError loc Error ("duplicate definition of " <> name)
+      $ CompileError loc Error ("duplicate definition of " <> toText name)
       : for duplicates
         (\ (_, here) -> CompileError here Note "also defined here")
 
 resolveDefs
-  :: HashMap Text (Def ParsedTerm)
-  -> Resolution (HashMap Text (Def ResolvedTerm))
+  :: HashMap Name (Def ParsedTerm)
+  -> Resolution (HashMap Name (Def ResolvedTerm))
 resolveDefs = guardMapM resolveDef
   where
   resolveDef :: Def ParsedTerm -> Resolution (Def ResolvedTerm)
@@ -119,7 +120,7 @@ resolveValue unresolved = case unresolved of
 
 resolveName
   :: Fixity
-  -> Text
+  -> Name
   -> Location
   -> Resolution ResolvedTerm
 resolveName fixity name loc = do
@@ -132,4 +133,4 @@ resolveName fixity name loc = do
   where
   success = return $ TrCall fixity name loc
   failure = compileError . oneError . CompileError loc Error
-    $ T.concat ["undefined word '", name, "'"]
+    $ T.concat ["undefined word '", toText name, "'"]

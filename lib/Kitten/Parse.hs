@@ -8,19 +8,18 @@ module Kitten.Parse
   ) where
 
 import Control.Applicative hiding (some)
+import Control.Arrow
 import Control.Monad
 import Data.Functor.Identity
 import Data.List (sortBy)
 import Data.Maybe
 import Data.Monoid
 import Data.Ord
-import Data.Text (Text)
 import Data.Traversable (traverse)
 import Data.Vector (Vector)
 import Text.Parsec.Pos
 
 import qualified Data.HashMap.Strict as H
-import qualified Data.Text as T
 import qualified Data.Traversable as T
 import qualified Data.Vector as V
 import qualified Text.Parsec as Parsec
@@ -29,7 +28,9 @@ import qualified Text.Parsec.Expr as E
 import Kitten.Definition
 import Kitten.Error
 import Kitten.Fragment
+import Kitten.Import
 import Kitten.Location
+import Kitten.Name
 import Kitten.Operator
 import Kitten.Parse.Element
 import Kitten.Parse.Layout
@@ -37,9 +38,8 @@ import Kitten.Parse.Monad
 import Kitten.Parse.Primitive
 import Kitten.Parse.Type
 import Kitten.Parsec
-import Kitten.Term
-import Kitten.Import
 import Kitten.Program
+import Kitten.Term
 import Kitten.Token
 import Kitten.Type
 import Kitten.TypeDefinition
@@ -80,7 +80,7 @@ def :: Parser (Def ParsedTerm)
 def = (<?> "definition") . locate $ do
   void (match TkDefine)
   (fixity, name) <- choice
-    [ (,) Postfix <$> named
+    [ (,) Postfix <$> nonsymbolic
     , (,) Infix <$> symbolic
     ] <?> "definition name"
   anno <- signature
@@ -149,7 +149,7 @@ operatorDeclaration = (<?> "operator declaration") $ uncurry Operator
 term :: Parser ParsedTerm
 term = locate $ choice
   [ try $ TrPush <$> locate (mapOne toLiteral <?> "literal")
-  , TrCall Postfix <$> named
+  , TrCall Postfix <$> nonsymbolic
   , TrCall Infix <$> symbolic
   , try section
   , try group <?> "grouped expression"
@@ -191,9 +191,6 @@ term = locate $ choice
         , TrCall Postfix "left operand" loc
         ]) loc) loc) loc
 
-  group :: Parser (Location -> ParsedTerm)
-  group = (<?> "group") $ TrCompose StackAny <$> grouped (many1V term)
-
   matchCase :: Parser (Location -> ParsedTerm)
   matchCase = (<?> "match") $ match TkMatch *> do
     mScrutinee <- optionMaybe group <?> "scrutinee"
@@ -233,13 +230,14 @@ term = locate $ choice
       `sepEndBy1V` match TkComma)
     <?> "tuple"
 
-  vector :: Parser (Vector ParsedTerm)
-  vector = between
-    (match TkVectorBegin)
-    (match TkVectorEnd)
-    (locate (TrCompose StackAny <$> many1V term)
-      `sepEndByV` match TkComma)
-    <?> "vector"
+vector :: Parser (Vector ParsedTerm)
+vector = vectored
+  (locate (TrCompose StackAny <$> many1V term)
+    `sepEndByV` match TkComma)
+  <?> "vector"
+
+group :: Parser (Location -> ParsedTerm)
+group = (<?> "group") $ TrCompose StackAny <$> grouped (many1V term)
 
 lambda :: Parser (Location -> ParsedTerm)
 lambda = (<?> "lambda") $ choice
@@ -255,16 +253,16 @@ plainLambda = match TkArrow *> do
   body <- blockContents
   return $ \loc -> makeLambda names body loc
 
-lambdaNames :: Parser [Maybe Text]
-lambdaNames = many1 $ Just <$> named <|> Nothing <$ match TkIgnore
+lambdaNames :: Parser [Maybe Name]
+lambdaNames = many1 $ Just <$> named <|> Nothing <$ ignore
 
-lambdaBlock :: Parser ([Maybe Text], Vector ParsedTerm)
+lambdaBlock :: Parser ([Maybe Name], Vector ParsedTerm)
 lambdaBlock = match TkArrow *> do
   names <- lambdaNames
   body <- block
   return (names, body)
 
-makeLambda :: [Maybe Text] -> Vector ParsedTerm -> Location -> ParsedTerm
+makeLambda :: [Maybe Name] -> Vector ParsedTerm -> Location -> ParsedTerm
 makeLambda names terms loc = foldr
   (\mLambdaName lambdaTerms -> maybe
     (TrCompose StackAny (V.fromList
@@ -369,43 +367,42 @@ rewriteInfix program@Program{..} parsed@Fragment{..} = do
   mixfix :: TermParser ParsedTerm
   mixfix = do
     loc <- getPosition
-    (operands, name) <- choice $ map (try . mixfixName) mixfixTable
+    (operands, name) <- choice $ map (try . fromParts) mixfixTable
     return . mixfixCall operands name
       $ Location { locationStart = loc, locationIndent = -1 }
 
     where
-    mixfixCall :: [ParsedTerm] -> Text -> Location -> ParsedTerm
+    mixfixCall :: [ParsedTerm] -> Name -> Location -> ParsedTerm
     mixfixCall operands name loc = TrCompose StackAny
       (V.fromList operands
         <> V.singleton (TrCall Postfix {- TODO Mixfix? -} name loc))
       loc
 
-    mixfixName :: [Text] -> TermParser ([ParsedTerm], Text)
-    mixfixName = fmap (fmap T.concat) . go
+    fromParts :: [MixfixNamePart] -> TermParser ([ParsedTerm], Name)
+    fromParts = fmap (second MixfixName) . go
       where
-      go ("_" : parts) = do
+      go (hole@MixfixHole : parts) = do
         operand <- satisfyTerm $ \case
           TrCall{} -> False
           _ -> True
         (operands, name) <- go parts
-        return (operand : operands, "_" : name)
-      go (part : parts) = do
+        return (operand : operands, hole : name)
+      go (namePart@(MixfixNamePart part) : parts) = do
         void . satisfyTerm $ \case
-          TrCall _ part' _ | part' == part -> True
+          TrCall _ (Unqualified name) _ | name == part -> True
           _ -> False
         (operands, name) <- go parts
-        return (operands, part : name)
+        return (operands, namePart : name)
       go [] = return ([], [])
 
-  mixfixTable :: [[Text]]
+  mixfixTable :: [[MixfixNamePart]]
   mixfixTable
     = sortBy (flip (comparing length)) . mapMaybe toMixfixParts
       $ H.keys fragmentDefs ++ H.keys programSymbols
 
-  toMixfixParts :: Text -> Maybe [Text]
-  toMixfixParts name = case T.groupBy (\x y -> x /= '_' && y /= '_') name of
-    [_] -> Nothing
-    parts -> Just parts
+  toMixfixParts :: Name -> Maybe [MixfixNamePart]
+  toMixfixParts (MixfixName parts) = Just parts
+  toMixfixParts _ = Nothing
 
   rewriteInfixValue :: ParsedValue -> Either ErrorGroup ParsedValue
   rewriteInfixValue = \case
@@ -416,14 +413,14 @@ rewriteInfix program@Program{..} parsed@Fragment{..} = do
   stack1 :: Location -> ParsedTerm -> ParsedTerm
   stack1 loc x = TrCompose Stack1 (V.singleton x) loc
 
-  binary :: Text -> Location -> ParsedTerm -> ParsedTerm -> ParsedTerm
+  binary :: Name -> Location -> ParsedTerm -> ParsedTerm -> ParsedTerm
   binary name loc x y = TrCompose StackAny (V.fromList
     [ stack1 loc x
     , stack1 loc y
     , TrCall Postfix name loc
     ]) loc
 
-  binaryOp :: Text -> TermParser (ParsedTerm -> ParsedTerm -> ParsedTerm)
+  binaryOp :: Name -> TermParser (ParsedTerm -> ParsedTerm -> ParsedTerm)
   binaryOp name = mapTerm $ \t -> case t of
     TrCall Infix name' loc
       | name == name' -> Just (binary name loc)

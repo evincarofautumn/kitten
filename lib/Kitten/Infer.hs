@@ -16,7 +16,6 @@ module Kitten.Infer
 import Control.Applicative hiding (some)
 import Control.Monad
 import Data.Monoid
-import Data.Text (Text)
 import Data.Vector (Vector)
 
 import qualified Data.Foldable as F
@@ -38,6 +37,7 @@ import Kitten.Infer.Unify
 import Kitten.Intrinsic
 import Kitten.Kind
 import Kitten.Location
+import Kitten.Name
 import Kitten.Program
 import Kitten.Term
 import Kitten.Type
@@ -77,7 +77,7 @@ typeFragment fragment = mdo
         in ErrorGroup
         [ item Error $ T.unwords
           [ "inferred type of"
-          , defName def
+          , toText (defName def)
           , "is not an instance of its declared type"
           ]
         , item Note $ T.unwords ["inferred", toText inferredScheme]
@@ -114,13 +114,13 @@ typeFragment fragment = mdo
     (HiType (AnDef (defName def)))
     (defLocation def)
 
-  saveDecl :: Text -> TypeScheme -> K ()
+  saveDecl :: Name -> TypeScheme -> K ()
   saveDecl name scheme = modifyProgram $ \program -> program
     { inferenceDecls = H.insert name scheme (inferenceDecls program) }
 
   saveDefWith
     :: (TypeScheme -> TypeScheme -> TypeScheme)
-    -> Text
+    -> Name
     -> TypeScheme
     -> K ()
   saveDefWith f name scheme = modifyProgram $ \program -> program
@@ -178,7 +178,7 @@ infer finalProgram resolved = case resolved of
     where
     errorGroup = ErrorGroup
       [ CompileError loc Error $ T.concat
-        ["missing signature for '", name, "'"] ]
+        ["missing signature for '", toText name, "'"] ]
 
   TrCompose hint terms loc -> withLocation loc $ do
     (typedTerms, types) <- V.mapAndUnzipM recur terms
@@ -476,7 +476,7 @@ infer finalProgram resolved = case resolved of
             where
             errorGroup = ErrorGroup
               [ CompileError loc' Error $ T.concat
-                ["'", name, "' does not seem to be a defined constructor"] ]
+                ["'", toText name, "' does not seem to be a defined constructor"] ]
       _ -> error "non-closure appeared in match case during inference"
     type_ <- unifyEach (V.cons defaultType caseTypes)
     return (TrMatch cases' mDefault' (loc, sub finalProgram type_), type_)

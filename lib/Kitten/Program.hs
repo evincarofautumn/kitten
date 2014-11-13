@@ -34,6 +34,7 @@ import Kitten.Intrinsic
 import Kitten.Kind
 import Kitten.KindedId
 import Kitten.Location
+import Kitten.Name
 import Kitten.Operator
 import Kitten.Type
 import Kitten.TypeDefinition
@@ -45,17 +46,17 @@ import qualified Kitten.IdMap as I
 data Program = Program
   { programBlocks :: !(DefIdMap IrBlock)
   , programDefIdGen :: !DefIdGen
-  , programFixities :: !(HashMap Text Fixity)
+  , programFixities :: !(HashMap Name Fixity)
   , programOperators :: [Operator]
   , programScalarIdGen :: !(KindedGen Scalar)
   , programStackIdGen :: !(KindedGen Stack)
-  , programSymbols :: !(HashMap Text DefId)
-  , programTypes :: !(HashMap Text TypeDef)
+  , programSymbols :: !(HashMap Name DefId)
+  , programTypes :: !(HashMap Name TypeDef)
 
-  , inferenceContext :: [Text]
+  , inferenceContext :: [Name]
   , inferenceClosure :: !(Vector (Type Scalar))
-  , inferenceDefs :: !(HashMap Text TypeScheme)
-  , inferenceDecls :: !(HashMap Text TypeScheme)
+  , inferenceDefs :: !(HashMap Name TypeScheme)
+  , inferenceDecls :: !(HashMap Name TypeScheme)
   , inferenceLocals :: [Type Scalar]
   , inferenceOrigin :: !Origin
   , inferenceScalars :: !(TypeIdMap (Type Scalar))

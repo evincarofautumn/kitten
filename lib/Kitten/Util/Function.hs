@@ -1,5 +1,6 @@
 module Kitten.Util.Function
-  ( (..:)
+  ( (.:)
+  , (..:)
   , compose
   ) where
 

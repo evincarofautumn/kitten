@@ -9,12 +9,12 @@ module Kitten.Parse.Type
 
 import Control.Applicative
 import Data.Either
-import Data.Text (Text)
 import Data.Vector (Vector)
 
 import qualified Data.Vector as V
 
 import Kitten.Annotation
+import Kitten.Name
 import Kitten.Parse.Monad
 import Kitten.Parse.Primitive
 import Kitten.Parsec
@@ -33,10 +33,10 @@ typeDefType = locate $ Anno <$> baseType
 type_ :: Parser AnType
 type_ = (<?> "type") $ try functionType <|> baseType
 
-scalarQuantifier :: Parser (Vector Text)
+scalarQuantifier :: Parser (Vector Name)
 scalarQuantifier = V.fromList <$> angled (word `sepEndBy1` comma)
 
-quantifier :: Parser (Vector Text, Vector Text)
+quantifier :: Parser (Vector Name, Vector Name)
 quantifier = both V.fromList . partitionEithers
   <$> angled (variable `sepEndBy1` comma)
   where

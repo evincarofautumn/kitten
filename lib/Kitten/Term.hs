@@ -17,22 +17,23 @@ import Kitten.Definition
 import Kitten.Intrinsic
 import Kitten.Kind
 import Kitten.Location
+import Kitten.Name
 import Kitten.Operator
 import Kitten.Type
 import Kitten.Util.Text (ToText(..), showText)
 
 data TrTerm a
   = TrIntrinsic !Intrinsic !a
-  | TrCall !Fixity !Text !a
+  | TrCall !Fixity !Name !a
   | TrCompose !StackHint !(Vector (TrTerm a)) !a
-  | TrConstruct !Text !Text !Int !a
-  | TrLambda !Text !(TrTerm a) !a
+  | TrConstruct !Name !Name !Int !a
+  | TrLambda !Name !(TrTerm a) !a
   | TrMakePair !(TrTerm a) !(TrTerm a) !a
   | TrMakeVector !(Vector (TrTerm a)) !a
   | TrMatch !(Vector (TrCase a)) !(Maybe (TrValue a)) !a
   | TrPush !(TrValue a) !a
 
-data TrCase a = TrCase !Text !(TrValue a) !a
+data TrCase a = TrCase !Name !(TrValue a) !a
 
 instance (Eq a) => Eq (TrTerm a) where
   -- Calls are equal regardless of 'Fixity'.
@@ -52,13 +53,13 @@ instance (Eq a) => Eq (TrTerm a) where
 
 instance ToText (TrTerm a) where
   toText = \case
-    TrCall _ label _ -> label
+    TrCall _ label _ -> toText label
     TrCompose _ terms _ -> T.concat
       ["(", T.intercalate " " (V.toList (V.map toText terms)), ")"]
     TrConstruct name ctor size _ -> T.concat
-      ["new ", name, ".", ctor, "(", showText size, ")"]
+      ["new ", toText name, ".", toText ctor, "(", showText size, ")"]
     TrIntrinsic intrinsic _ -> toText intrinsic
-    TrLambda name term _ -> T.concat ["(\\", name, " ", toText term, ")"]
+    TrLambda name term _ -> T.concat ["(\\", toText name, " ", toText term, ")"]
     TrMakePair a b _ -> T.concat ["(", toText a, ", ", toText b, ")"]
     TrMakeVector terms _ -> T.concat
       ["[", T.intercalate ", " (V.toList (V.map toText terms)), "]"]
@@ -76,7 +77,7 @@ instance Show (TrTerm a) where
   show = T.unpack . toText
 
 instance ToText (TrCase a) where
-  toText (TrCase name body _) = T.unwords ["case", name, "{", toText body, "}"]
+  toText (TrCase name body _) = T.unwords ["case", toText name, "{", toText body, "}"]
 
 data TrValue a
   = TrBool !Bool !a

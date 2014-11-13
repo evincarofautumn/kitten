@@ -5,11 +5,11 @@
 module Kitten.Definition where
 
 import Data.Foldable (Foldable)
-import Data.Text (Text)
 import Data.Traversable (Traversable)
 
 import Kitten.Annotation
 import Kitten.Location
+import Kitten.Name
 import Kitten.Operator
 import Kitten.Type
 
@@ -17,6 +17,6 @@ data Def a = Def
   { defAnno :: !Anno
   , defFixity :: !Fixity
   , defLocation :: !Location
-  , defName :: !Text
+  , defName :: !Name
   , defTerm :: !(Scheme a)
   } deriving (Eq, Foldable, Functor, Show, Traversable)

@@ -2,10 +2,9 @@
 
 module Kitten.Operator where
 
-import Data.Text (Text)
-
 import qualified Data.Text as T
 
+import Kitten.Name
 import Kitten.Util.Text (ToText(..))
 
 -- | The associativity of an infix operator.
@@ -29,7 +28,7 @@ instance Show Fixity where
 data Operator = Operator
   { operatorAssociativity :: !Associativity
   , operatorPrecedence :: !Precedence
-  , operatorName :: !Text
+  , operatorName :: !Name
   } deriving (Eq)
 
 instance Show Operator where
@@ -39,7 +38,7 @@ instance Show Operator where
       LeftAssociative -> "infix_left"
       RightAssociative -> "infix_right"
     , show precedence
-    , T.unpack name
+    , show name
     ]
 
 type Precedence = Int

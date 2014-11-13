@@ -96,11 +96,11 @@ define generateN<a> ((int -> a) int -> [a]):
     index + 1
 
 // TODO (strager): Make this a compiler intrinsic.
-define from_unfold__<a, b> (a int (a -> b a) -> [b]):
+define from()unfold()()<a, b> (a int (a -> b a) -> [b]):
   -> z size f;
   if (size > 0):
     z f apply -> b a;
-    (from (a) unfold (size - 1) (f)) b prepend
+    (a (size - 1) f from()unfold()()) b prepend
   else:
     []
 
@@ -126,19 +126,19 @@ define foldl1<a> ([a] (a a -> a) -> a?):
     none
 
 // Same as 'map' but prefix.
-define for__<a, b> ([a] (a -> b) -> [b]):
+define for()()<a, b> ([a] (a -> b) -> [b]):
   map
 
 // Same as 'each' but prefix.
-define forEach__<a> ([a] (a ->) ->):
+define forEach()()<a> ([a] (a ->) ->):
   each
 
 // Same as 'mapConcat' but prefix.
-define forConcat__<a, b> ([a] (a -> [b]) -> [b]):
+define forConcat()()<a, b> ([a] (a -> [b]) -> [b]):
   mapConcat
 
 // Same as 'mapRange' but prefix.
-define from_to__<a> (a int int (a int -> a) -> a):
+define from()to()()<a> (a int int (a int -> a) -> a):
   mapRange
 
 // Unsafe left-associative non-empty vector fold.

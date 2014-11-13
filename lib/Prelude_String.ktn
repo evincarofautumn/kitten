@@ -28,7 +28,7 @@ define neChar (char char -> bool):
 
 // Shows a Boolean as a string.
 define showBool (bool -> [char]):
-  {"true"} {"false"} if__else_
+  if {"true"} else {"false"}
 
 // Shows a Boolean vector as a string.
 define showBools ([bool] -> [char]):

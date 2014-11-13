@@ -18,6 +18,7 @@ import Kitten.Definition
 import Kitten.Error
 import Kitten.Fragment
 import Kitten.Location
+import Kitten.Name
 import Kitten.Operator
 import Kitten.Parse
 import Kitten.Program
@@ -130,8 +131,17 @@ spec = do
         [ push $ quotation [word "one"]
         , push $ quotation [word "two"] ]
 
+    let
+      optionElseName = MixfixName
+        [ "option"
+        , MixfixHole
+        , MixfixHole
+        , "else"
+        , MixfixHole
+        ]
+
     testTerm
-      "define option__else_ (->) {}\n\
+      "define option()()else() (->) {}\n\
       \option (0 some):\n\
       \  drop // This comment is necessary.\n\
       \else:\n\
@@ -140,9 +150,9 @@ spec = do
         [ compose [compose [pushi 0, call "some"]
         , push $ quotation [call "drop"]
         , push $ quotation [call "noop"]
-        , word "option__else_" ] ])
+        , word optionElseName ] ])
         { fragmentDefs = defList
-          [ defWithAnno "option__else_"
+          [ defWithAnno optionElseName
             (AnFunction V.empty V.empty)
             $ compose [] ] }
 
@@ -216,7 +226,7 @@ spec = do
 emptyFragment :: Fragment ParsedTerm
 emptyFragment = termFragment (compose [])
 
-defList :: [Def a] -> HashMap Text (Def a)
+defList :: [Def a] -> HashMap Name (Def a)
 defList = H.fromList . map (defName &&& id)
 
 testTerm :: Text -> Fragment ParsedTerm -> Spec
@@ -238,7 +248,7 @@ parsed :: Text -> Either ErrorGroup (Fragment ParsedTerm)
 parsed = mapLeft parseError . tokenize 1 "test"
   >=> parse "test" >=> liftM fst . rewriteInfix emptyProgram
 
-def :: Text -> a -> Def a
+def :: Name -> a -> Def a
 def name term = Def
   { defAnno = TestAnno
   , defFixity = Postfix
@@ -247,11 +257,11 @@ def name term = Def
   , defTerm = mono term
   }
 
-defWithAnno :: Text -> AnType -> a -> Def a
+defWithAnno :: Name -> AnType -> a -> Def a
 defWithAnno name anno term = (def name term)
   { defAnno = Anno anno TestLocation }
 
-call :: Text -> ParsedTerm
+call :: Name -> ParsedTerm
 call name = TrCall Postfix name TestLocation
 
 compose :: [ParsedTerm] -> ParsedTerm
@@ -267,12 +277,12 @@ int value = TrInt value TestLocation
 pushi :: Int -> ParsedTerm
 pushi value = push $ int value
 
-lambda :: Text -> [ParsedTerm] -> ParsedTerm
+lambda :: Name -> [ParsedTerm] -> ParsedTerm
 lambda name terms
   = TrLambda name (compose terms) TestLocation
 
 push :: ParsedValue -> ParsedTerm
 push value = TrPush value TestLocation
 
-word :: Text -> ParsedTerm
+word :: Name -> ParsedTerm
 word value = TrCall Postfix value TestLocation

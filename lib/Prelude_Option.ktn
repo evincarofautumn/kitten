@@ -1,11 +1,11 @@
 // Binds computations on option values.
 define bindOption<a, b> (a? (a -> b?) -> b?):
-  \none option__else_
+  \none option()else()
 
 // Safely gets a value from an option value.
 define fromOption<a> (a? a -> a):
-  -> m z;
-  option (m) {} else {z}
+  -> z;
+  option {} else {z}
 
 // Unsafely gets the value from an option.
 define fromSome<a> (a? -> a):

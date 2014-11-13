@@ -28,6 +28,7 @@ import Kitten.Intrinsic
 import Kitten.Kind
 import Kitten.KindedId
 import Kitten.Location
+import Kitten.Name
 
 import Kitten.Util.Text (ToText(..), showText)
 
@@ -66,7 +67,7 @@ data Ctor
   | CtorFloat
   | CtorHandle
   | CtorInt
-  | CtorUser !Text
+  | CtorUser !Name
   deriving (Eq)
 
 tyBool, tyChar, tyFloat, tyHandle, tyInt :: Origin -> Type Scalar
@@ -83,7 +84,7 @@ instance ToText Ctor where
     CtorFloat -> "float"
     CtorHandle -> "handle"
     CtorInt -> "int"
-    CtorUser a -> a
+    CtorUser a -> toText a
 
 instance Show Ctor where
   show = T.unpack . toText
@@ -137,7 +138,7 @@ instance ToText (Type Stack) where
 
 originSuffix :: Origin -> Text
 originSuffix (Origin hint _) = case hint of
-  HiLocal name -> " (type of " <> name <> ")"
+  HiLocal name -> " (type of " <> toText name <> ")"
   HiType annotated
     -> " (type of " <> toText annotated <> ")"
   HiVar _ annotated
@@ -149,14 +150,14 @@ originSuffix (Origin hint _) = case hint of
   HiNone -> ""
 
 data Annotated
-  = AnDef !Text
+  = AnDef !Name
   | AnIntrinsic !Intrinsic
 
 instance Show Annotated where
   show = T.unpack . toText
 
 instance ToText Annotated where
-  toText (AnDef defName) = defName
+  toText (AnDef defName) = toText defName
   toText (AnIntrinsic intrinsic) = toText intrinsic
 
 data Origin = Origin
@@ -165,13 +166,13 @@ data Origin = Origin
   } deriving (Show)
 
 data Hint
-  = HiLocal !Text
+  = HiLocal !Name
   -- ^ Name introduced by a 'Scoped' term.
 
   | HiType !Annotated
   -- ^ Explicit type annotation.
 
-  | HiVar !Text !Annotated
+  | HiVar !Name !Annotated
   -- ^ Type variable in a type annotation.
 
   | HiFunctionInput !Annotated

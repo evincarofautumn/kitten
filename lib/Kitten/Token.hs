@@ -10,6 +10,7 @@ import qualified Data.Text as T
 
 import Kitten.Intrinsic
 import Kitten.Location
+import Kitten.Name
 import Kitten.Util.Text (ToText(..))
 
 data BlockTypeHint
@@ -46,13 +47,13 @@ data Token
   | TkInt !Int !BaseHint
   | TkLayout
   | TkMatch
-  | TkOperator !Text
+  | TkOperator !Name
   | TkReference
   | TkSemicolon
   | TkText !Text
   | TkVectorBegin
   | TkVectorEnd
-  | TkWord !Text
+  | TkWord !Name
 
 instance Eq Token where
   TkArrow        == TkArrow        = True
@@ -122,13 +123,13 @@ instance Show Token where
         HexadecimalHint -> (16, "0x", ['0'..'9'] ++ ['A'..'F'])
     TkLayout -> ":"
     TkMatch -> "match"
-    TkOperator word -> T.unpack word
+    TkOperator word -> show word
     TkReference -> "\\"
     TkSemicolon -> ";"
     TkText value -> show value
     TkVectorBegin -> "["
     TkVectorEnd -> "]"
-    TkWord word -> T.unpack word
+    TkWord word -> show word
 
 data Located = Located
   { locatedToken :: Token

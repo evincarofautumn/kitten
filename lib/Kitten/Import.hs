@@ -1,12 +1,13 @@
 module Kitten.Import where
 
 import Data.Function
-import Data.Text (Text)
+
 import Kitten.Location
+import Kitten.Name
 
 data Import = Import
-  { importName :: Text
-  , importLocation :: Location
+  { importName :: !Name
+  , importLocation :: !Location
   } deriving (Show)
 
 instance Eq Import where

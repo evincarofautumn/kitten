@@ -37,6 +37,7 @@ import Kitten.Definition
 import Kitten.Fragment
 import Kitten.Kind
 import Kitten.Location
+import Kitten.Name
 import Kitten.Term
 import Kitten.Type
 import Kitten.Util.Monad
@@ -45,7 +46,7 @@ import Kitten.Util.Text (toText)
 type LocMap = UnionMap FilePath (UnionMap Pos [Node])
 
 data Node
-  = Definition !Text
+  = Definition !Name
   | ScalarType !(Type Scalar)
   deriving (Show)  -- FIXME(strager): Temporary.
 

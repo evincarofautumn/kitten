@@ -36,6 +36,7 @@ import Kitten.Import
 import Kitten.Infer
 import Kitten.Kind
 import Kitten.Location
+import Kitten.Name
 import Kitten.Operator
 import Kitten.Optimize
 import Kitten.Parse
@@ -48,6 +49,7 @@ import Kitten.Type
 import Kitten.TypeDefinition
 import Kitten.Util.Either
 import Kitten.Util.Monad
+import Kitten.Util.Text (ToText(..))
 
 import qualified Kitten.IdMap as Id
 import qualified Kitten.Util.Text as T
@@ -121,7 +123,7 @@ compile config@Config{..} program
 
 locateImport
   :: [FilePath]
-  -> Text
+  -> Name
   -> IO [FilePath]
 locateImport libraryDirectories importName = do
   currentDirectory <- getCurrentDirectory
@@ -140,7 +142,7 @@ locateImport libraryDirectories importName = do
   where
   canonicalImport :: FilePath -> IO (Maybe FilePath)
   canonicalImport path = catchIOError
-    (Just <$> canonicalizePath (path </> T.unpack importName <.> "ktn"))
+    (Just <$> canonicalizePath (path </> show importName <.> "ktn"))
     $ \e -> if isDoesNotExistError e then return Nothing else ioError e
 
 substituteImports
@@ -163,10 +165,10 @@ substituteImports libraryDirectories fragment = runEitherT $ do
   where
   go
     :: [Import]
-    -> Set Text
-    -> ([(Text, Def ParsedTerm)], [Operator], HashMap Text TypeDef)
+    -> Set Name
+    -> ([(Name, Def ParsedTerm)], [Operator], HashMap Name TypeDef)
     -> EitherT [ErrorGroup] IO
-      ([(Text, Def ParsedTerm)], [Operator], HashMap Text TypeDef)
+      ([(Name, Def ParsedTerm)], [Operator], HashMap Name TypeDef)
   go [] _ acc = return acc
   go (currentModule : remainingModules) seenModules
     acc@(defs, operators, types) = let
@@ -188,7 +190,7 @@ substituteImports libraryDirectories fragment = runEitherT $ do
               , fragmentTypes parsed <> types
               )
           [] -> err location $ T.concat
-            ["missing import '", name, "'"]
+            ["missing import '", toText name, "'"]
           _ -> err location $ T.concat
-            ["ambiguous import '", name, "'"]
+            ["ambiguous import '", toText name, "'"]
   err loc = left . (:[]) . oneError . CompileError loc Error

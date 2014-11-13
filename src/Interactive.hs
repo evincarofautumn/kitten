@@ -41,6 +41,7 @@ import Kitten.Type
 import Kitten.Type.Tidy
 import Kitten.Util.List
 import Kitten.Util.Monad
+import Kitten.Util.Text (ToText(..))
 
 import qualified Kitten.Interpret as Interpret
 
@@ -99,7 +100,7 @@ completePrefix prefix
   in return $ map
     (toCompletion (small matching) . T.unpack . (commandPrefix <>)) matching
   | otherwise = do
-  symbols <- gets (H.keys . programSymbols . envProgram)
+  symbols <- gets (map toText . H.keys . programSymbols . envProgram)
   let
     prefix' = T.pack prefix
     matching
