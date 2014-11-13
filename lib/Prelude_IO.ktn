@@ -1,18 +1,18 @@
 // Reads a line from standard input.
 define getLine (-> [char]):
-  stdin __get_line
+  stdin kitten_intrinsic_getLine
 
 // Closes a handle.
 define handleClose (handle ->):
-  __close
+  kitten_intrinsic_close
 
 // Reads a line from a handle.
 define handleGetLine (handle -> [char]):
-  __get_line
+  kitten_intrinsic_getLine
 
 // Writes a string to a handle.
 define handlePrint ([char] handle ->):
-  __print
+  kitten_intrinsic_print
 
 // Writes a newline to standard output.
 define newline (->):
@@ -20,15 +20,15 @@ define newline (->):
 
 // Opens a file for input.
 define openInput ([char] -> handle):
-  __open_in
+  kitten_intrinsic_openIn
 
 // Opens a file for output.
 define openOutput ([char] -> handle):
-  __open_out
+  kitten_intrinsic_openOut
 
 // Writes a string to standard output.
 define print ([char] ->):
-  stdout __print
+  stdout kitten_intrinsic_print
 
 // Prints a Boolean.
 define printBool (bool ->):
@@ -99,15 +99,15 @@ define space (->):
 
 // The standard error handle.
 define stderr (-> handle):
-  __stderr
+  kitten_intrinsic_stderr
 
 // The standard input handle.
 define stdin (-> handle):
-  __stdin
+  kitten_intrinsic_stdin
 
 // The standard output handle.
 define stdout (-> handle):
-  __stdout
+  kitten_intrinsic_stdout
 
 // Prints a tab character to standard output.
 define tab (->):

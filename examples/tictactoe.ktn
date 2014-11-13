@@ -173,13 +173,13 @@ define readMoveLine ([char] -> (int & int)?):
 
 define readXY (char char -> (int & int)?):
   -> x y;
-  x y readXY_ -> mxy;
+  x y readXY' -> mxy;
   option (mxy):
     some
   else:
-    y x readXY_
+    y x readXY'
 
-define readXY_ (char char -> (int & int)?):
+define readXY' (char char -> (int & int)?):
   \readX \readY both -> mx my;
   mx my \pair liftOption2
 

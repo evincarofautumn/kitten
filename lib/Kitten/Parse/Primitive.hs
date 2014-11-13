@@ -3,16 +3,19 @@
 module Kitten.Parse.Primitive
   ( blocked
   , grouped
-  , ignore
   , mixfixName
   , named
   , nonsymbolic
+  , qualified_
   , symbolic
+  , underscore
   , vectored
   , word
   ) where
 
 import Control.Applicative
+
+import qualified Data.Vector as V
 
 import Kitten.Name
 import Kitten.Parse.Monad
@@ -20,14 +23,15 @@ import Kitten.Parsec
 import Kitten.Token
 import Kitten.Util.Function
 import Kitten.Util.Maybe
+import Kitten.Util.Parsec
 
 blocked :: Parser a -> Parser a
 blocked = between
   (match (TkBlockBegin NormalBlockHint))
   (match TkBlockEnd)
 
-ignore :: Parser Token
-ignore = match TkIgnore
+underscore :: Parser Token
+underscore = match TkUnderscore
 
 symbolic :: Parser Name
 symbolic = mapOne $ \case
@@ -57,6 +61,25 @@ named = mapOne $ \case
 
 nonsymbolic :: Parser Name
 nonsymbolic = try mixfixName <|> named
+
+qualified_ :: Parser Name
+qualified_ = do
+  global <- maybe False (const True) <$> optionMaybe underscore
+  names <- V.map fromUnqualified
+    <$> ((named <|> symbolic) `sepBy1V` underscore)
+  mOperatorName <- optionMaybe (underscore *> (fromUnqualified <$> symbolic))
+  return $ case mOperatorName of
+    Nothing -> let (qualifier, name) = (V.init names, V.last names)
+      in if V.null qualifier && not global
+        then Unqualified name
+        else Qualified (Qualifier qualifier) name
+    Just name -> if global
+      then Qualified (Qualifier V.empty) name
+      else Qualified (Qualifier names) name
+  where
+  fromUnqualified = \case
+    Unqualified name -> name
+    _ -> error "expected unqualified name"
 
 vectored :: Parser a -> Parser a
 vectored = between (match TkVectorBegin) (match TkVectorEnd)

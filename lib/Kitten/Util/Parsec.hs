@@ -1,6 +1,7 @@
 module Kitten.Util.Parsec
   ( many1V
   , manyV
+  , sepBy1V
   , sepEndBy1V
   , sepEndByV
   , skipManyTill
@@ -25,6 +26,13 @@ manyV
   => ParsecT s u m a
   -> ParsecT s u m (Vector a)
 manyV = liftM V.fromList . many
+
+sepBy1V
+  :: (Stream s m t)
+  => ParsecT s u m a
+  -> ParsecT s u m b
+  -> ParsecT s u m (Vector a)
+sepBy1V = (liftM V.fromList .) . sepBy1
 
 sepEndBy1V
   :: (Stream s m t)

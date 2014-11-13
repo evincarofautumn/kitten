@@ -38,12 +38,9 @@ data Token
   | TkFloat !Double
   | TkGroupBegin
   | TkGroupEnd
-  | TkIgnore
   | TkIntrinsic !Intrinsic
   | TkImport
   | TkInfix
-  | TkInfixLeft
-  | TkInfixRight
   | TkInt !Int !BaseHint
   | TkLayout
   | TkMatch
@@ -51,6 +48,7 @@ data Token
   | TkReference
   | TkSemicolon
   | TkText !Text
+  | TkUnderscore
   | TkVectorBegin
   | TkVectorEnd
   | TkWord !Name
@@ -71,10 +69,7 @@ instance Eq Token where
   TkFloat a      == TkFloat b      = a == b
   TkGroupBegin   == TkGroupBegin   = True
   TkGroupEnd     == TkGroupEnd     = True
-  TkIgnore       == TkIgnore       = True
   TkInfix        == TkInfix        = True
-  TkInfixLeft    == TkInfixLeft    = True
-  TkInfixRight   == TkInfixRight   = True
   TkIntrinsic a  == TkIntrinsic b  = a == b
   TkImport       == TkImport       = True
   -- TkInts are equal regardless of BaseHint.
@@ -85,6 +80,7 @@ instance Eq Token where
   TkReference    == TkReference    = True
   TkSemicolon    == TkSemicolon    = True
   TkText a       == TkText b       = a == b
+  TkUnderscore   == TkUnderscore   = True
   TkVectorBegin  == TkVectorBegin  = True
   TkVectorEnd    == TkVectorEnd    = True
   TkWord a       == TkWord b       = a == b
@@ -107,10 +103,7 @@ instance Show Token where
     TkFloat value -> show value
     TkGroupBegin -> "("
     TkGroupEnd -> ")"
-    TkIgnore -> "_"
     TkInfix -> "infix"
-    TkInfixLeft -> "infix_left"
-    TkInfixRight -> "infix_right"
     TkIntrinsic name -> T.unpack (toText name)
     TkImport -> "import"
     TkInt value hint -> if value < 0 then '-' : shown else shown
@@ -127,6 +120,7 @@ instance Show Token where
     TkReference -> "\\"
     TkSemicolon -> ";"
     TkText value -> show value
+    TkUnderscore -> "_"
     TkVectorBegin -> "["
     TkVectorEnd -> "]"
     TkWord word -> show word

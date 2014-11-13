@@ -110,7 +110,7 @@ completePrefix prefix
   return completions
 
 intrinsicNameList :: [Text]
-intrinsicNameList = V.toList intrinsicNames
+intrinsicNameList = V.toList (V.map toText intrinsicNames)
 
 toCompletion :: Bool -> String -> Completion
 toCompletion finished name = Completion

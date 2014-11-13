@@ -3,7 +3,7 @@ data Stream<a>:
   case StreamValue a (-> Stream@a);
 
 // Operator alias for 'StreamValue'.
-infix_right 5 +>
+infix right 5 +>
 define +> <a> (a (-> Stream@a) -> Stream@a):
   StreamValue
 

@@ -5,12 +5,12 @@ define compose<r..., s..., t..., u...>
   { f apply g apply }
 
 // Operator alias for 'compose'.
-infix_right 9 >>>
+infix right 9 >>>
 define >>> <r..., s..., t..., u...>
   (r... (s... -> t...) (t... -> u...) -> r... (s... -> u...)):
   compose
 
-infix_right 9 ∘
+infix right 9 ∘
 define ∘ <r..., s..., t..., u...>
   (r... (s... -> t...) (t... -> u...) -> r... (s... -> u...)):
   compose

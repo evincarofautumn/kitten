@@ -9,7 +9,7 @@ define fromOption<a> (a? a -> a):
 
 // Unsafely gets the value from an option.
 define fromSome<a> (a? -> a):
-  __from_some
+  kitten_intrinsic_fromSome
 
 // Whether an option is empty.
 define isNone<a> (a? -> bool):
@@ -43,11 +43,11 @@ define liftOption2<a, b, c> (a? b? (a b -> c) -> c?):
 
 // Constructs an empty option.
 define none<a> (-> a?):
-  __none
+  kitten_intrinsic_none
 
 // Constructs an option with a value.
 define some<a> (a -> a?):
-  __some
+  kitten_intrinsic_some
 
 // TODO(strager): Find a better name.  'option' is taken.
 define maybe<a, b> (a? (a -> b) b -> b):

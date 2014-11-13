@@ -62,15 +62,15 @@ define minInts ([int] -> int?):
 
 // Floating-point negation.
 define negFloat (float -> float):
-  __neg_float
+  kitten_intrinsic_negFloat
 
 // Integer negation.
 define negInt (int -> int):
-  __neg_int
+  kitten_intrinsic_negInt
 
 // Logical NOT.
 define not (bool -> bool):
-  __not_bool
+  kitten_intrinsic_notBool
 
 // Whether a floating-point number is odd.
 define oddFloat (float -> bool):
@@ -109,203 +109,203 @@ define tau (-> float): 6.283185307179586
 // Integer inequality.
 infix 4 !=
 define != (int int -> bool):
-  __ne_int
+  kitten_intrinsic_neInt
 
 infix 4 ≠
 define ≠ (int int -> bool):
-  __ne_int
+  kitten_intrinsic_neInt
 
 // Floating-point inequality.
 infix 4 !=.
 define !=. (float float -> bool):
-  __ne_float
+  kitten_intrinsic_neFloat
 
 infix 4 ≠.
 define ≠. (float float -> bool):
-  __ne_float
+  kitten_intrinsic_neFloat
 
 // Integer modulus.
-infix_left 7 %
+infix left 7 %
 define % (int int -> int):
-  __mod_int
+  kitten_intrinsic_modInt
 
 // Floating-point modulus.
-infix_left 7 %.
+infix left 7 %.
 define %. (float float -> float):
-  __mod_float
+  kitten_intrinsic_modFloat
 
 // Bitwise AND.
-infix_left 7 &
+infix left 7 &
 define & (int int -> int):
-  __and_int
+  kitten_intrinsic_andInt
 
 // Logical AND.
-infix_right 3 &&
+infix right 3 &&
 define && (bool bool -> bool):
-  __and_bool
+  kitten_intrinsic_andBool
 
-infix_right 3 ∧
+infix right 3 ∧
 define ∧ (bool bool -> bool):
-  __and_bool
+  kitten_intrinsic_andBool
 
 // Integer multiplication.
-infix_left 7 *
+infix left 7 *
 define * (int int -> int):
-  __mul_int
+  kitten_intrinsic_mulInt
 
-infix_left 7 ×
+infix left 7 ×
 define × (int int -> int):
-  __mul_int
+  kitten_intrinsic_mulInt
 
 // Floating-point multiplication.
-infix_left 7 *.
+infix left 7 *.
 define *. (float float -> float):
-  __mul_float
+  kitten_intrinsic_mulFloat
 
-infix_left 7 ×.
+infix left 7 ×.
 define ×. (float float -> float):
-  __mul_float
+  kitten_intrinsic_mulFloat
 
 // Integer addition.
-infix_right 6 +
+infix right 6 +
 define + (int int -> int):
-  __add_int
+  kitten_intrinsic_addInt
 
 // Floating-point addition.
-infix_left 6 +.
+infix left 6 +.
 define +. (float float -> float):
-  __add_float
+  kitten_intrinsic_addFloat
 
 // Integer subtraction.
-infix_left 6 -
+infix left 6 -
 define - (int int -> int):
-  __sub_int
+  kitten_intrinsic_subInt
 
-infix_left 6 −
+infix left 6 −
 define − (int int -> int):
-  __sub_int
+  kitten_intrinsic_subInt
 
 // Floating-point subtraction.
-infix_left 6 -.
+infix left 6 -.
 define -. (float float -> float):
-  __sub_float
+  kitten_intrinsic_subFloat
 
-infix_left 6 −.
+infix left 6 −.
 define −. (float float -> float):
-  __sub_float
+  kitten_intrinsic_subFloat
 
 // Integer division.
-infix_left 7 /
+infix left 7 /
 define / (int int -> int):
-  __div_int
+  kitten_intrinsic_divInt
 
-infix_left 7 ÷
+infix left 7 ÷
 define ÷ (int int -> int):
-  __div_int
+  kitten_intrinsic_divInt
 
 // Floating-point division.
-infix_left 7 /.
+infix left 7 /.
 define /. (float float -> float):
-  __div_float
+  kitten_intrinsic_divFloat
 
-infix_left 7 ÷.
+infix left 7 ÷.
 define ÷. (float float -> float):
-  __div_float
+  kitten_intrinsic_divFloat
 
 // Integer less than.
 infix 4 <
 define < (int int -> bool):
-  __lt_int
+  kitten_intrinsic_ltInt
 
 // Floating-point less than.
 infix 4 <.
 define <. (float float -> bool):
-  __lt_float
+  kitten_intrinsic_ltFloat
 
 // Integer less than or equal.
 infix 4 <=
 define <= (int int -> bool):
-  __le_int
+  kitten_intrinsic_leInt
 
 infix 4 ≤
 define ≤ (int int -> bool):
-  __le_int
+  kitten_intrinsic_leInt
 
 // Floating-point less than or equal.
 infix 4 <=.
 define <=. (float float -> bool):
-  __le_float
+  kitten_intrinsic_leFloat
 
 infix 4 ≤.
 define ≤. (float float -> bool):
-  __le_float
+  kitten_intrinsic_leFloat
 
 // Integer equality.
 infix 4 =
 define = (int int -> bool):
-  __eq_int
+  kitten_intrinsic_eqInt
 
 // Floating-point equality.
 infix 4 =.
 define =. (float float -> bool):
-  __eq_float
+  kitten_intrinsic_eqFloat
 
 // Integer greater than.
 infix 4 >
 define > (int int -> bool):
-  __gt_int
+  kitten_intrinsic_gtInt
 
 // Floating-point greater than.
 infix 4 >.
 define >. (float float -> bool):
-  __gt_float
+  kitten_intrinsic_gtFloat
 
 // Integer greater than or equal.
 infix 4 >=
 define >= (int int -> bool):
-  __ge_int
+  kitten_intrinsic_geInt
 
 infix 4 ≥
 define ≥ (int int -> bool):
-  __ge_int
+  kitten_intrinsic_geInt
 
 // Floating-point greater than or equal.
 infix 4 >=.
 define >=. (float float -> bool):
-  __ge_float
+  kitten_intrinsic_geFloat
 
 infix 4 ≥.
 define ≥. (float float -> bool):
-  __ge_float
+  kitten_intrinsic_geFloat
 
 // Bitwise XOR.
-infix_left 6 ^
+infix left 6 ^
 define ^ (int int -> int):
-  __xor_int
+  kitten_intrinsic_xorInt
 
 // Boolean XOR.
-infix_right 2 ^^
+infix right 2 ^^
 define ^^ (bool bool -> bool):
-  __xor_bool
+  kitten_intrinsic_xorBool
 
-infix_right 2 ⊻
+infix right 2 ⊻
 define ⊻ (bool bool -> bool):
-  __xor_bool
+  kitten_intrinsic_xorBool
 
 // Bitwise OR.
-infix_left 5 |
+infix left 5 |
 define | (int int -> int):
-  __or_int
+  kitten_intrinsic_orInt
 
 // Logical OR.
-infix_right 2 ||
+infix right 2 ||
 define || (bool bool -> bool):
-  __or_bool
+  kitten_intrinsic_orBool
 
-infix_right 2 ∨
+infix right 2 ∨
 define ∨ (bool bool -> bool):
-  __or_bool
+  kitten_intrinsic_orBool
 
 // Bitwise NOT.
 define ~ (int -> int):
-  __not_int
+  kitten_intrinsic_notInt

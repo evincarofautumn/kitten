@@ -9,7 +9,6 @@ import Text.Parsec.Pos
 
 import Test.Util
 
-import Kitten.Intrinsic
 import Kitten.Location
 import Kitten.Token
 import Kitten.Tokenize
@@ -84,13 +83,9 @@ spec = do
     testTokens "define" [TkDefine]
     testTokens "import" [TkImport]
 
-  describe "tokenize builtin" $ do
-    testTokens "__add_int" [TkIntrinsic InAddInt]
-    testTokens "__add_vector" [TkIntrinsic InAddVector]
-    testTokens "__apply" [TkIntrinsic InApply]
-
   describe "tokenize word" $ do
-    testTokens "not_a_keyword" [TkWord "not_a_keyword"]
+    testTokens "not_a_keyword"
+      [TkWord "not", TkUnderscore, TkWord "a", TkUnderscore, TkWord "keyword"]
     testTokens "alsoNot" [TkWord "alsoNot"]
     testTokens "thisThat123" [TkWord "thisThat123"]
     testTokens "+-" [TkOperator "+-"]

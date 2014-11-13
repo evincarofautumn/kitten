@@ -19,7 +19,6 @@ import Text.Parsec.Text ()
 import qualified Data.Text as T
 import qualified Text.Parsec as Parsec
 
-import Kitten.Intrinsic
 import Kitten.Location
 import Kitten.Name
 import Kitten.Parsec
@@ -70,6 +69,7 @@ token = (<?> "token") . located $ choice
   , TkReference <$ char '\\'
   , TkSemicolon <$ char ';'
   , TkText <$> between (char '"') (char '"') text
+  , TkUnderscore <$ char '_'
   , try number
   , try $ TkArrow <$ (string "->" <|> string "\x2192")
     <* notFollowedBy symbolCharacter
@@ -127,35 +127,27 @@ token = (<?> "token") . located $ choice
   word :: Parser Token
   word = choice
     [ ffor alphanumeric $ \name -> case name of
-      "_" -> TkIgnore
       "case" -> TkCase
       "data" -> TkData
       "default" -> TkDefault
       "define" -> TkDefine
       "false" -> TkBool False
       "infix" -> TkInfix
-      "infix_left" -> TkInfixLeft
-      "infix_right" -> TkInfixRight
       "import" -> TkImport
       "match" -> TkMatch
       "true" -> TkBool True
-      _ -> case intrinsicFromText name of
-        Just intrinsic -> TkIntrinsic intrinsic
-        _ -> TkWord (Unqualified name)
-    , ffor symbolic $ \name -> case name of
-      _ | Just intrinsic <- intrinsicFromText name -> TkIntrinsic intrinsic
-        | otherwise -> TkOperator (Unqualified name)
+      _ -> TkWord (Unqualified name)
+    , ffor symbolic $ TkOperator . Unqualified
     ]
     where
 
     alphanumeric :: Parser Text
     alphanumeric
       = (\x y z -> T.pack $ x : y ++ maybeToList z)
-      <$> (Parsec.satisfy isLetter <|> char '_')
+      <$> (Parsec.satisfy isLetter)
       <*> (many . choice)
         [ Parsec.satisfy isLetter
         , Parsec.satisfy isDigit
-        , char '_'
         ]
       <*> optionMaybe (oneOf "'\x2032\x2033\x2034\x2057")
 

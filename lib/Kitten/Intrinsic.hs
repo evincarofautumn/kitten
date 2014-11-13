@@ -6,7 +6,6 @@ module Kitten.Intrinsic where
 import Data.Hashable
 import Data.HashMap.Strict (HashMap)
 import Data.Maybe
-import Data.Text (Text)
 import Data.Vector (Vector)
 import GHC.Generics (Generic)
 
@@ -14,6 +13,7 @@ import qualified Data.HashMap.Strict as H
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
+import Kitten.Name
 import Kitten.Util.Text (ToText(..))
 import Kitten.Util.Tuple
 
@@ -91,94 +91,99 @@ data Intrinsic
 instance Hashable Intrinsic
 
 instance ToText Intrinsic where
-  toText = fromJust . (`H.lookup` intrinsicToTextMap)
+  toText = toText . fromJust . (`H.lookup` intrinsicToNameMap)
 
 instance Show Intrinsic where
   show = T.unpack . toText
 
-intrinsicFromText :: Text -> Maybe Intrinsic
-intrinsicFromText = (`H.lookup` intrinsicFromTextMap)
+intrinsicFromName :: Name -> Maybe Intrinsic
+intrinsicFromName = (`H.lookup` intrinsicFromNameMap)
 
-intrinsicToTextMap :: HashMap Intrinsic Text
-intrinsicToTextMap = H.fromList (V.toList intrinsicToTextTable)
+intrinsicToNameMap :: HashMap Intrinsic Name
+intrinsicToNameMap = H.fromList (V.toList intrinsicToNameTable)
 
-intrinsicFromTextMap :: HashMap Text Intrinsic
-intrinsicFromTextMap = H.fromList (V.toList intrinsicFromTextTable)
+intrinsicFromNameMap :: HashMap Name Intrinsic
+intrinsicFromNameMap = H.fromList (V.toList intrinsicFromNameTable)
 
-intrinsicNames :: Vector Text
-intrinsicNames = V.map fst intrinsicFromTextTable
+intrinsicNames :: Vector Name
+intrinsicNames = V.map fst intrinsicFromNameTable
 
-intrinsicFromTextTable :: Vector (Text, Intrinsic)
-intrinsicFromTextTable = V.fromList
-  [ (,) "__add_float"       InAddFloat
-  , (,) "__add_int"         InAddInt
-  , (,) "__add_vector"      InAddVector
-  , (,) "__and_bool"        InAndBool
-  , (,) "__and_int"         InAndInt
-  , (,) "__apply"           InApply
-  , (,) "__char_to_int"     InCharToInt
-  , (,) "__choice"          InChoice
-  , (,) "__choice_else"     InChoiceElse
-  , (,) "__close"           InClose
-  , (,) "__div_float"       InDivFloat
-  , (,) "__div_int"         InDivInt
-  , (,) "__eq_float"        InEqFloat
-  , (,) "__eq_int"          InEqInt
-  , (,) "__exit"            InExit
-  , (,) "__first"           InFirst
-  , (,) "__from_left"       InFromLeft
-  , (,) "__from_right"      InFromRight
-  , (,) "__from_some"       InFromSome
-  , (,) "__ge_float"        InGeFloat
-  , (,) "__ge_int"          InGeInt
-  , (,) "__get"             InGet
-  , (,) "__get_line"        InGetLine
-  , (,) "__gt_float"        InGtFloat
-  , (,) "__gt_int"          InGtInt
-  , (,) "__if"              InIf
-  , (,) "__if_else"         InIfElse
-  , (,) "__init"            InInit
-  , (,) "__int_to_char"     InIntToChar
-  , (,) "__le_float"        InLeFloat
-  , (,) "__le_int"          InLeInt
-  , (,) "__left"            InLeft
-  , (,) "__length"          InLength
-  , (,) "__lt_float"        InLtFloat
-  , (,) "__lt_int"          InLtInt
-  , (,) "__mod_float"       InModFloat
-  , (,) "__mod_int"         InModInt
-  , (,) "__mul_float"       InMulFloat
-  , (,) "__mul_int"         InMulInt
-  , (,) "__ne_float"        InNeFloat
-  , (,) "__ne_int"          InNeInt
-  , (,) "__neg_float"       InNegFloat
-  , (,) "__neg_int"         InNegInt
-  , (,) "__none"            InNone
-  , (,) "__not_bool"        InNotBool
-  , (,) "__not_int"         InNotInt
-  , (,) "__open_in"         InOpenIn
-  , (,) "__open_out"        InOpenOut
-  , (,) "__option"          InOption
-  , (,) "__option_else"     InOptionElse
-  , (,) "__or_bool"         InOrBool
-  , (,) "__or_int"          InOrInt
-  , (,) "__pair"            InPair
-  , (,) "__print"           InPrint
-  , (,) "__rest"            InRest
-  , (,) "__right"           InRight
-  , (,) "__set"             InSet
-  , (,) "__show_float"      InShowFloat
-  , (,) "__show_int"        InShowInt
-  , (,) "__some"            InSome
-  , (,) "__stderr"          InStderr
-  , (,) "__stdin"           InStdin
-  , (,) "__stdout"          InStdout
-  , (,) "__sub_float"       InSubFloat
-  , (,) "__sub_int"         InSubInt
-  , (,) "__tail"            InTail
-  , (,) "__xor_bool"        InXorBool
-  , (,) "__xor_int"         InXorInt
+intrinsicFromNameTable :: Vector (Name, Intrinsic)
+intrinsicFromNameTable = V.fromList
+  [ entry "addFloat"    InAddFloat
+  , entry "addInt"      InAddInt
+  , entry "addVector"   InAddVector
+  , entry "andBool"     InAndBool
+  , entry "andInt"      InAndInt
+  , entry "apply"       InApply
+  , entry "charToInt"   InCharToInt
+  , entry "choice"      InChoice
+  , entry "choiceElse"  InChoiceElse
+  , entry "close"       InClose
+  , entry "divFloat"    InDivFloat
+  , entry "divInt"      InDivInt
+  , entry "eqFloat"     InEqFloat
+  , entry "eqInt"       InEqInt
+  , entry "exit"        InExit
+  , entry "first"       InFirst
+  , entry "fromLeft"    InFromLeft
+  , entry "fromRight"   InFromRight
+  , entry "fromSome"    InFromSome
+  , entry "geFloat"     InGeFloat
+  , entry "geInt"       InGeInt
+  , entry "get"         InGet
+  , entry "getLine"     InGetLine
+  , entry "gtFloat"     InGtFloat
+  , entry "gtInt"       InGtInt
+  , entry "if"          InIf
+  , entry "ifElse"      InIfElse
+  , entry "init"        InInit
+  , entry "intToChar"   InIntToChar
+  , entry "leFloat"     InLeFloat
+  , entry "leInt"       InLeInt
+  , entry "left"        InLeft
+  , entry "length"      InLength
+  , entry "ltFloat"     InLtFloat
+  , entry "ltInt"       InLtInt
+  , entry "modFloat"    InModFloat
+  , entry "modInt"      InModInt
+  , entry "mulFloat"    InMulFloat
+  , entry "mulInt"      InMulInt
+  , entry "neFloat"     InNeFloat
+  , entry "neInt"       InNeInt
+  , entry "negFloat"    InNegFloat
+  , entry "negInt"      InNegInt
+  , entry "none"        InNone
+  , entry "notBool"     InNotBool
+  , entry "notInt"      InNotInt
+  , entry "openIn"      InOpenIn
+  , entry "openOut"     InOpenOut
+  , entry "option"      InOption
+  , entry "optionElse"  InOptionElse
+  , entry "orBool"      InOrBool
+  , entry "orInt"       InOrInt
+  , entry "pair"        InPair
+  , entry "print"       InPrint
+  , entry "rest"        InRest
+  , entry "right"       InRight
+  , entry "set"         InSet
+  , entry "showFloat"   InShowFloat
+  , entry "showInt"     InShowInt
+  , entry "some"        InSome
+  , entry "stderr"      InStderr
+  , entry "stdin"       InStdin
+  , entry "stdout"      InStdout
+  , entry "subFloat"    InSubFloat
+  , entry "subInt"      InSubInt
+  , entry "tail"        InTail
+  , entry "xorBool"     InXorBool
+  , entry "xorInt"      InXorInt
   ]
+  where
+  entry name intrinsic =
+    ( Qualified (Qualifier (V.fromList ["kitten", "intrinsic"])) name
+    , intrinsic
+    )
 
-intrinsicToTextTable :: Vector (Intrinsic, Text)
-intrinsicToTextTable = V.map swap intrinsicFromTextTable
+intrinsicToNameTable :: Vector (Intrinsic, Name)
+intrinsicToNameTable = V.map swap intrinsicFromNameTable

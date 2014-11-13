@@ -3,6 +3,7 @@
 module Kitten.Name
   ( MixfixNamePart(..)
   , Name(..)
+  , Qualifier(..)
   ) where
 
 import GHC.Exts

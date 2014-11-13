@@ -16,10 +16,10 @@ define cartesianWith<a, b, c> ([a] [b] (a b -> c) -> [c]):
 
 // Concatenates two vectors.
 define cat<a> ([a] [a] -> [a]):
-  __add_vector
+  kitten_intrinsic_addVector
 
 // Operator alias for 'cat'.
-infix_right 5 <>
+infix right 5 <>
 define <> <a> ([a] [a] -> [a]):
   cat
 
@@ -161,7 +161,7 @@ define headTail<a> ([a] -> a? [a]):
 
 // Unsafely removes the last element of a vector.
 define init<a> ([a] -> [a]):
-  __init
+  kitten_intrinsic_init
 
 // Inserts a value at each possible index in a vector; given
 // a value n and a vector xs, generates a matrix with n on
@@ -233,7 +233,7 @@ define last<a> ([a] -> a?):
 
 // Gets the length of a vector.
 define length<a> ([a] -> int):
-  __length
+  kitten_intrinsic_length
 
 // Looks up a value in an association list by an equality predicate.
 define lookUp<a, b> ([a & b] a (a a -> bool) -> b?):
@@ -361,7 +361,7 @@ define splitAt<a> ([a] int -> [a] [a]):
 
 // Unsafely removes the first element of a vector.
 define tail<a> ([a] -> [a]):
-  __tail
+  kitten_intrinsic_tail
 
 // Tosses the first n elements of a vector, keeping the rest.
 define toss<a> ([a] int -> [a]):
@@ -433,7 +433,7 @@ define zipWith<a, b, c> ([a] [b] (a b -> c) -> [c]):
 
 // Gets an element of a vector.
 define . <a> ([a] int -> a?):
-  __get
+  kitten_intrinsic_get
 
 // Unsafely gets an element of a vector.
 define ! <a> ([a] int -> a):
@@ -441,7 +441,7 @@ define ! <a> ([a] int -> a):
 
 // Sets the value at an index in a vector.
 define .= <a> ([a] int a -> [a]):
-  __set
+  kitten_intrinsic_set
 
 // Maps a function over an element of a vector.
 define .~ <a> ([a] int (a -> a) -> [a]):

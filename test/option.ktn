@@ -15,7 +15,7 @@ define or0 (int? -> int):
 10 some or0 sayInt
 none or0 sayInt
 
-infix_left 7 /?
+infix left 7 /?
 define /? (int int -> int?):
   -> x y;
   if (y = 0) {none} else { (x / y) some }

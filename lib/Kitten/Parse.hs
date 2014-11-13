@@ -125,7 +125,7 @@ typeConstructor = (<?> "type constructor") . locate $ do
 import_ :: Parser Import
 import_ = (<?> "import") . locate $ do
   void (match TkImport)
-  name <- named
+  name <- qualified_
   return $ \loc -> Import
     { importName = name
     , importLocation = loc
@@ -133,11 +133,11 @@ import_ = (<?> "import") . locate $ do
 
 operatorDeclaration :: Parser Operator
 operatorDeclaration = (<?> "operator declaration") $ uncurry Operator
-  <$> choice
-    [ match TkInfix *> ((,) NonAssociative <$> precedence)
-    , match TkInfixLeft *> ((,) LeftAssociative <$> precedence)
-    , match TkInfixRight *> ((,) RightAssociative <$> precedence)
-    ]
+  <$> (match TkInfix *> choice
+    [ ((,) NonAssociative <$> precedence)
+    , match (TkWord "left") *> ((,) LeftAssociative <$> precedence)
+    , match (TkWord "right") *> ((,) RightAssociative <$> precedence)
+    ])
   <*> symbolic
   where
   precedence = (<?> "decimal integer precedence from 0 to 9")
@@ -149,13 +149,13 @@ operatorDeclaration = (<?> "operator declaration") $ uncurry Operator
 term :: Parser ParsedTerm
 term = locate $ choice
   [ try $ TrPush <$> locate (mapOne toLiteral <?> "literal")
-  , TrCall Postfix <$> nonsymbolic
   , TrCall Infix <$> symbolic
+  , TrCall Postfix <$> (try mixfixName <|> qualified_)
+  , mapOne toIntrinsic <?> "intrinsic"
   , try section
   , try group <?> "grouped expression"
   , pair <$> tuple
   , TrMakeVector <$> vector
-  , mapOne toIntrinsic <?> "intrinsic"
   , lambda
   , matchCase
   , TrPush <$> blockValue
@@ -254,7 +254,7 @@ plainLambda = match TkArrow *> do
   return $ \loc -> makeLambda names body loc
 
 lambdaNames :: Parser [Maybe Name]
-lambdaNames = many1 $ Just <$> named <|> Nothing <$ ignore
+lambdaNames = many1 $ Just <$> named <|> Nothing <$ underscore
 
 lambdaBlock :: Parser ([Maybe Name], Vector ParsedTerm)
 lambdaBlock = match TkArrow *> do

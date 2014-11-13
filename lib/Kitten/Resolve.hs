@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Resolve
@@ -15,10 +16,12 @@ import GHC.Exts
 import qualified Data.HashMap.Strict as H
 import qualified Data.Set as S
 import qualified Data.Text as T
+import qualified Data.Vector as V
 
 import Kitten.Definition
 import Kitten.Error
 import Kitten.Fragment
+import Kitten.Intrinsic
 import Kitten.Location
 import Kitten.Name
 import Kitten.Operator
@@ -129,8 +132,10 @@ resolveName fixity name loc = do
     Just index -> return $ TrPush (TrLocal index loc) loc
     Nothing -> do
       present <- getsEnv $ S.member name . envDefined
-      if present then success else failure
+      if present then call else case intrinsicFromName name of
+        Just intrinsic -> return $ TrIntrinsic intrinsic loc
+        Nothing -> failure
   where
-  success = return $ TrCall fixity name loc
+  call = return $ TrCall fixity name loc
   failure = compileError . oneError . CompileError loc Error
     $ T.concat ["undefined word '", toText name, "'"]

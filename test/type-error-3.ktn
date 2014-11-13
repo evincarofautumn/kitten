@@ -1,5 +1,5 @@
 // TODO(strager): Improve error location reporting.
 
 define baq ([char] [char] -> char):
-  ->q; q 0 __get __from_some
+  ->q; q 0 kitten_intrinsic_get kitten_intrinsic_fromSome
   ->x y; x

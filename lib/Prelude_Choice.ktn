@@ -1,10 +1,10 @@
 // Unsafely gets the left branch of a choice.
 define fromLeft<a, b> (a | b -> a):
-  __from_left
+  kitten_intrinsic_fromLeft
 
 // Unsafely gets the right branch of a choice.
 define fromRight<a, b> (a | b -> b):
-  __from_right
+  kitten_intrinsic_fromRight
 
 // Safely gets the left branch of a choice.
 define getLeft<a, b> (a | b -> a?):
@@ -36,7 +36,7 @@ define isRight<a, b> (a | b -> bool):
 
 // Constructs a left choice.
 define left<a, b> (a -> a | b):
-  __left
+  kitten_intrinsic_left
 
 // Maps a function over the left branch of a choice.
 define liftLeft<a, b, c> ((a | b) (a -> c) -> c | b):
@@ -56,4 +56,4 @@ define liftRight<a, b, c> ((a | b) (b -> c) -> a | c):
 
 // Constructs a right choice.
 define right<a, b> (b -> a | b):
-  __right
+  kitten_intrinsic_right
