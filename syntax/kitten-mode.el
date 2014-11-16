@@ -18,7 +18,7 @@
    '("\\<\\(bool\\|char\\|float\\|handle\\|int\\)\\>"
      0 font-lock-type-face)
    '("\\s_+" 0 font-lock-variable-name-face)
-   '("\\<\\(case\\|choice\\|data\\|define\\|default\\|else\\|if\\|infix\\|infix_left\\|infix_right\\|import\\|match\\|option\\)\\>"
+   '("\\<\\(case\\|choice\\|data\\|define\\|default\\|else\\|if\\|infix\\|import\\|match\\|option\\)\\>"
      0 font-lock-keyword-face)
    '("\\<\\([a-z][0-9A-Za-z_]*'*\\)\\>" 1 font-lock-function-name-face))
   "Default highlighting for Kitten mode")
