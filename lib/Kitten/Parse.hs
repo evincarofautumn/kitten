@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Kitten.Parse
@@ -15,6 +16,7 @@ import Data.List (sortBy)
 import Data.Maybe
 import Data.Monoid
 import Data.Ord
+import Data.Text (Text)
 import Data.Traversable (traverse)
 import Data.Vector (Vector)
 import Text.Parsec.Pos
@@ -25,6 +27,7 @@ import qualified Data.Vector as V
 import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Expr as E
 
+import Kitten.Abbreviation
 import Kitten.Definition
 import Kitten.Error
 import Kitten.Fragment
@@ -53,8 +56,12 @@ parse
   -> [Located]
   -> Either ErrorGroup (Fragment ParsedTerm)
 parse name tokens = mapLeft parseError $ do
-  inserted <- Parsec.parse insertBraces name tokens
-  Parsec.parse (setInitialPosition name inserted >> fragment) name inserted
+  inserted <- Parsec.runParser insertBraces topLevelEnv name tokens
+  Parsec.runParser (setInitialPosition name inserted >> fragment)
+    topLevelEnv name inserted
+
+topLevelEnv :: Env
+topLevelEnv = Env { envCurrentVocabulary = Qualifier V.empty }
 
 setInitialPosition :: String -> [Located] -> Parser ()
 setInitialPosition name [] = setPosition (newPos name 1 1)
@@ -64,17 +71,50 @@ setInitialPosition _ (Located{..} : _)
 fragment :: Parser (Fragment ParsedTerm)
 fragment = do
   loc <- getLocation
-  fmap (partitionElements loc . concat)
-    $ many element `sepEndBy` match TkSemicolon <* eof
+  partitionElements loc . concat
+    <$> many (vocabulary <|> ((:[]) <$> element)) <* eof
+
+vocabulary :: Parser [Element]
+vocabulary = (<?> "vocabulary declaration") $ do
+  void (match TkVocab)
+  qualifier <- qualified_ >>= \case
+    MixfixName{} -> fail "vocabulary names cannot be mixfix"
+    Qualified (Qualifier parts) name -> return $ Qualifier (V.snoc parts name)
+    Unqualified name -> return $ Qualifier (V.singleton name)
+  choice
+    [ do
+      modifyState $ \env -> env { envCurrentVocabulary = qualifier }
+      [] <$ match (TkOperator ";")
+    , do
+      original <- envCurrentVocabulary <$> getState
+      modifyState $ \env -> env { envCurrentVocabulary = qualifier }
+      elements <- blocked (many element)
+      modifyState $ \env -> env { envCurrentVocabulary = original }
+      return elements
+    ]
 
 element :: Parser Element
 element = choice
-  [ DefElement <$> def 
+  [ AbbreviationElement <$> abbreviation
+  , DefElement <$> def
   , ImportElement <$> import_
   , OperatorElement <$> operatorDeclaration
   , TermElement <$> term
   , TypeElement <$> typeDef
   ]
+
+abbreviation :: Parser Abbreviation
+abbreviation = (<?> "abbreviation") . locate $ do
+  void (match TkAbbrev)
+  here <- envCurrentVocabulary <$> getState
+  name <- named >>= \case
+    Unqualified text -> return text
+    _ -> fail "abbreviations must have unqualified names"
+  qualifier <- qualified_ >>= \case
+    Qualified (Qualifier xs) x -> return $ Qualifier (V.snoc xs x)
+    Unqualified x -> return $ Qualifier (V.singleton x)
+    _ -> fail "abbreviations must be short for qualifiers"
+  return $ Abbreviation here name qualifier
 
 def :: Parser (Def ParsedTerm)
 def = (<?> "definition") . locate $ do
@@ -85,41 +125,57 @@ def = (<?> "definition") . locate $ do
     ] <?> "definition name"
   anno <- signature
   bodyTerm <- (<?> "definition body") . locate $ choice
-    [ TrCompose StackAny <$> block
+    [ const <$> block
     , do
       (names, body) <- lambdaBlock
       return $ makeLambda names body
     ]
+  qualifier <- envCurrentVocabulary <$> getState
+  qualifiedName <- case name of
+    Qualified{} -> fail "definition names cannot be qualified"
+    Unqualified text -> return (Qualified qualifier text)
+    MixfixName{}
+      | Qualifier xs <- qualifier, not (V.null xs)
+      -> fail "mixfix definitions must be in the root vocabulary"
+      | otherwise -> return name
   return $ \loc -> Def
     { defAnno = anno
     , defFixity = fixity
     , defLocation = loc
-    , defName = name
+    , defName = qualifiedName
     , defTerm = mono bodyTerm
     }
 
 typeDef :: Parser TypeDef
 typeDef = (<?> "type definition") . locate $ do
   void (match TkData)
+  qualifier <- envCurrentVocabulary <$> getState
   name <- named <?> "type name"
+  (qualifiedName, text) <- case name of
+    Unqualified text -> return (Qualified qualifier text, text)
+    Qualified{} -> fail "type definition names cannot be qualified"
+    MixfixName{} -> fail "type definition names cannot be mixfix"
   scalars <- option mempty scalarQuantifier
-  constructors <- blocked (manyV typeConstructor)
+  constructors <- blocked (manyV (typeConstructor qualifier text))
   return $ \loc -> TypeDef
     { typeDefConstructors = constructors
     , typeDefLocation = loc
-    , typeDefName = name
+    , typeDefName = qualifiedName
     , typeDefScalars = scalars
     }
 
-typeConstructor :: Parser TypeConstructor
-typeConstructor = (<?> "type constructor") . locate $ do
+typeConstructor :: Qualifier -> Text -> Parser TypeConstructor
+typeConstructor (Qualifier qualifier) typeName = (<?> "type constructor") . locate $ do
   void (match TkCase)
   name <- named <?> "constructor name"
+  text <- case name of
+    Unqualified text -> return text
+    _ -> fail "type constructor names must be unqualified"
   fields <- option V.empty $ grouped (type_ `sepEndByV` match TkComma)
   return $ \loc -> TypeConstructor
     { ctorFields = fields
     , ctorLocation = loc
-    , ctorName = name
+    , ctorName = Qualified (Qualifier (V.snoc qualifier typeName)) text
     }
 
 import_ :: Parser Import
@@ -195,21 +251,19 @@ term = locate $ choice
   matchCase = (<?> "match") $ match TkMatch *> do
     mScrutinee <- optionMaybe group <?> "scrutinee"
     (patterns, mDefault) <- blocked $ do
-      patterns <- manyV . locate $ match TkCase *> do
-        name <- named
+      patterns <- manyV . (<?> "case") . locate $ match TkCase *> do
+        name <- qualified_
         body <- choice
           [ do
             body <- block
             return $ const body
           , do
             (names, body) <- lambdaBlock
-            return $ \loc -> V.singleton (makeLambda names body loc)
+            return $ makeLambda names body
           ]
-        return $ \loc -> TrCase name
-          (TrQuotation (TrCompose StackAny (body loc) loc) loc) loc
-      mDefault <- optionMaybe . locate $ match TkDefault *> do
-        body <- block
-        return $ \loc -> TrQuotation (TrCompose StackAny body loc) loc
+        return $ \loc -> TrCase name (TrQuotation (body loc) loc) loc
+      mDefault <- optionMaybe . locate
+        $ match TkDefault *> (TrQuotation <$> block)
       return (patterns, mDefault)
     let
       withScrutinee loc scrutinee x
@@ -249,21 +303,21 @@ lambda = (<?> "lambda") $ choice
 
 plainLambda :: Parser (Location -> ParsedTerm)
 plainLambda = match TkArrow *> do
-  names <- lambdaNames <* match TkSemicolon
+  names <- lambdaNames <* match (TkOperator ";")
   body <- blockContents
-  return $ \loc -> makeLambda names body loc
+  return $ makeLambda names body
 
 lambdaNames :: Parser [Maybe Name]
 lambdaNames = many1 $ Just <$> named <|> Nothing <$ underscore
 
-lambdaBlock :: Parser ([Maybe Name], Vector ParsedTerm)
+lambdaBlock :: Parser ([Maybe Name], ParsedTerm)
 lambdaBlock = match TkArrow *> do
   names <- lambdaNames
   body <- block
   return (names, body)
 
-makeLambda :: [Maybe Name] -> Vector ParsedTerm -> Location -> ParsedTerm
-makeLambda names terms loc = foldr
+makeLambda :: [Maybe Name] -> ParsedTerm -> Location -> ParsedTerm
+makeLambda names body loc = foldr
   (\mLambdaName lambdaTerms -> maybe
     (TrCompose StackAny (V.fromList
       [ TrLambda "_" (TrCompose StackAny V.empty loc) loc
@@ -271,15 +325,14 @@ makeLambda names terms loc = foldr
       ]) loc)
     (\lambdaName -> TrLambda lambdaName lambdaTerms loc)
     mLambdaName)
-  (TrCompose StackAny terms loc)
+  body
   (reverse names)
 
 blockValue :: Parser ParsedValue
-blockValue = (<?> "function") . locate $ do
-  terms <- block <|> V.singleton <$> reference
-  return $ \loc -> TrQuotation (TrCompose StackAny terms loc) loc
+blockValue = (<?> "function") . locate
+  $ TrQuotation <$> (block <|> reference)
   where
-  reference = locate $ TrCall Postfix <$> (match TkReference *> word)
+  reference = locate $ TrCall Postfix <$> (match TkReference *> qualified_)
 
 toLiteral :: Token -> Maybe (Location -> ParsedValue)
 toLiteral (TkBool x) = Just $ TrBool x
@@ -289,19 +342,15 @@ toLiteral (TkInt x _) = Just $ TrInt x
 toLiteral (TkText x) = Just $ TrText x
 toLiteral _ = Nothing
 
-block :: Parser (Vector ParsedTerm)
+block :: Parser ParsedTerm
 block = blocked blockContents <?> "block"
 
-blockContents :: Parser (Vector ParsedTerm)
-blockContents = locate $ do
-  void $ optional semi
-  groups <- many1V term `sepEndBy` semi
-  return $ \loc -> V.fromList $ map (\t -> TrCompose StackAny t loc) groups
-  where semi = match TkSemicolon
+blockContents :: Parser ParsedTerm
+blockContents = locate $ TrCompose StackAny <$> manyV term
 
 ----------------------------------------
 
-type TermParser a = ParsecT [ParsedTerm] () Identity a
+type TermParser a = ParsecT [ParsedTerm] Env Identity a
 
 rewriteInfix
   :: Program
@@ -332,7 +381,7 @@ rewriteInfix program@Program{..} parsed@Fragment{..} = do
           <$> manyV (expression <|> lambdaTerm)
           <*> pure loc
           <?> "infix expression"
-      case Parsec.parse expression' [] terms' of
+      case Parsec.runParser expression' topLevelEnv [] terms' of
         Left message -> Left $ parseError message
         Right parseResult -> Right parseResult
     x@TrConstruct{} -> return x
@@ -454,7 +503,7 @@ rewriteInfix program@Program{..} parsed@Fragment{..} = do
         (H.keys $ H.filterWithKey useDefault allFixities)
     in for [9,8..0] $ \p -> filter ((p ==) . operatorPrecedence) flat
 
-  toOp :: Operator -> E.Operator [ParsedTerm] () Identity ParsedTerm
+  toOp :: Operator -> E.Operator [ParsedTerm] Env Identity ParsedTerm
   toOp (Operator associativity _ name) = case associativity of
     NonAssociative -> E.Infix (binaryOp name) E.AssocNone
     LeftAssociative -> E.Infix (binaryOp name) E.AssocLeft

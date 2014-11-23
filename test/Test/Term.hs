@@ -184,14 +184,14 @@ spec = do
     testTerm
       "define pi (-> Float): 3"
       $ emptyFragment { fragmentDefs = defList
-        [def "pi" $ compose [pushi 3]] }
+        [def (Qualified (Qualifier V.empty) "pi") $ compose [pushi 3]] }
 
     testTerm
       "define inc (int -> int) {\n\
       \  1 (+)\n\
       \}\n"
       $ emptyFragment { fragmentDefs = defList
-        [def "inc" $ compose [pushi 1, word "+"]] }
+        [def (Qualified (Qualifier V.empty) "inc") $ compose [pushi 1, word "+"]] }
 
     testTerm
       "define inc (int -> int):\n\
@@ -201,8 +201,8 @@ spec = do
       \  1 (-)\n\
       \\n"
       $ emptyFragment { fragmentDefs = defList
-        [ def "inc" $ compose [pushi 1, word "+"]
-        , def "dec" $ compose [pushi 1, word "-"] ] }
+        [ def (Qualified (Qualifier V.empty) "inc") $ compose [pushi 1, word "+"]
+        , def (Qualified (Qualifier V.empty) "dec") $ compose [pushi 1, word "-"] ] }
 
   describe "type" $ testTerm
     "define curriedAdd (int -> int -> int) {\n\
@@ -210,7 +210,7 @@ spec = do
     \  { ->y; x y (+) }\n\
     \}"
     $ emptyFragment { fragmentDefs = defList
-      [ defWithAnno "curriedAdd"
+      [ defWithAnno (Qualified (Qualifier V.empty) "curriedAdd")
         (AnFunction
           (V.fromList [AnVar "int"])
           (V.fromList

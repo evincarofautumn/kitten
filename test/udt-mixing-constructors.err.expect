@@ -1,6 +1,6 @@
 test/udt-mixing-constructors.ktn:8:1: error: expected scalar type B but got A
-test/udt-mixing-constructors.ktn:2:3: note: A (from A) is from here
-test/udt-mixing-constructors.ktn:5:3: note: B (from B) is from here
+test/udt-mixing-constructors.ktn:2:3: note: A (from A_A) is from here
+test/udt-mixing-constructors.ktn:5:3: note: B (from B_B) is from here
 
 test/udt-mixing-constructors.ktn:8:1: error: expected stack type s2... B but got s1... A
 

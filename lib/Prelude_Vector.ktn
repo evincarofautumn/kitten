@@ -31,7 +31,7 @@ define concat<a> ([[a]] -> [a]):
 define each<a> ([a] (a ->) ->):
   -> xs f;
   option (xs head):
-    f apply;
+    f apply
     xs tail f each
 
 // Whether an element is present in a vector according to
@@ -92,8 +92,7 @@ define foldr1<a> ([a] (a a -> a) -> a?):
 define generateN<a> ((int -> a) int -> [a]):
   -> f size;
   from (0) unfold (size) -> index:
-    index f apply;
-    index + 1
+    index f apply; index + 1
 
 // TODO (strager): Make this a compiler intrinsic.
 define from()unfold()()<a, b> (a int (a -> b a) -> [b]):
@@ -268,7 +267,7 @@ define mapFrom<a> ([a] (a -> a) int -> [a]):
 define mapRange<a> (a int int (a int -> a) -> a):
   -> value start end function;
   if (start <= end):
-    value start function apply;
+    value start function apply
     (start + 1) end function mapRange
   else:
     value
@@ -429,7 +428,7 @@ define zipWith<a, b, c> ([a] [b] (a b -> c) -> [c]):
     option (bs head) -> b:
       drop
       (as tail) (bs tail) f zipWith
-      a b f apply; prepend
+      a b f apply prepend
 
 // Gets an element of a vector.
 define . <a> ([a] int -> a?):

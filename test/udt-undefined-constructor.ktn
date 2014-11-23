@@ -1,5 +1,5 @@
 data Defined:
   case Defined
 
-match (Defined):
+match (Defined_Defined):
   case Undefined {}

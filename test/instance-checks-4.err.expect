@@ -7,5 +7,5 @@ test/instance-checks-4.ktn:1:1: error: expected stack type s1... int but got s1.
 test/instance-checks-4.ktn:1:1: error: expected stack type s1... int t1 but got s1... t1 t1
 
 test/instance-checks-4.ktn:1:1: error: expected scalar type (s2... int t1 -> s2... t1 t1) but got (s1... -> s1...)
-test/instance-checks-4.ktn:1:34: note: (s1... -> s1...) is from here
+test/instance-checks-4.ktn:1:36: note: (s1... -> s1...) is from here
 test/instance-checks-4.ktn:1:15: note: (s2... int t1 -> s2... t1 t1) is from here

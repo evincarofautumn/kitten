@@ -10,5 +10,5 @@ test/instance-checks-9.ktn:1:35: note: t2 (type of y) is from here
 test/instance-checks-9.ktn:1:1: note: t3 (from example) is from here
 
 test/instance-checks-9.ktn:1:1: error: expected scalar type (s2... int t3 -> s2... t3 t3) but got (s1... t1 t2 -> s1... t1 t2)
-test/instance-checks-9.ktn:1:33: note: (s1... t1 t2 -> s1... t1 t2) is from here
+test/instance-checks-9.ktn:1:35: note: (s1... t1 t2 -> s1... t1 t2) is from here
 test/instance-checks-9.ktn:1:15: note: (s2... int t3 -> s2... t3 t3) is from here

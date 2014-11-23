@@ -6,10 +6,11 @@ module Kitten.Name
   , Qualifier(..)
   ) where
 
-import GHC.Exts
 import Data.Hashable (Hashable(..))
+import Data.Monoid
 import Data.Text (Text)
 import Data.Vector (Vector)
+import GHC.Exts
 
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -20,7 +21,15 @@ data Name
   = MixfixName [MixfixNamePart]
   | Qualified Qualifier Text
   | Unqualified Text
-  deriving (Eq, Ord)
+  deriving (Ord)
+
+instance Eq Name where
+  MixfixName a == MixfixName b = a == b
+  Qualified a b == Qualified c d = a == c && b == d
+  Qualified (Qualifier a) b == Unqualified c | V.null a = b == c
+  Unqualified a == Qualified (Qualifier b) c | V.null b = a == c
+  Unqualified a == Unqualified b = a == b
+  _ == _ = False
 
 data MixfixNamePart
   = MixfixNamePart !Text
@@ -29,6 +38,12 @@ data MixfixNamePart
 
 data Qualifier = Qualifier !(Vector Text)
   deriving (Eq, Ord)
+
+instance ToText Qualifier where
+  toText (Qualifier parts) = (<> "_") . T.intercalate "_" $ V.toList parts
+
+instance Show Qualifier where
+  show = T.unpack . toText
 
 instance Hashable Name where
   hashWithSalt salt (MixfixName parts)

@@ -2,5 +2,5 @@ test/instance-checks-7.ktn:1:1: error: expected stack type s2... but got s1... t
 test/instance-checks-7.ktn:1:22: note: t1 (type of x) is from here
 
 test/instance-checks-7.ktn:1:1: error: expected scalar type (s2... -> s2...) but got (s1... t1 -> s1... t1)
-test/instance-checks-7.ktn:1:20: note: (s1... t1 -> s1... t1) is from here
+test/instance-checks-7.ktn:1:22: note: (s1... t1 -> s1... t1) is from here
 test/instance-checks-7.ktn:1:16: note: (s2... -> s2...) (type of example) is from here

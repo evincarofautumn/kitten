@@ -13,6 +13,7 @@ import Control.Monad.Trans.State
 import Data.HashMap.Strict (HashMap)
 import Data.Maybe
 import Data.Monoid
+import Data.Text (Text)
 import Data.Vector (Vector)
 
 import qualified Data.HashMap.Strict as H
@@ -26,13 +27,16 @@ import Kitten.KindedId
 import Kitten.Location
 import Kitten.Name
 import Kitten.Program
+import Kitten.Resolve
 import Kitten.Type
 import Kitten.TypeDefinition
 import Kitten.Util.FailWriter
 import Kitten.Util.Text (ToText(..))
 
 data Env = Env
-  { envAnonStacks :: [KindedId Stack]
+  { envAbbrevs :: !(HashMap (Qualifier, Text) Qualifier)
+
+  , envAnonStacks :: [KindedId Stack]
   -- ^ Anonymous stacks implicit on both sides of an
   -- 'Anno.Function' constructor.
 
@@ -45,18 +49,28 @@ data Env = Env
   -- themselves.
 
   , envTypeDefs :: !(HashMap Name TypeDef)
+
+  , envVocabulary :: !Qualifier
   }
 
 type Converted a = StateT Env K a
 
 fromAnno
-  :: Annotated -> HashMap Name TypeDef -> Anno -> K (Scheme (Type Scalar))
-fromAnno annotated typeDefNames (Anno annoType annoLoc) = do
+  :: Annotated
+  -> Qualifier
+  -> HashMap Name TypeDef
+  -> HashMap (Qualifier, Text) Qualifier
+  -> Anno
+  -> K (Scheme (Type Scalar))
+fromAnno annotated vocab typeDefNames newAbbrevs (Anno annoType annoLoc) = do
+  oldAbbrevs <- getsProgram programAbbrevs
   (type_, env) <- flip runStateT Env
-    { envAnonStacks = []
+    { envAbbrevs = oldAbbrevs <> newAbbrevs
+    , envAnonStacks = []
     , envStacks = H.empty
     , envScalars = H.empty
     , envTypeDefs = typeDefNames
+    , envVocabulary = vocab
     } $ fromAnnoType' (HiType annotated) annoType
 
   return $ Forall
@@ -131,27 +145,33 @@ fromAnno annotated typeDefNames (Anno annoType annoLoc) = do
     <*> (V.foldl' (:.) rightStack <$> V.mapM fromOutput rightScalars)
     <*> pure origin
 
-fromAnno _ _ TestAnno = error "cannot make type from test annotation"
+fromAnno _ _ _ _ TestAnno = error "cannot make type from test annotation"
 
 -- | Gets a scalar variable by name from the environment.
 annoScalarVar
   :: Name -> Location -> Annotated -> Converted (Type Scalar)
 annoScalarVar name loc annotated = do
   existing <- gets $ H.lookup name . envScalars
+  vocab <- gets envVocabulary
+  abbrevs <- gets envAbbrevs
+  let lookupAbbrev x = H.lookup x abbrevs
   case existing of
     Just var -> return $ TyVar var origin
     Nothing -> case name of
-      "bool" -> return $ TyCtor CtorBool origin
-      "char" -> return $ TyCtor CtorChar origin
-      "float" -> return $ TyCtor CtorFloat origin
-      "handle" -> return $ TyCtor CtorHandle origin
-      "int" -> return $ TyCtor CtorInt origin
-      _ -> do
-        userDefined <- gets $ isJust . H.lookup name . envTypeDefs
-        if userDefined
-          then return $ TyCtor (CtorUser name) origin
-          else unknown name loc
-  where origin = Origin (HiVar name annotated) loc
+      Unqualified text
+        | text == "bool" -> return $ TyCtor CtorBool origin
+        | text == "char" -> return $ TyCtor CtorChar origin
+        | text == "float" -> return $ TyCtor CtorFloat origin
+        | text == "handle" -> return $ TyCtor CtorHandle origin
+        | text == "int" -> return $ TyCtor CtorInt origin
+        | otherwise -> search vocab text isDefined call (unknown name loc)
+      Qualified qualifier text -> searchAbbrev
+        vocab qualifier text isDefined lookupAbbrev call (unknown name loc)
+      _ -> unknown name loc
+  where
+  origin = Origin (HiVar name annotated) loc
+  isDefined x = gets $ isJust . H.lookup x . envTypeDefs
+  call x = return $ TyCtor (CtorUser x) origin
 
 -- | Gets a stack variable by name from the environment.
 annoStackVar

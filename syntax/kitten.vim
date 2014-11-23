@@ -6,7 +6,7 @@ syn case match
 
 syn keyword kittenBool false true
 syn keyword kittenBuiltinType bool char float handle int
-syn keyword kittenKeyword case choice data define default else if infix infix import match option
+syn keyword kittenKeyword abbrev case choice data define default else if infix infix import match option vocab
 syn keyword kittenTodo FIXME HACK NOTE TODO XXX
 
 syn match kittenEscape /\\["&'\\abfnrtv]/ contained

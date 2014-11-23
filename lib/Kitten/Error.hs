@@ -114,4 +114,6 @@ oxfordOr [x, y, z] = concat [x, ", ", y, ", or ", z]
 oxfordOr (x:xs) = concat [x, ", ", oxfordOr xs]
 
 printCompileErrors :: [ErrorGroup] -> IO ()
-printCompileErrors = hPutStr stderr . T.unpack . toText
+printCompileErrors errorGroups = do
+  hPutStr stderr $ T.unpack (toText errorGroups)
+  hFlush stderr

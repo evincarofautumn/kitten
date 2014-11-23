@@ -48,6 +48,7 @@ library
 
   exposed-modules:
 
+    Kitten.Abbreviation
     Kitten.Annotation
     Kitten.C
     Kitten.ClosedName

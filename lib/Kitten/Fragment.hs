@@ -1,6 +1,7 @@
 module Kitten.Fragment where
 
 import Data.HashMap.Strict (HashMap)
+import Data.Text (Text)
 
 import qualified Data.HashMap.Strict as H
 
@@ -11,7 +12,8 @@ import Kitten.Operator
 import Kitten.TypeDefinition
 
 data Fragment a = Fragment
-  { fragmentDefs :: !(HashMap Name (Def a))
+  { fragmentAbbrevs :: !(HashMap (Qualifier, Text) Qualifier)
+  , fragmentDefs :: !(HashMap Name (Def a))
   , fragmentImports :: [Import]
   , fragmentOperators :: [Operator]
   , fragmentTerm :: !a
@@ -20,7 +22,8 @@ data Fragment a = Fragment
 
 termFragment :: a -> Fragment a
 termFragment term = Fragment
-  { fragmentDefs = H.empty
+  { fragmentAbbrevs = H.empty
+  , fragmentDefs = H.empty
   , fragmentImports = []
   , fragmentOperators = []
   , fragmentTerm = term

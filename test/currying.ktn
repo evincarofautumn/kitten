@@ -2,7 +2,7 @@
 define curriedAdd (int -> int -> int):
   ->x; { ->y; x + y }
 
-1 2 curriedAdd apply sayInt;
+1 2 curriedAdd apply sayInt
 
 // Multi-in function returning multi-in, multi-out function.
 define curriedAdd2 (int int -> int int -> int int):

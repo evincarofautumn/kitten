@@ -18,8 +18,10 @@ module Kitten.Resolve.Monad
 import Control.Applicative
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
+import Data.HashMap.Strict (HashMap)
 import Data.List
 import Data.Set (Set)
+import Data.Text (Text)
 import Data.Traversable (Traversable)
 
 import Kitten.Error
@@ -33,8 +35,10 @@ newtype Resolution a = Resolution
   deriving (Functor, Applicative, Monad)
 
 data Env = Env
-  { envDefined :: !(Set Name)
+  { envAbbrevs :: !(HashMap (Qualifier, Text) Qualifier)
+  , envDefined :: !(Set Name)
   , envScope :: [Name]
+  , envVocabulary :: !Qualifier
   }
 
 -- | Halts resolution with a compilation error.

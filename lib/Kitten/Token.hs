@@ -24,7 +24,8 @@ data BaseHint
   | HexadecimalHint
 
 data Token
-  = TkArrow
+  = TkAbbrev
+  | TkArrow
   | TkBlockBegin !BlockTypeHint
   | TkBlockEnd
   | TkBool Bool
@@ -46,14 +47,15 @@ data Token
   | TkMatch
   | TkOperator !Name
   | TkReference
-  | TkSemicolon
   | TkText !Text
   | TkUnderscore
   | TkVectorBegin
   | TkVectorEnd
+  | TkVocab
   | TkWord !Name
 
 instance Eq Token where
+  TkAbbrev       == TkAbbrev       = True
   TkArrow        == TkArrow        = True
   -- TkBlockBegins are equal regardless of BlockTypeHint.
   TkBlockBegin{} == TkBlockBegin{} = True
@@ -78,16 +80,17 @@ instance Eq Token where
   TkMatch        == TkMatch        = True
   TkOperator a   == TkOperator b   = a == b
   TkReference    == TkReference    = True
-  TkSemicolon    == TkSemicolon    = True
   TkText a       == TkText b       = a == b
   TkUnderscore   == TkUnderscore   = True
   TkVectorBegin  == TkVectorBegin  = True
   TkVectorEnd    == TkVectorEnd    = True
+  TkVocab        == TkVocab        = True
   TkWord a       == TkWord b       = a == b
   _              == _              = False
 
 instance Show Token where
   show = \case
+    TkAbbrev -> "abbrev"
     TkArrow -> "->"
     TkBlockBegin NormalBlockHint -> "{"
     TkBlockBegin LayoutBlockHint -> ":"
@@ -118,11 +121,11 @@ instance Show Token where
     TkMatch -> "match"
     TkOperator word -> show word
     TkReference -> "\\"
-    TkSemicolon -> ";"
     TkText value -> show value
     TkUnderscore -> "_"
     TkVectorBegin -> "["
     TkVectorEnd -> "]"
+    TkVocab -> "vocab"
     TkWord word -> show word
 
 data Located = Located

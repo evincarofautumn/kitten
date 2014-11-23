@@ -97,7 +97,9 @@ compile config@Config{..} program
   let
     (mErrors, program''') = ir typed
       program''
-        { programTypes = programTypes program'' <> fragmentTypes typed }
+        { programAbbrevs = programAbbrevs program'' <> fragmentAbbrevs typed
+        , programTypes = programTypes program'' <> fragmentTypes typed
+        }
       config
   void $ hoistEither mErrors
 
@@ -150,15 +152,21 @@ substituteImports
   -> Fragment ParsedTerm
   -> IO (Either [ErrorGroup] (Fragment ParsedTerm))
 substituteImports libraryDirectories fragment = runEitherT $ do
-  (substitutedDefs, substitutedOperators, substitutedTypes) <- go
+  (,,,)
+    substitutedAbbrevs
+    substitutedDefs
+    substitutedOperators
+    substitutedTypes <- go
     (fragmentImports fragment)
     S.empty
-    ( H.toList (fragmentDefs fragment)
+    ( fragmentAbbrevs fragment
+    , H.toList (fragmentDefs fragment)
     , fragmentOperators fragment
     , fragmentTypes fragment
     )
   return fragment
-    { fragmentDefs = H.fromList substitutedDefs
+    { fragmentAbbrevs = substitutedAbbrevs
+    , fragmentDefs = H.fromList substitutedDefs
     , fragmentOperators = substitutedOperators
     , fragmentTypes = substitutedTypes
     }
@@ -166,12 +174,20 @@ substituteImports libraryDirectories fragment = runEitherT $ do
   go
     :: [Import]
     -> Set Name
-    -> ([(Name, Def ParsedTerm)], [Operator], HashMap Name TypeDef)
+    -> ( HashMap (Qualifier, Text) Qualifier
+       , [(Name, Def ParsedTerm)]
+       , [Operator]
+       , HashMap Name TypeDef
+       )
     -> EitherT [ErrorGroup] IO
-      ([(Name, Def ParsedTerm)], [Operator], HashMap Name TypeDef)
+      ( HashMap (Qualifier, Text) Qualifier
+      , [(Name, Def ParsedTerm)]
+      , [Operator]
+      , HashMap Name TypeDef
+      )
   go [] _ acc = return acc
   go (currentModule : remainingModules) seenModules
-    acc@(defs, operators, types) = let
+    acc@(abbrevs, defs, operators, types) = let
     name = importName currentModule
     location = importLocation currentModule
     in if name `S.member` seenModules
@@ -185,7 +201,8 @@ substituteImports libraryDirectories fragment = runEitherT $ do
             go
               (fragmentImports parsed ++ remainingModules)
               (S.insert name seenModules)
-              ( H.toList (fragmentDefs parsed) ++ defs
+              ( fragmentAbbrevs parsed <> abbrevs
+              , H.toList (fragmentDefs parsed) ++ defs
               , fragmentOperators parsed ++ operators
               , fragmentTypes parsed <> types
               )

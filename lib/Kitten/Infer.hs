@@ -128,8 +128,13 @@ typeFragment fragment = mdo
 
   save :: Def a -> K ()
   save def = do
-    scheme <- fromAnno (AnDef (defName def)) (fragmentTypes fragment)
-      $ defAnno def
+    let
+      vocab = case defName def of
+        Qualified qualifier _ -> qualifier
+        MixfixName{} -> Qualifier V.empty
+        _ -> error "unqualified definition name appeared during type inference"
+    scheme <- fromAnno (AnDef (defName def)) vocab
+      (fragmentTypes fragment) (fragmentAbbrevs fragment) (defAnno def)
     saveDecl (defName def) scheme
     saveDefWith const (defName def) scheme
 

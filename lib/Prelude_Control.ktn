@@ -1,3 +1,13 @@
+// Evaluates two expressions in sequence.
+//
+// Only useful to avoid parentheses, e.g.:
+//
+//     (a + 1) (b + 1)
+//
+//     a + 1; b + 1
+define ; <a, b> (a b -> a b) {}
+infix left 0 ;
+
 // Applies a function to the stack.
 define apply<r..., s...> (r... (r... -> s...) -> s...):
   kitten_intrinsic_apply

@@ -1,7 +1,8 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Kitten.Parse.Monad
-  ( Parser
+  ( Env(..)
+  , Parser
   , advance
   , getLocation
   , locate
@@ -15,11 +16,14 @@ module Kitten.Parse.Monad
 import Data.Functor.Identity
 
 import Kitten.Location
+import Kitten.Name
 import Kitten.Parsec
 import Kitten.Token
 import Kitten.Util.Maybe
 
-type Parser a = ParsecT [Located] () Identity a
+newtype Env = Env { envCurrentVocabulary :: Qualifier }
+
+type Parser a = ParsecT [Located] Env Identity a
 
 advance :: SourcePos -> t -> [Located] -> SourcePos
 advance _ _ (Located _ Location{..} : _) = locationStart

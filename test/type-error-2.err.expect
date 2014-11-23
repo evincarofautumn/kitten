@@ -5,7 +5,7 @@ test/type-error-2.ktn:3:11: note: int (from baz) is from here
 test/type-error-2.ktn:3:1: error: expected stack type s2... int but got s1... [t1]
 
 test/type-error-2.ktn:3:1: error: expected scalar type (s2... [t2] [char] -> s2... int) but got (s1... [t1] t1 -> s1... [t1])
-test/type-error-2.ktn:3:34: note: (s1... [t1] t1 -> s1... [t1]) is from here
+test/type-error-2.ktn:4:3: note: (s1... [t1] t1 -> s1... [t1]) is from here
 test/type-error-2.ktn:4:12: note: [t1] (input to kitten_intrinsic_addVector) is from here
 test/type-error-2.ktn:4:12: note: t1 (type of x) is from here
 test/type-error-2.ktn:3:11: note: (s2... [t2] [char] -> s2... int) is from here

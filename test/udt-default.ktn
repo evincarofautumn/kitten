@@ -2,7 +2,7 @@ data IntOrString:
   case Int (int)
   case String ([char])
 
-match (1 Int):
-  case String: say
+match (1 IntOrString_Int):
+  case IntOrString_String: say
   default:
     "default" say

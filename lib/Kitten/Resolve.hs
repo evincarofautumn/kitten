@@ -1,8 +1,11 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternGuards #-}
 
 module Kitten.Resolve
   ( resolve
+  , search
+  , searchAbbrev
   ) where
 
 import Control.Applicative hiding (some)
@@ -10,6 +13,7 @@ import Control.Arrow
 import Data.HashMap.Strict (HashMap)
 import Data.Maybe
 import Data.Monoid
+import Data.Text (Text)
 import Data.Traversable (traverse)
 import GHC.Exts
 
@@ -51,11 +55,13 @@ resolve fragment program = do
   allNamesAndLocs = map (fst &&& defLocation . snd) . H.toList
     $ fragmentDefs fragment
   emptyEnv = Env
-    { envDefined = mconcat
+    { envAbbrevs = let x = fragmentAbbrevs fragment <> programAbbrevs program in x  -- traceShow x x
+    , envDefined = mconcat
       [ S.fromList $ H.keys (programSymbols program)
       , S.fromList $ H.keys (fragmentDefs fragment)
       ]
     , envScope = []
+    , envVocabulary = Qualifier V.empty
     }
 
 reportDuplicateDefs
@@ -78,7 +84,19 @@ resolveDefs = guardMapM resolveDef
   where
   resolveDef :: Def ParsedTerm -> Resolution (Def ResolvedTerm)
   resolveDef def = do
+    let
+      vocabulary = case defName def of
+        Qualified qualifier _ -> qualifier
+        MixfixName{} -> Qualifier V.empty
+        _ -> error $ concat
+          [ "definition '"
+          , show (defName def)
+          , "' appeared outside vocabulary"
+          ]
+    original <- getsEnv envVocabulary
+    modifyEnv $ \env -> env { envVocabulary = vocabulary }
     defTerm' <- traverse resolveTerm (defTerm def)
+    modifyEnv $ \env -> env { envVocabulary = original }
     return def { defTerm = defTerm' }
 
 resolveTerm :: ParsedTerm -> Resolution ResolvedTerm
@@ -104,9 +122,18 @@ resolveTerm unresolved = case unresolved of
     <*> traverse resolveValue mDefault
     <*> pure loc
     where
-    resolveCase (TrCase name body loc') = TrCase name
-      <$> resolveValue body
-      <*> pure loc'
+    resolveCase (TrCase name body loc') = do
+      vocab <- getsEnv envVocabulary
+      abbrevs <- getsEnv envAbbrevs
+      let
+        lookupAbbrev x = H.lookup x abbrevs
+        unknown = compileError . oneError . CompileError loc' Error
+          $ T.concat ["undefined constructor '", toText name, "'"]
+      resolved <- case name of
+        Unqualified text -> search vocab text isDefined return unknown
+        Qualified qualifier text -> searchAbbrev vocab qualifier text isDefined lookupAbbrev return unknown
+        _ -> error "constructor names cannot be mixfix"
+      TrCase resolved <$> resolveValue body <*> pure loc'
   TrPush value loc -> TrPush <$> resolveValue value <*> pure loc
 
 resolveValue :: ParsedValue -> Resolution ResolvedValue
@@ -118,8 +145,57 @@ resolveValue unresolved = case unresolved of
   TrFloat value loc -> return $ TrFloat value loc
   TrInt value loc -> return $ TrInt value loc
   TrLocal{} -> error "FIXME 'Local' appeared before resolution"
-  TrQuotation term loc -> TrQuotation <$> resolveTerm term <*> pure loc
+  TrQuotation term loc -> TrQuotation
+    <$> resolveTerm term <*> pure loc
   TrText value loc -> return $ TrText value loc
+
+search
+  :: (Monad m)
+  => Qualifier
+  -> Text
+  -> (Name -> m Bool)
+  -> (Name -> m a)
+  -> m a
+  -> m a
+search vocab name defined call default_ = do
+  let name' = Unqualified name
+  presentUnqualified <- defined name'
+  if presentUnqualified then call name' else do
+  let here = Qualified vocab name
+  presentHere <- defined here
+  if presentHere then call here else do
+  let globally = Qualified (Qualifier V.empty) name
+  presentGlobally <- defined globally
+  if presentGlobally then call globally else default_
+
+searchAbbrev
+  :: (Monad m)
+  => Qualifier
+  -> Qualifier
+  -> Text
+  -> (Name -> m Bool)
+  -> ((Qualifier, Text) -> Maybe Qualifier)
+  -> (Name -> m b)
+  -> m b
+  -> m b
+searchAbbrev vocab qualifier name defined lookupAbbrev call default_ = do
+  let name' = Qualified qualifier name
+  presentUnabbreviated <- defined name'
+  if presentUnabbreviated then call name' else case qualifier of
+    Qualifier q
+      | V.length q == 1 -> case lookupAbbrev (vocab, (q V.! 0)) of
+        Just long -> do
+          let expanded = Qualified long name
+          presentExpanded <- defined expanded
+          if presentExpanded then call expanded
+            else case lookupAbbrev (Qualifier V.empty, (q V.! 0)) of
+              Just long' -> do
+                let globally = Qualified long' name
+                presentGlobally <- defined globally
+                if presentGlobally then call globally else default_
+              Nothing -> default_
+        Nothing -> default_
+      | otherwise -> default_
 
 resolveName
   :: Fixity
@@ -127,15 +203,25 @@ resolveName
   -> Location
   -> Resolution ResolvedTerm
 resolveName fixity name loc = do
+  vocab <- getsEnv envVocabulary
+  abbrevs <- getsEnv envAbbrevs
+  let lookupAbbrev x = H.lookup x abbrevs
   mLocalIndex <- getsEnv $ localIndex name
   case mLocalIndex of
     Just index -> return $ TrPush (TrLocal index loc) loc
-    Nothing -> do
-      present <- getsEnv $ S.member name . envDefined
-      if present then call else case intrinsicFromName name of
-        Just intrinsic -> return $ TrIntrinsic intrinsic loc
-        Nothing -> failure
+    Nothing -> case name of
+      Unqualified text -> search vocab text isDefined call intrinsic
+      Qualified qualifier text -> searchAbbrev vocab qualifier text isDefined lookupAbbrev call intrinsic
+      _ -> do
+        present <- getsEnv $ S.member name . envDefined
+        if present then call name else intrinsic
   where
-  call = return $ TrCall fixity name loc
+  intrinsic = case intrinsicFromName name of
+    Just i -> return $ TrIntrinsic i loc
+    Nothing -> failure
+  call n = return $ TrCall fixity n loc
   failure = compileError . oneError . CompileError loc Error
     $ T.concat ["undefined word '", toText name, "'"]
+
+isDefined :: Name -> Resolution Bool
+isDefined x = getsEnv $ S.member x . envDefined

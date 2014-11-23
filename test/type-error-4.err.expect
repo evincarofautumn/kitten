@@ -5,7 +5,7 @@ test/type-error-4.ktn:1:11: note: [t2] (input to foo) is from here
 test/type-error-4.ktn:1:1: error: expected stack type s2... [t2] but got s1... t1?
 
 test/type-error-4.ktn:1:1: error: expected scalar type (s2... [t2] -> s2... t2) but got (s1... t1? -> s1... t1)
-test/type-error-4.ktn:1:25: note: (s1... t1? -> s1... t1) is from here
+test/type-error-4.ktn:2:3: note: (s1... t1? -> s1... t1) is from here
 test/type-error-4.ktn:2:10: note: t1 (output of kitten_intrinsic_fromSome) is from here
 test/type-error-4.ktn:1:11: note: (s2... [t2] -> s2... t2) is from here
 test/type-error-4.ktn:1:1: note: t2 (from foo) is from here

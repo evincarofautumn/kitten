@@ -72,7 +72,7 @@ baseType :: Parser AnType
 baseType = (<?> "base type") $ do
   prefix <- choice
     [ try $ quantified type_
-    , AnVar <$> word
+    , AnVar <$> qualified_
     , vector
     , try $ grouped type_
     ]

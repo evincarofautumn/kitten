@@ -67,7 +67,6 @@ token = (<?> "token") . located $ choice
   , TkVectorBegin <$ char '['
   , TkVectorEnd <$ char ']'
   , TkReference <$ char '\\'
-  , TkSemicolon <$ char ';'
   , TkText <$> between (char '"') (char '"') text
   , TkUnderscore <$ char '_'
   , try number
@@ -127,6 +126,7 @@ token = (<?> "token") . located $ choice
   word :: Parser Token
   word = choice
     [ ffor alphanumeric $ \name -> case name of
+      "abbrev" -> TkAbbrev
       "case" -> TkCase
       "data" -> TkData
       "default" -> TkDefault
@@ -136,6 +136,7 @@ token = (<?> "token") . located $ choice
       "import" -> TkImport
       "match" -> TkMatch
       "true" -> TkBool True
+      "vocab" -> TkVocab
       _ -> TkWord (Unqualified name)
     , ffor symbolic $ TkOperator . Unqualified
     ]
@@ -159,7 +160,7 @@ token = (<?> "token") . located $ choice
     *> (Parsec.satisfy isSymbol <|> Parsec.satisfy isPunctuation)
 
   special :: Parser Char
-  special = oneOf "\"'(),:;[\\]_{}"
+  special = oneOf "\"'(),:[\\]_{}"
 
 readBin :: String -> Int
 readBin = go 0

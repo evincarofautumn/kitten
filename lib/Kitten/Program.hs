@@ -44,7 +44,8 @@ import Kitten.Util.Text (ToText(..), showText)
 import qualified Kitten.IdMap as I
 
 data Program = Program
-  { programBlocks :: !(DefIdMap IrBlock)
+  { programAbbrevs :: !(HashMap (Qualifier, Text) Qualifier)
+  , programBlocks :: !(DefIdMap IrBlock)
   , programDefIdGen :: !DefIdGen
   , programFixities :: !(HashMap Name Fixity)
   , programOperators :: [Operator]
@@ -76,7 +77,8 @@ instance Show Program where
 
 emptyProgram :: Program
 emptyProgram = Program
-  { programBlocks = I.singleton entryId V.empty
+  { programAbbrevs = H.empty
+  , programBlocks = I.singleton entryId V.empty
   , programDefIdGen = mkIdGenFrom (succ entryId)
   , programFixities = H.empty
   , programOperators = []

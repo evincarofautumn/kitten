@@ -26,9 +26,9 @@ define levenshtein ([char] [char] -> int):
       if (firstChar secondChar eqChar):
         distances !! (row - 1, column - 1)
       else:
-        distances !! (row - 1, column);      // deletion
-        distances !! (row,     column - 1);  // insertion
-        distances !! (row - 1, column - 1);  // substitution
+        (distances !! (row - 1, column))      // deletion
+        (distances !! (row,     column - 1))  // insertion
+        (distances !! (row - 1, column - 1))  // substitution
         minInt3 (+ 1)
       ((row, column) !!=)
 

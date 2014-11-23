@@ -10,6 +10,7 @@ import Control.Arrow
 import qualified Data.HashMap.Strict as H
 import qualified Data.Vector as V
 
+import Kitten.Abbreviation
 import Kitten.Annotation
 import Kitten.Definition
 import Kitten.Fragment
@@ -21,14 +22,16 @@ import Kitten.Type
 import Kitten.TypeDefinition
 
 data Element
-  = DefElement (Def ParsedTerm)
+  = AbbreviationElement Abbreviation
+  | DefElement (Def ParsedTerm)
   | ImportElement Import
   | OperatorElement Operator
   | TermElement ParsedTerm
   | TypeElement TypeDef
 
 data Partitioned = Partitioned
-  { partDefs :: [Def ParsedTerm]
+  { partAbbrevs :: [Abbreviation]
+  , partDefs :: [Def ParsedTerm]
   , partImports :: [Import]
   , partOperators :: [Operator]
   , partTerms :: [ParsedTerm]
@@ -37,9 +40,11 @@ data Partitioned = Partitioned
 
 partitionElements :: Location -> [Element] -> Fragment ParsedTerm
 partitionElements loc
-  = fromPartitioned loc . foldr go (Partitioned [] [] [] [] [])
+  = fromPartitioned loc . foldr go (Partitioned [] [] [] [] [] [])
   where
   go element acc = case element of
+    AbbreviationElement abbrev -> acc
+      { partAbbrevs = abbrev : partAbbrevs acc }
     DefElement def -> acc
       { partDefs = def : partDefs acc }
     ImportElement import_ -> acc
@@ -53,7 +58,11 @@ partitionElements loc
 
 fromPartitioned :: Location -> Partitioned -> Fragment ParsedTerm
 fromPartitioned loc Partitioned{..} = Fragment
-  { fragmentDefs = H.fromList
+  { fragmentAbbrevs = let
+    toAbbrevPair (Abbreviation vocabulary name qualifier _)
+      = ((vocabulary, name), qualifier)
+    in H.fromList $ map toAbbrevPair partAbbrevs
+  , fragmentDefs = H.fromList
     $ map (defName &&& id) partDefs
     ++ concatMap
       (\typeDef
