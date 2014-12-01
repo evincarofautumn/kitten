@@ -1,6 +1,6 @@
 // Gets the first element of a tuple or pair.
 define first<a, b> (a & b -> a):
-  kitten_intrinsic_first
+  kitten::intrinsic::first
 
 // Gets the second element of a tuple.
 define second<a, b, c> (a & b & c -> b):
@@ -20,7 +20,7 @@ define fourth<a, b, c, d, e> (a & b & c & d & e -> d):
 
 // Constructs a pair.
 define pair<a, b> (a b -> a & b):
-  kitten_intrinsic_pair
+  kitten::intrinsic::pair
 
 // Constructs a triple.
 define triple<a, b, c> (a b c -> a & b & c):
@@ -28,7 +28,7 @@ define triple<a, b, c> (a b c -> a & b & c):
 
 // Gets the second element of a pair or the tail of a tuple.
 define rest<a, b> (a & b -> b):
-  kitten_intrinsic_rest
+  kitten::intrinsic::rest
 
 // Extracts a pair.
 define unpair<a, b> (a & b -> a b):

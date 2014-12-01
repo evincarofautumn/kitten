@@ -1,37 +1,37 @@
 abbrev s stream
 
-define sayIntStream (s_Stream@int ->):
-  s_toVector sayInts
+define sayIntStream (s::Stream@int ->):
+  s::toVector sayInts
 
-1 s_repeat -> ones;
+1 s::repeat -> ones;
 ones
-  5 s_keep
+  5 s::keep
   sayIntStream
 
-1 s_from -> naturals;
+1 s::from -> naturals;
 naturals
-  10 s_toss
-  5 s_keep
+  10 s::toss
+  5 s::keep
   sayIntStream
 
 naturals
-  5 s_keep
+  5 s::keep
 naturals
-  5 s_toss
-  5 s_keep
-s_cat sayIntStream
+  5 s::toss
+  5 s::keep
+s::cat sayIntStream
 
 naturals
-  3 s_keep
-  s_cycle
-  9 s_keep
+  3 s::keep
+  s::cycle
+  9 s::keep
   sayIntStream
 
-"ABC" s_fromVector
-  s_cycle
-  9 s_keep
-  s_toVector say
+"ABC" s::fromVector
+  s::cycle
+  9 s::keep
+  s::toVector say
 
-[1, 2, 3] s_fromVector
-  { dup (*) } s_map
+[1, 2, 3] s::fromVector
+  { dup (*) } s::map
   sayIntStream

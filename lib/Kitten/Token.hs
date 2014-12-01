@@ -39,6 +39,7 @@ data Token
   | TkFloat !Double
   | TkGroupBegin
   | TkGroupEnd
+  | TkIgnore
   | TkIntrinsic !Intrinsic
   | TkImport
   | TkInfix
@@ -48,10 +49,10 @@ data Token
   | TkOperator !Name
   | TkReference
   | TkText !Text
-  | TkUnderscore
   | TkVectorBegin
   | TkVectorEnd
   | TkVocab
+  | TkVocabLookup
   | TkWord !Name
 
 instance Eq Token where
@@ -71,6 +72,7 @@ instance Eq Token where
   TkFloat a      == TkFloat b      = a == b
   TkGroupBegin   == TkGroupBegin   = True
   TkGroupEnd     == TkGroupEnd     = True
+  TkIgnore       == TkIgnore       = True
   TkInfix        == TkInfix        = True
   TkIntrinsic a  == TkIntrinsic b  = a == b
   TkImport       == TkImport       = True
@@ -81,10 +83,10 @@ instance Eq Token where
   TkOperator a   == TkOperator b   = a == b
   TkReference    == TkReference    = True
   TkText a       == TkText b       = a == b
-  TkUnderscore   == TkUnderscore   = True
   TkVectorBegin  == TkVectorBegin  = True
   TkVectorEnd    == TkVectorEnd    = True
   TkVocab        == TkVocab        = True
+  TkVocabLookup  == TkVocabLookup  = True
   TkWord a       == TkWord b       = a == b
   _              == _              = False
 
@@ -106,6 +108,7 @@ instance Show Token where
     TkFloat value -> show value
     TkGroupBegin -> "("
     TkGroupEnd -> ")"
+    TkIgnore -> "_"
     TkInfix -> "infix"
     TkIntrinsic name -> T.unpack (toText name)
     TkImport -> "import"
@@ -122,10 +125,10 @@ instance Show Token where
     TkOperator word -> show word
     TkReference -> "\\"
     TkText value -> show value
-    TkUnderscore -> "_"
     TkVectorBegin -> "["
     TkVectorEnd -> "]"
     TkVocab -> "vocab"
+    TkVocabLookup -> "::"
     TkWord word -> show word
 
 data Located = Located

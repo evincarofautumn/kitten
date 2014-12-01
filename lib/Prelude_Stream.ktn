@@ -1,52 +1,52 @@
 vocab stream;
 
-abbrev S stream_Stream
+abbrev S stream::Stream
 
 data Stream<a>:
   case Empty
-  case Value (a, -> stream_Stream@a)
+  case Value (a, -> stream::Stream@a)
 
-// Operator alias for 'stream_Stream_Value'.
+// Operator alias for 'stream::Stream::Value'.
 infix right 5 +>
 define +> <a> (a (-> Stream@a) -> Stream@a):
-  S_Value
+  S::Value
 
 // Concatenates two streams. If the first stream is infinite, the result
 // is the first stream.
 define cat<a> (Stream@a Stream@a -> Stream@a):
   -> xs ys;
   match (xs):
-  case S_Empty: ys
-  case S_Value -> x rest:
+  case S::Empty: ys
+  case S::Value -> x rest:
     x +>: rest apply ys cat
 
 // Concatenates a stream of streams. If the first stream is infinite,
 // the result is the first stream.
 define concat<a> (Stream@Stream@a -> Stream@a):
   match:
-  case S_Empty: S_Empty
-  case S_Value -> streams:
+  case S::Empty: S::Empty
+  case S::Value -> streams:
     match:
-    case S_Empty: streams apply concat
-    case S_Value -> value values:
+    case S::Empty: streams apply concat
+    case S::Value -> value values:
       value +>: (values apply +> streams) concat
 
 // Keeps a stream of the first n elements of a stream, tossing the rest.
 define keep<a> (Stream@a int -> Stream@a):
   -> n;
-  if (n <= 0): drop S_Empty
+  if (n <= 0): drop S::Empty
   else:
     match:
-    case S_Empty: S_Empty
-    case S_Value -> x xs:
+    case S::Empty: S::Empty
+    case S::Value -> x xs:
       x +>: xs apply (n - 1) keep
 
 // Lifts a function on values to a function on streams.
 define map<a, b> (Stream@a (a -> b) -> Stream@b):
   -> f;
   match:
-  case S_Empty: S_Empty
-  case S_Value -> x xs:
+  case S::Empty: S::Empty
+  case S::Value -> x xs:
     x f apply +>: xs apply f map
 
 // Repeats a stream infinitely.
@@ -60,7 +60,7 @@ define from (int -> Stream@int):
 // Whether a stream is empty.
 define isEmpty<a> (Stream@a -> bool):
   match:
-  case S_Empty: true
+  case S::Empty: true
   default: false
 
 // Repeats a value infinitely.
@@ -70,8 +70,8 @@ define repeat<a> (a -> Stream@a):
 // Converts a finite stream to a vector.
 define toVector<a> (Stream@a -> [a]):
   match:
-  case S_Empty: []
-  case S_Value -> x xs:
+  case S::Empty: []
+  case S::Value -> x xs:
     xs apply toVector
     x prepend
 
@@ -80,12 +80,12 @@ define toss<a> (Stream@a int -> Stream@a):
   -> n;
   if (n > 0):
     match:
-    case S_Empty: S_Empty
-    case S_Value -> _ xs:
+    case S::Empty: S::Empty
+    case S::Value -> _ xs:
       xs apply (n - 1) toss
 
 // Converts vector to a finite stream.
 define fromVector<a> ([a] -> Stream@a):
   -> xs;
   option (xs head) -> x: x +>: xs tail fromVector
-  else: S_Empty
+  else: S::Empty

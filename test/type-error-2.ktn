@@ -1,4 +1,4 @@
 // TODO(strager): Improve error reporting.
 
 define baz<a> ([a] [char] -> int):
-  ->x; [x] kitten_intrinsic_addVector
+  ->x; [x] kitten::intrinsic::addVector

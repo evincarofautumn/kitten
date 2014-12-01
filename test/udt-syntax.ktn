@@ -1,24 +1,24 @@
 data Example:
   case Example (int, int)
 
-0 1 Example_Example match: case Example_Example: (+) sayInt
+0 1 Example::Example match: case Example::Example: (+) sayInt
 
-1 2 Example_Example
+1 2 Example::Example
 match:
-  case Example_Example:
+  case Example::Example:
     -> x y;
     (x + y) sayInt
 
-3 4 Example_Example
+3 4 Example::Example
 match:
-  case Example_Example -> x y:
+  case Example::Example -> x y:
     (x + y) sayInt
 
-match (4 5 Example_Example):
-  case Example_Example:
+match (4 5 Example::Example):
+  case Example::Example:
     -> x y;
     (x + y) sayInt
 
-match (5 6 Example_Example):
-  case Example_Example -> x y:
+match (5 6 Example::Example):
+  case Example::Example -> x y:
     (x + y) sayInt

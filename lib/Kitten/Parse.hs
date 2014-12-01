@@ -308,7 +308,7 @@ plainLambda = match TkArrow *> do
   return $ makeLambda names body
 
 lambdaNames :: Parser [Maybe Name]
-lambdaNames = many1 $ Just <$> named <|> Nothing <$ underscore
+lambdaNames = many1 $ Just <$> named <|> Nothing <$ ignore
 
 lambdaBlock :: Parser ([Maybe Name], ParsedTerm)
 lambdaBlock = match TkArrow *> do

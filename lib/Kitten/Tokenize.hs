@@ -24,6 +24,7 @@ import Kitten.Name
 import Kitten.Parsec
 import Kitten.Token
 import Kitten.Util.Applicative
+import Kitten.Util.Function
 import Kitten.Util.Parsec
 
 type Parser a = ParsecT Text Column Identity a
@@ -63,12 +64,13 @@ token = (<?> "token") . located $ choice
   , try $ TkEllipsis <$ (string "..." <|> string "\x2026")
   , TkGroupBegin <$ char '('
   , TkGroupEnd <$ char ')'
+  , TkIgnore <$ try (char '_' <* notFollowedBy letterCharacter)
+  , TkVocabLookup <$ try (string "::")
   , TkLayout <$ char ':'
   , TkVectorBegin <$ char '['
   , TkVectorEnd <$ char ']'
   , TkReference <$ char '\\'
   , TkText <$> between (char '"') (char '"') text
-  , TkUnderscore <$ char '_'
   , try number
   , try $ TkArrow <$ (string "->" <|> string "\x2192")
     <* notFollowedBy symbolCharacter
@@ -143,17 +145,15 @@ token = (<?> "token") . located $ choice
     where
 
     alphanumeric :: Parser Text
-    alphanumeric
-      = (\x y z -> T.pack $ x : y ++ maybeToList z)
-      <$> (Parsec.satisfy isLetter)
-      <*> (many . choice)
-        [ Parsec.satisfy isLetter
-        , Parsec.satisfy isDigit
-        ]
-      <*> optionMaybe (oneOf "'\x2032\x2033\x2034\x2057")
+    alphanumeric = T.pack .: (:)
+      <$> (letterCharacter <|> char '_')
+      <*> (many . choice) [letterCharacter, char '_', digit]
 
     symbolic :: Parser Text
     symbolic = T.pack <$> many1 symbolCharacter
+
+  letterCharacter :: Parser Char
+  letterCharacter = Parsec.satisfy isLetter
 
   symbolCharacter :: Parser Char
   symbolCharacter = notFollowedBy special

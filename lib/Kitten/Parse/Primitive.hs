@@ -3,13 +3,14 @@
 module Kitten.Parse.Primitive
   ( blocked
   , grouped
+  , ignore
   , mixfixName
   , named
   , nonsymbolic
   , qualified_
   , symbolic
-  , underscore
   , vectored
+  , vocabLookup
   , word
   ) where
 
@@ -30,8 +31,11 @@ blocked = between
   (match (TkBlockBegin NormalBlockHint))
   (match TkBlockEnd)
 
-underscore :: Parser Token
-underscore = match TkUnderscore
+ignore :: Parser Token
+ignore = match TkIgnore
+
+vocabLookup :: Parser Token
+vocabLookup = match TkVocabLookup
 
 symbolic :: Parser Name
 symbolic = mapOne $ \case
@@ -64,10 +68,10 @@ nonsymbolic = try mixfixName <|> named
 
 qualified_ :: Parser Name
 qualified_ = do
-  global <- maybe False (const True) <$> optionMaybe underscore
+  global <- maybe False (const True) <$> optionMaybe vocabLookup
   names <- V.map fromUnqualified
-    <$> ((named <|> symbolic) `sepBy1V` underscore)
-  mOperatorName <- optionMaybe (underscore *> (fromUnqualified <$> symbolic))
+    <$> ((named <|> symbolic) `sepBy1V` vocabLookup)
+  mOperatorName <- optionMaybe (vocabLookup *> (fromUnqualified <$> symbolic))
   return $ case mOperatorName of
     Nothing -> let (qualifier, name) = (V.init names, V.last names)
       in if V.null qualifier && not global

@@ -17,17 +17,17 @@ data These:
   case That (char)
   case These (int, char)
 
-Unit_Unit match:
-  case Unit_Unit:
+Unit::Unit match:
+  case Unit::Unit:
     "Unit" say
 
-1 Either_Left LR
-"foo" Either_Right LR
+1 Either::Left LR
+"foo" Either::Right LR
 
 define LR (Either ->):
   match:
-    case Either_Left: drop "Left" say
-    case Either_Right: drop "Right" say
+    case Either::Left: drop "Left" say
+    case Either::Right: drop "Right" say
 
-1 Option_Some
-1 'x' These_These
+1 Option::Some
+1 'x' These::These

@@ -10,60 +10,60 @@ infix left 0 ;
 
 // Applies a function to the stack.
 define apply<r..., s...> (r... (r... -> s...) -> s...):
-  kitten_intrinsic_apply
+  kitten::intrinsic::apply
 
 // Applies a function to the left branch of a choice.
 define choice()()<r..., a, b> (r... (a | b) (r... a -> r...) -> r...):
-  kitten_intrinsic_choice
+  kitten::intrinsic::choice
 
 // Same as 'choice()()' but taking the discriminant from the stack.
 define choice()<r..., a, b> (r... (a | b) (r... a -> r...) -> r...):
-  kitten_intrinsic_choice
+  kitten::intrinsic::choice
 
 // Applies one of two functions to the branches of a choice.
 define choice()()else()<r..., s..., a, b>
   (r... (a | b) (r... a -> s...) (r... b -> s...) -> s...):
-  kitten_intrinsic_choiceElse
+  kitten::intrinsic::choiceElse
 
 // Same as 'choice()()else()' but taking the discriminant from the stack.
 define choice()else()<r..., s..., a, b>
   (r... (a | b) (r... a -> s...) (r... b -> s...) -> s...):
-  kitten_intrinsic_choiceElse
+  kitten::intrinsic::choiceElse
 
 // Applies a function if a condition is met.
 define if()()<r...> (r... bool (r... -> r...) -> r...):
-  kitten_intrinsic_if
+  kitten::intrinsic::if
 
 // Same as 'if()()' but taking the discriminant from the stack.
 define if()<r...> (r... bool (r... -> r...) -> r...):
-  kitten_intrinsic_if
+  kitten::intrinsic::if
 
 // Applies one of two functions according to a condition.
 define if()()else()<r..., s...> (r... bool (r... -> s...) (r... -> s...) -> s...):
-  kitten_intrinsic_ifElse
+  kitten::intrinsic::ifElse
 
 // Same as 'if()()else()' but taking the discriminant from the stack.
 define if()else()<r..., s...> (r... bool (r... -> s...) (r... -> s...) -> s...):
-  kitten_intrinsic_ifElse
+  kitten::intrinsic::ifElse
 
 // Applies a function to the value of some option.
 define option()()<r..., a> (r... a? (r... a -> r...) -> r...):
-  kitten_intrinsic_option
+  kitten::intrinsic::option
 
 // Same as 'option()()' but taking the discriminant from the stack.
 define option()<r..., a> (r... a? (r... a -> r...) -> r...):
-  kitten_intrinsic_option
+  kitten::intrinsic::option
 
 // Applies a function to the value of some option, or else a
 // default function.
 define option()()else()<r..., s..., a>
   (r... a? (r... a -> s...) (r... -> s...) -> s...):
-  kitten_intrinsic_optionElse
+  kitten::intrinsic::optionElse
 
 // Same as 'option()()else()' but taking the discriminant from the stack.
 define option()else()<r..., s..., a>
   (r... a? (r... a -> s...) (r... -> s...) -> s...):
-  kitten_intrinsic_optionElse
+  kitten::intrinsic::optionElse
 
 // 'cond' accepts a value, a vector of patterns, and a
 // default function. A pattern consists of a matching

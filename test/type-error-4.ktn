@@ -1,2 +1,2 @@
 define foo<a> ([a] -> a):
-  ->q; q kitten_intrinsic_fromSome
+  ->q; q kitten::intrinsic::fromSome

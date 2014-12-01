@@ -5,4 +5,4 @@ define error<r..., s...> (r... [char] -> s...):
 
 // Exits the program with an implementation-defined status code.
 define exit<r..., s...> (r... int -> s...):
-  kitten_intrinsic_exit
+  kitten::intrinsic::exit

@@ -84,8 +84,7 @@ spec = do
     testTokens "import" [TkImport]
 
   describe "tokenize word" $ do
-    testTokens "not_a_keyword"
-      [TkWord "not", TkUnderscore, TkWord "a", TkUnderscore, TkWord "keyword"]
+    testTokens "not_a_keyword" [TkWord "not_a_keyword"]
     testTokens "alsoNot" [TkWord "alsoNot"]
     testTokens "thisThat123" [TkWord "thisThat123"]
     testTokens "+-" [TkOperator "+-"]

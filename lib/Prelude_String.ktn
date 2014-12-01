@@ -40,7 +40,7 @@ define showStrings ([[char]] -> [char]):
 
 // Shows a floating-point number as a string.
 define showFloat (float -> [char]):
-  kitten_intrinsic_showFloat
+  kitten::intrinsic::showFloat
 
 // Shows a floating-point vector as a string.
 define showFloats ([float] -> [char]):
@@ -48,7 +48,7 @@ define showFloats ([float] -> [char]):
 
 // Shows an integer as a string.
 define showInt (int -> [char]):
-  kitten_intrinsic_showInt
+  kitten::intrinsic::showInt
 
 // Shows an integer vector as a string.
 define showInts ([int] -> [char]):

@@ -4,7 +4,7 @@ data A:
 data B:
   case B (int)
 
-1 A_A
+1 A::A
 match:
-  case A_A: sayInt
-  case B_B: sayInt
+  case A::A: sayInt
+  case B::B: sayInt

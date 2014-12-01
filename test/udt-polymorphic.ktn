@@ -2,23 +2,23 @@ data Option<a>:
   case Some (a)
   case None
 
-match (1 Option_Some):
-  case Option_Some: sayInt
-  case Option_None: "None" say
+match (1 Option::Some):
+  case Option::Some: sayInt
+  case Option::None: "None" say
 
 define eqOption<a> (Option@a Option@a (a a -> bool) -> bool):
   -> eq;
   match:
-  case Option_Some:
+  case Option::Some:
     swap match:
-    case Option_Some: eq apply
+    case Option::Some: eq apply
     default: drop false
-  case Option_None:
+  case Option::None:
     match:
-    case Option_None: true
+    case Option::None: true
     default: false
 
-(1 Option_Some) (1 Option_Some) \= eqOption sayBool
-(1 Option_Some) (2 Option_Some) \= eqOption sayBool
-(1 Option_Some) Option_None \= eqOption sayBool
-Option_None Option_None \= eqOption sayBool
+(1 Option::Some) (1 Option::Some) \= eqOption sayBool
+(1 Option::Some) (2 Option::Some) \= eqOption sayBool
+(1 Option::Some) Option::None \= eqOption sayBool
+Option::None Option::None \= eqOption sayBool
