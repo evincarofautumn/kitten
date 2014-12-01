@@ -71,10 +71,10 @@ functionType = (<?> "function type") $ choice
 baseType :: Parser AnType
 baseType = (<?> "base type") $ do
   prefix <- choice
-    [ try $ quantified type_
+    [ quantified (grouped type_)
     , AnVar <$> qualified_
     , vector
-    , try $ grouped type_
+    , grouped type_
     ]
   (<?> "") $ choice
     [ AnChoice prefix
