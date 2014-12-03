@@ -104,8 +104,8 @@ element = choice
   ]
 
 abbreviation :: Parser Abbreviation
-abbreviation = (<?> "abbreviation") . locate $ do
-  void (match TkAbbrev)
+abbreviation = (<?> "abbreviation") $ do
+  loc <- getLocation <* match TkAbbrev
   here <- envCurrentVocabulary <$> getState
   name <- named >>= \case
     Unqualified text -> return text
@@ -114,22 +114,17 @@ abbreviation = (<?> "abbreviation") . locate $ do
     Qualified (Qualifier xs) x -> return $ Qualifier (V.snoc xs x)
     Unqualified x -> return $ Qualifier (V.singleton x)
     _ -> fail "abbreviations must be short for qualifiers"
-  return $ Abbreviation here name qualifier
+  return $ Abbreviation here name qualifier loc
 
 def :: Parser (Def ParsedTerm)
-def = (<?> "definition") . locate $ do
-  void (match TkDefine)
+def = (<?> "definition") $ do
+  defLoc <- getLocation <* match TkDefine
   (fixity, name) <- choice
     [ (,) Postfix <$> nonsymbolic
     , (,) Infix <$> symbolic
     ] <?> "definition name"
   anno <- signature
-  bodyTerm <- (<?> "definition body") . locate $ choice
-    [ const <$> block
-    , do
-      (names, body) <- lambdaBlock
-      return $ makeLambda names body
-    ]
+  bodyTerm <- (<?> "definition body") $ choice [block, blockLambda]
   qualifier <- envCurrentVocabulary <$> getState
   qualifiedName <- case name of
     Qualified{} -> fail "definition names cannot be qualified"
@@ -138,17 +133,17 @@ def = (<?> "definition") . locate $ do
       | Qualifier xs <- qualifier, not (V.null xs)
       -> fail "mixfix definitions must be in the root vocabulary"
       | otherwise -> return name
-  return $ \loc -> Def
+  return Def
     { defAnno = anno
     , defFixity = fixity
-    , defLocation = loc
+    , defLocation = defLoc
     , defName = qualifiedName
     , defTerm = mono bodyTerm
     }
 
 typeDef :: Parser TypeDef
-typeDef = (<?> "type definition") . locate $ do
-  void (match TkData)
+typeDef = (<?> "type definition") $ do
+  loc <- getLocation <* match TkData
   qualifier <- envCurrentVocabulary <$> getState
   name <- named <?> "type name"
   (qualifiedName, text) <- case name of
@@ -157,32 +152,32 @@ typeDef = (<?> "type definition") . locate $ do
     MixfixName{} -> fail "type definition names cannot be mixfix"
   scalars <- option mempty scalarQuantifier
   constructors <- blocked (manyV (typeConstructor qualifier text))
-  return $ \loc -> TypeDef
+  return TypeDef
     { typeDefConstructors = constructors
     , typeDefLocation = loc
     , typeDefName = qualifiedName
-    , typeDefScalars = scalars
+    , typeDefScalars = V.map fst scalars  -- TODO Use locations?
     }
 
 typeConstructor :: Qualifier -> Text -> Parser TypeConstructor
-typeConstructor (Qualifier qualifier) typeName = (<?> "type constructor") . locate $ do
-  void (match TkCase)
+typeConstructor (Qualifier qualifier) typeName = (<?> "type constructor") $ do
+  loc <- getLocation <* match TkCase
   name <- named <?> "constructor name"
   text <- case name of
     Unqualified text -> return text
     _ -> fail "type constructor names must be unqualified"
   fields <- option V.empty $ grouped (type_ `sepEndByV` match TkComma)
-  return $ \loc -> TypeConstructor
+  return TypeConstructor
     { ctorFields = fields
     , ctorLocation = loc
     , ctorName = Qualified (Qualifier (V.snoc qualifier typeName)) text
     }
 
 import_ :: Parser Import
-import_ = (<?> "import") . locate $ do
-  void (match TkImport)
+import_ = (<?> "import") $ do
+  loc <- getLocation <* match TkImport
   name <- qualified_
-  return $ \loc -> Import
+  return Import
     { importName = name
     , importLocation = loc
     }
@@ -203,73 +198,87 @@ operatorDeclaration = (<?> "operator declaration") $ uncurry Operator
       _ -> Nothing
 
 term :: Parser ParsedTerm
-term = locate $ choice
-  [ try $ TrPush <$> locate (mapOne toLiteral <?> "literal")
-  , TrCall Infix <$> symbolic
-  , TrCall Postfix <$> (try mixfixName <|> qualified_)
-  , mapOne toIntrinsic <?> "intrinsic"
-  , try section
-  , try group <?> "grouped expression"
-  , pair <$> tuple
-  , TrMakeVector <$> vector
-  , lambda
-  , matchCase
-  , TrPush <$> blockValue
-  ]
+term = do
+  loc <- getLocation
+  choice
+    [ try $ do
+      literal <- mapOne toLiteral <?> "literal"
+      return $ TrPush (literal loc) loc
+    , TrCall Infix <$> symbolic <*> pure loc
+    , TrCall Postfix <$> (try mixfixName <|> qualified_) <*> pure loc
+    , mapOne toIntrinsic <*> pure loc <?> "intrinsic"
+    , try section
+    , try group <?> "grouped expression"
+    , pair <$> tuple <*> pure loc
+    , TrMakeVector <$> vector <*> pure loc
+    , lambda
+    , matchCase
+    , TrPush <$> blockValue <*> pure loc
+    ]
   where
 
-  section :: Parser (Location -> ParsedTerm)
-  section = (<?> "operator section") $ grouped $ choice
+  section :: Parser ParsedTerm
+  section = (<?> "operator section") . grouped $ choice
     [ do
+      loc <- getLocation
       function <- symbolic
       choice
         [ do
-          operand <- many1V term
-          return $ \loc -> TrCompose StackAny (V.fromList
-            [ TrCompose Stack1 operand loc
+          operandLoc <- getLocation
+          operand <- many1 term
+          let
+            operandLoc' = case operand of
+              x : _ -> parsedLocation x
+              _ -> operandLoc
+          return $ TrCompose StackAny (V.fromList
+            [ TrCompose Stack1 (V.fromList operand) operandLoc'
             , TrCall Postfix function loc
             ]) loc
-        , return $ TrCall Postfix function
+        , return $ TrCall Postfix function loc
         ]
     , do
-      operand <- many1V (notFollowedBy symbolic *> term)
+      operandLoc <- getLocation
+      operand <- many1 (notFollowedBy symbolic *> term)
+      let
+        operandLoc' = case operand of
+          x : _ -> parsedLocation x
+          _ -> operandLoc
+      loc <- getLocation
       function <- symbolic
-      return $ \loc -> TrCompose StackAny (V.fromList
-        [ TrCompose Stack1 operand loc
+      return $ TrCompose StackAny (V.fromList
+        [ TrCompose Stack1 (V.fromList operand) operandLoc'
         , swap loc
         , TrCall Postfix function loc
         ]) loc
     ]
     where
-    swap loc = TrLambda "right operand" (TrLambda "left operand"
+    swap loc = TrLambda "right operand" loc (TrLambda "left operand" loc
       (TrCompose StackAny (V.fromList
         [ TrCall Postfix "right operand" loc
         , TrCall Postfix "left operand" loc
         ]) loc) loc) loc
 
-  matchCase :: Parser (Location -> ParsedTerm)
-  matchCase = (<?> "match") $ match TkMatch *> do
+  matchCase :: Parser ParsedTerm
+  matchCase = (<?> "match") $ do
+    matchLoc <- getLocation <* match TkMatch
+    scrutineeLoc <- getLocation
     mScrutinee <- optionMaybe group <?> "scrutinee"
     (patterns, mDefault) <- blocked $ do
-      patterns <- manyV . (<?> "case") . locate $ match TkCase *> do
+      patterns <- manyV . (<?> "case") $ do
+        caseLoc <- getLocation <* match TkCase
         name <- qualified_
-        body <- choice
-          [ do
-            body <- block
-            return $ const body
-          , do
-            (names, body) <- lambdaBlock
-            return $ makeLambda names body
-          ]
-        return $ \loc -> TrCase name (TrQuotation (body loc) loc) loc
-      mDefault <- optionMaybe . locate
-        $ match TkDefault *> (TrQuotation <$> block)
+        bodyLoc <- getLocation
+        body <- choice [block, blockLambda]
+        return $ TrCase name (TrQuotation body bodyLoc) caseLoc
+      mDefault <- optionMaybe $ do
+        defaultLoc <- getLocation <* match TkDefault
+        TrQuotation <$> block <*> pure defaultLoc
       return (patterns, mDefault)
     let
       withScrutinee loc scrutinee x
-        = TrCompose StackAny (V.fromList [scrutinee loc, x]) loc
-    return $ \loc -> maybe id (withScrutinee loc) mScrutinee
-      $ TrMatch patterns mDefault loc
+        = TrCompose StackAny (V.fromList [scrutinee, x]) loc
+    return $ maybe id (withScrutinee scrutineeLoc) mScrutinee
+      $ TrMatch patterns mDefault matchLoc
 
   pair :: Vector ParsedTerm -> Location -> ParsedTerm
   pair values loc = V.foldr1 (\x y -> TrMakePair x y loc) values
@@ -280,59 +289,81 @@ term = locate $ choice
 
   tuple :: Parser (Vector ParsedTerm)
   tuple = grouped
-    (locate (TrCompose StackAny <$> many1V term)
-      `sepEndBy1V` match TkComma)
+    (tupleElement `sepEndBy1V` match TkComma)
     <?> "tuple"
+    where
+    tupleElement = do
+      loc <- getLocation
+      TrCompose StackAny <$> many1V term <*> pure loc
 
 vector :: Parser (Vector ParsedTerm)
 vector = vectored
-  (locate (TrCompose StackAny <$> many1V term)
-    `sepEndByV` match TkComma)
+  (vectorElement `sepEndByV` match TkComma)
   <?> "vector"
+  where
+  vectorElement = do
+    loc <- getLocation
+    TrCompose StackAny <$> many1V term <*> pure loc
 
-group :: Parser (Location -> ParsedTerm)
-group = (<?> "group") $ TrCompose StackAny <$> grouped (many1V term)
+group :: Parser ParsedTerm
+group = (<?> "group") $ do
+  loc <- getLocation
+  TrCompose StackAny <$> grouped (many1V term) <*> pure loc
 
-lambda :: Parser (Location -> ParsedTerm)
-lambda = (<?> "lambda") $ choice
-  [ try plainLambda
-  , do
-    (names, body) <- lambdaBlock
-    return $ \loc -> TrPush (TrQuotation (makeLambda names body loc) loc) loc
-  ]
+lambda :: Parser ParsedTerm
+lambda = (<?> "lambda") $ do
+  choice
+    [ try $ plainLambda
+    , do
+      body <- blockLambda
+      let loc = parsedLocation body
+      return $ TrPush (TrQuotation body loc) loc
+    ]
 
-plainLambda :: Parser (Location -> ParsedTerm)
+plainLambda :: Parser ParsedTerm
 plainLambda = match TkArrow *> do
   names <- lambdaNames <* match (TkOperator ";")
+  bodyLoc <- getLocation
   body <- blockContents
-  return $ makeLambda names body
+  return $ makeLambda names body bodyLoc
 
-lambdaNames :: Parser [Maybe Name]
-lambdaNames = many1 $ Just <$> named <|> Nothing <$ ignore
+lambdaNames :: Parser [(Maybe Name, Location)]
+lambdaNames = many1 $ do
+  loc <- getLocation
+  name <- Just <$> named <|> Nothing <$ ignore
+  return (name, loc)
 
-lambdaBlock :: Parser ([Maybe Name], ParsedTerm)
+lambdaBlock :: Parser ([(Maybe Name, Location)], ParsedTerm, Location)
 lambdaBlock = match TkArrow *> do
   names <- lambdaNames
+  loc <- getLocation
   body <- block
-  return (names, body)
+  return (names, body, loc)
 
-makeLambda :: [Maybe Name] -> ParsedTerm -> Location -> ParsedTerm
-makeLambda names body loc = foldr
-  (\mLambdaName lambdaTerms -> maybe
+blockLambda :: Parser ParsedTerm
+blockLambda = do
+  (names, body, loc) <- lambdaBlock
+  return $ makeLambda names body loc
+
+makeLambda :: [(Maybe Name, Location)] -> ParsedTerm -> Location -> ParsedTerm
+makeLambda namesAndLocs body bodyLoc = foldr
+  (\ (mLambdaName, nameLoc) lambdaTerms -> maybe
     (TrCompose StackAny (V.fromList
-      [ TrLambda "_" (TrCompose StackAny V.empty loc) loc
+      [ TrLambda "_" nameLoc (TrCompose StackAny V.empty bodyLoc) bodyLoc
       , lambdaTerms
-      ]) loc)
-    (\lambdaName -> TrLambda lambdaName lambdaTerms loc)
+      ]) bodyLoc)
+    (\lambdaName -> TrLambda lambdaName nameLoc lambdaTerms bodyLoc)
     mLambdaName)
   body
-  (reverse names)
+  (reverse namesAndLocs)
 
 blockValue :: Parser ParsedValue
-blockValue = (<?> "function") . locate
-  $ TrQuotation <$> (block <|> reference)
-  where
-  reference = locate $ TrCall Postfix <$> (match TkReference *> qualified_)
+blockValue = (<?> "function") $ do
+  loc <- getLocation
+  let
+    reference = TrCall Postfix
+      <$> (match TkReference *> qualified_) <*> pure loc
+  TrQuotation <$> (block <|> reference) <*> pure loc
 
 toLiteral :: Token -> Maybe (Location -> ParsedValue)
 toLiteral (TkBool x) = Just $ TrBool x
@@ -346,7 +377,14 @@ block :: Parser ParsedTerm
 block = blocked blockContents <?> "block"
 
 blockContents :: Parser ParsedTerm
-blockContents = locate $ TrCompose StackAny <$> manyV term
+blockContents = do
+  loc <- getLocation
+  terms <- many term
+  let
+    loc' = case terms of
+      x : _ -> parsedLocation x
+      _ -> loc
+  return $ TrCompose StackAny (V.fromList terms) loc'
 
 ----------------------------------------
 
@@ -386,9 +424,9 @@ rewriteInfix program@Program{..} parsed@Fragment{..} = do
         Right parseResult -> Right parseResult
     x@TrConstruct{} -> return x
     x@TrIntrinsic{} -> return x
-    TrLambda name body loc -> do
+    TrLambda name nameLoc body loc -> do
       body' <- rewriteInfixTerm body
-      return $ TrLambda name body' loc
+      return $ TrLambda name nameLoc body' loc
     TrMakePair a b loc -> do
       a' <- rewriteInfixTerm a
       b' <- rewriteInfixTerm b
@@ -464,8 +502,8 @@ rewriteInfix program@Program{..} parsed@Fragment{..} = do
 
   binary :: Name -> Location -> ParsedTerm -> ParsedTerm -> ParsedTerm
   binary name loc x y = TrCompose StackAny (V.fromList
-    [ stack1 loc x
-    , stack1 loc y
+    [ stack1 (parsedLocation x) x
+    , stack1 (parsedLocation y) y
     , TrCall Postfix name loc
     ]) loc
 
@@ -476,10 +514,16 @@ rewriteInfix program@Program{..} parsed@Fragment{..} = do
     _ -> Nothing
 
   expression :: TermParser ParsedTerm
-  expression = E.buildExpressionParser opTable
-    (locate (TrCompose StackAny <$> many1V operand) <?> "operand")
+  expression = E.buildExpressionParser opTable (operands <?> "operand")
     where
-    operand :: TermParser ParsedTerm
+    operands = do
+      loc <- getLocation
+      results <- many1 operand
+      let
+        loc' = case results of
+          x : _ -> parsedLocation x
+          _ -> loc
+      return $ TrCompose StackAny (V.fromList results) loc'
     operand = choice
       [ try mixfix
       , satisfyTerm $ \case

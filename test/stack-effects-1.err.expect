@@ -1,9 +1,4 @@
-test/stack-effects-1.ktn:1:4: error: expected stack type s2... but got s1... t1
-test/stack-effects-1.ktn:1:4: note: t1 (from dup) is from here
-
-test/stack-effects-1.ktn:1:4: error: expected stack type s2... t2 but got s1... t1 t1
-test/stack-effects-1.ktn:1:4: note: t2 is from here
-
-test/stack-effects-1.ktn:1:4: error: expected scalar type (s2... -> s2... t2) but got (s1... t1 -> s1... t1 t1)
-test/stack-effects-1.ktn:1:4: note: (s1... t1 -> s1... t1 t1) is from here
-test/stack-effects-1.ktn:1:4: note: (s2... -> s2... t2) is from here
+test/stack-effects-1.ktn:1:6: error: expected stack type s2... but got s1... t1
+test/stack-effects-1.ktn:1:6: note: s2... is from here
+test/stack-effects-1.ktn:1:6: note: s1... is from here
+test/stack-effects-1.ktn:1:6: note: t1 is from here

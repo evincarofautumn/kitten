@@ -38,7 +38,7 @@ scopeTerm stack typed = case typed of
   TrConstruct{} -> typed
   TrCompose hint terms loc -> TrCompose hint (V.map recur terms) loc
   TrIntrinsic{} -> typed
-  TrLambda name term loc -> TrLambda name
+  TrLambda name nameLoc term loc -> TrLambda name nameLoc
     (scopeTerm (mapHead succ stack) term)
     loc
   TrMakePair as bs loc -> TrMakePair (recur as) (recur bs) loc
@@ -103,12 +103,12 @@ captureTerm typed = case typed of
     <*> pure loc
   TrConstruct{} -> return typed
   TrIntrinsic{} -> return typed
-  TrLambda name terms loc -> let
+  TrLambda name nameLoc terms loc -> let
     inside env@Env{..} = env
       { envStack = mapHead succ envStack
       , envDepth = succ envDepth
       }
-    in TrLambda name
+    in TrLambda name nameLoc
       <$> local inside (captureTerm terms)
       <*> pure loc
   TrMakePair a b loc -> TrMakePair

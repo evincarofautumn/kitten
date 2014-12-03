@@ -79,14 +79,16 @@ fromPartitioned loc Partitioned{..} = Fragment
 defineConstructor :: TypeDef -> TypeConstructor -> Def ParsedTerm
 defineConstructor TypeDef{..} TypeConstructor{..} = Def
   { defAnno = Anno
-    (AnQuantified V.empty typeDefScalars
+    (AnQuantified V.empty (V.map (flip (,) loc) typeDefScalars)
       (AnFunction ctorFields
         (V.singleton
-          (AnApp (AnVar typeDefName) (V.map AnVar typeDefScalars)))))
-    ctorLocation
+          (AnApp (var typeDefName) (V.map var typeDefScalars) loc)) loc) loc)
   , defFixity = Postfix
-  , defLocation = ctorLocation
+  , defLocation = loc
   , defName = ctorName
   , defTerm = mono
-    $ TrConstruct typeDefName ctorName (V.length ctorFields) ctorLocation
+    $ TrConstruct typeDefName ctorName (V.length ctorFields) loc
   }
+  where
+  loc = ctorLocation
+  var = flip AnVar loc

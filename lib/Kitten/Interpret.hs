@@ -606,21 +606,21 @@ typeOf loc = runState . typeOfM loc
 typeOfM
   :: Location -> InterpreterValue -> State (KindedGen Scalar) (Type Scalar)
 typeOfM loc value = case value of
-  Activation _ _ type_ -> return type_
-  Bool _ -> return $ tyBool loc
-  Char _ -> return $ tyChar loc
-  Choice False x -> liftM2 (:|) (recur x) freshVarM
-  Choice True y -> liftM2 (:|) freshVarM (recur y)
-  Float _ -> return $ tyFloat loc
-  Handle _ -> return $ tyHandle loc
-  Int _ -> return $ tyInt loc
-  Option (Just x) -> liftM (:?) (recur x)
-  Option Nothing -> liftM (:?) freshVarM
-  Pair x y -> liftM2 (:&) (recur x) (recur y)
+  Activation _ _ type_ -> pure type_
+  Bool _ -> pure $ tyBool loc
+  Char _ -> pure $ tyChar loc
+  Choice False x -> TySum <$> recur x <*> freshVarM <*> pure loc
+  Choice True y -> TySum <$> freshVarM <*> recur y <*> pure loc
+  Float _ -> pure $ tyFloat loc
+  Handle _ -> pure $ tyHandle loc
+  Int _ -> pure $ tyInt loc
+  Option (Just x) -> TyOption <$> recur x <*> pure loc
+  Option Nothing -> TyOption <$> freshVarM <*> pure loc
+  Pair x y -> TyProduct <$> recur x <*> recur y <*> pure loc
   Vector xs -> case V.safeHead xs of
-    Nothing -> liftM2 TyVector freshVarM (return loc)
-    Just x -> liftM2 TyVector (recur x) (return loc)
-  User _ _ type_ -> return type_
+    Nothing -> TyVector <$> freshVarM <*> pure loc
+    Just x -> TyVector <$> recur x <*> pure loc
+  User _ _ type_ -> pure type_
   where
   recur = typeOfM loc
 

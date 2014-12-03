@@ -40,11 +40,11 @@ data Env = Env
   -- ^ Anonymous stacks implicit on both sides of an
   -- 'Anno.Function' constructor.
 
-  , envStacks :: !(HashMap Name (KindedId Stack))
+  , envStacks :: !(HashMap Name (KindedId Stack, Location))
   -- ^ Map from stack variable names to stack variables
   -- themselves.
 
-  , envScalars :: !(HashMap Name (KindedId Scalar))
+  , envScalars :: !(HashMap Name (KindedId Scalar, Location))
   -- ^ Map from scalar variable names to scalar variables
   -- themselves.
 
@@ -61,7 +61,7 @@ fromAnno
   -> HashMap (Qualifier, Text) Qualifier
   -> Anno
   -> K (Scheme (Type Scalar))
-fromAnno vocab typeDefNames newAbbrevs (Anno annoType annoLoc) = do
+fromAnno vocab typeDefNames newAbbrevs (Anno annoType) = do
   oldAbbrevs <- getsProgram programAbbrevs
   (type_, env) <- flip runStateT Env
     { envAbbrevs = oldAbbrevs <> newAbbrevs
@@ -73,58 +73,59 @@ fromAnno vocab typeDefNames newAbbrevs (Anno annoType annoLoc) = do
     } $ fromAnnoType' annoType
 
   return $ Forall
-    (S.fromList (envAnonStacks env <> H.elems (envStacks env)))
-    (S.fromList . H.elems $ envScalars env)
+    (S.fromList (envAnonStacks env <> map fst (H.elems (envStacks env))))
+    (S.fromList . map fst . H.elems $ envScalars env)
     type_
   where
 
   fromAnnoType' :: AnType -> Converted (Type Scalar)
   fromAnnoType' = \case
-    AnApp a bs -> (:@)
+    AnApp a bs loc -> TyApply
       <$> fromAnnoType' a
       <*> V.mapM fromAnnoType' bs
-    AnChoice a b -> (:|)
+      <*> pure loc
+    AnChoice a b loc -> TySum
       <$> fromAnnoType' a
       <*> fromAnnoType' b
-    AnFunction a b -> do
+      <*> pure loc
+    AnFunction a b loc -> do
       r <- lift freshStackIdM
       let rVar = TyVar r loc
       scheme <- Forall (S.singleton r) S.empty
         <$> makeFunction loc rVar a rVar b
       return $ TyQuantified scheme loc
-    AnOption a -> (:?)
+    AnOption a loc -> TyOption
       <$> fromAnnoType' a
-    AnPair a b -> (:&)
+      <*> pure loc
+    AnPair a b loc -> TyProduct
       <$> fromAnnoType' a
       <*> fromAnnoType' b
-    AnQuantified stacks scalars type_ -> do
+      <*> pure loc
+    AnQuantified stacks scalars type_ quantifiedLoc -> do
       stackVars <- V.mapM declareStack stacks
       scalarVars <- V.mapM declareScalar scalars
       scheme <- Forall
         (S.fromList (V.toList stackVars))
         (S.fromList (V.toList scalarVars))
         <$> fromAnnoType' type_
-      return $ TyQuantified scheme loc
+      return $ TyQuantified scheme quantifiedLoc
       where
-      declareScalar name = do
+      declareScalar (name, loc) = do
         var <- lift freshScalarIdM
         modify $ \env -> env
-          { envScalars = H.insert name var (envScalars env) }
+          { envScalars = H.insert name (var, loc) (envScalars env) }
         return var
-      declareStack name = do
+      declareStack (name, loc) = do
         var <- lift freshStackIdM
         modify $ \env -> env
-          { envStacks = H.insert name var (envStacks env) }
+          { envStacks = H.insert name (var, loc) (envStacks env) }
         return var
-    AnStackFunction leftStack leftScalars rightStack rightScalars -> do
+    AnStackFunction leftStack leftScalars rightStack rightScalars loc -> do
       leftStackVar <- annoStackVar leftStack loc
       rightStackVar <- annoStackVar rightStack loc
       makeFunction loc leftStackVar leftScalars rightStackVar rightScalars
-    AnVar name -> annoScalarVar name loc
-    AnVector a -> TyVector <$> fromAnnoType' a <*> pure loc
-    where
-    loc :: Location
-    loc = annoLoc  -- FIXME(strager)
+    AnVar name loc -> annoScalarVar name loc
+    AnVector a loc -> TyVector <$> fromAnnoType' a <*> pure loc
 
   makeFunction
     :: Location
@@ -134,8 +135,8 @@ fromAnno vocab typeDefNames newAbbrevs (Anno annoType annoLoc) = do
     -> Vector AnType
     -> Converted (Type Scalar)
   makeFunction loc leftStack leftScalars rightStack rightScalars = TyFunction
-    <$> (V.foldl' (:.) leftStack <$> V.mapM fromAnnoType' leftScalars)
-    <*> (V.foldl' (:.) rightStack <$> V.mapM fromAnnoType' rightScalars)
+    <$> (V.foldl' TyStack leftStack <$> V.mapM fromAnnoType' leftScalars)
+    <*> (V.foldl' TyStack rightStack <$> V.mapM fromAnnoType' rightScalars)
     <*> pure loc
 
 fromAnno _ _ _ TestAnno = error "cannot make type from test annotation"
@@ -148,7 +149,7 @@ annoScalarVar name loc = do
   abbrevs <- gets envAbbrevs
   let lookupAbbrev x = H.lookup x abbrevs
   case existing of
-    Just var -> return $ TyVar var loc
+    Just (var, existingLoc) -> return $ TyVar var existingLoc
     Nothing -> case name of
       Unqualified text
         | text == "bool" -> return $ TyCtor CtorBool loc
@@ -169,7 +170,7 @@ annoStackVar :: Name -> Location -> Converted (Type Stack)
 annoStackVar name loc = do
   existing <- gets $ H.lookup name . envStacks
   case existing of
-    Just var -> return $ TyVar var loc
+    Just (var, existingLoc) -> return $ TyVar var existingLoc
     Nothing -> unknown name loc
 
 unknown :: Name -> Location -> Converted a

@@ -112,7 +112,7 @@ flattenTerm theTerm = case theTerm of
     V.mapM_ flattenTerm terms
   TrConstruct _ _ _ (loc, type_) -> tellNode loc $ ScalarType type_
   TrIntrinsic _intrinsic (loc, type_) -> tellNode loc $ ScalarType type_
-  TrLambda _name term (loc, type_) -> do
+  TrLambda _ _ term (loc, type_) -> do
     tellNode loc $ ScalarType type_
     flattenTerm term
   TrMakePair a b (loc, type_) -> do

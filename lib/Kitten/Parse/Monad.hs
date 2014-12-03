@@ -5,7 +5,7 @@ module Kitten.Parse.Monad
   , Parser
   , advance
   , getLocation
-  , locate
+  -- , locate
   , locatedMatch
   , locatedSatisfy
   , mapOne
@@ -29,6 +29,7 @@ advance :: SourcePos -> t -> [Located] -> SourcePos
 advance _ _ (Located _ Location{..} : _) = locationStart
 advance sourcePos _ _ = sourcePos
 
+{-
 locate
   :: (Monad m, Stream s m c)
   => ParsecT s u m (Location -> a)
@@ -37,6 +38,7 @@ locate parser = do
   loc <- getLocation
   result <- parser
   return $ result loc
+-}
 
 getLocation
   :: (Monad m, Stream s m c)

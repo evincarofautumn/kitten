@@ -27,7 +27,7 @@ data TrTerm a
   | TrCall !Fixity !Name !a
   | TrCompose !StackHint !(Vector (TrTerm a)) !a
   | TrConstruct !Name !Name !Int !a
-  | TrLambda !Name !(TrTerm a) !a
+  | TrLambda !Name !Location !(TrTerm a) !a
   | TrMakePair !(TrTerm a) !(TrTerm a) !a
   | TrMakeVector !(Vector (TrTerm a)) !a
   | TrMatch !(Vector (TrCase a)) !(Maybe (TrValue a)) !a
@@ -45,7 +45,7 @@ instance (Eq a) => Eq (TrTerm a) where
   -- 'Compose's are equal regardless of 'StackHint'.
   TrCompose _ a b == TrCompose _ c d = (a, b) == (c, d)
   TrIntrinsic a b == TrIntrinsic c d = (a, b) == (c, d)
-  TrLambda a b c == TrLambda d e f = (a, b, c) == (d, e, f)
+  TrLambda a _ b c == TrLambda d _ e f = (a, b, c) == (d, e, f)
   TrMakePair a b c == TrMakePair d e f = (a, b, c) == (d, e, f)
   TrPush a b == TrPush c d = (a, b) == (c, d)
   TrMakeVector a b == TrMakeVector c d = (a, b) == (c, d)
@@ -59,7 +59,7 @@ instance ToText (TrTerm a) where
     TrConstruct name ctor size _ -> T.concat
       ["new ", toText name, ".", toText ctor, "(", showText size, ")"]
     TrIntrinsic intrinsic _ -> toText intrinsic
-    TrLambda name term _ -> T.concat ["(\\", toText name, " ", toText term, ")"]
+    TrLambda name _ term _ -> T.concat ["(\\", toText name, " ", toText term, ")"]
     TrMakePair a b _ -> T.concat ["(", toText a, ", ", toText b, ")"]
     TrMakeVector terms _ -> T.concat
       ["[", T.intercalate ", " (V.toList (V.map toText terms)), "]"]
@@ -126,7 +126,7 @@ termMetadata = \case
   TrCompose _ _ x -> x
   TrConstruct _ _ _ x -> x
   TrIntrinsic _ x -> x
-  TrLambda _ _ x -> x
+  TrLambda _ _ _ x -> x
   TrMakePair _ _ x -> x
   TrMakeVector _ x -> x
   TrMatch _ _ x -> x
@@ -137,3 +137,6 @@ typedLocation = fst . termMetadata
 
 typedType :: TypedTerm -> Type Scalar
 typedType = snd . termMetadata
+
+parsedLocation :: ParsedTerm -> Location
+parsedLocation = termMetadata

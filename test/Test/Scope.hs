@@ -67,4 +67,4 @@ push :: ResolvedValue -> ResolvedTerm
 push value = TrPush value TestLocation
 
 scoped :: [ResolvedTerm] -> ResolvedTerm
-scoped terms = TrLambda "testvar" (compose terms) TestLocation
+scoped terms = TrLambda "testvar" TestLocation (compose terms) TestLocation

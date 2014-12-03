@@ -107,7 +107,7 @@ resolveTerm unresolved = case unresolved of
     <*> pure loc
   TrConstruct name ctor size loc -> return $ TrConstruct name ctor size loc
   TrIntrinsic name loc -> return $ TrIntrinsic name loc
-  TrLambda name term loc -> withLocal name $ TrLambda name
+  TrLambda name nameLoc term loc -> withLocal name $ TrLambda name nameLoc
     <$> resolveTerm term
     <*> pure loc
   TrMakePair as bs loc -> TrMakePair

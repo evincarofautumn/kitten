@@ -29,7 +29,6 @@ import Kitten.Location
 import Kitten.Program
 import Kitten.Type
 import Kitten.Type.Tidy
-import Kitten.Util.Either
 import Kitten.Util.FailWriter
 import Kitten.Util.Text (ToText(..))
 
@@ -53,54 +52,44 @@ class Unification a where
 instance Unification Stack where
   unification have want program = case (have, want) of
     _ | have == want -> Right program
-    (a :. b, c :. d) -> withContext' $ unify b d program >>= unify a c
+    (TyStack a b, TyStack c d) -> unify b d program >>= unify a c
     (TyVar var _, type_)
-      -> withContext' $ unifyVar var type_ program
+      -> unifyVar var type_ program
     (type_, TyVar var _)
-      -> withContext' $ unifyVar var type_ program
+      -> unifyVar var type_ program
     _ -> Left $ unificationError Finite loc have want
     where
-    withContext' = withContext have want loc
     loc = inferenceLocation program
 
 instance Unification Scalar where
   unification have want program = case (have, want) of
     _ | have == want -> Right program
-    (a :& b, c :& d) -> withContext' $ unify b d program >>= unify a c
-    ((:?) a, (:?) b) -> withContext' $ unify a b program
-    (a :@ as, b) | V.null as -> unify a b program
-    (a, b :@ bs) | V.null bs -> unify a b program
-    (a :@ as, b :@ bs) -> withContext' $ do
+    (TyProduct a b _, TyProduct c d _) -> unify b d program >>= unify a c
+    (TyOption a _, TyOption b _) -> unify a b program
+    (TyApply a as _, b) | V.null as -> unify a b program
+    (a, TyApply b bs _) | V.null bs -> unify a b program
+    (TyApply a as _, TyApply b bs _) -> do
       program' <- unify a b program
       if V.length as /= V.length bs
         then Left $ unificationError Finite loc have want
         else V.foldM (\p (x, y) -> unify x y p) program' $ V.zip as bs
-    (a :| b, c :| d) -> withContext' $ unify b d program >>= unify a c
+    (TySum a b _, TySum c d _) -> unify b d program >>= unify a c
     (TyFunction a b _, TyFunction c d _)
-      -> withContext' $ unify b d program >>= unify a c
-    (TyVector a _, TyVector b _) -> withContext' $ unify a b program
+      -> unify b d program >>= unify a c
+    (TyVector a _, TyVector b _) -> unify a b program
     (TyVar var _, type_)
-      -> withContext' $ unifyVar var type_ program
+      -> unifyVar var type_ program
     (type_, TyVar var _)
-      -> withContext' $ unifyVar var type_ program
-    (TyQuantified scheme loc', type_) -> withContext' $ let
-      (type', program') = instantiate loc' scheme program
+      -> unifyVar var type_ program
+    (TyQuantified scheme _, type_) -> let
+      (type', program') = instantiate loc scheme program
       in unify type' type_ program'
-    (type_, TyQuantified scheme loc') -> withContext' $ let
-      (type', program') = instantiate loc' scheme program
+    (type_, TyQuantified scheme _) -> let
+      (type', program') = instantiate loc scheme program
       in unify type' type_ program'
     _ -> Left $ unificationError Finite loc have want
     where
-    withContext' = withContext have want loc
     loc = inferenceLocation program
-
-withContext
-  :: forall (a :: Kind) b
-  . (DiagnosticLocations a, ReifyKind a, TidyType a, ToText (Type a))
-  => Type a -> Type a -> Location
-  -> Either [ErrorGroup] b -> Either [ErrorGroup] b
-withContext have want loc
-  = mapLeft (++ unificationError Finite loc have want)
 
 data Infinitude = Finite | Infinite
 
@@ -115,8 +104,8 @@ unificationError
 unificationError finitude location have want = runTidy $ do
   have' <- tidyType have
   want' <- tidyType want
-  let
-    primaryError = CompileError location Error $ T.unwords
+  return . (:[]) . ErrorGroup
+    $ (CompileError location Error . T.unwords)
       [ "expected"
       , toText kind
       , "type"
@@ -124,19 +113,16 @@ unificationError finitude location have want = runTidy $ do
       , "but got"
       , toText have'
       ]
-    secondaryErrors = map errorDetail
-      $ diagnosticLocations have' ++ diagnosticLocations want'
-    tertiaryErrors = case finitude of
+    : map locationInfo
+      (diagnosticLocations want' ++ diagnosticLocations have')
+    ++ case finitude of
       Finite -> []
       Infinite -> (:[]) $ CompileError location Note
-        "this typically indicates a wrong number of arguments to a function"
-  return [ErrorGroup (primaryError : secondaryErrors ++ tertiaryErrors)]
+        "maybe you gave a function of the wrong type to a combinator"
   where
   kind = reifyKind (KindProxy :: KindProxy a)
-  errorDetail (loc, type_) = CompileError loc Note $ T.concat
-    [ type_
-    , " is from here"
-    ]
+  locationInfo (loc, type_) = CompileError loc Note
+    $ T.unwords [type_, "is from here"]
 
 -- | Unifies two types, returning the second type.
 unifyM

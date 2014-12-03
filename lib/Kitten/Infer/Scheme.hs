@@ -48,10 +48,8 @@ import Kitten.Util.Monad
 
 import qualified Kitten.IdMap as Id
 
-instantiateM :: TypeScheme -> K (Type Scalar)
-instantiateM scheme = do
-  loc <- getsProgram inferenceLocation
-  liftState $ state (instantiate loc scheme)
+instantiateM :: Location -> TypeScheme -> K (Type Scalar)
+instantiateM loc = liftState . state . instantiate loc
 
 instantiate
   :: Location
@@ -59,9 +57,10 @@ instantiate
   -> Program
   -> (Type Scalar, Program)
 instantiate loc (Forall stacks scalars type_) program
-  = (sub renamed type_, program')
+  = (sub renamed type', program')
 
   where
+  type' = setTypeLocation loc type_
   (renamed, program') = flip runState program
     $ composeM [renames stacks, renames scalars] emptyProgram
 
@@ -182,14 +181,16 @@ regeneralize program (Forall stacks scalars wholeType) = let
       <$> regeneralize' NonTopLevel a
       <*> regeneralize' NonTopLevel b
       <*> pure loc
-    a :. b -> (:.)
+    TyStack a b -> TyStack
       <$> regeneralize' NonTopLevel a
       <*> regeneralize' NonTopLevel b
-    (:?) a -> (:?)
+    TyOption a loc -> TyOption
       <$> regeneralize' NonTopLevel a
-    a :| b -> (:|)
+      <*> pure loc
+    TySum a b loc -> TySum
       <$> regeneralize' NonTopLevel a
       <*> regeneralize' NonTopLevel b
+      <*> pure loc
     _ -> return type_
 
 freeVars
@@ -205,23 +206,23 @@ class Free a where
 
 instance Free (Type Stack) where
   free type_ = case type_ of
-    a :. b -> free a <> free b
+    TyStack a b -> free a <> free b
     TyConst name _ -> ([name], [])
     TyEmpty{} -> mempty
     TyVar name _ -> ([name], [])
 
 instance Free (Type Scalar) where
   free type_ = case type_ of
-    a :& b -> free a <> free b
-    (:?) a -> free a
-    a :@ bs -> free a <> F.foldMap free bs
-    a :| b -> free a <> free b
+    TyApply a bs _ -> free a <> F.foldMap free bs
     TyFunction a b _ -> free a <> free b
     TyConst name _ -> ([], [name])
     TyCtor{} -> mempty
+    TyOption a _ -> free a
+    TyProduct a b _ -> free a <> free b
     TyQuantified (Forall r s t) _
       -> let (stacks, scalars) = free t
       in (stacks \\ S.toList r, scalars \\ S.toList s)
+    TySum a b _ -> free a <> free b
     TyVar name _ -> ([], [name])
     TyVector a _ -> free a
 
@@ -256,7 +257,7 @@ class Occurrences a where
 
 instance Occurrences Stack where
   occurrences kind name program type_ = case type_ of
-    a :. b -> recur a + recur b
+    TyStack a b -> recur a + recur b
     TyConst typeName@(KindedId name') _ -> case retrieve program typeName of
       Left{} -> if kind == Stack && name == name' then 1 else 0
       Right type' -> recur type'
@@ -270,10 +271,7 @@ instance Occurrences Stack where
 
 instance Occurrences Scalar where
   occurrences kind name program type_ = case type_ of
-    a :& b -> recur a + recur b
-    (:?) a -> recur a
-    a :@ bs -> recur a + V.sum (V.map recur bs)
-    a :| b -> recur a + recur b
+    TyApply a bs _ -> recur a + V.sum (V.map recur bs)
     TyFunction a b _ -> recur a + recur b
     TyConst typeName@(KindedId name') _ -> case retrieve program typeName of
       Left{} -> if kind == Scalar && name == name' then 1 else 0
@@ -282,8 +280,11 @@ instance Occurrences Scalar where
     TyVar typeName@(KindedId name') _ -> case retrieve program typeName of
       Left{} -> if kind == Scalar && name == name' then 1 else 0
       Right type' -> recur type'
+    TyOption a _ -> recur a
+    TyProduct a b _ -> recur a + recur b
     TyQuantified (Forall _ s t) _
       -> if KindedId name `S.member` s then 0 else recur t
+    TySum a b _ -> recur a + recur b
     TyVector a _ -> recur a
     where
     recur :: (Occurrences a) => Type a -> Int
@@ -311,7 +312,7 @@ class Substitute a where
 
 instance Substitute Stack where
   sub program type_ = case type_ of
-    a :. b -> sub program a :. sub program b
+    TyStack a b -> TyStack (sub program a) (sub program b)
     TyConst{} -> type_  -- See Note [Constant Substitution].
     TyEmpty{} -> type_
     TyVar name _
@@ -322,13 +323,13 @@ instance Substitute Stack where
 
 instance Substitute Scalar where
   sub program type_ = case type_ of
-    TyFunction a b origin -> TyFunction (recur a) (recur b) origin
-    a :& b -> recur a :& recur b
-    (:?) a -> (recur a :?)
-    a :@ bs -> recur a :@ V.map recur bs
-    a :| b -> recur a :| recur b
+    TyApply a bs loc -> TyApply (recur a) (V.map recur bs) loc
+    TyFunction a b loc -> TyFunction (recur a) (recur b) loc
+    TySum a b loc -> TySum (recur a) (recur b) loc
     TyConst{} -> type_  -- See Note [Constant Substitution].
     TyCtor{} -> type_
+    TyOption a loc -> TyOption (recur a) loc
+    TyProduct a b loc -> TyProduct (recur a) (recur b) loc
     TyQuantified (Forall r s t) loc
       -> TyQuantified (Forall r s (recur t)) loc
     TyVar name _
@@ -355,7 +356,6 @@ skolemize
   :: TypeScheme
   -> K ([KindedId Stack], [KindedId Scalar], Type Scalar)
 skolemize (Forall stackVars scalarVars type_) = do
-  loc <- getsProgram inferenceLocation
   let
     declares
       :: (Declare a)
@@ -370,6 +370,7 @@ skolemize (Forall stackVars scalarVars type_) = do
     . declares stackVars stackConsts
   (stackConsts', scalarConsts', type') <- skolemizeType (sub program type_)
   return (stackConsts ++ stackConsts', scalarConsts ++ scalarConsts', type')
+  where loc = typeLocation type_
 
 skolemizeType
   :: Type a

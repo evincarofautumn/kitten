@@ -8,6 +8,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PostfixOperators #-}
 
 module Kitten.Type where
 
@@ -32,33 +33,52 @@ import Kitten.Name
 import Kitten.Util.Text (ToText(..), showText)
 
 data Type (a :: Kind) where
-  (:&) :: !(Type Scalar) -> !(Type Scalar) -> Type Scalar
-  (:.) :: !(Type Stack) -> !(Type Scalar) -> Type Stack
-  (:?) :: !(Type Scalar) -> Type Scalar
-  (:@) :: !(Type Scalar) -> !(Vector (Type Scalar)) -> Type Scalar
-  (:|) :: !(Type Scalar) -> !(Type Scalar) -> Type Scalar
+  TyApply :: !(Type Scalar) -> !(Vector (Type Scalar)) -> !Location -> Type Scalar
   TyConst :: !(KindedId a) -> !Location -> Type a
   TyCtor :: !Ctor -> !Location -> Type Scalar
   TyEmpty :: !Location -> Type Stack
   TyFunction :: !(Type Stack) -> !(Type Stack) -> !Location -> Type Scalar
+  TyOption :: !(Type Scalar) -> !Location -> Type Scalar
+  TyProduct :: !(Type Scalar) -> !(Type Scalar) -> !Location -> Type Scalar
   TyQuantified :: !TypeScheme -> !Location -> Type Scalar
+  TyStack :: !(Type Stack) -> !(Type Scalar) -> Type Stack
+  TySum :: !(Type Scalar) -> !(Type Scalar) -> !Location -> Type Scalar
   TyVar :: !(KindedId a) -> !Location -> Type a
   TyVector :: !(Type Scalar) -> !Location -> Type Scalar
 
-typeLocation :: Type a -> Maybe Location
+typeLocation :: Type a -> Location
 typeLocation = \case
-  (:&){} -> Nothing
-  (:.){} -> Nothing
-  (:?){} -> Nothing
-  (:@){} -> Nothing
-  (:|){} -> Nothing
-  TyConst _ loc -> Just loc
-  TyCtor _ loc -> Just loc
-  TyEmpty loc -> Just loc
-  TyFunction _ _ loc -> Just loc
-  TyQuantified _ loc -> Just loc
-  TyVar _ loc -> Just loc
-  TyVector _ loc -> Just loc
+  TyApply _ _ loc -> loc
+  TyConst _ loc -> loc
+  TyCtor _ loc -> loc
+  TyEmpty loc -> loc
+  TyFunction _ _ loc -> loc
+  TyOption _ loc -> loc
+  TyProduct _ _ loc -> loc
+  TyQuantified _ loc -> loc
+  TyStack _ a -> typeLocation a
+  TySum _ _ loc -> loc
+  TyVar _ loc -> loc
+  TyVector _ loc -> loc
+
+setTypeLocation :: Location -> Type a -> Type a
+setTypeLocation loc = \case
+  TyProduct a b _ -> TyProduct (recur a) (recur b) loc
+  TyStack a b -> TyStack (recur a) (recur b)
+  TyOption a _ -> TyOption (recur a) loc
+  TyApply a b _ -> TyApply (recur a) (V.map recur b) loc
+  TySum a b _ -> TySum (recur a) (recur b) loc
+  a@TyConst{} -> a
+  TyCtor a _ -> TyCtor a loc
+  TyEmpty _ -> TyEmpty loc
+  TyFunction a b _ -> TyFunction (recur a) (recur b) loc
+  TyQuantified (Forall stacks scalars a) _
+    -> TyQuantified (Forall stacks scalars (recur a)) loc
+  a@TyVar{} -> a
+  TyVector a _ -> TyVector (recur a) loc
+  where
+  recur :: Type a -> Type a
+  recur = setTypeLocation loc
 
 data Ctor
   = CtorBool
@@ -89,15 +109,15 @@ instance Show Ctor where
   show = T.unpack . toText
 
 instance Eq (Type a) where
-  (a :& b) == (c :& d) = (a, b) == (c, d)
-  (a :. b) == (c :. d) = (a, b) == (c, d)
-  (:?) a == (:?) b = a == b
-  (a :| b) == (c :| d) = (a, b) == (c, d)
   TyConst a _ == TyConst b _ = a == b
   TyCtor a _ == TyCtor b _ = a == b
   TyEmpty{} == TyEmpty{} = True
   TyFunction a b _ == TyFunction c d _ = (a, b) == (c, d)
+  TyOption a _ == TyOption b _ = a == b
+  TyProduct a b _ == TyProduct c d _ = (a, b) == (c, d)
   TyQuantified a _ == TyQuantified b _ = a == b
+  TyStack a b == TyStack c d = (a, b) == (c, d)
+  TySum a b _ == TySum c d _ = (a, b) == (c, d)
   TyVar a _ == TyVar b _ = a == b
   TyVector a _ == TyVector b _ = a == b
   _ == _ = False
@@ -111,28 +131,28 @@ instance Show (Type Stack) where
 -- TODO showsPrec
 instance ToText (Type Scalar) where
   toText = \case
-    t1 :& t2 -> T.concat ["(", toText t1, " & ", toText t2, ")"]
-    (:?) t -> toText t <> "?"
-    t1 :@ ts -> toText t1 <> case V.toList ts of
+    TyApply t1 ts _ -> toText t1 <> case V.toList ts of
       [] -> ""
       [t] -> "@" <> toText t
       ts' -> T.concat ["@(", T.intercalate ", " $ map toText ts', ")"]
-    t1 :| t2 -> T.concat ["(", toText t1, " | ", toText t2, ")"]
     TyConst (KindedId (Id i)) _
       -> "t" <> showText i  -- TODO Show differently?
     TyCtor name _ -> toText name
     TyFunction r1 r2 _ -> T.concat
       ["(", T.unwords [toText r1, "->", toText r2], ")"]
+    TyOption t _ -> toText t <> "?"
+    TyProduct t1 t2 _ -> T.concat ["(", toText t1, " & ", toText t2, ")"]
     TyQuantified scheme _ -> toText scheme
+    TySum t1 t2 _ -> T.concat ["(", toText t1, " | ", toText t2, ")"]
     TyVar (KindedId (Id i)) _ -> "t" <> showText i
     TyVector t _ -> T.concat ["[", toText t, "]"]
 
 instance ToText (Type Stack) where
   toText = \case
-    t1 :. t2 -> T.unwords [toText t1, toText t2]
     TyConst (KindedId (Id i)) _
       -> "s" <> showText i <> "..."  -- TODO Show differently?
     TyEmpty _ -> "<empty>"
+    TyStack t1 t2 -> T.unwords [toText t1, toText t2]
     TyVar (KindedId (Id i)) _ -> "s" <> showText i <> "..."
 
 data StackHint
@@ -167,18 +187,25 @@ instance (ToText a) => ToText (Scheme a) where
 
 type TypeScheme = Scheme (Type Scalar)
 
-infix 6 :&
-infix 6 :|
-infixl 5 :.
+infix 6 &:
+infix 6 |:
+infixl 5 -:
 infix 4 -->
 
 (-->) :: Type Stack -> Type Stack -> Location -> Type Scalar
 (-->) = TyFunction
 
+(&:), (|:) :: Type Scalar -> Type Scalar -> Location -> Type Scalar
+(&:) = TyProduct
+(|:) = TySum
+
+(-:) :: Type Stack -> Type Scalar -> Type Stack
+(-:) = TyStack
+
 -- | Gets the bottommost element of a stack type.
 bottommost :: Type Stack -> Type Stack
 bottommost type_ = case type_ of
-  (a :. _) -> bottommost a
+  TyStack a _ -> bottommost a
   _ -> type_
 
 mono :: a -> Scheme a

@@ -66,12 +66,12 @@ irTerm term = case term of
     target' <- getDefM target
     return $ V.singleton (IrCall target')
   TrCompose _ terms _ -> concatMapM irTerm terms
-  TrConstruct name ctor size (_, TyFunction _ (_ :. type_) _) -> do
+  TrConstruct name ctor size (_, TyFunction _ (TyStack _ type_) _) -> do
     name' <- ctorIndex (Just name) ctor
     return $ V.singleton (IrConstruct name' size type_)
   TrConstruct{} -> error "constructor with non-function type"
   TrIntrinsic intrinsic _ -> return $ V.singleton (IrIntrinsic intrinsic)
-  TrLambda _ terms _ -> do
+  TrLambda _ _ terms _ -> do
     instructions <- irTerm terms
     return $ V.singleton (IrEnter 1) <> instructions <> V.singleton (IrLeave 1)
   TrMakePair a b _ -> do

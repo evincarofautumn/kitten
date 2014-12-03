@@ -60,7 +60,7 @@ typeFragment fragment = mdo
   F.forM_ (fragmentDefs fragment) save
 
   typedDefs <- flip T.mapM (fragmentDefs fragment) $ \def
-    -> withLocation (defLocation def) $ do
+    -> withLocation (parsedLocation $ unscheme (defTerm def)) $ do
       (typedDefTerm, inferredScheme) <- generalize
         . infer finalProgram . unscheme  -- See note [scheming defs].
         $ defTerm def
@@ -95,7 +95,7 @@ typeFragment fragment = mdo
     enforce <- asksConfig configEnforceBottom
     when enforce $ bottom `shouldBe` TyEmpty topLevel
     stackTypes <- asksConfig configStackTypes
-    let stackType = F.foldl (:.) bottom stackTypes
+    let stackType = F.foldl TyStack bottom stackTypes
     stackType `shouldBe` consumption
 
   let
@@ -136,7 +136,8 @@ typeFragment fragment = mdo
 
 instanceCheck :: TypeScheme -> TypeScheme -> ErrorGroup -> K ()
 instanceCheck inferredScheme declaredScheme errorGroup = do
-  inferredType <- instantiateM inferredScheme
+  loc <- getLocation
+  inferredType <- instantiateM loc inferredScheme
   (stackConsts, scalarConsts, declaredType) <- skolemize declaredScheme
   inferredType `shouldBe` declaredType
   let
@@ -167,7 +168,7 @@ infer :: Program -> ResolvedTerm -> K (TypedTerm, Type Scalar)
 infer finalProgram resolved = case resolved of
 
   TrCall hint name loc -> asTyped (TrCall hint name) loc
-    . (instantiateM =<<) $ do
+    . (instantiateM loc =<<) $ do
       decls <- getsProgram inferenceDecls
       case H.lookup name decls of
         Just decl -> return decl
@@ -187,8 +188,8 @@ infer finalProgram resolved = case resolved of
     let
       composed = foldM
         (\x y -> do
-          TyFunction a b _ <- unquantify x
-          TyFunction c d _ <- unquantify y
+          TyFunction a b _ <- unquantify (typeLocation x) x
+          TyFunction c d _ <- unquantify (typeLocation y) y
           inferCompose a b c d)
         ((r --> r) loc)
         (V.toList types)
@@ -222,7 +223,7 @@ infer finalProgram resolved = case resolved of
         instanceCheck typeScheme
           (Forall (S.singleton s) S.empty
             $ (TyVar s loc
-              --> TyVar s loc :. TyVar a loc) loc)
+              --> TyVar s loc -: TyVar a loc) loc)
           $ ErrorGroup
           [ CompileError loc Error $ T.unwords
             [ toText typeScheme
@@ -237,16 +238,16 @@ infer finalProgram resolved = case resolved of
   -- type annotation in order to be safe.
   TrConstruct name ctor size loc -> withLocation loc $ do
     r <- freshVarM
-    inputs <- V.foldl (:.) r <$> V.replicateM size freshVarM
+    inputs <- V.foldl (-:) r <$> V.replicateM size freshVarM
     a <- freshVarM
-    let type_ = TyFunction inputs (r :. a) loc
+    let type_ = TyFunction inputs (r -: a) loc
     return (TrConstruct name ctor size (loc, sub finalProgram type_), type_)
 
   TrIntrinsic name loc -> asTyped (TrIntrinsic name) loc $ case name of
 
     InAddVector -> forAll $ \r a
-      -> (r :. TyVector a o :. TyVector a o
-      --> r :. TyVector a o) o
+      -> (r -: TyVector a o -: TyVector a o
+      --> r -: TyVector a o) o
 
     InAddFloat -> binary (tyFloat o) o
 
@@ -257,22 +258,22 @@ infer finalProgram resolved = case resolved of
     InAndInt -> binary (tyInt o) o
 
     InApply -> forAll $ \r s
-      -> TyFunction (r :. TyFunction r s o) s o
+      -> TyFunction (r -: TyFunction r s o) s o
 
     InCharToInt -> forAll $ \r
-      -> (r :. tyChar o --> r :. tyInt o) o
+      -> (r -: tyChar o --> r -: tyInt o) o
 
     InChoice -> forAll $ \r a b -> TyFunction
-      (r :. (a :| b) :. TyFunction (r :. a) r o) r o
+      (r -: (a |: b) o -: TyFunction (r -: a) r o) r o
 
     InChoiceElse -> forAll $ \r a b s -> TyFunction
-      (r :. (a :| b)
-        :. TyFunction (r :. a) s o
-        :. TyFunction (r :. b) s o)
+      (r -: (a |: b) o
+        -: TyFunction (r -: a) s o
+        -: TyFunction (r -: b) s o)
       s o
 
     InClose -> forAll $ \r
-      -> (r :. tyHandle o --> r) o
+      -> (r -: tyHandle o --> r) o
 
     InDivFloat -> binary (tyFloat o) o
     InDivInt -> binary (tyInt o) o
@@ -281,55 +282,55 @@ infer finalProgram resolved = case resolved of
     InEqInt -> relational (tyInt o) o
 
     InExit -> forAll $ \r s
-      -> (r :. tyInt o --> s) o
+      -> (r -: tyInt o --> s) o
 
     InFirst -> forAll $ \r a b
-      -> (r :. a :& b --> r :. a) o
+      -> (r -: (a &: b) o --> r -: a) o
 
     InFromLeft -> forAll $ \r a b
-      -> (r :. a :| b --> r :. a) o
+      -> (r -: (a |: b) o --> r -: a) o
 
     InFromRight -> forAll $ \r a b
-      -> (r :. a :| b --> r :. b) o
+      -> (r -: (a |: b) o --> r -: b) o
 
     InFromSome -> forAll $ \r a
-      -> (r :. (a :?) --> r :. a) o
+      -> (r -: TyOption a o --> r -: a) o
 
     InGeFloat -> relational (tyFloat o) o
     InGeInt -> relational (tyInt o) o
 
     InGet -> forAll $ \r a
-      -> (r :. TyVector a o :. tyInt o --> r :. (a :?)) o
+      -> (r -: TyVector a o -: tyInt o --> r -: TyOption a o) o
 
     InGetLine -> forAll $ \r
-      -> (r :. tyHandle o --> r :. string o) o
+      -> (r -: tyHandle o --> r -: string o) o
 
     InGtFloat -> relational (tyFloat o) o
     InGtInt -> relational (tyInt o) o
 
     InIf -> forAll $ \r -> TyFunction
-      (r :. tyBool o :. TyFunction r r o) r o
+      (r -: tyBool o -: TyFunction r r o) r o
 
     InIfElse -> forAll $ \r s -> TyFunction
-      (r :. tyBool o
-        :. TyFunction r s o
-        :. TyFunction r s o)
+      (r -: tyBool o
+        -: TyFunction r s o
+        -: TyFunction r s o)
       s o
 
     InInit -> forAll $ \r a
-      -> (r :. TyVector a o --> r :. TyVector a o) o
+      -> (r -: TyVector a o --> r -: TyVector a o) o
 
     InIntToChar -> forAll $ \r
-      -> (r :. tyInt o --> r :. (tyChar o :?)) o
+      -> (r -: tyInt o --> r -: TyOption (tyChar o) o) o
 
     InLeFloat -> relational (tyFloat o) o
     InLeInt -> relational (tyInt o) o
 
     InLeft -> forAll $ \r a b
-      -> (r :. a --> r :. a :| b) o
+      -> (r -: a --> r -: (a |: b) o) o
 
     InLength -> forAll $ \r a
-      -> (r :. TyVector a o --> r :. tyInt o) o
+      -> (r -: TyVector a o --> r -: tyInt o) o
 
     InLtFloat -> relational (tyFloat o) o
     InLtInt -> relational (tyInt o) o
@@ -347,66 +348,66 @@ infer finalProgram resolved = case resolved of
     InNegInt -> unary (tyInt o) o
 
     InNone -> forAll $ \r a
-      -> (r --> r :. (a :?)) o
+      -> (r --> r -: TyOption a o) o
 
     InNotBool -> unary (tyBool o) o
     InNotInt -> unary (tyInt o) o
 
     InOpenIn -> forAll $ \r
-      -> (r :. string o --> r :. tyHandle o) o
+      -> (r -: string o --> r -: tyHandle o) o
 
     InOpenOut -> forAll $ \r
-      -> (r :. string o --> r :. tyHandle o) o
+      -> (r -: string o --> r -: tyHandle o) o
 
     InOption -> forAll $ \r a -> TyFunction
-      (r :. (a :?) :. TyFunction (r :. a) r o) r o
+      (r -: TyOption a o -: TyFunction (r -: a) r o) r o
 
     InOptionElse -> forAll $ \r a s -> TyFunction
-      (r :. (a :?)
-        :. TyFunction (r :. a) s o
-        :. TyFunction r s o)
+      (r -: TyOption a o
+        -: TyFunction (r -: a) s o
+        -: TyFunction r s o)
       s o
 
     InOrBool -> binary (tyBool o) o
     InOrInt -> binary (tyInt o) o
 
     InRest -> forAll $ \r a b
-      -> (r :. a :& b --> r :. b) o
+      -> (r -: (a &: b) o --> r -: b) o
 
     InRight -> forAll $ \r a b
-      -> (r :. b --> r :. a :| b) o
+      -> (r -: b --> r -: (a |: b) o) o
 
     InSet -> forAll $ \r a
-      -> (r :. TyVector a o :. tyInt o :. a
-      --> r :. TyVector a o) o
+      -> (r -: TyVector a o -: tyInt o -: a
+      --> r -: TyVector a o) o
 
     InShowFloat -> forAll $ \r
-      -> (r :. tyFloat o --> r :. string o) o
+      -> (r -: tyFloat o --> r -: string o) o
 
     InShowInt -> forAll $ \r
-      -> (r :. tyInt o --> r :. string o) o
+      -> (r -: tyInt o --> r -: string o) o
 
     InSome -> forAll $ \r a
-      -> (r :. a --> r :. (a :?)) o
+      -> (r -: a --> r -: TyOption a o) o
 
     InStderr -> forAll $ \r
-      -> (r --> r :. tyHandle o) o
+      -> (r --> r -: tyHandle o) o
     InStdin -> forAll $ \r
-      -> (r --> r :. tyHandle o) o
+      -> (r --> r -: tyHandle o) o
     InStdout -> forAll $ \r
-      -> (r --> r :. tyHandle o) o
+      -> (r --> r -: tyHandle o) o
 
     InSubFloat -> binary (tyFloat o) o
     InSubInt -> binary (tyInt o) o
 
     InPair -> forAll $ \r a b
-      -> (r :. a :. b --> r :. a :& b) o
+      -> (r -: a -: b --> r -: (a &: b) o) o
 
     InPrint -> forAll $ \r
-      -> (r :. string o :. tyHandle o --> r) o
+      -> (r -: string o -: tyHandle o --> r) o
 
     InTail -> forAll $ \r a
-      -> (r :. TyVector a o --> r :. TyVector a o) o
+      -> (r -: TyVector a o --> r -: TyVector a o) o
 
     InXorBool -> binary (tyBool o) o
     InXorInt -> binary (tyInt o) o
@@ -414,22 +415,22 @@ infer finalProgram resolved = case resolved of
     where
     o = loc
 
-  TrLambda name term loc -> withLocation loc $ do
-    a <- freshVarM
+  TrLambda name nameLoc term loc -> withLocation loc $ do
+    a <- withLocation nameLoc freshVarM
     (term', TyFunction b c _) <- local a $ recur term
-    let type_ = TyFunction (b :. a) c loc
-    return (TrLambda name term' (loc, sub finalProgram type_), type_)
+    let type_ = TyFunction (b -: a) c loc
+    return (TrLambda name nameLoc term' (loc, sub finalProgram type_), type_)
 
   TrMakePair x y loc -> withLocation loc $ do
     (x', a) <- secondM fromConstant =<< recur x
     (y', b) <- secondM fromConstant =<< recur y
-    type_ <- forAll $ \r -> (r --> r :. a :& b) loc
+    type_ <- forAll $ \r -> (r --> r -: (a &: b) loc) loc
     return (TrMakePair x' y' (loc, sub finalProgram type_), type_)
 
   TrMakeVector values loc -> withLocation loc $ do
     (typedValues, types) <- V.mapAndUnzipM recur values
     elementType <- fromConstant =<< unifyEach types
-    type_ <- forAll $ \r -> (r --> r :. TyVector elementType loc) loc
+    type_ <- forAll $ \r -> (r --> r -: TyVector elementType loc) loc
     return
       ( TrMakeVector typedValues (loc, sub finalProgram type_)
       , type_
@@ -445,11 +446,11 @@ infer finalProgram resolved = case resolved of
         a <- freshVarM
         return
           ( Just (TrClosure names term' (defaultBodyLoc, type_))
-          , TyFunction (bodyIn :. a) bodyOut functionLoc
+          , TyFunction (bodyIn -: a) bodyOut functionLoc
           )
       Just _ -> error "non-closure appeared in match default during inference"
       Nothing -> do
-        type_ <- forAll $ \r s a -> (r :. a --> s) loc
+        type_ <- forAll $ \r s a -> (r -: a --> s) loc
         return (Nothing, type_)
     (cases', caseTypes) <- flip V.mapAndUnzipM cases $ \case
       TrCase name (TrClosure names body caseBodyLoc) caseLoc -> withLocation caseLoc $ do
@@ -458,7 +459,7 @@ infer finalProgram resolved = case resolved of
           <- withClosure closedTypes $ recur body
         case H.lookup name decls of
           Just (Forall _ _ ctorType) -> do
-            TyFunction fields whole functionLoc <- unquantify ctorType
+            TyFunction fields whole functionLoc <- unquantify caseLoc ctorType
             bodyIn `shouldBe` fields
             let type_ = TyFunction whole bodyOut functionLoc
             return
@@ -477,7 +478,7 @@ infer finalProgram resolved = case resolved of
 
   TrPush value loc -> withLocation loc $ do
     (value', a) <- inferValue finalProgram value
-    type_ <- forAll $ \r -> (r --> r :. a) loc
+    type_ <- forAll $ \r -> (r --> r -: a) loc
     return (TrPush value' (loc, sub finalProgram type_), type_)
 
   where
@@ -490,41 +491,46 @@ infer finalProgram resolved = case resolved of
     -> K (a, Type Scalar)
   asTyped constructor loc action = do
     type_ <- withLocation loc action
-    return (constructor (loc, sub finalProgram type_), type_)
+    let type' = setTypeLocation loc type_
+    return (constructor (loc, sub finalProgram type'), type')
 
 -- | Removes top-level quantifiers from a type.
-unquantify :: Type a -> K (Type a)
-unquantify (TyQuantified scheme _) = unquantify =<< instantiateM scheme
-unquantify type_ = return type_
+unquantify :: Location -> Type a -> K (Type a)
+unquantify loc = go
+  where
+  go (TyQuantified scheme _) = go =<< instantiateM loc scheme
+  go type_ = return $ setTypeLocation loc type_
 
 fromConstant :: Type Scalar -> K (Type Scalar)
 fromConstant type_ = do
   a <- freshVarM
   r <- freshVarM
   loc <- getLocation
-  type_ `shouldBe` (r --> r :. a) loc
+  type_ `shouldBe` (r --> r -: a) loc
   return a
 
 binary :: Type Scalar -> Location -> K (Type Scalar)
 binary a loc = forAll
-  $ \r -> (r :. a :. a --> r :. a) loc
+  $ \r -> (r -: a -: a --> r -: a) loc
 
 relational :: Type Scalar -> Location -> K (Type Scalar)
 relational a loc = forAll
-  $ \r -> (r :. a :. a --> r :. tyBool loc) loc
+  $ \r -> (r -: a -: a --> r -: tyBool loc) loc
 
 unary :: Type Scalar -> Location -> K (Type Scalar)
 unary a loc = forAll
-  $ \r -> (r :. a --> r :. a) loc
+  $ \r -> (r -: a --> r -: a) loc
 
 string :: Location -> Type Scalar
 string loc = TyVector (tyChar loc) loc
 
 local :: Type Scalar -> K a -> K a
 local type_ action = do
-  modifyProgram $ \program -> program { inferenceLocals = type_ : inferenceLocals program }
+  modifyProgram $ \program -> program
+    { inferenceLocals = type_ : inferenceLocals program }
   result <- action
-  modifyProgram $ \program -> program { inferenceLocals = tail $ inferenceLocals program }
+  modifyProgram $ \program -> program
+    { inferenceLocals = tail $ inferenceLocals program }
   return result
 
 withClosure :: Vector (Type Scalar) -> K a -> K a
@@ -541,9 +547,9 @@ getClosedName name = case name of
   ReclosedName index -> getsProgram $ (V.! index) . inferenceClosure
 
 inferValue :: Program -> ResolvedValue -> K (TypedValue, Type Scalar)
-inferValue finalProgram value = getLocation >>= \origin -> case value of
-  TrBool val loc -> ret loc (tyBool origin) (TrBool val)
-  TrChar val loc -> ret loc (tyChar origin) (TrChar val)
+inferValue finalProgram value = getLocation >>= \pushLoc -> case value of
+  TrBool val loc -> ret loc (tyBool pushLoc) (TrBool val)
+  TrChar val loc -> ret loc (tyChar pushLoc) (TrChar val)
   TrClosed index loc -> do
     type_ <- getsProgram ((V.! index) . inferenceClosure)
     ret loc type_ (TrClosed index)
@@ -551,15 +557,17 @@ inferValue finalProgram value = getLocation >>= \origin -> case value of
     closedTypes <- V.mapM getClosedName names
     (term', type_) <- withClosure closedTypes (infer finalProgram term)
     ret loc type_ (TrClosure names term')
-  TrFloat val loc -> ret loc (tyFloat origin) (TrFloat val)
-  TrInt val loc -> ret loc (tyInt origin) (TrInt val)
+  TrFloat val loc -> ret loc (tyFloat pushLoc) (TrFloat val)
+  TrInt val loc -> ret loc (tyInt pushLoc) (TrInt val)
   TrLocal index loc -> do
     type_ <- getsProgram ((!! index) . inferenceLocals)
     ret loc type_ (TrLocal index)
   TrQuotation{} -> error "quotation appeared during type inference"
-  TrText val loc -> ret loc (TyVector (tyChar origin) origin) (TrText val)
+  TrText val loc -> ret loc (TyVector (tyChar pushLoc) pushLoc) (TrText val)
   where
-  ret loc type_ constructor = return (constructor (loc, type_), type_)
+  ret loc type_ constructor = let
+    type' = setTypeLocation loc type_
+    in return (constructor (loc, type'), type')
 
 unifyEach :: Vector (Type Scalar) -> K (Type Scalar)
 unifyEach xs = go 0
@@ -568,7 +576,7 @@ unifyEach xs = go 0
     | i >= V.length xs = freshVarM
     | i == V.length xs - 1 = return (xs V.! i)
     | otherwise = do
-      xs V.! i `shouldBe` xs V.! (i + 1)
+      xs V.! (i + 1) `shouldBe` xs V.! i
       go (i + 1)
 
 inferCompose
@@ -577,7 +585,7 @@ inferCompose
   -> K (Type Scalar)
 inferCompose in1 out1 in2 out2 = do
   out1 `shouldBe` in2
-  TyFunction in1 out2 <$> getLocation
+  return $ TyFunction in1 out2 (typeLocation out2)
 
 getLocation :: K Location
 getLocation = getsProgram inferenceLocation

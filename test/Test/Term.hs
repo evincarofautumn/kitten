@@ -153,7 +153,7 @@ spec = do
         , word optionElseName ] ])
         { fragmentDefs = defList
           [ defWithAnno optionElseName
-            (AnFunction V.empty V.empty)
+            (AnFunction V.empty V.empty TestLocation)
             $ compose [] ] }
 
     testTermFailure ":"
@@ -212,11 +212,11 @@ spec = do
     $ emptyFragment { fragmentDefs = defList
       [ defWithAnno (Qualified (Qualifier V.empty) "curriedAdd")
         (AnFunction
-          (V.fromList [AnVar "int"])
+          (V.fromList [AnVar "int" TestLocation])
           (V.fromList
             [AnFunction
-              (V.fromList [AnVar "int"])
-              (V.fromList [AnVar "int"])]))
+              (V.fromList [AnVar "int" TestLocation])
+              (V.fromList [AnVar "int" TestLocation]) TestLocation]) TestLocation)
         $ compose
           [ lambda "x"
             [ push $ quotation
@@ -259,7 +259,7 @@ def name term = Def
 
 defWithAnno :: Name -> AnType -> a -> Def a
 defWithAnno name anno term = (def name term)
-  { defAnno = Anno anno TestLocation }
+  { defAnno = Anno anno }
 
 call :: Name -> ParsedTerm
 call name = TrCall Postfix name TestLocation
@@ -279,7 +279,7 @@ pushi value = push $ int value
 
 lambda :: Name -> [ParsedTerm] -> ParsedTerm
 lambda name terms
-  = TrLambda name (compose terms) TestLocation
+  = TrLambda name TestLocation (compose terms) TestLocation
 
 push :: ParsedValue -> ParsedTerm
 push value = TrPush value TestLocation

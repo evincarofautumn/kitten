@@ -98,16 +98,16 @@ tidyStack = tidyIdM stacks
 
 tidyScalarType :: Type Scalar -> Tidy (Type Scalar)
 tidyScalarType type_ = case type_ of
-  t1 :& t2 -> (:&) <$> tidyScalarType t1 <*> tidyScalarType t2
-  (:?) t -> (:?) <$> tidyScalarType t
-  t1 :@ ts -> (:@) <$> tidyScalarType t1 <*> V.mapM tidyScalarType ts
-  t1 :| t2 -> (:|) <$> tidyScalarType t1 <*> tidyScalarType t2
+  TyApply t1 ts loc -> TyApply <$> tidyScalarType t1 <*> V.mapM tidyScalarType ts <*> pure loc
   TyConst i loc -> TyConst <$> tidyScalar i <*> pure loc
   TyCtor{} -> pure type_
   TyFunction r1 r2 loc -> TyFunction
     <$> tidyStackType r1
     <*> tidyStackType r2
     <*> pure loc
+  TyOption t loc -> TyOption <$> tidyScalarType t <*> pure loc
+  TyProduct t1 t2 loc -> TyProduct <$> tidyScalarType t1 <*> tidyScalarType t2 <*> pure loc
+  TySum t1 t2 loc -> TySum <$> tidyScalarType t1 <*> tidyScalarType t2 <*> pure loc
   TyQuantified (Forall r s t) loc -> TyQuantified
     <$> (Forall
       <$> Set.mapM tidyStack r
@@ -119,7 +119,7 @@ tidyScalarType type_ = case type_ of
 
 tidyStackType :: Type Stack -> Tidy (Type Stack)
 tidyStackType type_ = case type_ of
-  t1 :. t2 -> (:.) <$> tidyStackType t1 <*> tidyScalarType t2
+  TyStack t1 t2 -> TyStack <$> tidyStackType t1 <*> tidyScalarType t2
   TyConst i loc -> TyConst <$> tidyStack i <*> pure loc
   TyEmpty{} -> pure type_
   TyVar i loc -> TyVar <$> tidyStack i <*> pure loc
