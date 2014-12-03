@@ -54,14 +54,14 @@ instance Unification Stack where
   unification have want program = case (have, want) of
     _ | have == want -> Right program
     (a :. b, c :. d) -> withContext' $ unify b d program >>= unify a c
-    (TyVar var (Origin hint _), type_)
-      -> withContext' $ unifyVar var (type_ `addHint` hint) program
-    (type_, TyVar var (Origin hint _))
-      -> withContext' $ unifyVar var (type_ `addHint` hint) program
+    (TyVar var _, type_)
+      -> withContext' $ unifyVar var type_ program
+    (type_, TyVar var _)
+      -> withContext' $ unifyVar var type_ program
     _ -> Left $ unificationError Finite loc have want
     where
     withContext' = withContext have want loc
-    loc = originLocation $ inferenceOrigin program
+    loc = inferenceLocation program
 
 instance Unification Scalar where
   unification have want program = case (have, want) of
@@ -79,10 +79,10 @@ instance Unification Scalar where
     (TyFunction a b _, TyFunction c d _)
       -> withContext' $ unify b d program >>= unify a c
     (TyVector a _, TyVector b _) -> withContext' $ unify a b program
-    (TyVar var (Origin hint _), type_)
-      -> withContext' $ unifyVar var (type_ `addHint` hint) program
-    (type_, TyVar var (Origin hint _))
-      -> withContext' $ unifyVar var (type_ `addHint` hint) program
+    (TyVar var _, type_)
+      -> withContext' $ unifyVar var type_ program
+    (type_, TyVar var _)
+      -> withContext' $ unifyVar var type_ program
     (TyQuantified scheme loc', type_) -> withContext' $ let
       (type', program') = instantiate loc' scheme program
       in unify type' type_ program'
@@ -92,7 +92,7 @@ instance Unification Scalar where
     _ -> Left $ unificationError Finite loc have want
     where
     withContext' = withContext have want loc
-    loc = originLocation $ inferenceOrigin program
+    loc = inferenceLocation program
 
 withContext
   :: forall (a :: Kind) b
@@ -133,9 +133,8 @@ unificationError finitude location have want = runTidy $ do
   return [ErrorGroup (primaryError : secondaryErrors ++ tertiaryErrors)]
   where
   kind = reifyKind (KindProxy :: KindProxy a)
-  errorDetail (origin@(Origin _ loc), type_) = CompileError loc Note $ T.concat
+  errorDetail (loc, type_) = CompileError loc Note $ T.concat
     [ type_
-    , originSuffix origin
     , " is from here"
     ]
 
@@ -184,8 +183,8 @@ unifyVar var1 type_ program = case type_ of
   TyVar var2 _ | var1 == var2 -> return program
   TyVar{} -> return $ declare var1 type_ program
   _ | occurs (unkinded var1) program type_
-    -> let loc = originLocation $ inferenceOrigin program in Left $ unificationError
+    -> let loc = inferenceLocation program in Left $ unificationError
       Infinite loc
-      (sub program (TyVar var1 (Origin HiNone loc) :: Type a))
+      (sub program (TyVar var1 loc :: Type a))
       (sub program type_)
   _ -> return $ declare var1 type_ program

@@ -59,7 +59,7 @@ data Program = Program
   , inferenceDefs :: !(HashMap Name TypeScheme)
   , inferenceDecls :: !(HashMap Name TypeScheme)
   , inferenceLocals :: [Type Scalar]
-  , inferenceOrigin :: !Origin
+  , inferenceLocation :: !Location
   , inferenceScalars :: !(TypeIdMap (Type Scalar))
   , inferenceStacks :: !(TypeIdMap (Type Stack))
   }
@@ -92,7 +92,7 @@ emptyProgram = Program
   , inferenceDefs = H.empty
   , inferenceDecls = H.empty
   , inferenceLocals = []
-  , inferenceOrigin = Origin HiNone Location
+  , inferenceLocation = Location
     { locationStart = initialPos "<unknown>"
     , locationIndent = 0
     }
@@ -129,11 +129,10 @@ freshStackIdM = liftState $ state freshStackId
 
 freshM
   :: forall a (b :: Kind -> *)
-  . (Origin -> Program -> (b a, Program))
+  . (Location -> Program -> (b a, Program))
   -> K (b a)
-freshM action = do
-  Origin hint loc <- getsProgram inferenceOrigin
-  liftState $ state (action (Origin hint loc))
+freshM action
+  = liftState . state . action =<< getsProgram inferenceLocation
 
 data IrInstruction
   = IrAct !IrAct

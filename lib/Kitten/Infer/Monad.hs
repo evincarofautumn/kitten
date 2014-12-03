@@ -14,7 +14,6 @@ module Kitten.Infer.Monad
   , freshVarM
   , retrieve
   , withLocation
-  , withOrigin
   ) where
 
 import Data.Text (Text)
@@ -50,15 +49,15 @@ class Retrieve a where
 instance Retrieve Stack where
   retrieve Program{..} (KindedId name)
     = flip maybeToEither (Id.lookup name inferenceStacks)
-    $ nonexistent "stack" inferenceOrigin name
+    $ nonexistent "stack" inferenceLocation name
 
 instance Retrieve Scalar where
   retrieve Program{..} (KindedId name)
     = flip maybeToEither (Id.lookup name inferenceScalars)
-    $ nonexistent "scalar" inferenceOrigin name
+    $ nonexistent "scalar" inferenceLocation name
 
-nonexistent :: Text -> Origin -> Id n -> ErrorGroup
-nonexistent kind (Origin _ loc) name
+nonexistent :: Text -> Location -> Id n -> ErrorGroup
+nonexistent kind loc name
   = oneError $ CompileError loc Error $ T.concat
   [ "nonexistent ", kind, " variable '"
   , toText name
@@ -68,25 +67,25 @@ nonexistent kind (Origin _ loc) name
 class Fresh (a :: Kind) where
   fresh
     :: forall (b :: Kind -> *)
-    . (KindedId a -> Origin -> b a)
-    -> Origin -> Program -> (b a, Program)
+    . (KindedId a -> Location -> b a)
+    -> Location -> Program -> (b a, Program)
 
 instance Fresh Scalar where
-  fresh constructor origin program
+  fresh constructor loc program
     = let (typeId, program') = freshScalarId program
-    in (constructor typeId origin, program')
+    in (constructor typeId loc, program')
 
 instance Fresh Stack where
-  fresh constructor origin program
+  fresh constructor loc program
     = let (typeId, program') = freshStackId program
-    in (constructor typeId origin, program')
+    in (constructor typeId loc, program')
 
 freshConst
-  :: forall (a :: Kind). (Fresh a) => Origin -> Program -> (Type a, Program)
+  :: forall (a :: Kind). (Fresh a) => Location -> Program -> (Type a, Program)
 freshConst = fresh TyConst
 
 freshVar
-  :: forall (a :: Kind). (Fresh a) => Origin -> Program -> (Type a, Program)
+  :: forall (a :: Kind). (Fresh a) => Location -> Program -> (Type a, Program)
 freshVar = fresh TyVar
 
 freshConstM :: forall (a :: Kind). (Fresh a) => K (Type a)
@@ -96,12 +95,9 @@ freshVarM :: forall (a :: Kind). (Fresh a) => K (Type a)
 freshVarM = freshM freshVar
 
 withLocation :: Location -> K a -> K a
-withLocation here = withOrigin (Origin HiNone here)
-
-withOrigin :: Origin -> K a -> K a
-withOrigin here action = do
-  there <- getsProgram inferenceOrigin
-  modifyProgram $ \program -> program { inferenceOrigin = here }
+withLocation here action = do
+  there <- getsProgram inferenceLocation
+  modifyProgram $ \program -> program { inferenceLocation = here }
   result <- action
-  modifyProgram $ \program -> program { inferenceOrigin = there }
+  modifyProgram $ \program -> program { inferenceLocation = there }
   return result

@@ -60,7 +60,7 @@ typeFragment fragment = mdo
   F.forM_ (fragmentDefs fragment) save
 
   typedDefs <- flip T.mapM (fragmentDefs fragment) $ \def
-    -> withOrigin (defOrigin def) $ do
+    -> withLocation (defLocation def) $ do
       (typedDefTerm, inferredScheme) <- generalize
         . infer finalProgram . unscheme  -- See note [scheming defs].
         $ defTerm def
@@ -69,8 +69,8 @@ typeFragment fragment = mdo
         case H.lookup (defName def) decls of
           Just decl -> return decl
           Nothing -> do
-            origin <- getsProgram inferenceOrigin
-            fmap mono . forAll $ \r s -> TyFunction r s origin
+            loc <- getLocation
+            fmap mono . forAll $ \r s -> TyFunction r s loc
       saveDefWith (flip const) (defName def) inferredScheme
       instanceCheck inferredScheme declaredScheme $ let
         item = CompileError (defLocation def)
@@ -85,7 +85,7 @@ typeFragment fragment = mdo
         ]
       return def { defTerm = typedDefTerm <$ inferredScheme }
 
-  topLevel <- getsProgram (originLocation . inferenceOrigin)
+  topLevel <- getLocation
   (typedTerm, fragmentType) <- infer finalProgram $ fragmentTerm fragment
 
   -- Equate the bottom of the stack with stackTypes.
@@ -93,7 +93,7 @@ typeFragment fragment = mdo
     let TyFunction consumption _ _ = fragmentType
     bottom <- freshVarM
     enforce <- asksConfig configEnforceBottom
-    when enforce $ bottom `shouldBe` TyEmpty (Origin HiNone topLevel)
+    when enforce $ bottom `shouldBe` TyEmpty topLevel
     stackTypes <- asksConfig configStackTypes
     let stackType = F.foldl (:.) bottom stackTypes
     stackType `shouldBe` consumption
@@ -109,10 +109,6 @@ typeFragment fragment = mdo
   return (typedFragment, sub finalProgram fragmentType)
 
   where
-  defOrigin :: Def a -> Origin
-  defOrigin def = Origin
-    (HiType (AnDef (defName def)))
-    (defLocation def)
 
   saveDecl :: Name -> TypeScheme -> K ()
   saveDecl name scheme = modifyProgram $ \program -> program
@@ -133,7 +129,7 @@ typeFragment fragment = mdo
         Qualified qualifier _ -> qualifier
         MixfixName{} -> Qualifier V.empty
         _ -> error "unqualified definition name appeared during type inference"
-    scheme <- fromAnno (AnDef (defName def)) vocab
+    scheme <- fromAnno vocab
       (fragmentTypes fragment) (fragmentAbbrevs fragment) (defAnno def)
     saveDecl (defName def) scheme
     saveDefWith const (defName def) scheme
@@ -188,14 +184,13 @@ infer finalProgram resolved = case resolved of
   TrCompose hint terms loc -> withLocation loc $ do
     (typedTerms, types) <- V.mapAndUnzipM recur terms
     r <- freshVarM
-    origin <- getsProgram inferenceOrigin
     let
       composed = foldM
         (\x y -> do
           TyFunction a b _ <- unquantify x
           TyFunction c d _ <- unquantify y
           inferCompose a b c d)
-        ((r --> r) origin)
+        ((r --> r) loc)
         (V.toList types)
 
     -- We need the generalized type to check stack effects.
@@ -208,7 +203,7 @@ infer finalProgram resolved = case resolved of
         s <- freshStackIdM
         instanceCheck typeScheme
           (Forall (S.singleton s) S.empty
-            $ (TyVar s origin --> TyVar s origin) origin)
+            $ (TyVar s loc --> TyVar s loc) loc)
           $ ErrorGroup
           [ CompileError loc Error $ T.unwords
             [ toText typeScheme
@@ -226,8 +221,8 @@ infer finalProgram resolved = case resolved of
         -- latter, we don't care what the type is at all.
         instanceCheck typeScheme
           (Forall (S.singleton s) S.empty
-            $ (TyVar s origin
-              --> TyVar s origin :. TyVar a origin) origin)
+            $ (TyVar s loc
+              --> TyVar s loc :. TyVar a loc) loc)
           $ ErrorGroup
           [ CompileError loc Error $ T.unwords
             [ toText typeScheme
@@ -243,9 +238,8 @@ infer finalProgram resolved = case resolved of
   TrConstruct name ctor size loc -> withLocation loc $ do
     r <- freshVarM
     inputs <- V.foldl (:.) r <$> V.replicateM size freshVarM
-    origin <- getsProgram inferenceOrigin
     a <- freshVarM
-    let type_ = TyFunction inputs (r :. a) origin
+    let type_ = TyFunction inputs (r :. a) loc
     return (TrConstruct name ctor size (loc, sub finalProgram type_), type_)
 
   TrIntrinsic name loc -> asTyped (TrIntrinsic name) loc $ case name of
@@ -418,28 +412,24 @@ infer finalProgram resolved = case resolved of
     InXorInt -> binary (tyInt o) o
 
     where
-    o :: Origin
-    o = Origin (HiType (AnIntrinsic name)) loc
+    o = loc
 
-  TrLambda name term loc -> withOrigin (Origin (HiLocal name) loc) $ do
+  TrLambda name term loc -> withLocation loc $ do
     a <- freshVarM
     (term', TyFunction b c _) <- local a $ recur term
-    origin <- getsProgram inferenceOrigin
-    let type_ = TyFunction (b :. a) c origin
+    let type_ = TyFunction (b :. a) c loc
     return (TrLambda name term' (loc, sub finalProgram type_), type_)
 
   TrMakePair x y loc -> withLocation loc $ do
     (x', a) <- secondM fromConstant =<< recur x
     (y', b) <- secondM fromConstant =<< recur y
-    origin <- getsProgram inferenceOrigin
-    type_ <- forAll $ \r -> (r --> r :. a :& b) origin
+    type_ <- forAll $ \r -> (r --> r :. a :& b) loc
     return (TrMakePair x' y' (loc, sub finalProgram type_), type_)
 
   TrMakeVector values loc -> withLocation loc $ do
     (typedValues, types) <- V.mapAndUnzipM recur values
     elementType <- fromConstant =<< unifyEach types
-    origin <- getsProgram inferenceOrigin
-    type_ <- forAll $ \r -> (r --> r :. TyVector elementType origin) origin
+    type_ <- forAll $ \r -> (r --> r :. TyVector elementType loc) loc
     return
       ( TrMakeVector typedValues (loc, sub finalProgram type_)
       , type_
@@ -447,40 +437,39 @@ infer finalProgram resolved = case resolved of
 
   TrMatch cases mDefault loc -> withLocation loc $ do
     decls <- getsProgram inferenceDecls
-    defaultOrigin <- getsProgram inferenceOrigin
     (mDefault', defaultType) <- case mDefault of
-      Just (TrClosure names term loc') -> do
+      Just (TrClosure names term defaultBodyLoc) -> do
         closedTypes <- V.mapM getClosedName names
-        (term', type_@(TyFunction bodyIn bodyOut origin))
+        (term', type_@(TyFunction bodyIn bodyOut functionLoc))
           <- withClosure closedTypes $ recur term
         a <- freshVarM
         return
-          ( Just (TrClosure names term' (loc', type_))
-          , TyFunction (bodyIn :. a) bodyOut origin
+          ( Just (TrClosure names term' (defaultBodyLoc, type_))
+          , TyFunction (bodyIn :. a) bodyOut functionLoc
           )
       Just _ -> error "non-closure appeared in match default during inference"
       Nothing -> do
-        type_ <- forAll $ \r s a -> (r :. a --> s) defaultOrigin
+        type_ <- forAll $ \r s a -> (r :. a --> s) loc
         return (Nothing, type_)
     (cases', caseTypes) <- flip V.mapAndUnzipM cases $ \case
-      TrCase name (TrClosure names body loc'') loc'-> withLocation loc' $ do
+      TrCase name (TrClosure names body caseBodyLoc) caseLoc -> withLocation caseLoc $ do
         closedTypes <- V.mapM getClosedName names
         (body', TyFunction bodyIn bodyOut _)
           <- withClosure closedTypes $ recur body
         case H.lookup name decls of
           Just (Forall _ _ ctorType) -> do
-            TyFunction fields whole origin <- unquantify ctorType
+            TyFunction fields whole functionLoc <- unquantify ctorType
             bodyIn `shouldBe` fields
-            let type_ = TyFunction whole bodyOut origin
+            let type_ = TyFunction whole bodyOut functionLoc
             return
-              ( TrCase name (TrClosure names body' (loc'', type_))
-                (loc', sub finalProgram type_)
+              ( TrCase name (TrClosure names body' (caseBodyLoc, type_))
+                (caseLoc, sub finalProgram type_)
               , type_
               )
           Nothing -> liftFailWriter $ throwMany [errorGroup]
             where
             errorGroup = ErrorGroup
-              [ CompileError loc' Error $ T.concat
+              [ CompileError caseLoc Error $ T.concat
                 ["'", toText name, "' does not seem to be a defined constructor"] ]
       _ -> error "non-closure appeared in match case during inference"
     type_ <- unifyEach (V.cons defaultType caseTypes)
@@ -488,8 +477,7 @@ infer finalProgram resolved = case resolved of
 
   TrPush value loc -> withLocation loc $ do
     (value', a) <- inferValue finalProgram value
-    origin <- getsProgram inferenceOrigin
-    type_ <- forAll $ \r -> (r --> r :. a) origin
+    type_ <- forAll $ \r -> (r --> r :. a) loc
     return (TrPush value' (loc, sub finalProgram type_), type_)
 
   where
@@ -513,24 +501,24 @@ fromConstant :: Type Scalar -> K (Type Scalar)
 fromConstant type_ = do
   a <- freshVarM
   r <- freshVarM
-  origin <- getsProgram inferenceOrigin
-  type_ `shouldBe` (r --> r :. a) origin
+  loc <- getLocation
+  type_ `shouldBe` (r --> r :. a) loc
   return a
 
-binary :: Type Scalar -> Origin -> K (Type Scalar)
-binary a origin = forAll
-  $ \r -> (r :. a :. a --> r :. a) origin
+binary :: Type Scalar -> Location -> K (Type Scalar)
+binary a loc = forAll
+  $ \r -> (r :. a :. a --> r :. a) loc
 
-relational :: Type Scalar -> Origin -> K (Type Scalar)
-relational a origin = forAll
-  $ \r -> (r :. a :. a --> r :. tyBool origin) origin
+relational :: Type Scalar -> Location -> K (Type Scalar)
+relational a loc = forAll
+  $ \r -> (r :. a :. a --> r :. tyBool loc) loc
 
-unary :: Type Scalar -> Origin -> K (Type Scalar)
-unary a origin = forAll
-  $ \r -> (r :. a --> r :. a) origin
+unary :: Type Scalar -> Location -> K (Type Scalar)
+unary a loc = forAll
+  $ \r -> (r :. a --> r :. a) loc
 
-string :: Origin -> Type Scalar
-string origin = TyVector (tyChar origin) origin
+string :: Location -> Type Scalar
+string loc = TyVector (tyChar loc) loc
 
 local :: Type Scalar -> K a -> K a
 local type_ action = do
@@ -553,7 +541,7 @@ getClosedName name = case name of
   ReclosedName index -> getsProgram $ (V.! index) . inferenceClosure
 
 inferValue :: Program -> ResolvedValue -> K (TypedValue, Type Scalar)
-inferValue finalProgram value = getsProgram inferenceOrigin >>= \origin -> case value of
+inferValue finalProgram value = getLocation >>= \origin -> case value of
   TrBool val loc -> ret loc (tyBool origin) (TrBool val)
   TrChar val loc -> ret loc (tyChar origin) (TrChar val)
   TrClosed index loc -> do
@@ -589,4 +577,7 @@ inferCompose
   -> K (Type Scalar)
 inferCompose in1 out1 in2 out2 = do
   out1 `shouldBe` in2
-  TyFunction in1 out2 <$> getsProgram inferenceOrigin
+  TyFunction in1 out2 <$> getLocation
+
+getLocation :: K Location
+getLocation = getsProgram inferenceLocation

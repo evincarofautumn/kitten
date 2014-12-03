@@ -56,13 +56,12 @@ data Env = Env
 type Converted a = StateT Env K a
 
 fromAnno
-  :: Annotated
-  -> Qualifier
+  :: Qualifier
   -> HashMap Name TypeDef
   -> HashMap (Qualifier, Text) Qualifier
   -> Anno
   -> K (Scheme (Type Scalar))
-fromAnno annotated vocab typeDefNames newAbbrevs (Anno annoType annoLoc) = do
+fromAnno vocab typeDefNames newAbbrevs (Anno annoType annoLoc) = do
   oldAbbrevs <- getsProgram programAbbrevs
   (type_, env) <- flip runStateT Env
     { envAbbrevs = oldAbbrevs <> newAbbrevs
@@ -71,7 +70,7 @@ fromAnno annotated vocab typeDefNames newAbbrevs (Anno annoType annoLoc) = do
     , envScalars = H.empty
     , envTypeDefs = typeDefNames
     , envVocabulary = vocab
-    } $ fromAnnoType' (HiType annotated) annoType
+    } $ fromAnnoType' annoType
 
   return $ Forall
     (S.fromList (envAnonStacks env <> H.elems (envStacks env)))
@@ -79,37 +78,33 @@ fromAnno annotated vocab typeDefNames newAbbrevs (Anno annoType annoLoc) = do
     type_
   where
 
-  fromInput, fromOutput :: AnType -> Converted (Type Scalar)
-  fromInput = fromAnnoType' (HiFunctionInput annotated)
-  fromOutput = fromAnnoType' (HiFunctionOutput annotated)
-
-  fromAnnoType' :: Hint -> AnType -> Converted (Type Scalar)
-  fromAnnoType' hint = \case
+  fromAnnoType' :: AnType -> Converted (Type Scalar)
+  fromAnnoType' = \case
     AnApp a bs -> (:@)
-      <$> fromAnnoType' HiNone a
-      <*> V.mapM (fromAnnoType' HiNone) bs
+      <$> fromAnnoType' a
+      <*> V.mapM fromAnnoType' bs
     AnChoice a b -> (:|)
-      <$> fromAnnoType' HiNone a
-      <*> fromAnnoType' HiNone b
+      <$> fromAnnoType' a
+      <*> fromAnnoType' b
     AnFunction a b -> do
       r <- lift freshStackIdM
-      let rVar = TyVar r origin
+      let rVar = TyVar r loc
       scheme <- Forall (S.singleton r) S.empty
-        <$> makeFunction origin rVar a rVar b
-      return $ TyQuantified scheme origin
+        <$> makeFunction loc rVar a rVar b
+      return $ TyQuantified scheme loc
     AnOption a -> (:?)
-      <$> fromAnnoType' HiNone a
+      <$> fromAnnoType' a
     AnPair a b -> (:&)
-      <$> fromAnnoType' HiNone a
-      <*> fromAnnoType' HiNone b
+      <$> fromAnnoType' a
+      <*> fromAnnoType' b
     AnQuantified stacks scalars type_ -> do
       stackVars <- V.mapM declareStack stacks
       scalarVars <- V.mapM declareScalar scalars
       scheme <- Forall
         (S.fromList (V.toList stackVars))
         (S.fromList (V.toList scalarVars))
-        <$> fromAnnoType' HiNone type_
-      return $ TyQuantified scheme origin
+        <$> fromAnnoType' type_
+      return $ TyQuantified scheme loc
       where
       declareScalar name = do
         var <- lift freshScalarIdM
@@ -122,64 +117,59 @@ fromAnno annotated vocab typeDefNames newAbbrevs (Anno annoType annoLoc) = do
           { envStacks = H.insert name var (envStacks env) }
         return var
     AnStackFunction leftStack leftScalars rightStack rightScalars -> do
-      leftStackVar <- annoStackVar leftStack loc annotated
-      rightStackVar <- annoStackVar rightStack loc annotated
-      makeFunction origin leftStackVar leftScalars rightStackVar rightScalars
-    AnVar name -> annoScalarVar name loc annotated
-    AnVector a -> TyVector <$> fromAnnoType' HiNone a <*> pure origin
+      leftStackVar <- annoStackVar leftStack loc
+      rightStackVar <- annoStackVar rightStack loc
+      makeFunction loc leftStackVar leftScalars rightStackVar rightScalars
+    AnVar name -> annoScalarVar name loc
+    AnVector a -> TyVector <$> fromAnnoType' a <*> pure loc
     where
-    origin :: Origin
-    origin = Origin hint loc
     loc :: Location
     loc = annoLoc  -- FIXME(strager)
 
   makeFunction
-    :: Origin
+    :: Location
     -> Type Stack
     -> Vector AnType
     -> Type Stack
     -> Vector AnType
     -> Converted (Type Scalar)
-  makeFunction origin leftStack leftScalars rightStack rightScalars = TyFunction
-    <$> (V.foldl' (:.) leftStack <$> V.mapM fromInput leftScalars)
-    <*> (V.foldl' (:.) rightStack <$> V.mapM fromOutput rightScalars)
-    <*> pure origin
+  makeFunction loc leftStack leftScalars rightStack rightScalars = TyFunction
+    <$> (V.foldl' (:.) leftStack <$> V.mapM fromAnnoType' leftScalars)
+    <*> (V.foldl' (:.) rightStack <$> V.mapM fromAnnoType' rightScalars)
+    <*> pure loc
 
-fromAnno _ _ _ _ TestAnno = error "cannot make type from test annotation"
+fromAnno _ _ _ TestAnno = error "cannot make type from test annotation"
 
 -- | Gets a scalar variable by name from the environment.
-annoScalarVar
-  :: Name -> Location -> Annotated -> Converted (Type Scalar)
-annoScalarVar name loc annotated = do
+annoScalarVar :: Name -> Location -> Converted (Type Scalar)
+annoScalarVar name loc = do
   existing <- gets $ H.lookup name . envScalars
   vocab <- gets envVocabulary
   abbrevs <- gets envAbbrevs
   let lookupAbbrev x = H.lookup x abbrevs
   case existing of
-    Just var -> return $ TyVar var origin
+    Just var -> return $ TyVar var loc
     Nothing -> case name of
       Unqualified text
-        | text == "bool" -> return $ TyCtor CtorBool origin
-        | text == "char" -> return $ TyCtor CtorChar origin
-        | text == "float" -> return $ TyCtor CtorFloat origin
-        | text == "handle" -> return $ TyCtor CtorHandle origin
-        | text == "int" -> return $ TyCtor CtorInt origin
+        | text == "bool" -> return $ TyCtor CtorBool loc
+        | text == "char" -> return $ TyCtor CtorChar loc
+        | text == "float" -> return $ TyCtor CtorFloat loc
+        | text == "handle" -> return $ TyCtor CtorHandle loc
+        | text == "int" -> return $ TyCtor CtorInt loc
         | otherwise -> search vocab text isDefined call (unknown name loc)
       Qualified qualifier text -> searchAbbrev
         vocab qualifier text isDefined lookupAbbrev call (unknown name loc)
       _ -> unknown name loc
   where
-  origin = Origin (HiVar name annotated) loc
   isDefined x = gets $ isJust . H.lookup x . envTypeDefs
-  call x = return $ TyCtor (CtorUser x) origin
+  call x = return $ TyCtor (CtorUser x) loc
 
 -- | Gets a stack variable by name from the environment.
-annoStackVar
-  :: Name -> Location -> Annotated -> Converted (Type Stack)
-annoStackVar name loc annotated = do
+annoStackVar :: Name -> Location -> Converted (Type Stack)
+annoStackVar name loc = do
   existing <- gets $ H.lookup name . envStacks
   case existing of
-    Just var -> return $ TyVar var (Origin (HiVar name annotated) loc)
+    Just var -> return $ TyVar var loc
     Nothing -> unknown name loc
 
 unknown :: Name -> Location -> Converted a

@@ -38,6 +38,7 @@ import qualified Data.Vector as V
 
 import Kitten.Id
 import Kitten.Infer.Monad
+import Kitten.Location
 import Kitten.Kind
 import Kitten.KindedId
 import Kitten.Program
@@ -49,15 +50,15 @@ import qualified Kitten.IdMap as Id
 
 instantiateM :: TypeScheme -> K (Type Scalar)
 instantiateM scheme = do
-  origin <- getsProgram inferenceOrigin
-  liftState $ state (instantiate origin scheme)
+  loc <- getsProgram inferenceLocation
+  liftState $ state (instantiate loc scheme)
 
 instantiate
-  :: Origin
+  :: Location
   -> TypeScheme
   -> Program
   -> (Type Scalar, Program)
-instantiate origin@(Origin _ _) (Forall stacks scalars type_) program
+instantiate loc (Forall stacks scalars type_) program
   = (sub renamed type_, program')
 
   where
@@ -77,7 +78,7 @@ instantiate origin@(Origin _ _) (Forall stacks scalars type_) program
     -> Program
     -> State Program Program
   rename name local = do
-    var <- state (freshVar origin)
+    var <- state (freshVar loc)
     return (declare name var local)
 
 generalize :: K (a, Type Scalar) -> K (a, TypeScheme)
@@ -116,7 +117,7 @@ dependentBetween before after name
   where
   bound :: Program -> KindedId a -> Bool
   bound env name' = occurs (unkinded name) env
-    (TyVar name' (inferenceOrigin env) :: Type a)
+    (TyVar name' (inferenceLocation env) :: Type a)
 
 -- | Enumerates those type variables in an environment that
 -- are allocated but not yet bound to a type.
@@ -229,8 +230,8 @@ instance Free TypeScheme where
     (stacks', scalars') = free type_
     in (stacks' \\ S.toList stacks, scalars' \\ S.toList scalars)
 
-normalize :: Origin -> Type Scalar -> Type Scalar
-normalize origin@(Origin _ _) type_ = let
+normalize :: Location -> Type Scalar -> Type Scalar
+normalize loc type_ = let
   (stacks, scalars) = freeVars type_
   stackCount = length stacks
   program = emptyProgram
@@ -242,7 +243,7 @@ normalize origin@(Origin _ _) type_ = let
   in sub program type_
   where
   var :: Int -> Type a
-  var index = TyVar (KindedId (Id index)) origin
+  var index = TyVar (KindedId (Id index)) loc
 
 occurs
   :: forall a
@@ -293,16 +294,16 @@ class Simplify a where
 
 instance Simplify Stack where
   simplify program type_ = case type_ of
-    TyVar name (Origin hint _loc)
+    TyVar name _
       | Right type' <- retrieve program name
-      -> simplify program type' `addHint` hint
+      -> simplify program type'
     _ -> type_
 
 instance Simplify Scalar where
   simplify program type_ = case type_ of
-    TyVar name (Origin hint _loc)
+    TyVar name _
       | Right type' <- retrieve program name
-      -> simplify program type' `addHint` hint
+      -> simplify program type'
     _ -> type_
 
 class Substitute a where
@@ -313,9 +314,9 @@ instance Substitute Stack where
     a :. b -> sub program a :. sub program b
     TyConst{} -> type_  -- See Note [Constant Substitution].
     TyEmpty{} -> type_
-    TyVar name (Origin hint _loc)
+    TyVar name _
       | Right type' <- retrieve program name
-      -> sub program type' `addHint` hint
+      -> sub program type'
       | otherwise
       -> type_
 
@@ -330,12 +331,12 @@ instance Substitute Scalar where
     TyCtor{} -> type_
     TyQuantified (Forall r s t) loc
       -> TyQuantified (Forall r s (recur t)) loc
-    TyVar name (Origin hint _loc)
+    TyVar name _
       | Right type' <- retrieve program name
-      -> recur type' `addHint` hint
+      -> recur type'
       | otherwise
       -> type_
-    TyVector a origin -> TyVector (recur a) origin
+    TyVector a loc -> TyVector (recur a) loc
     where
     recur :: (Substitute a) => Type a -> Type a
     recur = sub program
@@ -354,14 +355,14 @@ skolemize
   :: TypeScheme
   -> K ([KindedId Stack], [KindedId Scalar], Type Scalar)
 skolemize (Forall stackVars scalarVars type_) = do
-  origin <- getsProgram inferenceOrigin
+  loc <- getsProgram inferenceLocation
   let
     declares
       :: (Declare a)
       => Set (KindedId a) -> [KindedId a] -> Program -> Program
     declares vars consts program0
       = foldr (uncurry declare) program0
-      $ zip (S.toList vars) (map (\name -> TyConst name origin) consts)
+      $ zip (S.toList vars) (map (\name -> TyConst name loc) consts)
   scalarConsts <- replicateM (S.size scalarVars) freshScalarIdM
   stackConsts <- replicateM (S.size stackVars) freshStackIdM
   program <- getsProgram
@@ -374,8 +375,8 @@ skolemizeType
   :: Type a
   -> K ([KindedId Stack], [KindedId Scalar], Type a)
 skolemizeType = \case
-  TyFunction a b origin -> do
+  TyFunction a b loc -> do
     (stackConsts, scalarConsts, b') <- skolemizeType b
-    return (stackConsts, scalarConsts, TyFunction a b' origin)
+    return (stackConsts, scalarConsts, TyFunction a b' loc)
   TyQuantified scheme _ -> skolemize scheme
   type_ -> return ([], [], type_)

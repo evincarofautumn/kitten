@@ -607,28 +607,22 @@ typeOfM
   :: Location -> InterpreterValue -> State (KindedGen Scalar) (Type Scalar)
 typeOfM loc value = case value of
   Activation _ _ type_ -> return type_
-  Bool _ -> return $ tyBool origin
-  Char _ -> return $ tyChar origin
+  Bool _ -> return $ tyBool loc
+  Char _ -> return $ tyChar loc
   Choice False x -> liftM2 (:|) (recur x) freshVarM
   Choice True y -> liftM2 (:|) freshVarM (recur y)
-  Float _ -> return $ tyFloat origin
-  Handle _ -> return $ tyHandle origin
-  Int _ -> return $ tyInt origin
+  Float _ -> return $ tyFloat loc
+  Handle _ -> return $ tyHandle loc
+  Int _ -> return $ tyInt loc
   Option (Just x) -> liftM (:?) (recur x)
   Option Nothing -> liftM (:?) freshVarM
   Pair x y -> liftM2 (:&) (recur x) (recur y)
   Vector xs -> case V.safeHead xs of
-    Nothing -> liftM2 TyVector freshVarM (return origin)
-    Just x -> liftM2 TyVector (recur x) (return origin)
+    Nothing -> liftM2 TyVector freshVarM (return loc)
+    Just x -> liftM2 TyVector (recur x) (return loc)
   User _ _ type_ -> return type_
   where
   recur = typeOfM loc
 
   freshVarM :: State (KindedGen Scalar) (Type Scalar)
-  freshVarM = do
-    i <- state genKinded
-    return $ TyVar i origin
-
-  -- TODO(strager): Type hint for stack elements.
-  origin :: Origin
-  origin = Origin HiNone loc
+  freshVarM = TyVar <$> state genKinded <*> pure loc
