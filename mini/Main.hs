@@ -18,28 +18,36 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 
-import Debug.Trace
+-- import Debug.Trace
 
 main :: IO ()
 main = return ()
 
 type Tc a = State TEnv a
 
+type TRef = Maybe Type
+
+untyped :: TRef
+untyped = Nothing
+
 data Expr
-  = EPush Val
-  | ECall Name
-  | ECat Expr Expr
-  | EQuote Expr
-  | EId
+  = EPush TRef Val
+  | ECall TRef Name
+  | ECat TRef Expr Expr
+  | EQuote TRef Expr
+  | EId TRef
   deriving (Eq)
 
 instance Show Expr where
   show e = case e of
-    EPush val -> show val
-    ECall name -> Text.unpack name
-    ECat a b -> unwords [show a, show b]
-    EId -> ""
-    EQuote expr -> '.' : show expr
+    EPush tref val -> showTyped tref $ show val
+    ECall tref name -> showTyped tref $ Text.unpack name
+    ECat tref a b -> showTyped tref $ unwords [show a, show b]
+    EId tref -> showTyped tref $ ""
+    EQuote tref expr -> showTyped tref $ "[" ++ show expr ++ "]"
+    where
+    showTyped (Just type_) x = "(" ++ x ++ " : " ++ show type_ ++ ")"
+    showTyped Nothing x = x
 
 data Type
   = TInt
@@ -127,14 +135,17 @@ instance Show TEnv where
       map (\ (t, k) -> show (TVar t) ++ " : " ++ show k) (Map.toList (envTks tenv)) ],
     " }" ]
 
-inferType0 :: Expr -> (Scheme, Kind)
+inferType0 :: Expr -> (Expr, Scheme, Kind)
 inferType0 expr = let
-  (t, tenv1) = inferType emptyTEnv expr
-  zonked = zonkType tenv1 t
-  (kind, tenv2) = inferKind tenv1 zonked
-  (Forall _ids demoted, tenv3) = demote tenv2 zonked
+  (expr', t, tenv1) = inferType emptyTEnv expr
+  zonkedType = zonkType tenv1 t
+  zonkedExpr = zonkExpr tenv1 expr'
+  (kind, tenv2) = inferKind tenv1 zonkedType
+  (Forall _ids demoted, tenv3) = demote tenv2 zonkedType
   regeneralized = regeneralize tenv3 demoted
-  in trace (show tenv3 ++ " \x22A2 " ++ show expr ++ " : " ++ show regeneralized ++ " : " ++ show kind) (regeneralized, kind)
+  in
+    -- trace (show tenv3 ++ " \x22A2 " ++ show expr ++ " : " ++ show regeneralized ++ " : " ++ show kind)
+    (zonkedExpr, regeneralized, kind)
 
 defaultKinds :: TEnv -> Kind -> TEnv
 defaultKinds tenv0 = foldr (\ x tenv -> unifyKind tenv (KVar x) KStar) tenv0 . Set.toList . freeKvs
@@ -184,53 +195,63 @@ emptyTEnv = TEnv {
   envCurrentType = Id 0,
   envCurrentKind = Id 0 }
 
-inferType :: TEnv -> Expr -> (Type, TEnv)
+inferType :: TEnv -> Expr -> (Expr, Type, TEnv)
 inferType tenv0 expr = case expr of
-  EPush val -> let
-    (t, tenv1) = inferVal tenv0 val
+  EPush Nothing val -> let
+    (val', t, tenv1) = inferVal tenv0 val
     (a, tenv2) = freshTv tenv1
-    in (a .-> a .* t, tenv2)
-  ECall "add" -> let
+    type_ = a .-> a .* t
+    in (EPush (Just type_) val', type_, tenv2)
+  ECall Nothing "add" -> let
     (a, tenv1) = freshTv tenv0
-    in (a .* TInt .* TInt .-> a .* TInt, tenv1)
+    type_ = a .* TInt .* TInt .-> a .* TInt
+    in (ECall (Just type_) "add", type_, tenv1)
   {-
   -- Should cause a kind mismatch (* ~ ρ) if used in a program.
-  ECall "snd" -> let
+  ECall Nothing "snd" -> let
     (a, tenv1) = freshTv tenv0
     (b, tenv2) = freshTv tenv1
-    in (a .* b .-> b, tenv2)
+    type_ = a .* b .-> b
+    in (ECall (Just type_) "snd", type_, tenv2)
   -}
-  ECall "cat" -> let
+  ECall Nothing "cat" -> let
     (a, tenv1) = freshTv tenv0
     (b, tenv2) = freshTv tenv1
     (c, tenv3) = freshTv tenv2
     (d, tenv4) = freshTv tenv3
-    in (a .* (b .-> c) .* (c .-> d) .-> a .* (b .-> d), tenv4)
-  ECall "app" -> let
+    type_ = a .* (b .-> c) .* (c .-> d) .-> a .* (b .-> d)
+    in (ECall (Just type_) "cat", type_, tenv4)
+  ECall Nothing "app" -> let
     (a, tenv1) = freshTv tenv0
     (b, tenv2) = freshTv tenv1
-    in (a .* (a .-> b) .-> b, tenv2)
-  ECall "quo" -> let
+    type_ = a .* (a .-> b) .-> b
+    in (ECall (Just type_) "app", type_, tenv2)
+  ECall Nothing "quo" -> let
     (a, tenv1) = freshTv tenv0
     (b, tenv2) = freshTv tenv1
     (ci, tenv3) = freshTypeId tenv2
     c = TVar ci
-    in (a .* b .-> a .* TQuantified (Forall (Set.singleton ci) (c .-> c .* b)), tenv3)
-  ECall name -> error $ "cannot infer type of " ++ show name
-  expr1 `ECat` expr2 -> let
-    (t1, tenv1) = inferType tenv0 expr1
-    (t2, tenv2) = inferType tenv1 expr2
+    type_ = a .* b .-> a .* TQuantified (Forall (Set.singleton ci) (c .-> c .* b))
+    in (ECall (Just type_) "quo", type_, tenv3)
+  ECall Nothing name -> error $ "cannot infer type of " ++ show name
+  ECat Nothing expr1 expr2 -> let
+    (expr1', t1, tenv1) = inferType tenv0 expr1
+    (expr2', t2, tenv2) = inferType tenv1 expr2
     (a, b, tenv3) = unifyFun tenv2 t1
     (c, d, tenv4) = unifyFun tenv3 t2
     tenv5 = unifyType tenv4 b c
-    in (a .-> d, tenv5)
-  EId -> let
+    type_ = a .-> d
+    in (ECat (Just type_) expr1' expr2', type_, tenv5)
+  EId Nothing -> let
     (a, tenv1) = freshTv tenv0
-    in (a .-> a, tenv1)
-  EQuote e -> let
+    type_ = a .-> a
+    in (EId (Just type_), type_, tenv1)
+  EQuote Nothing e -> let
     (a, tenv1) = freshTv tenv0
-    (b, tenv2) = inferType tenv1 e
-    in (a .-> a .* b, tenv2)
+    (e', b, tenv2) = inferType tenv1 e
+    type_ = a .-> a .* b
+    in (EQuote (Just type_) e', type_, tenv2)
+  _ -> error $ "cannot infer type of already-inferred expression " ++ show expr
 
 freshTv :: TEnv -> (Type, TEnv)
 freshTv = first TVar . freshTypeId
@@ -303,9 +324,9 @@ occurrences tenv0 x = recur
     TQuantified (Forall tvs t')
       -> if Set.member x tvs then 0 else recur t'
 
-inferVal :: TEnv -> Val -> (Type, TEnv)
+inferVal :: TEnv -> Val -> (Val, Type, TEnv)
 inferVal tenv val = case val of
-  VInt{} -> (TInt, tenv)
+  VInt{} -> (val, TInt, tenv)
 
 unifyFun :: TEnv -> Type -> (Type, Type, TEnv)
 unifyFun tenv0 t = case t of
@@ -329,6 +350,20 @@ zonkType tenv0 = recur
     TQuantified (Forall tvs t')
       -> TQuantified . Forall tvs . zonkType tenv0 { envTvs = foldr Map.delete (envTvs tenv0) . Set.toList $ tvs } $ t'
 
+zonkExpr :: TEnv -> Modify Expr
+zonkExpr tenv0 = recur
+  where
+  recur expr = case expr of
+    EPush tref val -> EPush (zonkTRef tref) (zonkVal tenv0 val)
+    ECall tref name -> ECall (zonkTRef tref) name
+    ECat tref e1 e2 -> ECat (zonkTRef tref) (recur e1) (recur e2)
+    EQuote tref e -> EQuote (zonkTRef tref) (recur e)
+    EId tref -> EId (zonkTRef tref)
+  zonkTRef = fmap (zonkType tenv0)
+
+zonkVal :: TEnv -> Modify Val
+zonkVal _tenv val@VInt{} = val
+
 zonkKind :: TEnv -> Modify Kind
 zonkKind tenv0 = recur
   where
@@ -341,13 +376,13 @@ zonkKind tenv0 = recur
     a `KFun` b -> recur a ..-> recur b
 
 parse :: String -> Expr
-parse = foldl' ECat EId . map toExpr . words
+parse = foldl' (ECat untyped) (EId untyped) . map toExpr . words
   where
   toExpr s = if all isDigit s
-    then EPush . VInt . read $ s
+    then EPush untyped . VInt . read $ s
     else case s of
-      '.' : ss -> EQuote . ECall . Text.pack $ ss
-      _ -> ECall . Text.pack $ s
+      '.' : ss -> EQuote untyped . ECall untyped . Text.pack $ ss
+      _ -> ECall untyped . Text.pack $ s
 
 freeTvs :: Type -> Set (Id Type)
 freeTvs t = case t of
