@@ -397,6 +397,7 @@ zonkKind tenv0 = recur
     KRef -> k
     KRho -> k
     KVar x -> case Map.lookup x (envKvs tenv0) of
+      Just (KVar x') | x == x' -> k
       Just k' -> recur k'
       Nothing -> k
     a `KFun` b -> recur a ..-> recur b
