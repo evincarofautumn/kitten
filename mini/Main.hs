@@ -7,7 +7,6 @@ module Main where
 import Control.Applicative
 import Control.Arrow
 import Control.Monad
-import Control.Monad.Trans.State
 import Control.Monad.Trans.Writer
 import Data.Char
 import Data.List
