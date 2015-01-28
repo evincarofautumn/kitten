@@ -49,31 +49,40 @@ instance Show Expr where
     showTyped Nothing x = x
 
 data Type
-  = TInt
+  = TCon Con
   | TVar (Id Type)
-  | TFun Type Type
-  | TProd Type Type
   | TQuantified Scheme
+  | TApp Type Type
+  deriving (Eq)
+
+data Con
+  = CInt
+  | CFun
+  | CProd
   deriving (Eq)
 
 (.->) :: Type -> Type -> Type
-(.->) = TFun
+t1 .-> t2 = TCon CFun `TApp` t1 `TApp` t2
 infixr 4 .->
 
 (.*) :: Type -> Type -> Type
-(.*) = TProd
+t1 .* t2 = TCon CProd `TApp` t1 `TApp` t2
 infixl 5 .*
 
 instance Show Type where
   showsPrec p t = case t of
-    TInt -> showString "int"
+    TCon con -> shows con
     TVar x -> shows x
-    a `TFun` b -> showParen (p > funPrec) $ showsPrec (funPrec + 1) a . showString " \x2192 " . showsPrec funPrec b
-    a `TProd` b -> showParen (p > prodPrec) $ showsPrec prodPrec a . showString " \xD7 " . showsPrec (prodPrec + 1) b
     TQuantified scheme -> showParen True . shows $ scheme
+    a `TApp` b -> showParen (p > appPrec) $ showsPrec appPrec a . showChar ' ' . showsPrec (appPrec + 1) b
     where
-    prodPrec = 2
-    funPrec = 1
+    appPrec = 1
+
+instance Show Con where
+  show con = case con of
+    CInt -> "int"
+    CProd -> "pair"
+    CFun -> "fun"
 
 data Scheme
   = Forall (Set (Id Type)) Type
@@ -83,7 +92,8 @@ instance Show Scheme where
   show (Forall ids t) = '\x2200' : (unwords . map (show . TVar) . Set.toList) ids ++ ". " ++ show t
 
 data Kind
-  = KStar
+  = KVal
+  | KRef
   | KRho
   | KFun Kind Kind
   | KVar (Id Kind)
@@ -95,7 +105,8 @@ infixr 4 ..->
 
 instance Show Kind where
   showsPrec p k = case k of
-    KStar -> showString "*"
+    KVal -> showString "val"
+    KRef -> showString "ref"
     KRho -> showString "\x03C1"
     a `KFun` b -> showParen (p > funPrec) $ showsPrec (funPrec + 1) a . showString " \x2192 " . showsPrec funPrec b
     KVar x -> shows x
@@ -144,35 +155,38 @@ inferType0 expr = let
   (kind, tenv2) = inferKind tenv1 zonkedType
   (Forall _ids demoted, tenv3) = demote tenv2 zonkedType
   regeneralized = regeneralize tenv3 demoted
-  in (zonkedExpr, regeneralized, kind)
+  tenv4 = defaultKinds tenv3 kind
+  zonkedKind = zonkKind tenv4 kind
+  in (zonkedExpr, regeneralized, zonkedKind)
 
 defaultKinds :: TEnv -> Kind -> TEnv
-defaultKinds tenv0 = foldr (\ x tenv -> unifyKind tenv (KVar x) KStar) tenv0 . Set.toList . freeKvs
+defaultKinds tenv0 = foldr (\ x tenv -> unifyKind tenv (KVar x) KVal) tenv0 . Set.toList . freeKvs
 
 inferKind :: TEnv -> Type -> (Kind, TEnv)
 inferKind tenv0 t = case t of
-  TInt -> (KStar, tenv0)
+  TCon con -> case con of
+    CInt -> (KVal, tenv0)
+    CFun -> (KRho ..-> KRho ..-> KVal, tenv0)
+    CProd -> let
+      (k, tenv1) = freshKv tenv0
+      in (KRho ..-> k ..-> KRho, tenv1)
   TVar x -> case Map.lookup x (envTks tenv0) of
     Just k' -> (k', tenv0)
     Nothing -> let
       (k', tenv1) = freshKv tenv0
       in (k', tenv1 { envTks = Map.insert x k' (envTks tenv1) })
-  t1 `TFun` t2 -> let
-    (k1, tenv1) = inferKind tenv0 t1
-    (k2, tenv2) = inferKind tenv1 t2
-    tenv3 = unifyKind tenv2 k1 KRho
-    tenv4 = unifyKind tenv3 k2 KRho
-    in (KStar, tenv4)
-  t1 `TProd` t2 -> let
-    (k1, tenv1) = inferKind tenv0 t1
-    (k2, tenv2) = inferKind tenv1 t2
-    tenv3 = unifyKind tenv2 k1 KRho
-    tenv4 = unifyKind tenv3 k2 KStar
-    in (KRho, tenv4)
   TQuantified (Forall tvs t') -> let
     (k1, _) = inferKind (foldr (\ x tenv -> let (a, tenv') = freshKv tenv in tenv' { envTks = Map.insert x a (envTks tenv') }) tenv0 . Set.toList $ tvs) t'
-    tenv1 = unifyKind tenv0 k1 KStar
+    tenv1 = unifyKind tenv0 k1 KVal
     in (k1, tenv1)
+  t1 `TApp` t2 -> let
+    (k1, tenv1) = inferKind tenv0 t1
+    (k2, tenv2) = inferKind tenv1 t2
+    (ka, tenv3) = freshKv tenv2
+    (kb, tenv4) = freshKv tenv3
+    tenv5 = unifyKind tenv4 k1 (ka ..-> kb)
+    tenv6 = unifyKind tenv5 k2 ka
+    in (kb, tenv6)
 
 unifyKind :: TEnv -> Kind -> Kind -> TEnv
 unifyKind tenv0 k1 k2 = case (k1, k2) of
@@ -204,7 +218,7 @@ inferType tenv0 expr = case expr of
     in (EPush (Just type_) val', type_, tenv2)
   ECall Nothing "add" -> let
     (a, tenv1) = freshTv tenv0
-    type_ = a .* TInt .* TInt .-> a .* TInt
+    type_ = a .* TCon CInt .* TCon CInt .-> a .* TCon CInt
     in (ECall (Just type_) "add", type_, tenv1)
   {-
   -- Should cause a kind mismatch (* ~ ρ) if used in a program.
@@ -282,16 +296,13 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
   _ | t1 == t2 -> tenv0
   (TVar x, t) -> unifyTv tenv0 x t
   (_, TVar{}) -> commute
-  (a `TFun` b, c `TFun` d) -> let
-    tenv1 = unifyType tenv0 a c
-    in unifyType tenv1 b d
-  (a `TProd` b, c `TProd` d) -> let
-    tenv1 = unifyType tenv0 a c
-    in unifyType tenv1 b d
   (a, TQuantified scheme) -> let
     (b, tenv1) = instantiate tenv0 scheme
     in unifyType tenv1 a b
   (TQuantified{}, _) -> commute
+  (a `TApp` b, c `TApp` d) -> let
+    tenv1 = unifyType tenv0 a c
+    in unifyType tenv1 b d
   _ -> error $ unwords ["cannot unify types", show t1, "and", show t2]
   where
   commute = unifyType tenv0 t2 t1
@@ -327,22 +338,21 @@ occurrences :: TEnv -> Id Type -> Type -> Int
 occurrences tenv0 x = recur
   where
   recur t = case t of
-    TInt -> 0
+    TCon{} -> 0
     TVar y -> case Map.lookup y (envTvs tenv0) of
       Nothing -> if x == y then 1 else 0
       Just t' -> recur t'
-    a `TFun` b -> recur a + recur b
-    a `TProd` b -> recur a + recur b
     TQuantified (Forall tvs t')
       -> if Set.member x tvs then 0 else recur t'
+    a `TApp` b -> recur a + recur b
 
 inferVal :: TEnv -> Val -> (Val, Type, TEnv)
 inferVal tenv val = case val of
-  VInt{} -> (val, TInt, tenv)
+  VInt{} -> (val, TCon CInt, tenv)
 
 unifyFun :: TEnv -> Type -> (Type, Type, TEnv)
 unifyFun tenv0 t = case t of
-  a `TFun` b -> (a, b, tenv0)
+  TCon CFun `TApp` a `TApp` b -> (a, b, tenv0)
   _ -> let
     (a, tenv1) = freshTv tenv0
     (b, tenv2) = freshTv tenv1
@@ -353,15 +363,14 @@ zonkType :: TEnv -> Modify Type
 zonkType tenv0 = recur
   where
   recur t = case t of
-    TInt -> t
+    TCon{} -> t
     TVar x -> case Map.lookup x (envTvs tenv0) of
       Just (TVar x') | x == x' -> t
       Just t' -> recur t'
       Nothing -> t
-    a `TFun` b -> recur a .-> recur b
-    a `TProd` b -> recur a .* recur b
     TQuantified (Forall tvs t')
       -> TQuantified . Forall tvs . zonkType tenv0 { envTvs = foldr Map.delete (envTvs tenv0) . Set.toList $ tvs } $ t'
+    a `TApp` b -> recur a `TApp` recur b
 
 zonkExpr :: TEnv -> Modify Expr
 zonkExpr tenv0 = recur
@@ -383,7 +392,8 @@ zonkKind :: TEnv -> Modify Kind
 zonkKind tenv0 = recur
   where
   recur k = case k of
-    KStar -> k
+    KVal -> k
+    KRef -> k
     KRho -> k
     KVar x -> case Map.lookup x (envKvs tenv0) of
       Just k' -> recur k'
@@ -403,15 +413,15 @@ parse = foldl' (ECat untyped) (EId untyped) . map toExpr . words
 
 freeTvs :: Type -> Set (Id Type)
 freeTvs t = case t of
-  TInt -> Set.empty
+  TCon{} -> Set.empty
   TVar x -> Set.singleton x
-  a `TFun` b -> freeTvs a `Set.union` freeTvs b
-  a `TProd` b -> freeTvs a `Set.union` freeTvs b
   TQuantified (Forall ids t') -> freeTvs t' Set.\\ ids
+  a `TApp` b -> freeTvs a `Set.union` freeTvs b
 
 freeKvs :: Kind -> Set (Id Kind)
 freeKvs k = case k of
-  KStar -> Set.empty
+  KVal -> Set.empty
+  KRef -> Set.empty
   KRho -> Set.empty
   a `KFun` b -> freeKvs a `Set.union` freeKvs b
   KVar x -> Set.singleton x
@@ -425,7 +435,7 @@ regeneralize tenv t = let
   where
   go :: TypeLevel -> Type -> Writer [Id Type] Type
   go level t' = case t' of
-    a `TFun` b
+    TCon CFun `TApp` a `TApp` b
       | level == NonTopLevel
       , TVar c <- bottommost a
       , TVar d <- bottommost b
@@ -433,14 +443,13 @@ regeneralize tenv t = let
       -> do
         when (occurrences tenv c t == 2) $ tell [c]
         return . TQuantified . Forall (Set.singleton c) $ t'
-    a `TFun` b -> TFun <$> go NonTopLevel a <*> go NonTopLevel b
-    a `TProd` b -> TProd <$> go NonTopLevel a <*> go NonTopLevel b
     -- I don't think this is correct.
     TQuantified (Forall _ t'') -> pure . TQuantified $ regeneralize tenv t''
+    a `TApp` b -> TApp <$> go NonTopLevel a <*> go NonTopLevel b
     _ -> return t'
 
 bottommost :: Type -> Type
-bottommost (a `TProd` _) = bottommost a
+bottommost (TCon CProd `TApp` a `TApp` _) = bottommost a
 bottommost t = t
 
 instantiate :: TEnv -> Scheme -> (Type, TEnv)
@@ -461,16 +470,8 @@ demote tenv0 t = let
 
 demote' :: TEnv -> Type -> (Type, Set (Id Type), TEnv)
 demote' tenv0 t = case t of
-  TInt -> (t, Set.empty, tenv0)
+  TCon{} -> (t, Set.empty, tenv0)
   TVar{} -> (t, Set.empty, tenv0)
-  a `TFun` b -> let
-    (a', ids1, tenv1) = demote' tenv0 a
-    (b', ids2, tenv2) = demote' tenv1 b
-    in (a' `TFun` b', ids1 `Set.union` ids2, tenv2)
-  a `TProd` b -> let
-    (a', ids1, tenv1) = demote' tenv0 a
-    (b', ids2, tenv2) = demote' tenv1 b
-    in (a' `TProd` b', ids1 `Set.union` ids2, tenv2)
   TQuantified (Forall ids t') -> let
     (t'', ids', tenv') = foldr go (t', Set.empty, tenv0) . Set.toList $ ids
     in (TQuantified (Forall (ids Set.\\ ids') t''), ids', tenv')
@@ -481,5 +482,9 @@ demote' tenv0 t = case t of
         t''' = replaceTv x a t''
         in (t''', Set.insert x ids', tenv')
       _ -> (t', ids', tenv)
+  a `TApp` b -> let
+    (a', ids1, tenv1) = demote' tenv0 a
+    (b', ids2, tenv2) = demote' tenv1 b
+    in (a' `TApp` b', ids1 `Set.union` ids2, tenv2)
 
 type Modify a = a -> a
