@@ -18,8 +18,6 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 
--- import Debug.Trace
-
 main :: IO ()
 main = return ()
 
@@ -141,9 +139,7 @@ inferType0 expr = let
   (kind, tenv2) = inferKind tenv1 zonkedType
   (Forall _ids demoted, tenv3) = demote tenv2 zonkedType
   regeneralized = regeneralize tenv3 demoted
-  in
-    -- trace (show tenv3 ++ " \x22A2 " ++ show expr ++ " : " ++ show regeneralized ++ " : " ++ show kind)
-    (zonkedExpr, regeneralized, kind)
+  in (zonkedExpr, regeneralized, kind)
 
 defaultKinds :: TEnv -> Kind -> TEnv
 defaultKinds tenv0 = foldr (\ x tenv -> unifyKind tenv (KVar x) KStar) tenv0 . Set.toList . freeKvs
