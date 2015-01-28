@@ -428,9 +428,7 @@ bottommost (a `TProd` _) = bottommost a
 bottommost t = t
 
 instantiate :: TEnv -> Scheme -> (Type, TEnv)
-instantiate tenv0 (Forall ids t) = let
-  (t', tenv1) = foldr go (t, emptyTEnv) . Set.toList $ ids
-  in (t', tenv1 { envTvs = envTvs tenv0 `Map.union` envTvs tenv1 })
+instantiate tenv0 (Forall ids t) = foldr go (t, tenv0) . Set.toList $ ids
   where
   go x (t', tenv) = let
     (a, tenv') = freshTv tenv
