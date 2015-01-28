@@ -23,8 +23,6 @@ import qualified Data.Text as Text
 main :: IO ()
 main = return ()
 
-type Tc a = State TEnv a
-
 type TRef = Maybe Type
 
 untyped :: TRef
