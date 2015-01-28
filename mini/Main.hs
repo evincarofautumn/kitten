@@ -9,6 +9,7 @@ import Control.Arrow
 import Control.Monad
 import Control.Monad.Trans.Writer
 import Data.Char
+import Data.Foldable (foldrM)
 import Data.List
 import Data.Map (Map)
 import Data.Set (Set)
@@ -147,56 +148,56 @@ instance Show TEnv where
       map (\ (v, t) -> Text.unpack v ++ " : " ++ show t) (Map.toList (envVs tenv)) ],
     " }" ]
 
-inferType0 :: Expr -> (Expr, Scheme, Kind)
-inferType0 expr = let
-  (expr', t, tenv1) = inferType emptyTEnv expr
-  zonkedType = zonkType tenv1 t
-  zonkedExpr = zonkExpr tenv1 expr'
-  (kind, tenv2) = inferKind tenv1 zonkedType
-  (Forall _ids demoted, tenv3) = demote tenv2 zonkedType
-  regeneralized = regeneralize tenv3 demoted
-  tenv4 = defaultKinds tenv3 kind
-  zonkedKind = zonkKind tenv4 kind
-  in (zonkedExpr, regeneralized, zonkedKind)
+inferType0 :: Expr -> Either String (Expr, Scheme, Kind)
+inferType0 expr = do
+  (expr', t, tenv1) <- inferType emptyTEnv expr
+  let zonkedType = zonkType tenv1 t
+  let zonkedExpr = zonkExpr tenv1 expr'
+  (kind, tenv2) <- inferKind tenv1 zonkedType
+  let (Forall _ids demoted, tenv3) = demote tenv2 zonkedType
+  let regeneralized = regeneralize tenv3 demoted
+  tenv4 <- defaultKinds tenv3 kind
+  let zonkedKind = zonkKind tenv4 kind
+  Right (zonkedExpr, regeneralized, zonkedKind)
 
-defaultKinds :: TEnv -> Kind -> TEnv
-defaultKinds tenv0 = foldr (\ x tenv -> unifyKind tenv (KVar x) KVal) tenv0 . Set.toList . freeKvs
+defaultKinds :: TEnv -> Kind -> Either String TEnv
+defaultKinds tenv0 = foldrM (\ x tenv -> unifyKind tenv (KVar x) KVal) tenv0 . Set.toList . freeKvs
 
-inferKind :: TEnv -> Type -> (Kind, TEnv)
+inferKind :: TEnv -> Type -> Either String (Kind, TEnv)
 inferKind tenv0 t = case t of
   TCon con -> case con of
-    CInt -> (KVal, tenv0)
-    CFun -> (KRho ..-> KRho ..-> KVal, tenv0)
+    CInt -> Right (KVal, tenv0)
+    CFun -> Right (KRho ..-> KRho ..-> KVal, tenv0)
     CProd -> let
       (k, tenv1) = freshKv tenv0
-      in (KRho ..-> k ..-> KRho, tenv1)
+      in Right (KRho ..-> k ..-> KRho, tenv1)
   TVar x -> case Map.lookup x (envTks tenv0) of
-    Just k' -> (k', tenv0)
+    Just k' -> Right (k', tenv0)
     Nothing -> let
       (k', tenv1) = freshKv tenv0
-      in (k', tenv1 { envTks = Map.insert x k' (envTks tenv1) })
-  TQuantified (Forall tvs t') -> let
-    (k1, _) = inferKind (foldr (\ x tenv -> let (a, tenv') = freshKv tenv in tenv' { envTks = Map.insert x a (envTks tenv') }) tenv0 . Set.toList $ tvs) t'
-    tenv1 = unifyKind tenv0 k1 KVal
-    in (k1, tenv1)
-  t1 `TApp` t2 -> let
-    (k1, tenv1) = inferKind tenv0 t1
-    (k2, tenv2) = inferKind tenv1 t2
-    (ka, tenv3) = freshKv tenv2
-    (kb, tenv4) = freshKv tenv3
-    tenv5 = unifyKind tenv4 k1 (ka ..-> kb)
-    tenv6 = unifyKind tenv5 k2 ka
-    in (kb, tenv6)
+      in Right (k', tenv1 { envTks = Map.insert x k' (envTks tenv1) })
+  TQuantified (Forall tvs t') -> do
+    (k1, _) <- inferKind (foldr (\ x tenv -> let (a, tenv') = freshKv tenv in tenv' { envTks = Map.insert x a (envTks tenv') }) tenv0 . Set.toList $ tvs) t'
+    tenv1 <- unifyKind tenv0 k1 KVal
+    Right (k1, tenv1)
+  t1 `TApp` t2 -> do
+    (k1, tenv1) <- inferKind tenv0 t1
+    (k2, tenv2) <- inferKind tenv1 t2
+    let (ka, tenv3) = freshKv tenv2
+    let (kb, tenv4) = freshKv tenv3
+    tenv5 <- unifyKind tenv4 k1 (ka ..-> kb)
+    tenv6 <- unifyKind tenv5 k2 ka
+    Right (kb, tenv6)
 
-unifyKind :: TEnv -> Kind -> Kind -> TEnv
+unifyKind :: TEnv -> Kind -> Kind -> Either String TEnv
 unifyKind tenv0 k1 k2 = case (k1, k2) of
-  _ | k1 == k2 -> tenv0
+  _ | k1 == k2 -> Right tenv0
   (KVar x, t) -> unifyKv tenv0 x t
   (_, KVar{}) -> commute
-  (a `KFun` b, c `KFun` d) -> let
-    tenv1 = unifyKind tenv0 a c
-    in unifyKind tenv1 b d
-  _ -> error $ unwords ["cannot unify kinds", show k1, "and", show k2]
+  (a `KFun` b, c `KFun` d) -> do
+    tenv1 <- unifyKind tenv0 a c
+    unifyKind tenv1 b d
+  _ -> Left $ unwords ["cannot unify kinds", show k1, "and", show k2]
   where
   commute = unifyKind tenv0 k2 k1
 
@@ -209,17 +210,17 @@ emptyTEnv = TEnv {
   envCurrentType = Id 0,
   envCurrentKind = Id 0 }
 
-inferType :: TEnv -> Expr -> (Expr, Type, TEnv)
+inferType :: TEnv -> Expr -> Either String (Expr, Type, TEnv)
 inferType tenv0 expr = case expr of
   EPush Nothing val -> let
     (val', t, tenv1) = inferVal tenv0 val
     (a, tenv2) = freshTv tenv1
     type_ = a .-> a .* t
-    in (EPush (Just type_) val', type_, tenv2)
+    in Right (EPush (Just type_) val', type_, tenv2)
   ECall Nothing "add" -> let
     (a, tenv1) = freshTv tenv0
     type_ = a .* TCon CInt .* TCon CInt .-> a .* TCon CInt
-    in (ECall (Just type_) "add", type_, tenv1)
+    in Right (ECall (Just type_) "add", type_, tenv1)
   {-
   -- Should cause a kind mismatch (* ~ ρ) if used in a program.
   ECall Nothing "snd" -> let
@@ -234,50 +235,50 @@ inferType tenv0 expr = case expr of
     (c, tenv3) = freshTv tenv2
     (d, tenv4) = freshTv tenv3
     type_ = a .* (b .-> c) .* (c .-> d) .-> a .* (b .-> d)
-    in (ECall (Just type_) "cat", type_, tenv4)
+    in Right (ECall (Just type_) "cat", type_, tenv4)
   ECall Nothing "app" -> let
     (a, tenv1) = freshTv tenv0
     (b, tenv2) = freshTv tenv1
     type_ = a .* (a .-> b) .-> b
-    in (ECall (Just type_) "app", type_, tenv2)
+    in Right (ECall (Just type_) "app", type_, tenv2)
   ECall Nothing "quo" -> let
     (a, tenv1) = freshTv tenv0
     (b, tenv2) = freshTv tenv1
     (ci, tenv3) = freshTypeId tenv2
     c = TVar ci
     type_ = a .* b .-> a .* TQuantified (Forall (Set.singleton ci) (c .-> c .* b))
-    in (ECall (Just type_) "quo", type_, tenv3)
-  ECall Nothing name -> error $ "cannot infer type of " ++ show name
-  ECat Nothing expr1 expr2 -> let
-    (expr1', t1, tenv1) = inferType tenv0 expr1
-    (expr2', t2, tenv2) = inferType tenv1 expr2
-    (a, b, tenv3) = unifyFun tenv2 t1
-    (c, d, tenv4) = unifyFun tenv3 t2
-    tenv5 = unifyType tenv4 b c
-    type_ = a .-> d
-    in (ECat (Just type_) expr1' expr2', type_, tenv5)
+    in Right (ECall (Just type_) "quo", type_, tenv3)
+  ECall Nothing name -> Left $ "cannot infer type of " ++ show name
+  ECat Nothing expr1 expr2 -> do
+    (expr1', t1, tenv1) <- inferType tenv0 expr1
+    (expr2', t2, tenv2) <- inferType tenv1 expr2
+    (a, b, tenv3) <- unifyFun tenv2 t1
+    (c, d, tenv4) <- unifyFun tenv3 t2
+    tenv5 <- unifyType tenv4 b c
+    let type_ = a .-> d
+    Right (ECat (Just type_) expr1' expr2', type_, tenv5)
   EId Nothing -> let
     (a, tenv1) = freshTv tenv0
     type_ = a .-> a
-    in (EId (Just type_), type_, tenv1)
-  EQuote Nothing e -> let
-    (a, tenv1) = freshTv tenv0
-    (e', b, tenv2) = inferType tenv1 e
-    type_ = a .-> a .* b
-    in (EQuote (Just type_) e', type_, tenv2)
+    in Right (EId (Just type_), type_, tenv1)
+  EQuote Nothing e -> do
+    let (a, tenv1) = freshTv tenv0
+    (e', b, tenv2) <- inferType tenv1 e
+    let type_ = a .-> a .* b
+    Right (EQuote (Just type_) e', type_, tenv2)
   EGo Nothing name -> let
     (a, tenv1) = freshTv tenv0
     (b, tenv2) = freshTv tenv1
     type_ = a .* b .-> a
-    in (EGo (Just type_) name, type_, tenv2 { envVs = Map.insert name b (envVs tenv2) })
-  ECome Nothing name -> let
-    (a, tenv1) = freshTv tenv0
-    b = case Map.lookup name (envVs tenv1) of
-      Just t -> t
-      Nothing -> error $ "unbound variable " ++ Text.unpack name
-    type_ = a .-> a .* b
-    in (ECome (Just type_) name, type_, tenv1)
-  _ -> error $ "cannot infer type of already-inferred expression " ++ show expr
+    in Right (EGo (Just type_) name, type_, tenv2 { envVs = Map.insert name b (envVs tenv2) })
+  ECome Nothing name -> do
+    let (a, tenv1) = freshTv tenv0
+    b <- case Map.lookup name (envVs tenv1) of
+      Just t -> Right t
+      Nothing -> Left $ "unbound variable " ++ Text.unpack name
+    let type_ = a .-> a .* b
+    Right (ECome (Just type_) name, type_, tenv1)
+  _ -> Left $ "cannot infer type of already-inferred expression " ++ show expr
 
 freshTv :: TEnv -> (Type, TEnv)
 freshTv = first TVar . freshTypeId
@@ -291,42 +292,42 @@ freshTypeId tenv = (envCurrentType tenv, tenv { envCurrentType = succ (envCurren
 freshKindId :: TEnv -> (Id Kind, TEnv)
 freshKindId tenv = (envCurrentKind tenv, tenv { envCurrentKind = succ (envCurrentKind tenv) })
 
-unifyType :: TEnv -> Type -> Type -> TEnv
+unifyType :: TEnv -> Type -> Type -> Either String TEnv
 unifyType tenv0 t1 t2 = case (t1, t2) of
-  _ | t1 == t2 -> tenv0
+  _ | t1 == t2 -> Right tenv0
   (TVar x, t) -> unifyTv tenv0 x t
   (_, TVar{}) -> commute
   (a, TQuantified scheme) -> let
     (b, tenv1) = instantiate tenv0 scheme
     in unifyType tenv1 a b
   (TQuantified{}, _) -> commute
-  (a `TApp` b, c `TApp` d) -> let
-    tenv1 = unifyType tenv0 a c
-    in unifyType tenv1 b d
-  _ -> error $ unwords ["cannot unify types", show t1, "and", show t2]
+  (a `TApp` b, c `TApp` d) -> do
+    tenv1 <- unifyType tenv0 a c
+    unifyType tenv1 b d
+  _ -> Left $ unwords ["cannot unify types", show t1, "and", show t2]
   where
   commute = unifyType tenv0 t2 t1
 
-unifyTv :: TEnv -> Id Type -> Type -> TEnv
+unifyTv :: TEnv -> Id Type -> Type -> Either String TEnv
 unifyTv tenv0 x t = case t of
-  TVar y | x == y -> tenv0
+  TVar y | x == y -> Right tenv0
   TVar{} -> declare
-  _ -> if occurs tenv0 x t then error "occurs check" else declare
+  _ -> if occurs tenv0 x t then Left "occurs check" else declare
   where
   declare = case Map.lookup x (envTvs tenv0) of
     Just t2 -> unifyType tenv0 t t2
-    Nothing -> tenv0 { envTvs = Map.insert x t (envTvs tenv0) }
+    Nothing -> Right tenv0 { envTvs = Map.insert x t (envTvs tenv0) }
 
-unifyKv :: TEnv -> Id Kind -> Kind -> TEnv
+unifyKv :: TEnv -> Id Kind -> Kind -> Either String TEnv
 unifyKv tenv0 x k = case k of
-  KVar y | x == y -> tenv0
+  KVar y | x == y -> Right tenv0
   KVar{} -> declare
   -- TODO: occurs check?
   _ -> declare
   where
   declare = case Map.lookup x (envKvs tenv0) of
     Just k2 -> unifyKind tenv0 k k2
-    Nothing -> tenv0 { envKvs = Map.insert x k (envKvs tenv0) }
+    Nothing -> Right tenv0 { envKvs = Map.insert x k (envKvs tenv0) }
 
 occurs :: TEnv -> Id Type -> Type -> Bool
 occurs = (> 0) ... occurrences
@@ -350,14 +351,14 @@ inferVal :: TEnv -> Val -> (Val, Type, TEnv)
 inferVal tenv val = case val of
   VInt{} -> (val, TCon CInt, tenv)
 
-unifyFun :: TEnv -> Type -> (Type, Type, TEnv)
+unifyFun :: TEnv -> Type -> Either String (Type, Type, TEnv)
 unifyFun tenv0 t = case t of
-  TCon CFun `TApp` a `TApp` b -> (a, b, tenv0)
-  _ -> let
-    (a, tenv1) = freshTv tenv0
-    (b, tenv2) = freshTv tenv1
-    tenv3 = unifyType tenv2 t (a .-> b)
-    in (a, b, tenv3)
+  TCon CFun `TApp` a `TApp` b -> Right (a, b, tenv0)
+  _ -> do
+    let (a, tenv1) = freshTv tenv0
+    let (b, tenv2) = freshTv tenv1
+    tenv3 <- unifyType tenv2 t (a .-> b)
+    Right (a, b, tenv3)
 
 zonkType :: TEnv -> Modify Type
 zonkType tenv0 = recur
