@@ -32,6 +32,8 @@ data Expr
   | ECat TRef Expr Expr
   | EQuote TRef Expr
   | EId TRef
+  | EGo TRef Name
+  | ECome TRef Name
   deriving (Eq)
 
 instance Show Expr where
@@ -41,6 +43,8 @@ instance Show Expr where
     ECat tref a b -> showTyped tref $ unwords [show a, show b]
     EId tref -> showTyped tref $ ""
     EQuote tref expr -> showTyped tref $ "[" ++ show expr ++ "]"
+    EGo tref name -> showTyped tref $ '&' : Text.unpack name
+    ECome tref name -> showTyped tref $ '*' : Text.unpack name
     where
     showTyped (Just type_) x = "(" ++ x ++ " : " ++ show type_ ++ ")"
     showTyped Nothing x = x
@@ -119,6 +123,7 @@ data TEnv = TEnv {
   envTvs :: Map (Id Type) Type,  -- What is this type variable equal to?
   envTks :: Map (Id Type) Kind,  -- What kind does this type variable have?
   envKvs :: Map (Id Kind) Kind,  -- What is this kind variable equal to?
+  envVs :: Map Name Type, -- What type does this variable have?
   envCurrentType :: Id Type,
   envCurrentKind :: Id Kind }
 
@@ -128,7 +133,8 @@ instance Show TEnv where
     intercalate ", " $ concat [
       map (\ (t, t') -> show (TVar t) ++ " ~ " ++ show t') (Map.toList (envTvs tenv)),
       map (\ (k, k') -> show (KVar k) ++ " ~ " ++ show k') (Map.toList (envKvs tenv)),
-      map (\ (t, k) -> show (TVar t) ++ " : " ++ show k) (Map.toList (envTks tenv)) ],
+      map (\ (t, k) -> show (TVar t) ++ " : " ++ show k) (Map.toList (envTks tenv)),
+      map (\ (v, t) -> Text.unpack v ++ " : " ++ show t) (Map.toList (envVs tenv)) ],
     " }" ]
 
 inferType0 :: Expr -> (Expr, Scheme, Kind)
@@ -186,6 +192,7 @@ emptyTEnv = TEnv {
   envTvs = Map.empty,
   envTks = Map.empty,
   envKvs = Map.empty,
+  envVs = Map.empty,
   envCurrentType = Id 0,
   envCurrentKind = Id 0 }
 
@@ -245,6 +252,18 @@ inferType tenv0 expr = case expr of
     (e', b, tenv2) = inferType tenv1 e
     type_ = a .-> a .* b
     in (EQuote (Just type_) e', type_, tenv2)
+  EGo Nothing name -> let
+    (a, tenv1) = freshTv tenv0
+    (b, tenv2) = freshTv tenv1
+    type_ = a .* b .-> a
+    in (EGo (Just type_) name, type_, tenv2 { envVs = Map.insert name b (envVs tenv2) })
+  ECome Nothing name -> let
+    (a, tenv1) = freshTv tenv0
+    b = case Map.lookup name (envVs tenv1) of
+      Just t -> t
+      Nothing -> error $ "unbound variable " ++ Text.unpack name
+    type_ = a .-> a .* b
+    in (ECome (Just type_) name, type_, tenv1)
   _ -> error $ "cannot infer type of already-inferred expression " ++ show expr
 
 freshTv :: TEnv -> (Type, TEnv)
@@ -354,6 +373,8 @@ zonkExpr tenv0 = recur
     ECat tref e1 e2 -> ECat (zonkTRef tref) (recur e1) (recur e2)
     EQuote tref e -> EQuote (zonkTRef tref) (recur e)
     EId tref -> EId (zonkTRef tref)
+    EGo tref name -> EGo (zonkTRef tref) name
+    ECome tref name -> ECome (zonkTRef tref) name
   zonkTRef = fmap (zonkType tenv0)
 
 zonkVal :: TEnv -> Modify Val
@@ -377,6 +398,8 @@ parse = foldl' (ECat untyped) (EId untyped) . map toExpr . words
     then EPush untyped . VInt . read $ s
     else case s of
       '.' : ss -> EQuote untyped . ECall untyped . Text.pack $ ss
+      '&' : ss -> EGo untyped . Text.pack $ ss
+      '*' : ss -> ECome untyped . Text.pack $ ss
       _ -> ECall untyped . Text.pack $ s
 
 freeTvs :: Type -> Set (Id Type)
