@@ -343,6 +343,7 @@ zonkType tenv0 = recur
   recur t = case t of
     TInt -> t
     TVar x -> case Map.lookup x (envTvs tenv0) of
+      Just (TVar x') | x == x' -> t
       Just t' -> recur t'
       Nothing -> t
     a `TFun` b -> recur a .-> recur b
