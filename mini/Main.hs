@@ -26,6 +26,9 @@ type TRef = Maybe Type
 untyped :: TRef
 untyped = Nothing
 
+data HowCome = Move | Copy
+  deriving (Eq)
+
 data Expr
   = EPush TRef Val
   | ECall TRef Name
@@ -33,7 +36,7 @@ data Expr
   | EQuote TRef Expr
   | EId TRef
   | EGo TRef Name
-  | ECome TRef Name
+  | ECome HowCome TRef Name
   deriving (Eq)
 
 instance Show Expr where
@@ -44,7 +47,8 @@ instance Show Expr where
     EId tref -> showTyped tref $ ""
     EQuote tref expr -> showTyped tref $ "[" ++ show expr ++ "]"
     EGo tref name -> showTyped tref $ '&' : Text.unpack name
-    ECome tref name -> showTyped tref $ '*' : Text.unpack name
+    ECome Move tref name -> showTyped tref $ '-' : Text.unpack name
+    ECome Copy tref name -> showTyped tref $ '+' : Text.unpack name
     where
     showTyped (Just type_) x = "(" ++ x ++ " : " ++ show type_ ++ ")"
     showTyped Nothing x = x
@@ -271,13 +275,17 @@ inferType tenv0 expr = case expr of
     (b, tenv2) = freshTv tenv1
     type_ = a .* b .-> a
     in Right (EGo (Just type_) name, type_, tenv2 { envVs = Map.insert name b (envVs tenv2) })
-  ECome Nothing name -> do
+  ECome how Nothing name -> do
     let (a, tenv1) = freshTv tenv0
     b <- case Map.lookup name (envVs tenv1) of
       Just t -> Right t
       Nothing -> Left $ "unbound variable " ++ Text.unpack name
+    let
+      tenv2 = case how of
+        Move -> tenv1 { envVs = Map.delete name (envVs tenv1) }
+        Copy -> tenv1
     let type_ = a .-> a .* b
-    Right (ECome (Just type_) name, type_, tenv1)
+    Right (ECome how (Just type_) name, type_, tenv2)
   _ -> Left $ "cannot infer type of already-inferred expression " ++ show expr
 
 freshTv :: TEnv -> (Type, TEnv)
@@ -383,7 +391,7 @@ zonkExpr tenv0 = recur
     EQuote tref e -> EQuote (zonkTRef tref) (recur e)
     EId tref -> EId (zonkTRef tref)
     EGo tref name -> EGo (zonkTRef tref) name
-    ECome tref name -> ECome (zonkTRef tref) name
+    ECome how tref name -> ECome how (zonkTRef tref) name
   zonkTRef = fmap (zonkType tenv0)
 
 zonkVal :: TEnv -> Modify Val
@@ -410,7 +418,8 @@ parse = foldl' (ECat untyped) (EId untyped) . map toExpr . words
     else case s of
       '.' : ss -> EQuote untyped . ECall untyped . Text.pack $ ss
       '&' : ss -> EGo untyped . Text.pack $ ss
-      '*' : ss -> ECome untyped . Text.pack $ ss
+      '+' : ss -> ECome Copy untyped . Text.pack $ ss
+      '-' : ss -> ECome Move untyped . Text.pack $ ss
       _ -> ECall untyped . Text.pack $ s
 
 freeTvs :: Type -> Set (Id Type)
