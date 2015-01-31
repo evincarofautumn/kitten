@@ -100,7 +100,6 @@ instance Show Scheme where
 
 data Kind
   = KVal
-  | KRef
   | KRho
   | KFun Kind Kind
   | KVar (Id Kind)
@@ -113,7 +112,6 @@ infixr 4 ..->
 instance Show Kind where
   showsPrec p k = case k of
     KVal -> showString "val"
-    KRef -> showString "ref"
     KRho -> showString "\x03C1"
     a `KFun` b -> showParen (p > funPrec) $ showsPrec (funPrec + 1) a . showString " \x2192 " . showsPrec funPrec b
     KVar x -> shows x
@@ -423,7 +421,6 @@ zonkKind tenv0 = recur
   where
   recur k = case k of
     KVal -> k
-    KRef -> k
     KRho -> k
     KVar x -> case Map.lookup x (envKvs tenv0) of
       Just (KVar x') | x == x' -> k
@@ -454,7 +451,6 @@ freeTvs t = case t of
 freeKvs :: Kind -> Set (Id Kind)
 freeKvs k = case k of
   KVal -> Set.empty
-  KRef -> Set.empty
   KRho -> Set.empty
   a `KFun` b -> freeKvs a `Set.union` freeKvs b
   KVar x -> Set.singleton x
