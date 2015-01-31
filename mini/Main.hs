@@ -56,6 +56,7 @@ instance Show Expr where
 data Type
   = TCon Con
   | TVar (Id Type)
+  | TConst (Id Type)
   | TQuantified Scheme
   | TApp Type Type
   deriving (Eq)
@@ -78,6 +79,7 @@ instance Show Type where
   showsPrec p t = case t of
     TCon con -> shows con
     TVar x -> shows x
+    TConst x -> shows x
     TQuantified scheme -> showParen True . shows $ scheme
     a `TApp` b -> showParen (p > appPrec) $ showsPrec appPrec a . showChar ' ' . showsPrec (appPrec + 1) b
     where
@@ -138,7 +140,8 @@ data TEnv = TEnv {
   envTvs :: Map (Id Type) Type,  -- What is this type variable equal to?
   envTks :: Map (Id Type) Kind,  -- What kind does this type variable have?
   envKvs :: Map (Id Kind) Kind,  -- What is this kind variable equal to?
-  envVs :: Map Name Type, -- What type does this variable have?
+  envVs :: Map Name Type,  -- What type does this variable have?
+  envSigs :: Map Name Scheme,  -- What type scheme does this word have?
   envCurrentType :: Id Type,
   envCurrentKind :: Id Kind }
 
@@ -152,9 +155,18 @@ instance Show TEnv where
       map (\ (v, t) -> Text.unpack v ++ " : " ++ show t) (Map.toList (envVs tenv)) ],
     " }" ]
 
-inferType0 :: Expr -> Either String (Expr, Scheme, Kind)
-inferType0 expr = do
-  (expr', t, tenv1) <- inferType emptyTEnv expr
+inferTypes :: Map Name (Scheme, Expr) -> Either String (Map Name (Scheme, Expr))
+inferTypes defs = fmap Map.fromList . mapM go . Map.toList $ defs
+  where
+  sigs = Map.map fst defs
+  go (name, (scheme, expr)) = do
+    (expr', scheme', _) <- inferType0 sigs expr
+    instanceCheck scheme' scheme
+    Right (name, (scheme, expr'))
+
+inferType0 :: Map Name Scheme -> Expr -> Either String (Expr, Scheme, Kind)
+inferType0 sigs expr = do
+  (expr', t, tenv1) <- inferType emptyTEnv { envSigs = sigs } expr
   let zonkedType = zonkType tenv1 t
   let zonkedExpr = zonkExpr tenv1 expr'
   (kind, tenv2) <- inferKind tenv1 zonkedType
@@ -169,17 +181,16 @@ defaultKinds tenv0 = foldrM (\ x tenv -> unifyKind tenv (KVar x) KVal) tenv0 . S
 
 inferKind :: TEnv -> Type -> Either String (Kind, TEnv)
 inferKind tenv0 t = case t of
-  TCon con -> case con of
-    CInt -> Right (KVal, tenv0)
-    CFun -> Right (KRho ..-> KRho ..-> KVal, tenv0)
-    CProd -> let
-      (k, tenv1) = freshKv tenv0
-      in Right (KRho ..-> k ..-> KRho, tenv1)
+  TCon con -> Right (case con of
+    CInt -> KVal
+    CFun -> KRho ..-> KRho ..-> KVal
+    CProd -> KRho ..-> KVal ..-> KRho, tenv0)
   TVar x -> case Map.lookup x (envTks tenv0) of
     Just k' -> Right (k', tenv0)
     Nothing -> let
       (k', tenv1) = freshKv tenv0
       in Right (k', tenv1 { envTks = Map.insert x k' (envTks tenv1) })
+  TConst{} -> Left "cannot infer kind of skolem constant"
   TQuantified (Forall tvs t') -> do
     (k1, _) <- inferKind (foldr (\ x tenv -> let (a, tenv') = freshKv tenv in tenv' { envTks = Map.insert x a (envTks tenv') }) tenv0 . Set.toList $ tvs) t'
     tenv1 <- unifyKind tenv0 k1 KVal
@@ -211,6 +222,7 @@ emptyTEnv = TEnv {
   envTks = Map.empty,
   envKvs = Map.empty,
   envVs = Map.empty,
+  envSigs = Map.empty,
   envCurrentType = Id 0,
   envCurrentKind = Id 0 }
 
@@ -252,7 +264,11 @@ inferType tenv0 expr = case expr of
     c = TVar ci
     type_ = a .* b .-> a .* TQuantified (Forall (Set.singleton ci) (c .-> c .* b))
     in Right (ECall (Just type_) "quo", type_, tenv3)
-  ECall Nothing name -> Left $ "cannot infer type of " ++ show name
+  ECall Nothing name -> case Map.lookup name (envSigs tenv0) of
+    Just scheme -> let
+      (type_, tenv1) = instantiate tenv0 scheme
+      in Right (ECall (Just type_) name, type_, tenv1)
+    Nothing -> Left $ "cannot infer type of " ++ show name
   ECat Nothing expr1 expr2 -> do
     (expr1', t1, tenv1) <- inferType tenv0 expr1
     (expr2', t2, tenv2) <- inferType tenv1 expr2
@@ -290,6 +306,9 @@ inferType tenv0 expr = case expr of
 
 freshTv :: TEnv -> (Type, TEnv)
 freshTv = first TVar . freshTypeId
+
+freshTc :: TEnv -> (Type, TEnv)
+freshTc = first TConst . freshTypeId
 
 freshKv :: TEnv -> (Kind, TEnv)
 freshKv = first KVar . freshKindId
@@ -351,6 +370,7 @@ occurrences tenv0 x = recur
     TVar y -> case Map.lookup y (envTvs tenv0) of
       Nothing -> if x == y then 1 else 0
       Just t' -> recur t'
+    TConst{} -> 0
     TQuantified (Forall tvs t')
       -> if Set.member x tvs then 0 else recur t'
     a `TApp` b -> recur a + recur b
@@ -377,6 +397,7 @@ zonkType tenv0 = recur
       Just (TVar x') | x == x' -> t
       Just t' -> recur t'
       Nothing -> t
+    TConst{} -> t
     TQuantified (Forall tvs t')
       -> TQuantified . Forall tvs . zonkType tenv0 { envTvs = foldr Map.delete (envTvs tenv0) . Set.toList $ tvs } $ t'
     a `TApp` b -> recur a `TApp` recur b
@@ -426,6 +447,7 @@ freeTvs :: Type -> Set (Id Type)
 freeTvs t = case t of
   TCon{} -> Set.empty
   TVar x -> Set.singleton x
+  TConst{} -> Set.empty
   TQuantified (Forall ids t') -> freeTvs t' Set.\\ ids
   a `TApp` b -> freeTvs a `Set.union` freeTvs b
 
@@ -483,6 +505,7 @@ demote' :: TEnv -> Type -> (Type, Set (Id Type), TEnv)
 demote' tenv0 t = case t of
   TCon{} -> (t, Set.empty, tenv0)
   TVar{} -> (t, Set.empty, tenv0)
+  TConst{} -> (t, Set.empty, tenv0)
   TQuantified (Forall ids t') -> let
     (t'', ids', tenv') = foldr go (t', Set.empty, tenv0) . Set.toList $ ids
     in (TQuantified (Forall (ids Set.\\ ids') t''), ids', tenv')
@@ -499,3 +522,37 @@ demote' tenv0 t = case t of
     in (a' `TApp` b', ids1 `Set.union` ids2, tenv2)
 
 type Modify a = a -> a
+
+skolemize :: Scheme -> (Set (Id Type), Type)
+skolemize (Forall ids t) = let
+  (consts, tenv0) = foldr
+    (\ _index (acc, tenv) -> let (a, tenv') = freshTypeId tenv in (a : acc, tenv'))
+    ([], emptyTEnv)
+    [1 .. Set.size ids]
+  tenv1 = foldr
+    (\ (x, c) tenv -> tenv { envTvs = Map.insert x (TConst c) (envTvs tenv) })
+    tenv0
+    (zip (Set.toList ids) consts)
+  in skolemizeType (zonkType tenv1 t)
+
+skolemizeType :: Type -> (Set (Id Type), Type)
+skolemizeType t = case t of
+  TCon CFun `TApp` a `TApp` b -> let
+    (ids, b') = skolemizeType b
+    in (ids, a .-> b')
+  TQuantified scheme -> skolemize scheme
+  _ -> (Set.empty, t)
+
+instanceCheck :: Scheme -> Scheme -> Either String ()
+instanceCheck inferredScheme declaredScheme = do
+  let (inferredType, tenv0) = instantiate emptyTEnv inferredScheme
+  let (ids, declaredType) = skolemize declaredScheme
+  case unifyType tenv0 inferredType declaredType of
+    Left message -> Left (prefix ++ ": " ++ message)
+    Right{} -> Right ()
+  let escaped = freeTvs (TQuantified inferredScheme) `Set.union` freeTvs (TQuantified declaredScheme)
+  let bad = Set.filter (`Set.member` escaped) ids
+  unless (Set.null bad) (Left prefix)
+  Right ()
+  where
+  prefix = unwords [show inferredScheme, "is not an instance of", show declaredScheme]
