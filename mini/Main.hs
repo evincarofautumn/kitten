@@ -235,14 +235,6 @@ inferType tenv0 expr = case expr of
     (a, tenv1) = freshTv tenv0
     type_ = a .* TCon CInt .* TCon CInt .-> a .* TCon CInt
     in Right (ECall (Just type_) "add", type_, tenv1)
-  {-
-  -- Should cause a kind mismatch (* ~ ρ) if used in a program.
-  ECall Nothing "snd" -> let
-    (a, tenv1) = freshTv tenv0
-    (b, tenv2) = freshTv tenv1
-    type_ = a .* b .-> b
-    in (ECall (Just type_) "snd", type_, tenv2)
-  -}
   ECall Nothing "cat" -> let
     (a, tenv1) = freshTv tenv0
     (b, tenv2) = freshTv tenv1
