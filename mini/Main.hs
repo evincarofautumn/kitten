@@ -65,15 +65,23 @@ data Con
   = CInt
   | CFun
   | CProd
+  | CPure
+  | CIO
+  | CFail
+  | CJoin
   deriving (Eq)
 
-(.->) :: Type -> Type -> Type
-t1 .-> t2 = TCon CFun `TApp` t1 `TApp` t2
+(.->) :: Type -> Type -> Type -> Type
+(t1 .-> t2) e = TCon CFun `TApp` t1 `TApp` t2 `TApp` e
 infixr 4 .->
 
 (.*) :: Type -> Type -> Type
 t1 .* t2 = TCon CProd `TApp` t1 `TApp` t2
 infixl 5 .*
+
+(.|) :: Type -> Type -> Type
+t1 .| t2 = TCon CJoin `TApp` t1 `TApp` t2
+infixr 4 .|
 
 instance Show Type where
   showsPrec p t = case t of
@@ -90,6 +98,10 @@ instance Show Con where
     CInt -> "int"
     CProd -> "pair"
     CFun -> "fun"
+    CPure -> "pure"
+    CIO -> "io"
+    CFail -> "fail"
+    CJoin -> "join"
 
 data Scheme
   = Forall (Set (Id Type)) Type
@@ -101,6 +113,7 @@ instance Show Scheme where
 data Kind
   = KVal
   | KRho
+  | KEff
   | KFun Kind Kind
   | KVar (Id Kind)
   deriving (Eq)
@@ -113,6 +126,7 @@ instance Show Kind where
   showsPrec p k = case k of
     KVal -> showString "val"
     KRho -> showString "\x03C1"
+    KEff -> showString "\x03B5"
     a `KFun` b -> showParen (p > funPrec) $ showsPrec (funPrec + 1) a . showString " \x2192 " . showsPrec funPrec b
     KVar x -> shows x
     where
@@ -181,8 +195,12 @@ inferKind :: TEnv -> Type -> Either String (Kind, TEnv)
 inferKind tenv0 t = case t of
   TCon con -> Right (case con of
     CInt -> KVal
-    CFun -> KRho ..-> KRho ..-> KVal
-    CProd -> KRho ..-> KVal ..-> KRho, tenv0)
+    CFun -> KRho ..-> KRho ..-> KEff ..-> KVal
+    CProd -> KRho ..-> KVal ..-> KRho
+    CPure -> KEff
+    CIO -> KEff
+    CFail -> KEff
+    CJoin -> KEff ..-> KEff ..-> KEff, tenv0)
   TVar x -> case Map.lookup x (envTks tenv0) of
     Just k' -> Right (k', tenv0)
     Nothing -> let
@@ -225,35 +243,51 @@ emptyTEnv = TEnv {
   envCurrentKind = Id 0 }
 
 inferType :: TEnv -> Expr -> Either String (Expr, Type, TEnv)
-inferType tenv0 expr = case expr of
+inferType tenv0 expr0 = case expr0 of
   EPush Nothing val -> let
     (val', t, tenv1) = inferVal tenv0 val
     (a, tenv2) = freshTv tenv1
-    type_ = a .-> a .* t
-    in Right (EPush (Just type_) val', type_, tenv2)
+    (e, tenv3) = freshTv tenv2
+    type_ = (a .-> a .* t) e
+    in Right (EPush (Just type_) val', type_, tenv3)
   ECall Nothing "add" -> let
     (a, tenv1) = freshTv tenv0
-    type_ = a .* TCon CInt .* TCon CInt .-> a .* TCon CInt
-    in Right (ECall (Just type_) "add", type_, tenv1)
+    (e, tenv2) = freshTv tenv1
+    type_ = (a .* TCon CInt .* TCon CInt .-> a .* TCon CInt) e
+    in Right (ECall (Just type_) "add", type_, tenv2)
   ECall Nothing "cat" -> let
     (a, tenv1) = freshTv tenv0
     (b, tenv2) = freshTv tenv1
     (c, tenv3) = freshTv tenv2
     (d, tenv4) = freshTv tenv3
-    type_ = a .* (b .-> c) .* (c .-> d) .-> a .* (b .-> d)
-    in Right (ECall (Just type_) "cat", type_, tenv4)
+    (e, tenv5) = freshTv tenv4
+    type_ = (a .* (b .-> c) e .* (c .-> d) e .-> a .* (b .-> d) e) e
+    in Right (ECall (Just type_) "cat", type_, tenv5)
   ECall Nothing "app" -> let
     (a, tenv1) = freshTv tenv0
     (b, tenv2) = freshTv tenv1
-    type_ = a .* (a .-> b) .-> b
-    in Right (ECall (Just type_) "app", type_, tenv2)
+    (e, tenv3) = freshTv tenv2
+    type_ = (a .* (a .-> b) e .-> b) e
+    in Right (ECall (Just type_) "app", type_, tenv3)
   ECall Nothing "quo" -> let
     (a, tenv1) = freshTv tenv0
     (b, tenv2) = freshTv tenv1
     (ci, tenv3) = freshTypeId tenv2
     c = TVar ci
-    type_ = a .* b .-> a .* TQuantified (Forall (Set.singleton ci) (c .-> c .* b))
-    in Right (ECall (Just type_) "quo", type_, tenv3)
+    (e, tenv4) = freshTv tenv3
+    type_ = (a .* b .-> a .* TQuantified (Forall (Set.singleton ci) ((c .-> c .* b) e))) e
+    in Right (ECall (Just type_) "quo", type_, tenv4)
+  ECall Nothing "say" -> let
+    (a, tenv1) = freshTv tenv0
+    (e, tenv2) = freshTv tenv1
+    type_ = (a .* TCon CInt .-> a) (TCon CIO .| e)
+    in Right (ECall (Just type_) "say", type_, tenv2)
+  ECall Nothing "abort" -> let
+    (a, tenv1) = freshTv tenv0
+    (b, tenv2) = freshTv tenv1
+    (e, tenv3) = freshTv tenv2
+    type_ = (a .-> b) (TCon CFail .| e)
+    in Right (ECall (Just type_) "say", type_, tenv3)
   ECall Nothing name -> case Map.lookup name (envSigs tenv0) of
     Just scheme -> let
       (type_, tenv1) = instantiate tenv0 scheme
@@ -262,25 +296,29 @@ inferType tenv0 expr = case expr of
   ECat Nothing expr1 expr2 -> do
     (expr1', t1, tenv1) <- inferType tenv0 expr1
     (expr2', t2, tenv2) <- inferType tenv1 expr2
-    (a, b, tenv3) <- unifyFun tenv2 t1
-    (c, d, tenv4) <- unifyFun tenv3 t2
+    (a, b, e1, tenv3) <- unifyFun tenv2 t1
+    (c, d, e2, tenv4) <- unifyFun tenv3 t2
     tenv5 <- unifyType tenv4 b c
-    let type_ = a .-> d
-    Right (ECat (Just type_) expr1' expr2', type_, tenv5)
+    tenv6 <- unifyType tenv5 e1 e2
+    let type_ = (a .-> d) e1
+    Right (ECat (Just type_) expr1' expr2', type_, tenv6)
   EId Nothing -> let
     (a, tenv1) = freshTv tenv0
-    type_ = a .-> a
-    in Right (EId (Just type_), type_, tenv1)
-  EQuote Nothing e -> do
+    (e, tenv2) = freshTv tenv1
+    type_ = (a .-> a) e
+    in Right (EId (Just type_), type_, tenv2)
+  EQuote Nothing expr -> do
     let (a, tenv1) = freshTv tenv0
-    (e', b, tenv2) <- inferType tenv1 e
-    let type_ = a .-> a .* b
-    Right (EQuote (Just type_) e', type_, tenv2)
+    (expr', b, tenv2) <- inferType tenv1 expr
+    let (e, tenv3) = freshTv tenv2
+    let type_ = (a .-> a .* b) e
+    Right (EQuote (Just type_) expr', type_, tenv3)
   EGo Nothing name -> let
     (a, tenv1) = freshTv tenv0
     (b, tenv2) = freshTv tenv1
-    type_ = a .* b .-> a
-    in Right (EGo (Just type_) name, type_, tenv2 { envVs = Map.insert name b (envVs tenv2) })
+    (e, tenv3) = freshTv tenv2
+    type_ = (a .* b .-> a) e
+    in Right (EGo (Just type_) name, type_, tenv3 { envVs = Map.insert name b (envVs tenv3) })
   ECome how Nothing name -> do
     let (a, tenv1) = freshTv tenv0
     b <- case Map.lookup name (envVs tenv1) of
@@ -290,9 +328,10 @@ inferType tenv0 expr = case expr of
       tenv2 = case how of
         Move -> tenv1 { envVs = Map.delete name (envVs tenv1) }
         Copy -> tenv1
-    let type_ = a .-> a .* b
-    Right (ECome how (Just type_) name, type_, tenv2)
-  _ -> Left $ "cannot infer type of already-inferred expression " ++ show expr
+    let (e, tenv3) = freshTv tenv2
+    let type_ = (a .-> a .* b) e
+    Right (ECome how (Just type_) name, type_, tenv3)
+  _ -> Left $ "cannot infer type of already-inferred expression " ++ show expr0
 
 freshTv :: TEnv -> (Type, TEnv)
 freshTv = first TVar . freshTypeId
@@ -318,12 +357,46 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
     (b, tenv1) = instantiate tenv0 scheme
     in unifyType tenv1 a b
   (TQuantified{}, _) -> commute
+  (TCon CJoin `TApp` l `TApp` r, s)
+    | Just (TCon CJoin `TApp` _ `TApp` s', substitution, tenv1) <- rowIso tenv0 l s
+    -> case substitution of
+      Just (x, t)
+        | occurs tenv0 x (effectTail r)
+        -> Left $ unwords ["cannot unify effects", show t1, "and", show t2]
+        | otherwise
+        -> let
+          tenv2 = tenv1 { envTvs = Map.insert x t (envTvs tenv1) }
+          in unifyType tenv2 r s'
+      Nothing -> unifyType tenv1 r s'
+  (_, TCon CJoin `TApp` _ `TApp` _) -> commute
   (a `TApp` b, c `TApp` d) -> do
     tenv1 <- unifyType tenv0 a c
     unifyType tenv1 b d
   _ -> Left $ unwords ["cannot unify types", show t1, "and", show t2]
   where
   commute = unifyType tenv0 t2 t1
+
+-- Asserts that a row can be rewritten to begin with a given
+-- label. Produces, if possible, a substitution under which
+-- this is true, and the tail of the rewritten row.
+rowIso :: TEnv -> Type -> Type -> Maybe (Type, Maybe (Id Type, Type), TEnv)
+
+-- head
+rowIso tenv0 lin rin@(TCon CJoin `TApp` l `TApp` _) | l == lin
+  = return (rin, Nothing, tenv0)
+
+-- swap
+rowIso tenv0 l (TCon CJoin `TApp` l' `TApp` r) | l /= l' = do
+  (r', substitution, tenv1) <- rowIso tenv0 l r
+  Just (l .| l' .| r', substitution, tenv1)
+
+-- row-var
+rowIso tenv0 l (TVar a) = let
+  (b, tenv1) = freshTv tenv0
+  res = l .| b
+  in Just (res, Just (a, res), tenv1)
+
+rowIso _ _ _ = Nothing
 
 unifyTv :: TEnv -> Id Type -> Type -> Either String TEnv
 unifyTv tenv0 x t = case t of
@@ -369,14 +442,15 @@ inferVal :: TEnv -> Val -> (Val, Type, TEnv)
 inferVal tenv val = case val of
   VInt{} -> (val, TCon CInt, tenv)
 
-unifyFun :: TEnv -> Type -> Either String (Type, Type, TEnv)
+unifyFun :: TEnv -> Type -> Either String (Type, Type, Type, TEnv)
 unifyFun tenv0 t = case t of
-  TCon CFun `TApp` a `TApp` b -> Right (a, b, tenv0)
+  TCon CFun `TApp` a `TApp` b `TApp` e -> Right (a, b, e, tenv0)
   _ -> do
     let (a, tenv1) = freshTv tenv0
     let (b, tenv2) = freshTv tenv1
-    tenv3 <- unifyType tenv2 t (a .-> b)
-    Right (a, b, tenv3)
+    let (e, tenv3) = freshTv tenv2
+    tenv4 <- unifyType tenv3 t ((a .-> b) e)
+    Right (a, b, e, tenv4)
 
 zonkType :: TEnv -> Modify Type
 zonkType tenv0 = recur
@@ -414,6 +488,7 @@ zonkKind tenv0 = recur
   recur k = case k of
     KVal -> k
     KRho -> k
+    KEff -> k
     KVar x -> case Map.lookup x (envKvs tenv0) of
       Just (KVar x') | x == x' -> k
       Just k' -> recur k'
@@ -444,6 +519,7 @@ freeKvs :: Kind -> Set (Id Kind)
 freeKvs k = case k of
   KVal -> Set.empty
   KRho -> Set.empty
+  KEff -> Set.empty
   a `KFun` b -> freeKvs a `Set.union` freeKvs b
   KVar x -> Set.singleton x
 
@@ -472,6 +548,10 @@ regeneralize tenv t = let
 bottommost :: Type -> Type
 bottommost (TCon CProd `TApp` a `TApp` _) = bottommost a
 bottommost t = t
+
+effectTail :: Type -> Type
+effectTail (TCon CJoin `TApp` _ `TApp` a) = effectTail a
+effectTail t = t
 
 instantiate :: TEnv -> Scheme -> (Type, TEnv)
 instantiate tenv0 (Forall ids t) = foldr go (t, tenv0) . Set.toList $ ids
@@ -525,9 +605,9 @@ skolemize (Forall ids t) = let
 
 skolemizeType :: Type -> (Set (Id Type), Type)
 skolemizeType t = case t of
-  TCon CFun `TApp` a `TApp` b -> let
+  TCon CFun `TApp` a `TApp` b `TApp` e -> let
     (ids, b') = skolemizeType b
-    in (ids, a .-> b')
+    in (ids, (a .-> b') e)
   TQuantified scheme -> skolemize scheme
   _ -> (Set.empty, t)
 
