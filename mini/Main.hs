@@ -380,7 +380,7 @@ rowIso :: TEnv -> Type -> Type -> Maybe (Type, Maybe (Id Type, Type), TEnv)
 
 -- head
 rowIso tenv0 lin rin@(TCon CJoin `TApp` l `TApp` _) | l == lin
-  = return (rin, Nothing, tenv0)
+  = Just (rin, Nothing, tenv0)
 
 -- swap
 rowIso tenv0 l (TCon CJoin `TApp` l' `TApp` r) | l /= l' = do
