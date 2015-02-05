@@ -23,9 +23,6 @@ main = return ()
 
 type TRef = Maybe Type
 
-untyped :: TRef
-untyped = Nothing
-
 data HowCome = Move | Copy
   deriving (Eq)
 
@@ -496,16 +493,16 @@ zonkKind tenv0 = recur
     a `KFun` b -> recur a ..-> recur b
 
 parse :: String -> Expr
-parse = foldl' (ECat untyped) (EId untyped) . map toExpr . words
+parse = foldl' (ECat Nothing) (EId Nothing) . map toExpr . words
   where
   toExpr s = if all isDigit s
-    then EPush untyped . VInt . read $ s
+    then EPush Nothing . VInt . read $ s
     else case s of
-      '.' : ss -> EQuote untyped . ECall untyped . Text.pack $ ss
-      '&' : ss -> EGo untyped . Text.pack $ ss
-      '+' : ss -> ECome Copy untyped . Text.pack $ ss
-      '-' : ss -> ECome Move untyped . Text.pack $ ss
-      _ -> ECall untyped . Text.pack $ s
+      '.' : ss -> EQuote Nothing . ECall Nothing . Text.pack $ ss
+      '&' : ss -> EGo Nothing . Text.pack $ ss
+      '+' : ss -> ECome Copy Nothing . Text.pack $ ss
+      '-' : ss -> ECome Move Nothing . Text.pack $ ss
+      _ -> ECall Nothing . Text.pack $ s
 
 freeTvs :: Type -> Set (Id Type)
 freeTvs t = case t of
