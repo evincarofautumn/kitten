@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -52,8 +51,8 @@ instance Show Expr where
 
 data Type
   = TCon Con
-  | TVar (Id Type)
-  | TConst (Id Type)
+  | TVar TypeId
+  | TConst TypeId
   | TQuantified Scheme
   | TApp Type Type
   deriving (Eq)
@@ -100,8 +99,7 @@ instance Show Con where
     CFail -> "fail"
     CJoin -> "join"
 
-data Scheme
-  = Forall (Set (Id Type)) Type
+data Scheme = Forall (Set TypeId) Type
   deriving (Eq)
 
 instance Show Scheme where
@@ -112,7 +110,7 @@ data Kind
   | KRho
   | KEff
   | KFun Kind Kind
-  | KVar (Id Kind)
+  | KVar KindId
   deriving (Eq)
 
 (..->) :: Kind -> Kind -> Kind
@@ -134,25 +132,28 @@ data Val = VInt Int deriving (Eq)
 instance Show Val where
   show (VInt i) = show i
 
-newtype Id a = Id { unId :: Int }
+newtype TypeId = TypeId { unTypeId :: Int }
   deriving (Enum, Eq, Ord)
 
-instance Show (Id Type) where 
-  show (Id x) = 't' : show x
+newtype KindId = KindId { unKindId :: Int }
+  deriving (Enum, Eq, Ord)
 
-instance Show (Id Kind) where
-  show (Id x) = 'k' : show x
+instance Show TypeId where
+  show (TypeId x) = 't' : show x
+
+instance Show KindId where
+  show (KindId x) = 'k' : show x
 
 type Name = Text
 
 data TEnv = TEnv {
-  envTvs :: Map (Id Type) Type,  -- What is this type variable equal to?
-  envTks :: Map (Id Type) Kind,  -- What kind does this type variable have?
-  envKvs :: Map (Id Kind) Kind,  -- What is this kind variable equal to?
+  envTvs :: Map TypeId Type,  -- What is this type variable equal to?
+  envTks :: Map TypeId Kind,  -- What kind does this type variable have?
+  envKvs :: Map KindId Kind,  -- What is this kind variable equal to?
   envVs :: Map Name Type,  -- What type does this variable have?
   envSigs :: Map Name Scheme,  -- What type scheme does this word have?
-  envCurrentType :: Id Type,
-  envCurrentKind :: Id Kind }
+  envCurrentType :: TypeId,
+  envCurrentKind :: KindId }
 
 instance Show TEnv where
   show tenv = concat [
@@ -236,8 +237,8 @@ emptyTEnv = TEnv {
   envKvs = Map.empty,
   envVs = Map.empty,
   envSigs = Map.empty,
-  envCurrentType = Id 0,
-  envCurrentKind = Id 0 }
+  envCurrentType = TypeId 0,
+  envCurrentKind = KindId 0 }
 
 inferType :: TEnv -> Expr -> Either String (Expr, Type, TEnv)
 inferType tenv0 expr0 = case expr0 of
@@ -339,10 +340,10 @@ freshTc = first TConst . freshTypeId
 freshKv :: TEnv -> (Kind, TEnv)
 freshKv = first KVar . freshKindId
 
-freshTypeId :: TEnv -> (Id Type, TEnv)
+freshTypeId :: TEnv -> (TypeId, TEnv)
 freshTypeId tenv = (envCurrentType tenv, tenv { envCurrentType = succ (envCurrentType tenv) })
 
-freshKindId :: TEnv -> (Id Kind, TEnv)
+freshKindId :: TEnv -> (KindId, TEnv)
 freshKindId tenv = (envCurrentKind tenv, tenv { envCurrentKind = succ (envCurrentKind tenv) })
 
 unifyType :: TEnv -> Type -> Type -> Either String TEnv
@@ -376,7 +377,7 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
 -- Asserts that a row can be rewritten to begin with a given
 -- label. Produces, if possible, a substitution under which
 -- this is true, and the tail of the rewritten row.
-rowIso :: TEnv -> Type -> Type -> Maybe (Type, Maybe (Id Type, Type), TEnv)
+rowIso :: TEnv -> Type -> Type -> Maybe (Type, Maybe (TypeId, Type), TEnv)
 
 -- head
 rowIso tenv0 lin rin@(TCon CJoin `TApp` l `TApp` _) | l == lin
@@ -395,7 +396,7 @@ rowIso tenv0 l (TVar a) = let
 
 rowIso _ _ _ = Nothing
 
-unifyTv :: TEnv -> Id Type -> Type -> Either String TEnv
+unifyTv :: TEnv -> TypeId -> Type -> Either String TEnv
 unifyTv tenv0 x t = case t of
   TVar y | x == y -> Right tenv0
   TVar{} -> declare
@@ -405,7 +406,7 @@ unifyTv tenv0 x t = case t of
     Just t2 -> unifyType tenv0 t t2
     Nothing -> Right tenv0 { envTvs = Map.insert x t (envTvs tenv0) }
 
-unifyKv :: TEnv -> Id Kind -> Kind -> Either String TEnv
+unifyKv :: TEnv -> KindId -> Kind -> Either String TEnv
 unifyKv tenv0 x k = case k of
   KVar y | x == y -> Right tenv0
   KVar{} -> declare
@@ -416,13 +417,13 @@ unifyKv tenv0 x k = case k of
     Just k2 -> unifyKind tenv0 k k2
     Nothing -> Right tenv0 { envKvs = Map.insert x k (envKvs tenv0) }
 
-occurs :: TEnv -> Id Type -> Type -> Bool
+occurs :: TEnv -> TypeId -> Type -> Bool
 occurs = (> 0) ... occurrences
 
 (...) :: (d -> e) -> (a -> b -> c -> d) -> a -> b -> c -> e
 (...) = (.) . (.) . (.)
 
-occurrences :: TEnv -> Id Type -> Type -> Int
+occurrences :: TEnv -> TypeId -> Type -> Int
 occurrences tenv0 x = recur
   where
   recur t = case t of
@@ -504,7 +505,7 @@ parse = foldl' (ECat Nothing) (EId Nothing) . map toExpr . words
       '-' : ss -> ECome Move Nothing . Text.pack $ ss
       _ -> ECall Nothing . Text.pack $ s
 
-freeTvs :: Type -> Set (Id Type)
+freeTvs :: Type -> Set TypeId
 freeTvs t = case t of
   TCon{} -> Set.empty
   TVar x -> Set.singleton x
@@ -512,7 +513,7 @@ freeTvs t = case t of
   TQuantified (Forall ids t') -> freeTvs t' Set.\\ ids
   a `TApp` b -> freeTvs a `Set.union` freeTvs b
 
-freeKvs :: Kind -> Set (Id Kind)
+freeKvs :: Kind -> Set KindId
 freeKvs k = case k of
   KVal -> Set.empty
   KRho -> Set.empty
@@ -527,7 +528,7 @@ regeneralize tenv t = let
   (t', vars) = runWriter $ go TopLevel t
   in Forall (foldr Set.delete (freeTvs t') vars) t'
   where
-  go :: TypeLevel -> Type -> Writer [Id Type] Type
+  go :: TypeLevel -> Type -> Writer [TypeId] Type
   go level t' = case t' of
     TCon CFun `TApp` a `TApp` b
       | level == NonTopLevel
@@ -557,7 +558,7 @@ instantiate tenv0 (Forall ids t) = foldr go (t, tenv0) . Set.toList $ ids
     (a, tenv') = freshTv tenv
     in (replaceTv x a t', tenv')
 
-replaceTv :: Id Type -> Type -> Type -> Type
+replaceTv :: TypeId -> Type -> Type -> Type
 replaceTv x a = zonkType emptyTEnv { envTvs = Map.singleton x a }
 
 -- Reduces the rank of rho-kinded type variables.
@@ -566,7 +567,7 @@ demote tenv0 t = let
   (t', ids, tenv1) = demote' tenv0 t
   in (Forall ids t', tenv1)
 
-demote' :: TEnv -> Type -> (Type, Set (Id Type), TEnv)
+demote' :: TEnv -> Type -> (Type, Set TypeId, TEnv)
 demote' tenv0 t = case t of
   TCon{} -> (t, Set.empty, tenv0)
   TVar{} -> (t, Set.empty, tenv0)
@@ -586,7 +587,7 @@ demote' tenv0 t = case t of
     (b', ids2, tenv2) = demote' tenv1 b
     in (a' `TApp` b', ids1 `Set.union` ids2, tenv2)
 
-skolemize :: Scheme -> (Set (Id Type), Type)
+skolemize :: Scheme -> (Set TypeId, Type)
 skolemize (Forall ids t) = let
   (consts, tenv0) = foldr
     (\ _index (acc, tenv) -> let (a, tenv') = freshTypeId tenv in (a : acc, tenv'))
@@ -598,7 +599,7 @@ skolemize (Forall ids t) = let
     (zip (Set.toList ids) consts)
   in skolemizeType (zonkType tenv1 t)
 
-skolemizeType :: Type -> (Set (Id Type), Type)
+skolemizeType :: Type -> (Set TypeId, Type)
 skolemizeType t = case t of
   TCon CFun `TApp` a `TApp` b `TApp` e -> let
     (ids, b') = skolemizeType b
