@@ -452,7 +452,7 @@ unifyFun tenv0 t = case t of
     tenv4 <- unifyType tenv3 t ((a .-> b) e)
     Right (a, b, e, tenv4)
 
-zonkType :: TEnv -> Modify Type
+zonkType :: TEnv -> Type -> Type
 zonkType tenv0 = recur
   where
   recur t = case t of
@@ -466,7 +466,7 @@ zonkType tenv0 = recur
       -> TQuantified . Forall tvs . zonkType tenv0 { envTvs = foldr Map.delete (envTvs tenv0) . Set.toList $ tvs } $ t'
     a `TApp` b -> recur a `TApp` recur b
 
-zonkExpr :: TEnv -> Modify Expr
+zonkExpr :: TEnv -> Expr -> Expr
 zonkExpr tenv0 = recur
   where
   recur expr = case expr of
@@ -479,10 +479,10 @@ zonkExpr tenv0 = recur
     ECome how tref name -> ECome how (zonkTRef tref) name
   zonkTRef = fmap (zonkType tenv0)
 
-zonkVal :: TEnv -> Modify Val
+zonkVal :: TEnv -> Val -> Val
 zonkVal _tenv val@VInt{} = val
 
-zonkKind :: TEnv -> Modify Kind
+zonkKind :: TEnv -> Kind -> Kind
 zonkKind tenv0 = recur
   where
   recur k = case k of
@@ -588,8 +588,6 @@ demote' tenv0 t = case t of
     (a', ids1, tenv1) = demote' tenv0 a
     (b', ids2, tenv2) = demote' tenv1 b
     in (a' `TApp` b', ids1 `Set.union` ids2, tenv2)
-
-type Modify a = a -> a
 
 skolemize :: Scheme -> (Set (Id Type), Type)
 skolemize (Forall ids t) = let
