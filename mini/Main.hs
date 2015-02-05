@@ -418,10 +418,7 @@ unifyKv tenv0 x k = case k of
     Nothing -> Right tenv0 { envKvs = Map.insert x k (envKvs tenv0) }
 
 occurs :: TEnv -> TypeId -> Type -> Bool
-occurs = (> 0) ... occurrences
-
-(...) :: (d -> e) -> (a -> b -> c -> d) -> a -> b -> c -> e
-(...) = (.) . (.) . (.)
+occurs tenv0 x t = occurrences tenv0 x t > 0
 
 occurrences :: TEnv -> TypeId -> Type -> Int
 occurrences tenv0 x = recur
