@@ -288,9 +288,10 @@ inferType tenv0 expr0 = case expr0 of
     (b, tenv2) = freshTv tenv1
     (c, tenv3) = freshTv tenv2
     (d, tenv4) = freshTv tenv3
-    (e, tenv5) = freshTv tenv4
-    type_ = (a .* (b .-> c) e .* (c .-> d) e .-> a .* (b .-> d) e) e
-    in Right (ECall (Just type_) "cat", type_, tenv5)
+    (e1, tenv5) = freshTv tenv4
+    (e2, tenv6) = freshTv tenv5
+    type_ = (a .* (b .-> c) e1 .* (c .-> d) e1 .-> a .* (b .-> d) e1) e2
+    in Right (ECall (Just type_) "cat", type_, tenv6)
   ECall Nothing "app" -> let
     (a, tenv1) = freshTv tenv0
     (b, tenv2) = freshTv tenv1
