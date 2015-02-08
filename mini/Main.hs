@@ -198,10 +198,9 @@ inferType0 sigs expr = do
   let zonkedType = zonkType tenv1 t
   let zonkedExpr = zonkExpr tenv1 expr'
   (kind, tenv2) <- inferKind tenv1 zonkedType
-  let (Forall _ids demoted, tenv3) = demote tenv2 zonkedType
-  let regeneralized = regeneralize tenv3 demoted
-  tenv4 <- defaultKinds tenv3 kind
-  let zonkedKind = zonkKind tenv4 kind
+  let regeneralized = regeneralize tenv2 zonkedType
+  tenv3 <- defaultKinds tenv2 kind
+  let zonkedKind = zonkKind tenv3 kind
   Right (zonkedExpr, regeneralized, zonkedKind)
 
 -- The default kind of a type is the value kind.
@@ -637,8 +636,8 @@ freeKvs k = case k of
 --
 --     map :: ∀ραβ. ρ × vector α × (∀σ. σ × α → σ × β) → ρ × vector β
 --
--- In order to correctly regeneralize a type, it needs to be fully demoted,
--- containing no higher-ranked quantifiers.
+-- In order to correctly regeneralize a type, it needs to contain no
+-- higher-ranked quantifiers.
 
 regeneralize :: TEnv -> Type -> Scheme
 regeneralize tenv t = let
@@ -686,34 +685,6 @@ instantiate tenv0 (Forall ids t) = foldr go (t, tenv0) . Set.toList $ ids
 
 replaceTv :: TypeId -> Type -> Type -> Type
 replaceTv x a = zonkType emptyTEnv { envTvs = Map.singleton x a }
-
--- Reduces the rank of rho-kinded type variables. I think this is completely
--- unnecessary.
-
-demote :: TEnv -> Type -> (Scheme, TEnv)
-demote tenv0 t = let
-  (t', ids, tenv1) = demote' tenv0 t
-  in (Forall ids t', tenv1)
-
-demote' :: TEnv -> Type -> (Type, Set TypeId, TEnv)
-demote' tenv0 t = case t of
-  TCon{} -> (t, Set.empty, tenv0)
-  TVar{} -> (t, Set.empty, tenv0)
-  TConst{} -> (t, Set.empty, tenv0)
-  TQuantified (Forall ids t') -> let
-    (t'', ids', tenv') = foldr go (t', Set.empty, tenv0) . Set.toList $ ids
-    in (TQuantified (Forall (ids Set.\\ ids') t''), ids', tenv')
-    where
-    go x (t'', ids', tenv) = case Map.lookup x (envTks tenv) of
-      Just KRho -> let
-        (a, tenv') = freshTv tenv
-        t''' = replaceTv x a t''
-        in (t''', Set.insert x ids', tenv')
-      _ -> (t', ids', tenv)
-  a `TApp` b -> let
-    (a', ids1, tenv1) = demote' tenv0 a
-    (b', ids2, tenv2) = demote' tenv1 b
-    in (a' `TApp` b', ids1 `Set.union` ids2, tenv2)
 
 -- Skolemization replaces quantified type variables with type constants.
 
