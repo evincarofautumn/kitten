@@ -321,7 +321,7 @@ inferType tenv0 expr0 = case expr0 of
     (b, tenv2) = freshTv tenv1
     (e, tenv3) = freshTv tenv2
     type_ = (a .-> b) (TCon CFail .| e)
-    in Right (ECall (Just type_) "say", type_, tenv3)
+    in Right (ECall (Just type_) "abort", type_, tenv3)
 
 -- The type of a definition is simply looked up in the environment.
 
