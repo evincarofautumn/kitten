@@ -30,8 +30,8 @@ data Expr
   -- Quote an expression.
   | EQuote TRef Expr
 
-  -- Invoke a word.
-  | ECall TRef Name
+  -- Invoke a word, possibly with some generic type parameters.
+  | ECall TRef Name [Type]
 
   -- Push a value to the stack.
   | EPush TRef Val
@@ -100,7 +100,7 @@ data Con
 -- quantified. A type can be produced from a polytype by substituting the bound
 -- variables with fresh ones.
 
-data Scheme = Forall (Set TypeId) Type
+data Scheme = Forall [TypeId] Type
   deriving (Eq)
 
 -- A kind is the type of a type. Types with the "value" kind are inhabited by
@@ -234,7 +234,7 @@ inferKind tenv0 t = case t of
           (a, tenv') = freshKv tenv
           in tenv' { envTks = Map.insert x a (envTks tenv') })
         tenv0
-        . Set.toList $ tvs)
+        tvs)
       t'
     tenv1 <- unifyKind tenv0 k1 KVal
     Right (k1, tenv1)
@@ -278,12 +278,12 @@ inferType tenv0 expr0 = case expr0 of
 
 -- Pure intrinsics.
 
-  ECall Nothing "add" -> let
+  ECall Nothing name@"add" [] -> let
     (a, tenv1) = freshTv tenv0
     (e, tenv2) = freshTv tenv1
     type_ = (a .* TCon CInt .* TCon CInt .-> a .* TCon CInt) e
-    in Right (ECall (Just type_) "add", type_, tenv2)
-  ECall Nothing "cat" -> let
+    in Right (ECall (Just type_) name [], type_, tenv2)
+  ECall Nothing name@"cat" [] -> let
     (a, tenv1) = freshTv tenv0
     (b, tenv2) = freshTv tenv1
     (c, tenv3) = freshTv tenv2
@@ -291,44 +291,44 @@ inferType tenv0 expr0 = case expr0 of
     (e1, tenv5) = freshTv tenv4
     (e2, tenv6) = freshTv tenv5
     type_ = (a .* (b .-> c) e1 .* (c .-> d) e1 .-> a .* (b .-> d) e1) e2
-    in Right (ECall (Just type_) "cat", type_, tenv6)
-  ECall Nothing "app" -> let
+    in Right (ECall (Just type_) name [], type_, tenv6)
+  ECall Nothing name@"app" [] -> let
     (a, tenv1) = freshTv tenv0
     (b, tenv2) = freshTv tenv1
     (e, tenv3) = freshTv tenv2
     type_ = (a .* (a .-> b) e .-> b) e
-    in Right (ECall (Just type_) "app", type_, tenv3)
-  ECall Nothing "quo" -> let
+    in Right (ECall (Just type_) name [], type_, tenv3)
+  ECall Nothing name@"quo" [] -> let
     (a, tenv1) = freshTv tenv0
     (b, tenv2) = freshTv tenv1
     (c, tenv3) = freshTv tenv2
     (e1, tenv4) = freshTv tenv3
     (e2, tenv5) = freshTv tenv4
     type_ = (a .* b .-> a .* (c .-> c .* b) e1) e2
-    in Right (ECall (Just type_) "quo", type_, tenv5)
+    in Right (ECall (Just type_) name [], type_, tenv5)
 
 -- Effectful intrinsics. Note that we allow the effect to be polymorphic in its
 -- tail, so that effects can be composed.
 
-  ECall Nothing "say" -> let
+  ECall Nothing name@"say" [] -> let
     (a, tenv1) = freshTv tenv0
     (e, tenv2) = freshTv tenv1
     type_ = (a .* TCon CInt .-> a) (TCon CIO .| e)
-    in Right (ECall (Just type_) "say", type_, tenv2)
+    in Right (ECall (Just type_) name [], type_, tenv2)
 
-  ECall Nothing "abort" -> let
+  ECall Nothing name@"abort" [] -> let
     (a, tenv1) = freshTv tenv0
     (b, tenv2) = freshTv tenv1
     (e, tenv3) = freshTv tenv2
     type_ = (a .-> b) (TCon CFail .| e)
-    in Right (ECall (Just type_) "abort", type_, tenv3)
+    in Right (ECall (Just type_) name [], type_, tenv3)
 
 -- The type of a definition is simply looked up in the environment.
 
-  ECall Nothing name -> case Map.lookup name (envSigs tenv0) of
+  ECall Nothing name [] -> case Map.lookup name (envSigs tenv0) of
     Just scheme -> let
-      (type_, tenv1) = instantiate tenv0 scheme
-      in Right (ECall (Just type_) name, type_, tenv1)
+      (type_, params, tenv1) = instantiate tenv0 scheme
+      in Right (ECall (Just type_) name params, type_, tenv1)
     Nothing -> Left $ "cannot infer type of " ++ show name
 
 -- The type of the composition of two expressions is the composition of the
@@ -409,7 +409,7 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
   (TVar x, t) -> unifyTv tenv0 x t
   (_, TVar{}) -> commute
   (a, TQuantified scheme) -> let
-    (b, tenv1) = instantiate tenv0 scheme
+    (b, _, tenv1) = instantiate tenv0 scheme
     in unifyType tenv1 a b
   (TQuantified{}, _) -> commute
 
@@ -528,7 +528,7 @@ occurrences tenv0 x = recur
       Just t' -> recur t'
     TConst{} -> 0
     TQuantified (Forall tvs t')
-      -> if Set.member x tvs then 0 else recur t'
+      -> if x `elem` tvs then 0 else recur t'
     a `TApp` b -> recur a + recur b
 
 occurs :: TEnv -> TypeId -> Type -> Bool
@@ -558,7 +558,7 @@ zonkType tenv0 = recur
       Nothing -> t
     TConst{} -> t
     TQuantified (Forall tvs t')
-      -> TQuantified . Forall tvs . zonkType tenv0 { envTvs = foldr Map.delete (envTvs tenv0) . Set.toList $ tvs } $ t'
+      -> TQuantified . Forall tvs . zonkType tenv0 { envTvs = foldr Map.delete (envTvs tenv0) tvs } $ t'
     a `TApp` b -> recur a `TApp` recur b
 
 -- Zonking a kind is similar to zonking a type.
@@ -586,7 +586,7 @@ zonkExpr tenv0 = recur
   where
   recur expr = case expr of
     EPush tref val -> EPush (zonkTRef tref) (zonkVal tenv0 val)
-    ECall tref name -> ECall (zonkTRef tref) name
+    ECall tref name params -> ECall (zonkTRef tref) name (map (zonkType tenv0) params)
     ECat tref e1 e2 -> ECat (zonkTRef tref) (recur e1) (recur e2)
     EQuote tref e -> EQuote (zonkTRef tref) (recur e)
     EId tref -> EId (zonkTRef tref)
@@ -607,7 +607,7 @@ freeTvs t = case t of
   TCon{} -> Set.empty
   TVar x -> Set.singleton x
   TConst{} -> Set.empty
-  TQuantified (Forall ids t') -> freeTvs t' Set.\\ ids
+  TQuantified (Forall ids t') -> freeTvs t' Set.\\ Set.fromList ids
   a `TApp` b -> freeTvs a `Set.union` freeTvs b
 
 -- Likewise for kinds, except kinds can't be higher-ranked anyway. I wonder what
@@ -643,7 +643,7 @@ freeKvs k = case k of
 regeneralize :: TEnv -> Type -> Scheme
 regeneralize tenv t = let
   (t', vars) = runWriter $ go TopLevel t
-  in Forall (foldr Set.delete (freeTvs t') vars) t'
+  in Forall (foldr delete (Set.toList (freeTvs t')) vars) t'
   where
   go :: TypeLevel -> Type -> Writer [TypeId] Type
   go level t' = case t' of
@@ -654,7 +654,7 @@ regeneralize tenv t = let
       , c == d
       -> do
         when (occurrences tenv c t == 2) $ tell [c]
-        return . TQuantified . Forall (Set.singleton c) $ t'
+        return $ TQuantified (Forall [c] t')
     TQuantified{} -> error "cannot regeneralize higher-ranked type"
     a `TApp` b -> TApp <$> go NonTopLevel a <*> go NonTopLevel b
     _ -> return t'
@@ -672,14 +672,15 @@ effectTail (TCon CJoin `TApp` _ `TApp` a) = effectTail a
 effectTail t = t
 
 -- To instantiate a type scheme, we simply replace all quantified variables with
--- fresh ones and remove the quantifier.
+-- fresh ones and remove the quantifier, returning the types with which the
+-- variables were instantiated, in order.
 
-instantiate :: TEnv -> Scheme -> (Type, TEnv)
-instantiate tenv0 (Forall ids t) = foldr go (t, tenv0) . Set.toList $ ids
+instantiate :: TEnv -> Scheme -> (Type, [Type], TEnv)
+instantiate tenv0 (Forall ids t) = foldr go (t, [], tenv0) ids
   where
-  go x (t', tenv) = let
+  go x (t', as, tenv) = let
     (a, tenv') = freshTv tenv
-    in (replaceTv x a t', tenv')
+    in (replaceTv x a t', a : as, tenv')
 
 -- To replace a type variable with a type throughout a type, we simply zonk in a
 -- singleton typing environment.
@@ -692,13 +693,13 @@ replaceTv x a = zonkType emptyTEnv { envTvs = Map.singleton x a }
 skolemize :: Scheme -> (Set TypeId, Type)
 skolemize (Forall ids t) = let
   (consts, tenv0) = foldr
-    (\ _index (acc, tenv) -> let (a, tenv') = freshTypeId tenv in (a : acc, tenv'))
+    (\ _ (acc, tenv) -> let (a, tenv') = freshTypeId tenv in (a : acc, tenv'))
     ([], emptyTEnv)
-    [1 .. Set.size ids]
+    ids
   tenv1 = foldr
     (\ (x, c) tenv -> tenv { envTvs = Map.insert x (TConst c) (envTvs tenv) })
     tenv0
-    (zip (Set.toList ids) consts)
+    (zip ids consts)
   in skolemizeType (zonkType tenv1 t)
 
 skolemizeType :: Type -> (Set TypeId, Type)
@@ -715,7 +716,7 @@ skolemizeType t = case t of
 
 instanceCheck :: Scheme -> Scheme -> Either String ()
 instanceCheck inferredScheme declaredScheme = do
-  let (inferredType, tenv0) = instantiate emptyTEnv inferredScheme
+  let (inferredType, _, tenv0) = instantiate emptyTEnv inferredScheme
   let (ids, declaredType) = skolemize declaredScheme
   case unifyType tenv0 inferredType declaredType of
     Left message -> Left (prefix ++ ": " ++ message)
@@ -738,7 +739,12 @@ data HowCome = Move | Copy
 instance Show Expr where
   show e = case e of
     EPush tref val -> showTyped tref $ show val
-    ECall tref name -> showTyped tref $ Text.unpack name
+    ECall tref name [] -> showTyped tref $ Text.unpack name
+    ECall tref name params -> showTyped tref $ concat [
+      Text.unpack name,
+      "<",
+      intercalate ", " (map show params),
+      ">" ]
     ECat tref a b -> showTyped tref $ unwords [show a, show b]
     EId tref -> showTyped tref $ ""
     EQuote tref expr -> showTyped tref $ "[" ++ show expr ++ "]"
@@ -773,7 +779,7 @@ instance Show Con where
     CJoin -> "join"
 
 instance Show Scheme where
-  show (Forall ids t) = '\x2200' : (unwords . map (show . TVar) . Set.toList) ids ++ ". " ++ show t
+  show (Forall ids t) = '\x2200' : unwords (map (show . TVar) ids) ++ ". " ++ show t
 
 instance Show Kind where
   showsPrec p k = case k of
@@ -845,8 +851,8 @@ parse = foldl' (ECat Nothing) (EId Nothing) . map toExpr . words
   toExpr s = if all isDigit s
     then EPush Nothing . VInt . read $ s
     else case s of
-      '.' : ss -> EQuote Nothing . ECall Nothing . Text.pack $ ss
+      '.' : ss -> EQuote Nothing $ ECall Nothing (Text.pack ss) []
       '&' : ss -> EGo Nothing . Text.pack $ ss
       '+' : ss -> ECome Copy Nothing . Text.pack $ ss
       '-' : ss -> ECome Move Nothing . Text.pack $ ss
-      _ -> ECall Nothing . Text.pack $ s
+      _ -> ECall Nothing (Text.pack s) []
