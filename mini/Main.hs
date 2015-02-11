@@ -147,16 +147,22 @@ type Name = Text
 -- The typing environment tracks the state of inference.
 
 data TEnv = TEnv {
+
   -- type variable -> type
   envTvs :: Map TypeId Type,
+
   -- type variable -> kind
   envTks :: Map TypeId Kind,
+
   -- kind variable -> kind
   envKvs :: Map KindId Kind,
+
   -- local variable -> type
   envVs :: Map Name Type,
+
   -- word -> signature
   envSigs :: Map Name Scheme,
+
   -- The current state of type and kind ID generation.
   envCurrentType :: TypeId,
   envCurrentKind :: KindId }
