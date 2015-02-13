@@ -12,12 +12,29 @@ import Data.List
 import Data.Map (Map)
 import Data.Set (Set)
 import Data.Text (Text)
+import Test.Hspec
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import Test.HUnit.Lang (assertFailure)
 
 main :: IO ()
-main = return ()
+main = hspec spec
+
+spec :: Spec
+spec = do
+  describe "type inference" $ do
+    it "gives the identity type for the empty program" $ do
+      case inferType0 Map.empty (parse "") of
+        Right (_, scheme, _)
+          | scheme == Forall [ia, ib] ((va .-> va) vb)
+          -> return ()
+        x -> assertFailure $ show x
+  where
+  ia = TypeId 0
+  va = TVar ia
+  ib = TypeId 1
+  vb = TVar ib
 
 data Expr
 
@@ -653,7 +670,7 @@ regeneralize tenv t = let
   where
   go :: TypeLevel -> Type -> Writer [TypeId] Type
   go level t' = case t' of
-    TCon CFun `TApp` a `TApp` b
+    TCon CFun `TApp` a `TApp` b `TApp` _
       | level == NonTopLevel
       , TVar c <- bottommost a
       , TVar d <- bottommost b
