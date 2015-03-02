@@ -38,15 +38,19 @@ spec = do
         cint
   describe "type inference" $ do
     it "gives the identity type for the empty program"
-      $ testScheme (inferType0 Map.empty (parse ""))
+      $ testScheme (inferEmpty (parse ""))
       $ TForall ia (TForall ib ((va .-> va) vb))
     it "gives the composed type from simple composition"
-      $ testScheme (inferType0 Map.empty (parse "1 2 add"))
+      $ testScheme (inferEmpty (parse "1 2 add"))
       $ TForall ia (TForall ib ((va .-> va .* TCon CInt) vb))
     it "deduces simple side effects"
-      $ testScheme (inferType0 Map.empty (parse "1 say"))
+      $ testScheme (inferEmpty (parse "1 say"))
       $ TForall ia (TForall ib ((va .-> va) (cio .| vb)))
+    it "fails on basic type mismatches"
+      $ testFail (inferEmpty (parse "1 .add add"))
   where
+  inferEmpty = inferType0 Map.empty
+  testFail = either (const True) (const False)
   testScheme inference expected = either assertFailure (const (return ())) $ do
     (_, scheme, _) <- inference
     instanceCheck scheme expected
