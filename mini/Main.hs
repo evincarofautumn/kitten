@@ -43,6 +43,9 @@ spec = do
     it "gives the composed type from simple composition"
       $ testScheme (inferEmpty (parse "1 2 add"))
       $ TForall ia (TForall ib ((va .-> va .* TCon CInt) vb))
+    it "gives the composed type for higher-order composition"
+      $ testScheme (inferEmpty (parse "1 quo 2 quo cat .add cat app"))
+      $ TForall ia (TForall ib ((va .-> va .* TCon CInt) vb))
     it "deduces simple side effects"
       $ testScheme (inferEmpty (parse "1 say"))
       $ TForall ia (TForall ib ((va .-> va) (cio .| vb)))
