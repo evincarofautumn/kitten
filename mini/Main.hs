@@ -780,7 +780,7 @@ instanceCheck :: Type -> Type -> Either String ()
 instanceCheck inferredScheme declaredScheme = do
   let (inferredType, _, tenv0) = instantiatePrenex emptyTEnv inferredScheme
   let (ids, declaredType, tenv1) = skolemize tenv0 declaredScheme
-  tenv2 <- case subsumptionCheck tenv1 inferredType declaredType of
+  _tenv2 <- case subsumptionCheck tenv1 inferredType declaredType of
     Left message -> Left (prefix ++ " (instantiated to " ++ show inferredType ++ " and " ++ show declaredType ++ ")" ++ ": " ++ message)
     Right tenv' -> Right tenv'
   let escaped = freeTvs inferredScheme `Set.union` freeTvs declaredScheme
