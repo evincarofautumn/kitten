@@ -49,6 +49,9 @@ spec = do
     it "deduces simple side effects"
       $ testScheme (inferEmpty (parse "1 say"))
       $ TForall ia (TForall ib ((va .-> va) (cio .| vb)))
+    it "deduces higher-order side effects"
+      $ testScheme (inferEmpty (parse "1 .say app"))
+      $ TForall ia (TForall ib ((va .-> va) (cio .| vb)))
     it "fails on basic type mismatches"
       $ testFail (inferEmpty (parse "1 .add add"))
   where
