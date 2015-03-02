@@ -27,7 +27,7 @@ spec = do
     it "gives the identity type for the empty program" $ do
       case inferType0 Map.empty (parse "") of
         Right (_, scheme, _)
-          | scheme == Forall [ia, ib] ((va .-> va) vb)
+          | scheme == TForall ia (TForall ib ((va .-> va) vb))
           -> return ()
         x -> assertFailure $ show x
   where
@@ -74,8 +74,8 @@ data Type
   -- Skolem constant, used during instance checking.
   | TConst TypeId
 
-  -- Quantified type, used for higher-rank polymorphism.
-  | TQuantified Scheme
+  -- Quantified type, used for both prenex and higher-rank polymorphism.
+  | TForall TypeId Type
 
   -- Application of type constructor to type.
   | TApp Type Type
@@ -111,13 +111,6 @@ data Con
   -- Constructor for effect rows.
   | CJoin
 
-  deriving (Eq)
-
--- A type scheme, or polytype, is a type with some type variables universally
--- quantified. A type can be produced from a polytype by substituting the bound
--- variables with fresh ones.
-
-data Scheme = Forall [TypeId] Type
   deriving (Eq)
 
 -- A kind is the type of a type. Types with the "value" kind are inhabited by
@@ -178,7 +171,7 @@ data TEnv = TEnv {
   envVs :: Map Name Type,
 
   -- word -> signature
-  envSigs :: Map Name Scheme,
+  envSigs :: Map Name Type,
 
   -- The current state of type and kind ID generation.
   envCurrentType :: TypeId,
@@ -201,7 +194,7 @@ emptyTEnv = TEnv {
 -- binding group are correct, then the inferred type is checked against the
 -- declared type.
 
-inferTypes :: Map Name (Scheme, Expr) -> Either String (Map Name (Scheme, Expr))
+inferTypes :: Map Name (Type, Expr) -> Either String (Map Name (Type, Expr))
 inferTypes defs = fmap Map.fromList . mapM go . Map.toList $ defs
   where
   sigs = Map.map fst defs
@@ -215,7 +208,7 @@ inferTypes defs = fmap Map.fromList . mapM go . Map.toList $ defs
 -- in an empty environment so that it can be trivially generalized. It is then
 -- regeneralized to increase stack polymorphism.
 
-inferType0 :: Map Name Scheme -> Expr -> Either String (Expr, Scheme, Kind)
+inferType0 :: Map Name Type -> Expr -> Either String (Expr, Type, Kind)
 inferType0 sigs expr = do
   (expr', t, tenv1) <- inferType emptyTEnv { envSigs = sigs } expr
   let zonkedType = zonkType tenv1 t
@@ -250,14 +243,11 @@ inferKind tenv0 t = case t of
       (k', tenv1) = freshKv tenv0
       in Right (k', tenv1 { envTks = Map.insert x k' (envTks tenv1) })
   TConst{} -> Left "cannot infer kind of skolem constant"
-  TQuantified (Forall tvs t') -> do
+  TForall tv t' -> do
     (k1, _) <- inferKind
-      (foldr
-        (\ x tenv -> let
-          (a, tenv') = freshKv tenv
-          in tenv' { envTks = Map.insert x a (envTks tenv') })
-        tenv0
-        tvs)
+      (let
+       (a, tenv') = freshKv tenv0
+       in tenv' { envTks = Map.insert tv a (envTks tenv') })
       t'
     tenv1 <- unifyKind tenv0 k1 KVal
     Right (k1, tenv1)
@@ -349,9 +339,10 @@ inferType tenv0 expr0 = case expr0 of
 -- The type of a definition is simply looked up in the environment.
 
   ECall Nothing name [] -> case Map.lookup name (envSigs tenv0) of
-    Just scheme -> let
-      (type_, params, tenv1) = instantiate tenv0 scheme
-      in Right (ECall (Just type_) name params, type_, tenv1)
+    Just (TForall x t) -> let
+      (type_, param, tenv1) = instantiate tenv0 x t
+      in Right (ECall (Just type_) name [param], type_, tenv1)
+    Just{} -> error "what is a non-quantified type doing as a type signature?"
     Nothing -> Left $ "cannot infer type of " ++ show name
 
 -- The type of the composition of two expressions is the composition of the
@@ -431,10 +422,10 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
   _ | t1 == t2 -> Right tenv0
   (TVar x, t) -> unifyTv tenv0 x t
   (_, TVar{}) -> commute
-  (a, TQuantified scheme) -> let
-    (b, _, tenv1) = instantiate tenv0 scheme
+  (a, TForall x t) -> let
+    (b, _, tenv1) = instantiate tenv0 x t
     in unifyType tenv1 a b
-  (TQuantified{}, _) -> commute
+  (TForall{}, _) -> commute
 
 -- Row unification is essentially unification of sets: we attempt to rewrite one
 -- row into the other by swapping and dropping, and if we can do so then we know
@@ -550,8 +541,8 @@ occurrences tenv0 x = recur
       Nothing -> if x == y then 1 else 0
       Just t' -> recur t'
     TConst{} -> 0
-    TQuantified (Forall tvs t')
-      -> if x `elem` tvs then 0 else recur t'
+    TForall x' t'
+      -> if x == x' then 0 else recur t'
     a `TApp` b -> recur a + recur b
 
 occurs :: TEnv -> TypeId -> Type -> Bool
@@ -580,8 +571,8 @@ zonkType tenv0 = recur
       Just t' -> recur t'
       Nothing -> t
     TConst{} -> t
-    TQuantified (Forall tvs t')
-      -> TQuantified . Forall tvs . zonkType tenv0 { envTvs = foldr Map.delete (envTvs tenv0) tvs } $ t'
+    TForall x t'
+      -> TForall x . zonkType tenv0 { envTvs = Map.delete x (envTvs tenv0) } $ t'
     a `TApp` b -> recur a `TApp` recur b
 
 -- Zonking a kind is similar to zonking a type.
@@ -630,7 +621,7 @@ freeTvs t = case t of
   TCon{} -> Set.empty
   TVar x -> Set.singleton x
   TConst{} -> Set.empty
-  TQuantified (Forall ids t') -> freeTvs t' Set.\\ Set.fromList ids
+  TForall x t' -> Set.delete x (freeTvs t')
   a `TApp` b -> freeTvs a `Set.union` freeTvs b
 
 -- Likewise for kinds, except kinds can't be higher-ranked anyway. I wonder what
@@ -663,10 +654,10 @@ freeKvs k = case k of
 -- In order to correctly regeneralize a type, it needs to contain no
 -- higher-ranked quantifiers.
 
-regeneralize :: TEnv -> Type -> Scheme
+regeneralize :: TEnv -> Type -> Type
 regeneralize tenv t = let
   (t', vars) = runWriter $ go TopLevel t
-  in Forall (foldr delete (Set.toList (freeTvs t')) vars) t'
+  in foldr TForall t' $ foldr delete (Set.toList (freeTvs t')) vars
   where
   go :: TypeLevel -> Type -> Writer [TypeId] Type
   go level t' = case t' of
@@ -677,8 +668,8 @@ regeneralize tenv t = let
       , c == d
       -> do
         when (occurrences tenv c t == 2) $ tell [c]
-        return $ TQuantified (Forall [c] t')
-    TQuantified{} -> error "cannot regeneralize higher-ranked type"
+        return $ TForall c t'
+    TForall{} -> error "cannot regeneralize higher-ranked type"
     a `TApp` b -> TApp <$> go NonTopLevel a <*> go NonTopLevel b
     _ -> return t'
 
@@ -698,12 +689,17 @@ effectTail t = t
 -- fresh ones and remove the quantifier, returning the types with which the
 -- variables were instantiated, in order.
 
-instantiate :: TEnv -> Scheme -> (Type, [Type], TEnv)
-instantiate tenv0 (Forall ids t) = foldr go (t, [], tenv0) ids
-  where
-  go x (t', as, tenv) = let
-    (a, tenv') = freshTv tenv
-    in (replaceTv x a t', a : as, tenv')
+instantiate :: TEnv -> TypeId -> Type -> (Type, Type, TEnv)
+instantiate tenv0 x t = let
+  (a, tenv1) = freshTv tenv0
+  in (replaceTv x a t, a, tenv1)
+
+instantiatePrenex :: TEnv -> Type -> (Type, [Type], TEnv)
+instantiatePrenex tenv0 (TForall x t) = let
+  (t', a, tenv1) = instantiate tenv0 x t
+  (t'', as, tenv2) = instantiatePrenex tenv1 t'
+  in (t'', a : as, tenv2)
+instantiatePrenex tenv0 t = (t, [], tenv0)
 
 -- To replace a type variable with a type throughout a type, we simply zonk in a
 -- singleton typing environment.
@@ -713,38 +709,30 @@ replaceTv x a = zonkType emptyTEnv { envTvs = Map.singleton x a }
 
 -- Skolemization replaces quantified type variables with type constants.
 
-skolemize :: Scheme -> (Set TypeId, Type)
-skolemize (Forall ids t) = let
-  (consts, tenv0) = foldr
-    (\ _ (acc, tenv) -> let (a, tenv') = freshTypeId tenv in (a : acc, tenv'))
-    ([], emptyTEnv)
-    ids
-  tenv1 = foldr
-    (\ (x, c) tenv -> tenv { envTvs = Map.insert x (TConst c) (envTvs tenv) })
-    tenv0
-    (zip ids consts)
-  in skolemizeType (zonkType tenv1 t)
-
-skolemizeType :: Type -> (Set TypeId, Type)
-skolemizeType t = case t of
+skolemize :: TEnv -> Type -> (Set TypeId, Type, TEnv)
+skolemize tenv0 t = case t of
+  TForall x t' -> let
+    (k, tenv1) = freshTypeId tenv0
+    tenv2 = tenv1 { envTvs = Map.insert x (TConst k) (envTvs tenv1) }
+    in skolemize tenv2 (zonkType tenv2 t')
+  -- TForall _ t' -> skolemize tenv0 t'
   TCon CFun `TApp` a `TApp` b `TApp` e -> let
-    (ids, b') = skolemizeType b
-    in (ids, (a .-> b') e)
-  TQuantified scheme -> skolemize scheme
-  _ -> (Set.empty, t)
+    (ids, b', tenv1) = skolemize tenv0 b
+    in (ids, (a .-> b') e, tenv1)
+  _ -> (Set.empty, t, tenv0)
 
 -- Since skolem constants only unify with type variables and themselves,
 -- unifying a skolemized scheme with a type tells you whether one is a generic
 -- instance of the other. This is used to check the signatures of definitions.
 
-instanceCheck :: Scheme -> Scheme -> Either String ()
+instanceCheck :: Type -> Type -> Either String ()
 instanceCheck inferredScheme declaredScheme = do
-  let (inferredType, _, tenv0) = instantiate emptyTEnv inferredScheme
-  let (ids, declaredType) = skolemize declaredScheme
-  case unifyType tenv0 inferredType declaredType of
+  let (inferredType, _, tenv0) = instantiatePrenex emptyTEnv inferredScheme
+  let (ids, declaredType, tenv1) = skolemize tenv0 declaredScheme
+  case unifyType tenv1 inferredType declaredType of
     Left message -> Left (prefix ++ ": " ++ message)
     Right{} -> Right ()
-  let escaped = freeTvs (TQuantified inferredScheme) `Set.union` freeTvs (TQuantified declaredScheme)
+  let escaped = freeTvs inferredScheme `Set.union` freeTvs declaredScheme
   let bad = Set.filter (`Set.member` escaped) ids
   unless (Set.null bad) (Left prefix)
   Right ()
@@ -783,7 +771,7 @@ instance Show Type where
     TCon con -> shows con
     TVar x -> shows x
     TConst x -> shows x
-    TQuantified scheme -> showParen True . shows $ scheme
+    TForall x t' -> showParen True $ showChar '\x2200' . shows (TVar x) . showString ". " . shows t'
     a `TApp` b -> showParen (p > appPrec) $ showsPrec appPrec a . showChar ' ' . showsPrec (appPrec + 1) b
     where
     appPrec = 1
@@ -800,9 +788,6 @@ instance Show Con where
     CIO -> "io"
     CFail -> "fail"
     CJoin -> "join"
-
-instance Show Scheme where
-  show (Forall ids t) = '\x2200' : unwords (map (show . TVar) ids) ++ ". " ++ show t
 
 instance Show Kind where
   showsPrec p k = case k of
