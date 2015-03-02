@@ -43,6 +43,9 @@ spec = do
     it "gives the composed type from simple composition"
       $ testScheme (inferType0 Map.empty (parse "1 2 add"))
       $ TForall ia (TForall ib ((va .-> va .* TCon CInt) vb))
+    it "deduces simple side effects"
+      $ testScheme (inferType0 Map.empty (parse "1 say"))
+      $ TForall ia (TForall ib ((va .-> va) (cio .| vb)))
   where
   testScheme inference expected = either assertFailure (const (return ())) $ do
     (_, scheme, _) <- inference
