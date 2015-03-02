@@ -1,5 +1,9 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternGuards #-}
+
+{-# LANGUAGE BangPatterns #-}
+
 module Main where
 
 import Control.Applicative
@@ -16,21 +20,34 @@ import Test.Hspec
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Test.HUnit.Lang (assertFailure)
+import Test.HUnit
 
 main :: IO ()
 main = hspec spec
 
 spec :: Spec
 spec = do
+  describe "zonking" $ do
+    it "does nothing to free type variables"
+      $ assertEqual "" (zonkType emptyTEnv va) va
+    it "substitutes one level"
+      $ assertEqual "" (zonkType emptyTEnv { envTvs = Map.singleton ia vb } va) vb
+    it "substitutes multiple levels"
+      $ assertEqual ""
+        (zonkType emptyTEnv { envTvs = Map.fromList [(ia, vb), (ib, cint)] } va)
+        cint
   describe "type inference" $ do
-    it "gives the identity type for the empty program" $ do
-      case inferType0 Map.empty (parse "") of
-        Right (_, scheme, _)
-          | scheme == TForall ia (TForall ib ((va .-> va) vb))
-          -> return ()
-        x -> assertFailure $ show x
+    it "gives the identity type for the empty program"
+      $ testScheme (inferType0 Map.empty (parse ""))
+      $ TForall ia (TForall ib ((va .-> va) vb))
+    it "gives the composed type from simple composition"
+      $ testScheme (inferType0 Map.empty (parse "1 2 add"))
+      $ TForall ia (TForall ib ((va .-> va .* TCon CInt) vb))
   where
+  testScheme inference expected = either assertFailure (const (return ())) $ do
+    (_, scheme, _) <- inference
+    instanceCheck scheme expected
+
   ia = TypeId 0
   va = TVar ia
   ib = TypeId 1
@@ -80,7 +97,7 @@ data Type
   -- Application of type constructor to type.
   | TApp Type Type
 
-  deriving (Eq)
+  deriving (Eq, Show)
 
 -- Type variables are distinguished by a "type identifier", which is generated
 -- afresh from the typing environment.
@@ -112,6 +129,17 @@ data Con
   | CJoin
 
   deriving (Eq)
+
+-- Common constructors.
+
+cint, cfun, cprod, cpure, cio, cfail, cjoin :: Type
+cint = TCon CInt
+cfun = TCon CFun
+cprod = TCon CProd
+cpure = TCon CPure
+cio = TCon CIO
+cfail = TCon CFail
+cjoin = TCon CJoin
 
 -- A kind is the type of a type. Types with the "value" kind are inhabited by
 -- values; all other types are used only to enforce program invariants, such as
@@ -294,7 +322,7 @@ inferType tenv0 expr0 = case expr0 of
   ECall Nothing name@"add" [] -> let
     (a, tenv1) = freshTv tenv0
     (e, tenv2) = freshTv tenv1
-    type_ = (a .* TCon CInt .* TCon CInt .-> a .* TCon CInt) e
+    type_ = (a .* cint .* cint .-> a .* cint) e
     in Right (ECall (Just type_) name [], type_, tenv2)
   ECall Nothing name@"cat" [] -> let
     (a, tenv1) = freshTv tenv0
@@ -326,14 +354,14 @@ inferType tenv0 expr0 = case expr0 of
   ECall Nothing name@"say" [] -> let
     (a, tenv1) = freshTv tenv0
     (e, tenv2) = freshTv tenv1
-    type_ = (a .* TCon CInt .-> a) (TCon CIO .| e)
+    type_ = (a .* cint .-> a) (cio .| e)
     in Right (ECall (Just type_) name [], type_, tenv2)
 
   ECall Nothing name@"abort" [] -> let
     (a, tenv1) = freshTv tenv0
     (b, tenv2) = freshTv tenv1
     (e, tenv3) = freshTv tenv2
-    type_ = (a .-> b) (TCon CFail .| e)
+    type_ = (a .-> b) (cfail .| e)
     in Right (ECall (Just type_) name [], type_, tenv3)
 
 -- The type of a definition is simply looked up in the environment.
@@ -449,6 +477,20 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
 
   (_, TCon CJoin `TApp` _ `TApp` _) -> commute
 
+{-
+
+  (TCon CFun `TApp` a `TApp` b `TApp` _, f) -> do
+    (c, d, _, tenv1) <- unifyFun tenv0 f
+    tenv2 <- unifyType tenv1 a c
+    unifyType tenv2 b d
+
+  (f, TCon CFun `TApp` c `TApp` d `TApp` _) -> do
+    (a, b, _, tenv1) <- unifyFun tenv0 f
+    tenv2 <- unifyType tenv1 a c
+    unifyType tenv2 b d
+
+-}
+
 -- We fall back to regular unification for value type constructors. This makes
 -- the somewhat iffy assumption that there is no higher-kinded polymorphism
 -- going on between value type constructors and effect type constructors.
@@ -456,6 +498,7 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
   (a `TApp` b, c `TApp` d) -> do
     tenv1 <- unifyType tenv0 a c
     unifyType tenv1 b d
+
   _ -> Left $ unwords ["cannot unify types", show t1, "and", show t2]
 
 -- Unification is commutative. If we fail to handle a case, this can result in
@@ -552,7 +595,7 @@ occurs tenv0 x t = occurrences tenv0 x t > 0
 
 inferVal :: TEnv -> Val -> (Val, Type, TEnv)
 inferVal tenv val = case val of
-  VInt{} -> (val, TCon CInt, tenv)
+  VInt{} -> (val, cint, tenv)
 
 -- Zonking a type fully substitutes all type variables. That is, if you have:
 --
@@ -714,7 +757,8 @@ skolemize tenv0 t = case t of
   TForall x t' -> let
     (k, tenv1) = freshTypeId tenv0
     tenv2 = tenv1 { envTvs = Map.insert x (TConst k) (envTvs tenv1) }
-    in skolemize tenv2 (zonkType tenv2 t')
+    (k', t'', tenv3) = skolemize tenv2 (zonkType tenv2 t')
+    in (Set.insert k k', t'', tenv3)
   -- TForall _ t' -> skolemize tenv0 t'
   TCon CFun `TApp` a `TApp` b `TApp` e -> let
     (ids, b', tenv1) = skolemize tenv0 b
@@ -729,15 +773,39 @@ instanceCheck :: Type -> Type -> Either String ()
 instanceCheck inferredScheme declaredScheme = do
   let (inferredType, _, tenv0) = instantiatePrenex emptyTEnv inferredScheme
   let (ids, declaredType, tenv1) = skolemize tenv0 declaredScheme
-  case unifyType tenv1 inferredType declaredType of
-    Left message -> Left (prefix ++ ": " ++ message)
-    Right{} -> Right ()
+  tenv2 <- case subsumptionCheck tenv1 inferredType declaredType of
+    Left message -> Left (prefix ++ " (instantiated to " ++ show inferredType ++ " and " ++ show declaredType ++ ")" ++ ": " ++ message)
+    Right tenv' -> Right tenv'
   let escaped = freeTvs inferredScheme `Set.union` freeTvs declaredScheme
   let bad = Set.filter (`Set.member` escaped) ids
   unless (Set.null bad) (Left prefix)
   Right ()
   where
   prefix = unwords [show inferredScheme, "is not an instance of", show declaredScheme]
+
+subsumptionCheck :: TEnv -> Type -> Type -> Either String TEnv
+
+subsumptionCheck tenv0 (TForall x t) t2 = do
+  let (t1, _, tenv1) = instantiate tenv0 x t
+  subsumptionCheck tenv1 t1 t2
+
+subsumptionCheck tenv0 t1 (TCon CFun `TApp` a `TApp` b `TApp` e) = do
+  (a', b', e', tenv1) <- unifyFun tenv0 t1
+  subsumptionCheckFun tenv1 a b e a' b' e'
+
+subsumptionCheck tenv0 (TCon CFun `TApp` a' `TApp` b' `TApp` e') t2 = do
+  (a, b, e, tenv1) <- unifyFun tenv0 t2
+  subsumptionCheckFun tenv1 a b e a' b' e'
+
+subsumptionCheck tenv0 t1 t2 = unifyType tenv0 t1 t2
+
+-- This handles contravariance.
+
+subsumptionCheckFun :: TEnv -> Type -> Type -> Type -> Type -> Type -> Type -> Either String TEnv
+subsumptionCheckFun tenv0 a b e a' b' e' = do
+  tenv1 <- subsumptionCheck tenv0 a' a
+  tenv2 <- subsumptionCheck tenv1 b b'
+  subsumptionCheck tenv2 e e'
 
 -- When a variable is coming from the local stack to the data stack, we want to
 -- know whether it's coming by move or by copy.
@@ -766,6 +834,7 @@ instance Show Expr where
     showTyped (Just type_) x = "(" ++ x ++ " : " ++ show type_ ++ ")"
     showTyped Nothing x = x
 
+{-
 instance Show Type where
   showsPrec p t = case t of
     TCon con -> shows con
@@ -775,6 +844,7 @@ instance Show Type where
     a `TApp` b -> showParen (p > appPrec) $ showsPrec appPrec a . showChar ' ' . showsPrec (appPrec + 1) b
     where
     appPrec = 1
+-}
 
 instance Show TypeId where
   show (TypeId x) = 't' : show x
@@ -819,15 +889,15 @@ instance Show TEnv where
 -- Utility operators for constructing types and kinds.
 
 (.->) :: Type -> Type -> Type -> Type
-(t1 .-> t2) e = TCon CFun `TApp` t1 `TApp` t2 `TApp` e
+(t1 .-> t2) e = cfun `TApp` t1 `TApp` t2 `TApp` e
 infixr 4 .->
 
 (.*) :: Type -> Type -> Type
-t1 .* t2 = TCon CProd `TApp` t1 `TApp` t2
+t1 .* t2 = cprod `TApp` t1 `TApp` t2
 infixl 5 .*
 
 (.|) :: Type -> Type -> Type
-t1 .| t2 = TCon CJoin `TApp` t1 `TApp` t2
+t1 .| t2 = cjoin `TApp` t1 `TApp` t2
 infixr 4 .|
 
 (..->) :: Kind -> Kind -> Kind
