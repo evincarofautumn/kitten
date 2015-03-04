@@ -7,20 +7,21 @@
 module Main where
 
 import Control.Applicative
-import Control.Arrow
 import Control.Monad
 import Control.Monad.Trans.Writer
 import Data.Char
 import Data.Foldable (foldrM)
+import Data.IORef
 import Data.List
 import Data.Map (Map)
 import Data.Set (Set)
 import Data.Text (Text)
+import System.IO.Unsafe
+import Test.HUnit
 import Test.Hspec
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Test.HUnit
 
 main :: IO ()
 main = hspec spec
@@ -56,10 +57,14 @@ spec = do
       $ testFail (inferEmpty (parse "1 .add add"))
   where
   inferEmpty = inferType0 Map.empty
-  testFail = either (const True) (const False)
-  testScheme inference expected = either assertFailure (const (return ())) $ do
-    (_, scheme, _) <- inference
-    instanceCheck scheme expected
+  testFail action = do
+    result <- runTc action
+    assert $ either (const True) (const False) result
+  testScheme inference expected = do
+    result <- runTc $ do
+      (_, scheme, _) <- inference
+      instanceCheck scheme expected
+    either assertFailure (const (return ())) result
 
   ia = TypeId 0
   va = TVar ia
@@ -214,9 +219,9 @@ data TEnv = TEnv {
   -- word -> signature
   envSigs :: Map Name Type,
 
-  -- The current state of type and kind ID generation.
-  envCurrentType :: TypeId,
-  envCurrentKind :: KindId }
+  -- The current state of globally unique type and kind ID generation.
+  envCurrentType :: IORef TypeId,
+  envCurrentKind :: IORef KindId }
 
 -- An empty typing environment.
 
@@ -227,29 +232,39 @@ emptyTEnv = TEnv {
   envKvs = Map.empty,
   envVs = Map.empty,
   envSigs = Map.empty,
-  envCurrentType = TypeId 0,
-  envCurrentKind = KindId 0 }
+  envCurrentType = currentTypeId,
+  envCurrentKind = currentKindId }
+
+-- The current state of globally unique type and kind ID generation.
+
+currentTypeId :: IORef TypeId
+currentTypeId = unsafePerformIO (newIORef (TypeId 0))
+{-# NOINLINE currentTypeId #-}
+
+currentKindId :: IORef KindId
+currentKindId = unsafePerformIO (newIORef (KindId 0))
+{-# NOINLINE currentKindId #-}
 
 -- To infer the types in a mutually-recursive binding group, the type of each
 -- definition is inferred under the assumption that all signatures in the
 -- binding group are correct, then the inferred type is checked against the
 -- declared type.
 
-inferTypes :: Map Name (Type, Expr) -> Either String (Map Name (Type, Expr))
+inferTypes :: Map Name (Type, Expr) -> Tc (Map Name (Type, Expr))
 inferTypes defs = fmap Map.fromList . mapM go . Map.toList $ defs
   where
   sigs = Map.map fst defs
   go (name, (scheme, expr)) = do
     (expr', scheme', _) <- inferType0 sigs expr
     instanceCheck scheme' scheme
-    Right (name, (scheme, expr'))
+    return (name, (scheme, expr'))
 
 -- Since type variables can be generalized if they do not depend on the initial
 -- state of the typing environment, the type of a single definition is inferred
 -- in an empty environment so that it can be trivially generalized. It is then
 -- regeneralized to increase stack polymorphism.
 
-inferType0 :: Map Name Type -> Expr -> Either String (Expr, Type, Kind)
+inferType0 :: Map Name Type -> Expr -> Tc (Expr, Type, Kind)
 inferType0 sigs expr = do
   (expr', t, tenv1) <- inferType emptyTEnv { envSigs = sigs } expr
   let zonkedType = zonkType tenv1 t
@@ -258,19 +273,19 @@ inferType0 sigs expr = do
   let regeneralized = regeneralize tenv2 zonkedType
   tenv3 <- defaultKinds tenv2 kind
   let zonkedKind = zonkKind tenv3 kind
-  Right (zonkedExpr, regeneralized, zonkedKind)
+  return (zonkedExpr, regeneralized, zonkedKind)
 
 -- The default kind of a type is the value kind.
 
-defaultKinds :: TEnv -> Kind -> Either String TEnv
+defaultKinds :: TEnv -> Kind -> Tc TEnv
 defaultKinds tenv0 = foldrM (\ x tenv -> unifyKind tenv (KVar x) KVal) tenv0 . Set.toList . freeKvs
 
 -- Kind inference lets us distinguish types from type constructors, and value
 -- types from effect types.
 
-inferKind :: TEnv -> Type -> Either String (Kind, TEnv)
+inferKind :: TEnv -> Type -> Tc (Kind, TEnv)
 inferKind tenv0 t = case t of
-  TCon con -> Right (case con of
+  TCon con -> return (case con of
     CInt -> KVal
     CFun -> KRho ..-> KRho ..-> KEffRho ..-> KVal
     CProd -> KRho ..-> KVal ..-> KRho
@@ -279,112 +294,111 @@ inferKind tenv0 t = case t of
     CFail -> KEff
     CJoin -> KEff ..-> KEffRho ..-> KEffRho, tenv0)
   TVar x -> case Map.lookup x (envTks tenv0) of
-    Just k' -> Right (k', tenv0)
-    Nothing -> let
-      (k', tenv1) = freshKv tenv0
-      in Right (k', tenv1 { envTks = Map.insert x k' (envTks tenv1) })
-  TConst{} -> Left "cannot infer kind of skolem constant"
+    Just k' -> return (k', tenv0)
+    Nothing -> do
+      k' <- freshKv tenv0
+      return (k', tenv0 { envTks = Map.insert x k' (envTks tenv0) })
+  TConst{} -> fail "cannot infer kind of skolem constant"
   TForall tv t' -> do
-    (k1, _) <- inferKind
-      (let
-       (a, tenv') = freshKv tenv0
-       in tenv' { envTks = Map.insert tv a (envTks tenv') })
-      t'
+    tenv' <- do
+      a <- freshKv tenv0
+      return tenv0 { envTks = Map.insert tv a (envTks tenv0) }
+    (k1, _) <- inferKind tenv' t'
     tenv1 <- unifyKind tenv0 k1 KVal
-    Right (k1, tenv1)
+    return (k1, tenv1)
   t1 `TApp` t2 -> do
     (k1, tenv1) <- inferKind tenv0 t1
     (k2, tenv2) <- inferKind tenv1 t2
-    let (ka, tenv3) = freshKv tenv2
-    let (kb, tenv4) = freshKv tenv3
-    tenv5 <- unifyKind tenv4 k1 (ka ..-> kb)
-    tenv6 <- unifyKind tenv5 k2 ka
-    Right (kb, tenv6)
+    ka <- freshKv tenv2
+    kb <- freshKv tenv2
+    tenv3 <- unifyKind tenv2 k1 (ka ..-> kb)
+    tenv4 <- unifyKind tenv3 k2 ka
+    return (kb, tenv4)
 
 -- Kind unification proceeds similarly to type unification.
 
-unifyKind :: TEnv -> Kind -> Kind -> Either String TEnv
+unifyKind :: TEnv -> Kind -> Kind -> Tc TEnv
 unifyKind tenv0 k1 k2 = case (k1, k2) of
-  _ | k1 == k2 -> Right tenv0
+  _ | k1 == k2 -> return tenv0
   (KVar x, t) -> unifyKv tenv0 x t
   (_, KVar{}) -> commute
   (a `KFun` b, c `KFun` d) -> do
     tenv1 <- unifyKind tenv0 a c
     unifyKind tenv1 b d
-  _ -> Left $ unwords ["cannot unify kinds", show k1, "and", show k2]
+  _ -> fail $ unwords ["cannot unify kinds", show k1, "and", show k2]
   where
   commute = unifyKind tenv0 k2 k1
 
 -- Inferring the type of an expression is straightforward. Most of these cases
 -- simply encode the type signatures of various intrinsic functions.
 
-inferType :: TEnv -> Expr -> Either String (Expr, Type, TEnv)
+inferType :: TEnv -> Expr -> Tc (Expr, Type, TEnv)
 inferType tenv0 expr0 = case expr0 of
 
 -- Pushing a value results in a stack with that value on top.
 
-  EPush Nothing val -> let
-    (val', t, tenv1) = inferVal tenv0 val
-    (a, tenv2) = freshTv tenv1
-    (e, tenv3) = freshTv tenv2
-    type_ = (a .-> a .* t) e
-    in Right (EPush (Just type_) val', type_, tenv3)
+  EPush Nothing val -> do
+    let (val', t, tenv1) = inferVal tenv0 val
+    a <- freshTv tenv1
+    e <- freshTv tenv1
+    let type_ = (a .-> a .* t) e
+    return (EPush (Just type_) val', type_, tenv1)
 
 -- Pure intrinsics.
 
-  ECall Nothing name@"add" [] -> let
-    (a, tenv1) = freshTv tenv0
-    (e, tenv2) = freshTv tenv1
-    type_ = (a .* cint .* cint .-> a .* cint) e
-    in Right (ECall (Just type_) name [], type_, tenv2)
-  ECall Nothing name@"cat" [] -> let
-    (a, tenv1) = freshTv tenv0
-    (b, tenv2) = freshTv tenv1
-    (c, tenv3) = freshTv tenv2
-    (d, tenv4) = freshTv tenv3
-    (e1, tenv5) = freshTv tenv4
-    (e2, tenv6) = freshTv tenv5
-    type_ = (a .* (b .-> c) e1 .* (c .-> d) e1 .-> a .* (b .-> d) e1) e2
-    in Right (ECall (Just type_) name [], type_, tenv6)
-  ECall Nothing name@"app" [] -> let
-    (a, tenv1) = freshTv tenv0
-    (b, tenv2) = freshTv tenv1
-    (e, tenv3) = freshTv tenv2
-    type_ = (a .* (a .-> b) e .-> b) e
-    in Right (ECall (Just type_) name [], type_, tenv3)
-  ECall Nothing name@"quo" [] -> let
-    (a, tenv1) = freshTv tenv0
-    (b, tenv2) = freshTv tenv1
-    (c, tenv3) = freshTv tenv2
-    (e1, tenv4) = freshTv tenv3
-    (e2, tenv5) = freshTv tenv4
-    type_ = (a .* b .-> a .* (c .-> c .* b) e1) e2
-    in Right (ECall (Just type_) name [], type_, tenv5)
+  ECall Nothing name@"add" [] -> do
+    a <- freshTv tenv0
+    e <- freshTv tenv0
+    let type_ = (a .* cint .* cint .-> a .* cint) e
+    return (ECall (Just type_) name [], type_, tenv0)
+  ECall Nothing name@"cat" [] -> do
+    a <- freshTv tenv0
+    b <- freshTv tenv0
+    c <- freshTv tenv0
+    d <- freshTv tenv0
+    e1 <- freshTv tenv0
+    e2 <- freshTv tenv0
+    let type_ = (a .* (b .-> c) e1 .* (c .-> d) e1 .-> a .* (b .-> d) e1) e2
+    return (ECall (Just type_) name [], type_, tenv0)
+  ECall Nothing name@"app" [] -> do
+    a <- freshTv tenv0
+    b <- freshTv tenv0
+    e <- freshTv tenv0
+    let type_ = (a .* (a .-> b) e .-> b) e
+    return (ECall (Just type_) name [], type_, tenv0)
+  ECall Nothing name@"quo" [] -> do
+    a  <- freshTv tenv0
+    b  <- freshTv tenv0
+    c  <- freshTv tenv0
+    e1 <- freshTv tenv0
+    e2 <- freshTv tenv0
+    let type_ = (a .* b .-> a .* (c .-> c .* b) e1) e2
+    return (ECall (Just type_) name [], type_, tenv0)
 
 -- Effectful intrinsics. Note that we allow the effect to be polymorphic in its
 -- tail, so that effects can be composed.
 
-  ECall Nothing name@"say" [] -> let
-    (a, tenv1) = freshTv tenv0
-    (e, tenv2) = freshTv tenv1
-    type_ = (a .* cint .-> a) (cio .| e)
-    in Right (ECall (Just type_) name [], type_, tenv2)
+  ECall Nothing name@"say" [] -> do
+    a <- freshTv tenv0
+    e <- freshTv tenv0
+    let type_ = (a .* cint .-> a) (cio .| e)
+    return (ECall (Just type_) name [], type_, tenv0)
 
-  ECall Nothing name@"abort" [] -> let
-    (a, tenv1) = freshTv tenv0
-    (b, tenv2) = freshTv tenv1
-    (e, tenv3) = freshTv tenv2
-    type_ = (a .-> b) (cfail .| e)
-    in Right (ECall (Just type_) name [], type_, tenv3)
+  ECall Nothing name@"abort" [] -> do
+    a <- freshTv tenv0
+    b <- freshTv tenv0
+    e <- freshTv tenv0
+    let type_ = (a .-> b) (cfail .| e)
+    return (ECall (Just type_) name [], type_, tenv0)
 
 -- The type of a definition is simply looked up in the environment.
 
   ECall Nothing name [] -> case Map.lookup name (envSigs tenv0) of
-    Just (TForall x t) -> let
-      (type_, param, tenv1) = instantiate tenv0 x t
-      in Right (ECall (Just type_) name [param], type_, tenv1)
+    Just (TForall x t) -> do
+      (type_, param) <- instantiate tenv0 x t
+      return (ECall (Just type_) name [param], type_, tenv0)
     Just{} -> error "what is a non-quantified type doing as a type signature?"
-    Nothing -> Left $ "cannot infer type of " ++ show name
+    Nothing -> fail $ "cannot infer type of " ++ show name
 
 -- The type of the composition of two expressions is the composition of the
 -- types of those expressions.
@@ -397,75 +411,76 @@ inferType tenv0 expr0 = case expr0 of
     tenv5 <- unifyType tenv4 b c
     tenv6 <- unifyType tenv5 e1 e2
     let type_ = (a .-> d) e1
-    Right (ECat (Just type_) expr1' expr2', type_, tenv6)
+    return (ECat (Just type_) expr1' expr2', type_, tenv6)
 
 -- The empty program is the identity function on stacks.
 
-  EId Nothing -> let
-    (a, tenv1) = freshTv tenv0
-    (e, tenv2) = freshTv tenv1
-    type_ = (a .-> a) e
-    in Right (EId (Just type_), type_, tenv2)
+  EId Nothing -> do
+    a <- freshTv tenv0
+    e <- freshTv tenv0
+    let type_ = (a .-> a) e
+    return (EId (Just type_), type_, tenv0)
 
 -- A quoted expression is pushed rather than being evaluated.
 
   EQuote Nothing expr -> do
-    let (a, tenv1) = freshTv tenv0
-    (expr', b, tenv2) <- inferType tenv1 expr
-    let (e, tenv3) = freshTv tenv2
+    a <- freshTv tenv0
+    e <- freshTv tenv0
+    (expr', b, tenv1) <- inferType tenv0 expr
     let type_ = (a .-> a .* b) e
-    Right (EQuote (Just type_) expr', type_, tenv3)
+    return (EQuote (Just type_) expr', type_, tenv1)
 
 -- A value going from the stack to the locals.
 
-  EGo Nothing name -> let
-    (a, tenv1) = freshTv tenv0
-    (b, tenv2) = freshTv tenv1
-    (e, tenv3) = freshTv tenv2
-    type_ = (a .* b .-> a) e
-    in Right (EGo (Just type_) name, type_, tenv3 { envVs = Map.insert name b (envVs tenv3) })
+  EGo Nothing name -> do
+    a <- freshTv tenv0
+    b <- freshTv tenv0
+    e <- freshTv tenv0
+    let type_ = (a .* b .-> a) e
+    return (EGo (Just type_) name, type_, tenv0 { envVs = Map.insert name b (envVs tenv0) })
 
 -- A value coming from the locals to the stack. If it's coming by moving, its
 -- name is removed from the local scope. This relies on composition being
 -- inferred in left-to-right order.
 
   ECome how Nothing name -> do
-    let (a, tenv1) = freshTv tenv0
-    b <- case Map.lookup name (envVs tenv1) of
-      Just t -> Right t
-      Nothing -> Left $ "unbound variable " ++ Text.unpack name
+    a <- freshTv tenv0
+    e <- freshTv tenv0
+    b <- case Map.lookup name (envVs tenv0) of
+      Just t -> return t
+      Nothing -> fail $ "unbound variable " ++ Text.unpack name
     let
-      tenv2 = case how of
-        Move -> tenv1 { envVs = Map.delete name (envVs tenv1) }
-        Copy -> tenv1
-    let (e, tenv3) = freshTv tenv2
+      tenv1 = case how of
+        Move -> tenv0 { envVs = Map.delete name (envVs tenv0) }
+        Copy -> tenv0
     let type_ = (a .-> a .* b) e
-    Right (ECome how (Just type_) name, type_, tenv3)
-  _ -> Left $ "cannot infer type of already-inferred expression " ++ show expr0
+    return (ECome how (Just type_) name, type_, tenv1)
+
+  _ -> fail $ "cannot infer type of already-inferred expression " ++ show expr0
 
 -- A convenience function for unifying a type with a function type.
 
-unifyFun :: TEnv -> Type -> Either String (Type, Type, Type, TEnv)
+unifyFun :: TEnv -> Type -> Tc (Type, Type, Type, TEnv)
 unifyFun tenv0 t = case t of
-  TCon CFun `TApp` a `TApp` b `TApp` e -> Right (a, b, e, tenv0)
+  TCon CFun `TApp` a `TApp` b `TApp` e -> return (a, b, e, tenv0)
   _ -> do
-    let (a, tenv1) = freshTv tenv0
-    let (b, tenv2) = freshTv tenv1
-    let (e, tenv3) = freshTv tenv2
-    tenv4 <- unifyType tenv3 t ((a .-> b) e)
-    Right (a, b, e, tenv4)
+    a <- freshTv tenv0
+    b <- freshTv tenv0
+    e <- freshTv tenv0
+    tenv1 <- unifyType tenv0 t ((a .-> b) e)
+    return (a, b, e, tenv1)
 
 -- Type unification. There are two kinds of unification going on here: basic
 -- logical unification for value types, and row unification for effect types.
 
-unifyType :: TEnv -> Type -> Type -> Either String TEnv
+unifyType :: TEnv -> Type -> Type -> Tc TEnv
 unifyType tenv0 t1 t2 = case (t1, t2) of
-  _ | t1 == t2 -> Right tenv0
+  _ | t1 == t2 -> return tenv0
   (TVar x, t) -> unifyTv tenv0 x t
   (_, TVar{}) -> commute
-  (a, TForall x t) -> let
-    (b, _, tenv1) = instantiate tenv0 x t
-    in unifyType tenv1 a b
+  (a, TForall x t) -> do
+    (b, _) <- instantiate tenv0 x t
+    unifyType tenv0 a b
   (TForall{}, _) -> commute
 
 -- Row unification is essentially unification of sets: we attempt to rewrite one
@@ -476,17 +491,24 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
 -- distinct prefix, which could fail to terminate because the algorithm
 -- generates fresh type variables.
 
-  (TCon CJoin `TApp` l `TApp` r, s)
-    | Just (TCon CJoin `TApp` _ `TApp` s', substitution, tenv1) <- rowIso tenv0 l s
-    -> case substitution of
-      Just (x, t)
-        | occurs tenv0 x (effectTail r)
-        -> Left $ unwords ["cannot unify effects", show t1, "and", show t2]
-        | otherwise
-        -> let
-          tenv2 = tenv1 { envTvs = Map.insert x t (envTvs tenv1) }
-          in unifyType tenv2 r s'
-      Nothing -> unifyType tenv1 r s'
+  (TCon CJoin `TApp` l `TApp` r, s) -> do
+    ms <- rowIso tenv0 l s
+    case ms of
+      Just (TCon CJoin `TApp` _ `TApp` s', substitution, tenv1) -> case substitution of
+        Just (x, t)
+          | occurs tenv0 x (effectTail r)
+          -> fail $ unwords ["cannot unify effects", show t1, "and", show t2]
+          | otherwise -> let
+            tenv2 = tenv1 { envTvs = Map.insert x t (envTvs tenv1) }
+            in unifyType tenv2 r s'
+        Nothing -> unifyType tenv1 r s'
+
+      -- HACK: Duplicates the remaining cases.
+      _ -> case (t1, t2) of
+        (a `TApp` b, c `TApp` d) -> do
+          tenv1 <- unifyType tenv0 a c
+          unifyType tenv1 b d
+        _ -> fail $ unwords ["cannot unify types", show t1, "and", show t2]
 
   (_, TCon CJoin `TApp` _ `TApp` _) -> commute
 
@@ -512,7 +534,7 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
     tenv1 <- unifyType tenv0 a c
     unifyType tenv1 b d
 
-  _ -> Left $ unwords ["cannot unify types", show t1, "and", show t2]
+  _ -> fail $ unwords ["cannot unify types", show t1, "and", show t2]
 
 -- Unification is commutative. If we fail to handle a case, this can result in
 -- an infinite loop.
@@ -524,33 +546,35 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
 -- asserts that the row can be rewritten to begin with that label under some
 -- substitution. It returns the substitution and the tail of the rewritten row.
 
-rowIso :: TEnv -> Type -> Type -> Maybe (Type, Maybe (TypeId, Type), TEnv)
+rowIso :: TEnv -> Type -> Type -> Tc (Maybe (Type, Maybe (TypeId, Type), TEnv))
 
 -- The "head" rule: a row which already begins with the label is trivially
 -- rewritten by the identity substitution.
 
 rowIso tenv0 lin rin@(TCon CJoin `TApp` l `TApp` _)
-  | l == lin = Just (rin, Nothing, tenv0)
+  | l == lin = return $ Just (rin, Nothing, tenv0)
 
 -- The "swap" rule: a row which contains the label somewhere within, can be
 -- rewritten to place that label at the head.
 
 rowIso tenv0 l (TCon CJoin `TApp` l' `TApp` r)
   | l /= l' = do
-  (r', substitution, tenv1) <- rowIso tenv0 l r
-  Just (l .| l' .| r', substitution, tenv1)
+  ms <- rowIso tenv0 l r
+  return $ case ms of
+    Just (r', substitution, tenv1) -> Just (l .| l' .| r', substitution, tenv1)
+    Nothing -> Nothing
 
 -- The "var" rule: no label is present, so we cannot test for equality, and must
 -- return a fresh variable for the row tail.
 
-rowIso tenv0 l (TVar a) = let
-  (b, tenv1) = freshTv tenv0
-  res = l .| b
-  in Just (res, Just (a, res), tenv1)
+rowIso tenv0 l (TVar a) = do
+  b <- freshTv tenv0
+  let res = l .| b
+  return $ Just (res, Just (a, res), tenv0)
 
 -- In any other case, the rows are not isomorphic.
 
-rowIso _ _ _ = Nothing
+rowIso _ _ _ = return Nothing
 
 -- Unification of a type variable with a type simply looks up the current value
 -- of the variable and unifies it with the type; if the variable does not exist,
@@ -561,28 +585,28 @@ rowIso _ _ _ = Nothing
 -- variable as equal to itself. Without both of these, zonking could fail to
 -- terminate.
 
-unifyTv :: TEnv -> TypeId -> Type -> Either String TEnv
+unifyTv :: TEnv -> TypeId -> Type -> Tc TEnv
 unifyTv tenv0 x t = case t of
-  TVar y | x == y -> Right tenv0
+  TVar y | x == y -> return tenv0
   TVar{} -> declare
-  _ -> if occurs tenv0 x t then Left "occurs check" else declare
+  _ -> if occurs tenv0 x t then fail "occurs check" else declare
   where
   declare = case Map.lookup x (envTvs tenv0) of
     Just t2 -> unifyType tenv0 t t2
-    Nothing -> Right tenv0 { envTvs = Map.insert x t (envTvs tenv0) }
+    Nothing -> return tenv0 { envTvs = Map.insert x t (envTvs tenv0) }
 
 -- Kind variable unification is virtually identical to type variable
 -- unification. This is currently missing an occurs check.
 
-unifyKv :: TEnv -> KindId -> Kind -> Either String TEnv
+unifyKv :: TEnv -> KindId -> Kind -> Tc TEnv
 unifyKv tenv0 x k = case k of
-  KVar y | x == y -> Right tenv0
+  KVar y | x == y -> return tenv0
   KVar{} -> declare
   _ -> declare
   where
   declare = case Map.lookup x (envKvs tenv0) of
     Just k2 -> unifyKind tenv0 k k2
-    Nothing -> Right tenv0 { envKvs = Map.insert x k (envKvs tenv0) }
+    Nothing -> return tenv0 { envKvs = Map.insert x k (envKvs tenv0) }
 
 -- We need to be able to count occurrences of a type variable in a type for two
 -- reasons: to prevent infinite types (the "occurs check"), and to determine
@@ -745,17 +769,17 @@ effectTail t = t
 -- fresh ones and remove the quantifier, returning the types with which the
 -- variables were instantiated, in order.
 
-instantiate :: TEnv -> TypeId -> Type -> (Type, Type, TEnv)
-instantiate tenv0 x t = let
-  (a, tenv1) = freshTv tenv0
-  in (replaceTv x a t, a, tenv1)
+instantiate :: TEnv -> TypeId -> Type -> Tc (Type, Type)
+instantiate tenv0 x t = do
+  a <- freshTv tenv0
+  return (replaceTv x a t, a)
 
-instantiatePrenex :: TEnv -> Type -> (Type, [Type], TEnv)
-instantiatePrenex tenv0 (TForall x t) = let
-  (t', a, tenv1) = instantiate tenv0 x t
-  (t'', as, tenv2) = instantiatePrenex tenv1 t'
-  in (t'', a : as, tenv2)
-instantiatePrenex tenv0 t = (t, [], tenv0)
+instantiatePrenex :: TEnv -> Type -> Tc (Type, [Type])
+instantiatePrenex tenv0 (TForall x t) = do
+  (t', a) <- instantiate tenv0 x t
+  (t'', as) <- instantiatePrenex tenv0 t'
+  return (t'', a : as)
+instantiatePrenex _ t = return (t, [])
 
 -- To replace a type variable with a type throughout a type, we simply zonk in a
 -- singleton typing environment.
@@ -765,42 +789,46 @@ replaceTv x a = zonkType emptyTEnv { envTvs = Map.singleton x a }
 
 -- Skolemization replaces quantified type variables with type constants.
 
-skolemize :: TEnv -> Type -> (Set TypeId, Type, TEnv)
+skolemize :: TEnv -> Type -> Tc (Set TypeId, Type)
 skolemize tenv0 t = case t of
-  TForall x t' -> let
-    (k, tenv1) = freshTypeId tenv0
-    tenv2 = tenv1 { envTvs = Map.insert x (TConst k) (envTvs tenv1) }
-    (k', t'', tenv3) = skolemize tenv2 (zonkType tenv2 t')
-    in (Set.insert k k', t'', tenv3)
+  TForall x t' -> do
+    k <- freshTypeId tenv0
+    let tenv1 = tenv0 { envTvs = Map.insert x (TConst k) (envTvs tenv0) }
+    (k', t'') <- skolemize tenv1 (zonkType tenv1 t')
+    return (Set.insert k k', t'')
   -- TForall _ t' -> skolemize tenv0 t'
-  TCon CFun `TApp` a `TApp` b `TApp` e -> let
-    (ids, b', tenv1) = skolemize tenv0 b
-    in (ids, (a .-> b') e, tenv1)
-  _ -> (Set.empty, t, tenv0)
+  TCon CFun `TApp` a `TApp` b `TApp` e -> do
+    (ids, b') <- skolemize tenv0 b
+    return (ids, (a .-> b') e)
+  _ -> return (Set.empty, t)
 
 -- Since skolem constants only unify with type variables and themselves,
 -- unifying a skolemized scheme with a type tells you whether one is a generic
 -- instance of the other. This is used to check the signatures of definitions.
 
-instanceCheck :: Type -> Type -> Either String ()
+instanceCheck :: Type -> Type -> Tc ()
 instanceCheck inferredScheme declaredScheme = do
-  let (inferredType, _, tenv0) = instantiatePrenex emptyTEnv inferredScheme
-  let (ids, declaredType, tenv1) = skolemize tenv0 declaredScheme
-  _tenv2 <- case subsumptionCheck tenv1 inferredType declaredType of
-    Left message -> Left (prefix ++ " (instantiated to " ++ show inferredType ++ " and " ++ show declaredType ++ ")" ++ ": " ++ message)
-    Right tenv' -> Right tenv'
+  let tenv0 = emptyTEnv
+  (inferredType, _) <- instantiatePrenex tenv0 inferredScheme
+  (ids, declaredType) <- skolemize tenv0 declaredScheme
+  check <- Tc $ do
+    result <- runTc $ subsumptionCheck tenv0 inferredType declaredType
+    return $ Right result
+  _tenv1 <- case check of
+    Left message -> fail (prefix ++ " (instantiated to " ++ show inferredType ++ " and " ++ show declaredType ++ ")" ++ ": " ++ message)
+    Right{} -> return tenv0
   let escaped = freeTvs inferredScheme `Set.union` freeTvs declaredScheme
   let bad = Set.filter (`Set.member` escaped) ids
-  unless (Set.null bad) (Left prefix)
-  Right ()
+  unless (Set.null bad) (fail prefix)
+  return ()
   where
   prefix = unwords [show inferredScheme, "is not an instance of", show declaredScheme]
 
-subsumptionCheck :: TEnv -> Type -> Type -> Either String TEnv
+subsumptionCheck :: TEnv -> Type -> Type -> Tc TEnv
 
 subsumptionCheck tenv0 (TForall x t) t2 = do
-  let (t1, _, tenv1) = instantiate tenv0 x t
-  subsumptionCheck tenv1 t1 t2
+  (t1, _) <- instantiate tenv0 x t
+  subsumptionCheck tenv0 t1 t2
 
 subsumptionCheck tenv0 t1 (TCon CFun `TApp` a `TApp` b `TApp` e) = do
   (a', b', e', tenv1) <- unifyFun tenv0 t1
@@ -814,7 +842,7 @@ subsumptionCheck tenv0 t1 t2 = unifyType tenv0 t1 t2
 
 -- This handles contravariance.
 
-subsumptionCheckFun :: TEnv -> Type -> Type -> Type -> Type -> Type -> Type -> Either String TEnv
+subsumptionCheckFun :: TEnv -> Type -> Type -> Type -> Type -> Type -> Type -> Tc TEnv
 subsumptionCheckFun tenv0 a b e a' b' e' = do
   tenv1 <- subsumptionCheck tenv0 a' a
   tenv2 <- subsumptionCheck tenv1 b b'
@@ -917,22 +945,61 @@ infixr 4 .|
 (..->) = KFun
 infixr 4 ..->
 
+-- The typechecker monad.
+
+newtype Tc a = Tc { runTc :: IO (Either String a) }
+
+instance Functor Tc where
+  fmap f (Tc mx) = Tc $ do
+    ex <- mx
+    return $ case ex of
+      Left x -> Left x
+      Right x -> Right $ f x
+
+instance Applicative Tc where
+  pure = Tc . return . Right
+  Tc mf <*> Tc mx = Tc $ do
+    ef <- mf
+    ex <- mx
+    return $ case (ef, ex) of
+      (Left f, _) -> Left f
+      (_, Left x) -> Left x
+      (Right f, Right x) -> Right $ f x
+
+instance Monad Tc where
+  return = Tc . return . Right
+  Tc mx >>= f = Tc $ do
+    ex <- mx
+    case ex of
+      Left x -> return $ Left x
+      Right x -> runTc $ f x
+  fail = Tc . return . Left
+
+liftEither :: Either String a -> Tc a
+liftEither = Tc . return
+
 -- Generating names and named things from a typing environment.
 
-freshTv :: TEnv -> (Type, TEnv)
-freshTv = first TVar . freshTypeId
+freshTv :: TEnv -> Tc Type
+freshTv = fmap TVar . freshTypeId
 
-freshTc :: TEnv -> (Type, TEnv)
-freshTc = first TConst . freshTypeId
+freshTc :: TEnv -> Tc Type
+freshTc = fmap TConst . freshTypeId
 
-freshKv :: TEnv -> (Kind, TEnv)
-freshKv = first KVar . freshKindId
+freshKv :: TEnv -> Tc Kind
+freshKv = fmap KVar . freshKindId
 
-freshTypeId :: TEnv -> (TypeId, TEnv)
-freshTypeId tenv = (envCurrentType tenv, tenv { envCurrentType = succ (envCurrentType tenv) })
+freshTypeId :: TEnv -> Tc TypeId
+freshTypeId tenv = do
+  x <- Tc $ Right <$> readIORef (envCurrentType tenv)
+  Tc $ Right <$> writeIORef (envCurrentType tenv) (succ x)
+  return x
 
-freshKindId :: TEnv -> (KindId, TEnv)
-freshKindId tenv = (envCurrentKind tenv, tenv { envCurrentKind = succ (envCurrentKind tenv) })
+freshKindId :: TEnv -> Tc KindId
+freshKindId tenv = do
+  x <- Tc $ Right <$> readIORef (envCurrentKind tenv)
+  Tc $ Right <$> writeIORef (envCurrentKind tenv) (succ x)
+  return x
 
 -- Parses an expression, for interactive testing purposes.
 
