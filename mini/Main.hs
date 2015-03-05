@@ -512,20 +512,6 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
 
   (_, TCon CJoin `TApp` _ `TApp` _) -> commute
 
-{-
-
-  (TCon CFun `TApp` a `TApp` b `TApp` _, f) -> do
-    (c, d, _, tenv1) <- unifyFun tenv0 f
-    tenv2 <- unifyType tenv1 a c
-    unifyType tenv2 b d
-
-  (f, TCon CFun `TApp` c `TApp` d `TApp` _) -> do
-    (a, b, _, tenv1) <- unifyFun tenv0 f
-    tenv2 <- unifyType tenv1 a c
-    unifyType tenv2 b d
-
--}
-
 -- We fall back to regular unification for value type constructors. This makes
 -- the somewhat iffy assumption that there is no higher-kinded polymorphism
 -- going on between value type constructors and effect type constructors.
