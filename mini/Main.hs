@@ -115,7 +115,7 @@ data Type
   -- Application of type constructor to type.
   | TApp Type Type
 
-  deriving (Eq, Show)
+  deriving (Eq)
 
 -- Type variables are distinguished by a "type identifier", which is generated
 -- afresh from the typing environment.
@@ -878,7 +878,6 @@ instance Show Expr where
     showTyped (Just type_) x = "(" ++ x ++ " : " ++ show type_ ++ ")"
     showTyped Nothing x = x
 
-{-
 instance Show Type where
   showsPrec p t = case t of
     TCon con -> shows con
@@ -888,7 +887,6 @@ instance Show Type where
     a `TApp` b -> showParen (p > appPrec) $ showsPrec appPrec a . showChar ' ' . showsPrec (appPrec + 1) b
     where
     appPrec = 1
--}
 
 instance Show TypeId where
   show (TypeId x) = 't' : show x
