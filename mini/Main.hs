@@ -55,6 +55,19 @@ spec = do
       $ TForall ia (TForall ib ((va .-> va) (cio .| vb)))
     it "fails on basic type mismatches"
       $ testFail (inferEmpty (parse "1 .add add"))
+    it "correctly copies from a local"
+      $ testScheme (inferEmpty (parse "1 &x +x"))
+      $ TForall ia (TForall ib ((va .-> va .* cint) vb))
+    it "correctly copies multiple times from a local"
+      $ testScheme (inferEmpty (parse "1 &x +x +x"))
+      $ TForall ia (TForall ib ((va .-> va .* cint .* cint) vb))
+    it "correctly moves from a local"
+      $ testScheme (inferEmpty (parse "1 &x -x"))
+      $ TForall ia (TForall ib ((va .-> va .* cint) vb))
+    it "fails when moving from a moved-from local"
+      $ testFail (inferEmpty (parse "1 &x -x -x"))
+    it "fails when copying from a moved-from local"
+      $ testFail (inferEmpty (parse "1 &x -x +x"))
   where
   inferEmpty = inferType0 Map.empty
   testFail action = do
