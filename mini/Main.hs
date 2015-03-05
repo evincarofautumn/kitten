@@ -736,24 +736,28 @@ freeKvs k = case k of
 
 regeneralize :: TEnv -> Type -> Type
 regeneralize tenv t = let
-  (t', vars) = runWriter $ go TopLevel t
+  (t', vars) = runWriter $ go t
   in foldr TForall t' $ foldr delete (Set.toList (freeTvs t')) vars
   where
-  go :: TypeLevel -> Type -> Writer [TypeId] Type
-  go level t' = case t' of
-    TCon CFun `TApp` a `TApp` b `TApp` _
-      | level == NonTopLevel
-      , TVar c <- bottommost a
+  go :: Type -> Writer [TypeId] Type
+  go t' = case t' of
+    TCon CFun `TApp` a `TApp` b `TApp` e
+      | TVar c <- bottommost a
       , TVar d <- bottommost b
       , c == d
       -> do
         when (occurrences tenv c t == 2) $ tell [c]
-        return $ TForall c t'
+        a' <- go a
+        b' <- go b
+        e' <- go e
+        return $ TForall c ((a' .-> b') e')
+    TCon CProd `TApp` a `TApp` b -> do
+      a' <- go a
+      b' <- go b
+      return $ cprod `TApp` a' `TApp` b'
     TForall{} -> error "cannot regeneralize higher-ranked type"
-    a `TApp` b -> TApp <$> go NonTopLevel a <*> go NonTopLevel b
+    a `TApp` b -> TApp <$> go a <*> go b
     _ -> return t'
-
-data TypeLevel = TopLevel | NonTopLevel deriving (Eq)
 
 -- Utilities for operating on chains of things.
 
@@ -772,7 +776,8 @@ effectTail t = t
 instantiate :: TEnv -> TypeId -> Type -> Tc (Type, Type)
 instantiate tenv0 x t = do
   a <- freshTv tenv0
-  return (replaceTv x a t, a)
+  replaced <- replaceTv tenv0 x a t
+  return (replaced, a)
 
 instantiatePrenex :: TEnv -> Type -> Tc (Type, [Type])
 instantiatePrenex tenv0 (TForall x t) = do
@@ -781,11 +786,23 @@ instantiatePrenex tenv0 (TForall x t) = do
   return (t'', a : as)
 instantiatePrenex _ t = return (t, [])
 
--- To replace a type variable with a type throughout a type, we simply zonk in a
--- singleton typing environment.
+-- Capture-avoiding substitution of a type variable with a
+-- type throughout a type.
 
-replaceTv :: TypeId -> Type -> Type -> Type
-replaceTv x a = zonkType emptyTEnv { envTvs = Map.singleton x a }
+replaceTv :: TEnv -> TypeId -> Type -> Type -> Tc Type
+replaceTv tenv0 x a = recur
+  where
+  recur t = case t of
+    TForall x' t'
+      | x == x' -> return t
+      | x' `Set.notMember` freeTvs t' -> TForall x' <$> recur t'
+      | otherwise -> do
+        z <- freshTypeId tenv0
+        t'' <- replaceTv tenv0 x' (TVar z) t'
+        TForall z <$> recur t''
+    TVar x' | x == x' -> return a
+    m `TApp` n -> TApp <$> recur m <*> recur n
+    _ -> return t
 
 -- Skolemization replaces quantified type variables with type constants.
 
