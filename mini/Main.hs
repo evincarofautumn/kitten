@@ -68,14 +68,24 @@ spec = do
       $ testFail (inferEmpty (parse "1 &x -x -x"))
     it "fails when copying from a moved-from local"
       $ testFail (inferEmpty (parse "1 &x -x +x"))
+  describe "definitions" $ do
+    it "checks the type of a definition" $ let
+      idType = TForall ia (TForall ib (TForall ic ((va .* vb .-> va .* vb) vc)))
+      in testScheme
+        ((\ (_, _, t) -> t) <$> inferTypes
+          (Map.fromList [("id", (idType, parse "&x -x"))])
+          (parse "id"))
+        idType
   where
-  inferEmpty = inferType0 Map.empty
+  inferEmpty expr = do
+    (_, scheme, _) <- inferType0 Map.empty expr
+    return scheme
   testFail action = do
     result <- runTc action
     assert $ either (const True) (const False) result
   testScheme inference expected = do
     result <- runTc $ do
-      (_, scheme, _) <- inference
+      scheme <- inference
       instanceCheck scheme expected
     either assertFailure (const (return ())) result
 
@@ -83,6 +93,8 @@ spec = do
   va = TVar ia
   ib = TypeId 1
   vb = TVar ib
+  ic = TypeId 2
+  vc = TVar ic
 
 data Expr
 
@@ -263,8 +275,11 @@ currentKindId = unsafePerformIO (newIORef (KindId 0))
 -- binding group are correct, then the inferred type is checked against the
 -- declared type.
 
-inferTypes :: Map Name (Type, Expr) -> Tc (Map Name (Type, Expr))
-inferTypes defs = fmap Map.fromList . mapM go . Map.toList $ defs
+inferTypes :: Map Name (Type, Expr) -> Expr -> Tc (Map Name (Type, Expr), Expr, Type)
+inferTypes defs expr0 = do
+  inferredDefs <- fmap Map.fromList . mapM go . Map.toList $ defs
+  (expr1, scheme, _kind) <- inferType0 sigs expr0
+  return (inferredDefs, expr1, scheme)
   where
   sigs = Map.map fst defs
   go (name, (scheme, expr)) = do
