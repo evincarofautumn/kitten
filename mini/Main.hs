@@ -19,9 +19,11 @@ import Data.Text (Text)
 import System.IO.Unsafe
 import Test.HUnit
 import Test.Hspec
+import Text.Parsec hiding (many, parse)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Text.Parsec as Parsec
 
 main :: IO ()
 main = hspec spec
@@ -45,16 +47,16 @@ spec = do
       $ testScheme (inferEmpty (parse "1 2 add"))
       $ TForall ia (TForall ib ((va .-> va .* TCon CInt) vb))
     it "gives the composed type for higher-order composition"
-      $ testScheme (inferEmpty (parse "1 quo 2 quo cat .add cat app"))
+      $ testScheme (inferEmpty (parse "1 quo 2 quo cat [add] cat app"))
       $ TForall ia (TForall ib ((va .-> va .* TCon CInt) vb))
     it "deduces simple side effects"
       $ testScheme (inferEmpty (parse "1 say"))
       $ TForall ia (TForall ib ((va .-> va) (cio .| vb)))
     it "deduces higher-order side effects"
-      $ testScheme (inferEmpty (parse "1 .say app"))
+      $ testScheme (inferEmpty (parse "1 [say] app"))
       $ TForall ia (TForall ib ((va .-> va) (cio .| vb)))
     it "fails on basic type mismatches"
-      $ testFail (inferEmpty (parse "1 .add add"))
+      $ testFail (inferEmpty (parse "1 [add] add"))
     it "correctly copies from a local"
       $ testScheme (inferEmpty (parse "1 &x +x"))
       $ TForall ia (TForall ib ((va .-> va .* cint) vb))
@@ -896,15 +898,16 @@ instance Show Expr where
       "<",
       intercalate ", " (map show params),
       ">" ]
-    ECat tref a b -> showTyped tref $ unwords [show a, show b]
+    ECat tref a b -> showTyped tref $ unwords' [show a, show b]
     EId tref -> showTyped tref $ ""
-    EQuote tref expr -> showTyped tref $ "[" ++ show expr ++ "]"
+    EQuote tref expr -> showTyped tref $ "[ " ++ show expr ++ " ]"
     EGo tref name -> showTyped tref $ '&' : Text.unpack name
     ECome Move tref name -> showTyped tref $ '-' : Text.unpack name
     ECome Copy tref name -> showTyped tref $ '+' : Text.unpack name
     where
     showTyped (Just type_) x = "(" ++ x ++ " : " ++ show type_ ++ ")"
     showTyped Nothing x = x
+    unwords' = unwords . filter (not . null)
 
 instance Show Type where
   showsPrec p t = case t of
@@ -1033,13 +1036,26 @@ freshKindId tenv = do
 -- Parses an expression, for interactive testing purposes.
 
 parse :: String -> Expr
-parse = foldl' (ECat Nothing) (EId Nothing) . map toExpr . words
+parse s = case Parsec.parse (between spaces eof terms) "" s of
+  Left message -> error $ show message
+  Right result -> compose result
   where
-  toExpr s = if all isDigit s
-    then EPush Nothing . VInt . read $ s
-    else case s of
-      '.' : ss -> EQuote Nothing $ ECall Nothing (Text.pack ss) []
-      '&' : ss -> EGo Nothing . Text.pack $ ss
-      '+' : ss -> ECome Copy Nothing . Text.pack $ ss
-      '-' : ss -> ECome Move Nothing . Text.pack $ ss
-      _ -> ECall Nothing (Text.pack s) []
+  compose = foldl' (ECat Nothing) (EId Nothing)
+  terms = many term
+  term = choice [
+    EQuote Nothing . compose <$> between (char '[' <* spaces) (char ']' <* spaces) terms,
+    EGo Nothing <$> (char '&' *> name),
+    ECome Copy Nothing <$> (char '+' *> name),
+    ECome Move Nothing <$> (char '-' *> name),
+    try $ do
+      w <- word
+      when (w == "]") parserZero
+      return $ if all isDigit w
+        then EPush Nothing (VInt (read w))
+        else ECall Nothing (Text.pack w) [] ]
+  name = Text.pack <$> word
+  word = many1 (satisfy (not . isSpace .&& not . (== ']'))) <* spaces
+
+(.&&) :: Applicative f => f Bool -> f Bool -> f Bool
+(.&&) = liftA2 (&&)
+infixr 3 .&&
