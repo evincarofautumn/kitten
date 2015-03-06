@@ -47,7 +47,7 @@ spec = do
       $ testScheme (inferEmpty (parse "1 2 add"))
       $ TForall ia (TForall ib ((va .-> va .* TCon CInt) vb))
     it "gives the composed type for higher-order composition"
-      $ testScheme (inferEmpty (parse "1 quo 2 quo cat [add] cat app"))
+      $ testScheme (inferEmpty (parse "1 quo 2 quo com [add] com app"))
       $ TForall ia (TForall ib ((va .-> va .* TCon CInt) vb))
     it "deduces simple side effects"
       $ testScheme (inferEmpty (parse "1 say"))
@@ -161,6 +161,9 @@ data Con
   -- Constructor for stacks.
   | CProd
 
+  -- Constructor for vectors.
+  | CVec
+
   -- The pure effect.
   | CPure
 
@@ -177,10 +180,11 @@ data Con
 
 -- Common constructors.
 
-cint, cfun, cprod, cpure, cio, cfail, cjoin :: Type
+cint, cfun, cprod, cvec, cpure, cio, cfail, cjoin :: Type
 cint = TCon CInt
 cfun = TCon CFun
 cprod = TCon CProd
+cvec = TCon CVec
 cpure = TCon CPure
 cio = TCon CIO
 cfail = TCon CFail
@@ -319,6 +323,7 @@ inferKind tenv0 t = case t of
     CInt -> KVal
     CFun -> KRho ..-> KRho ..-> KEffRho ..-> KVal
     CProd -> KRho ..-> KVal ..-> KRho
+    CVec -> KVal ..-> KVal
     CPure -> KEff
     CIO -> KEff
     CFail -> KEff
@@ -381,7 +386,7 @@ inferType tenv0 expr0 = case expr0 of
     e <- freshTv tenv0
     let type_ = (a .* cint .* cint .-> a .* cint) e
     return (ECall (Just type_) name [], type_, tenv0)
-  ECall Nothing name@"cat" [] -> do
+  ECall Nothing name@"com" [] -> do
     a <- freshTv tenv0
     b <- freshTv tenv0
     c <- freshTv tenv0
@@ -403,6 +408,36 @@ inferType tenv0 expr0 = case expr0 of
     e1 <- freshTv tenv0
     e2 <- freshTv tenv0
     let type_ = (a .* b .-> a .* (c .-> c .* b) e1) e2
+    return (ECall (Just type_) name [], type_, tenv0)
+
+-- Vector intrinsics.
+
+  ECall Nothing name@"vec" [] -> do
+    a <- freshTv tenv0
+    b <- freshTv tenv0
+    e <- freshTv tenv0
+    let type_ = (a .* b .-> a .* (cvec `TApp` b)) e
+    return (ECall (Just type_) name [], type_, tenv0)
+
+  ECall Nothing name@"head" [] -> do
+    a <- freshTv tenv0
+    b <- freshTv tenv0
+    e <- freshTv tenv0
+    let type_ = (a .* (cvec `TApp` b) .-> a .* b) e
+    return (ECall (Just type_) name [], type_, tenv0)
+
+  ECall Nothing name@"tail" [] -> do
+    a <- freshTv tenv0
+    b <- freshTv tenv0
+    e <- freshTv tenv0
+    let type_ = (a .* (cvec `TApp` b) .-> a .* (cvec `TApp` b)) e
+    return (ECall (Just type_) name [], type_, tenv0)
+
+  ECall Nothing name@"cat" [] -> do
+    a <- freshTv tenv0
+    b <- freshTv tenv0
+    e <- freshTv tenv0
+    let type_ = (a .* (cvec `TApp` b) .* (cvec `TApp` b) .-> a .* (cvec `TApp` b)) e
     return (ECall (Just type_) name [], type_, tenv0)
 
 -- Effectful intrinsics. Note that we allow the effect to be polymorphic in its
@@ -926,6 +961,7 @@ instance Show Con where
   show con = case con of
     CInt -> "int"
     CProd -> "pair"
+    CVec -> "vec"
     CFun -> "fun"
     CPure -> "pure"
     CIO -> "io"
