@@ -459,9 +459,9 @@ inferType tenv0 expr0 = case expr0 of
 -- The type of a definition is simply looked up in the environment.
 
   ECall Nothing name [] -> case Map.lookup name (envSigs tenv0) of
-    Just (TForall x t) -> do
-      (type_, param) <- instantiate tenv0 x t
-      return (ECall (Just type_) name [param], type_, tenv0)
+    Just t@TForall{} -> do
+      (type_, params) <- instantiatePrenex tenv0 t
+      return (ECall (Just type_) name params, type_, tenv0)
     Just{} -> error "what is a non-quantified type doing as a type signature?"
     Nothing -> fail $ "cannot infer type of " ++ show name
 
