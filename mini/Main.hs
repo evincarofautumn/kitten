@@ -305,8 +305,8 @@ inferType0 sigs expr = do
   let zonkedExpr = zonkExpr tenv1 expr'
   (kind, tenv2) <- inferKind tenv1 zonkedType
   let regeneralized = regeneralize tenv2 zonkedType
-  tenv3 <- defaultKinds tenv2 kind
-  let zonkedKind = zonkKind tenv3 kind
+  let zonkedKind = zonkKind tenv2 kind
+  _tenv3 <- defaultKinds tenv2 kind
   return (zonkedExpr, regeneralized, zonkedKind)
 
 -- The default kind of a type is the value kind.
