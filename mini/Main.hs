@@ -2,8 +2,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 
-{-# LANGUAGE BangPatterns #-}
-
 module Main where
 
 import Control.Applicative
