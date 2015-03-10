@@ -98,25 +98,32 @@ spec = do
 
 data Expr
 
-  -- The identity function.
+-- The identity function.
+
   = EId TRef
 
-  -- Compose two expressions.
+-- Compose two expressions.
+
   | ECat TRef Expr Expr
 
-  -- Quote an expression.
+-- Quote an expression.
+
   | EQuote TRef Expr
 
-  -- Invoke a word, possibly with some generic type parameters.
+-- Invoke a word, possibly with some generic type parameters.
+
   | ECall TRef Name [Type]
 
-  -- Push a value to the stack.
+-- Push a value to the stack.
+
   | EPush TRef Val
 
-  -- Send a value to the locals from the stack.
+-- Send a value to the locals from the stack.
+
   | EGo TRef Name
 
-  -- Bring a value from the locals to the stack.
+-- Bring a value from the locals to the stack.
+
   | ECome HowCome TRef Name
 
   deriving (Eq)
@@ -125,19 +132,24 @@ type TRef = Maybe Type
 
 data Type
 
-  -- Type constructor.
+-- Type constructor.
+
   = TCon Con
 
-  -- Type variable, used during unification.
+-- Type variable, used during unification.
+
   | TVar TypeId
 
-  -- Skolem constant, used during instance checking.
+-- Skolem constant, used during instance checking.
+
   | TConst TypeId
 
-  -- Quantified type, used for both prenex and higher-rank polymorphism.
+-- Quantified type, used for both prenex and higher-rank polymorphism.
+
   | TForall TypeId Type
 
-  -- Application of type constructor to type.
+-- Application of type constructor to type.
+
   | TApp Type Type
 
   deriving (Eq)
@@ -150,28 +162,36 @@ newtype TypeId = TypeId { unTypeId :: Int }
 
 data Con
 
-  -- Integers.
+-- Integers.
+
   = CInt
 
-  -- Constructor for functions.
+-- Constructor for functions.
+
   | CFun
 
-  -- Constructor for stacks.
+-- Constructor for stacks.
+
   | CProd
 
-  -- Constructor for vectors.
+-- Constructor for vectors.
+
   | CVec
 
-  -- The pure effect.
+-- The pure effect.
+
   | CPure
 
-  -- The io effect.
+-- The io effect.
+
   | CIO
 
-  -- The fail effect.
+-- The fail effect.
+
   | CFail
 
-  -- Constructor for effect rows.
+-- Constructor for effect rows.
+
   | CJoin
 
   deriving (Eq)
@@ -195,22 +215,28 @@ cjoin = TCon CJoin
 
 data Kind
 
-  -- Kind of values.
+-- Kind of values.
+
   = KVal
 
-  -- Kind of stacks.
+-- Kind of stacks.
+
   | KRho
 
-  -- Kind of effect labels.
+-- Kind of effect labels.
+
   | KEff
 
-  -- Kind of effect rows.
+-- Kind of effect rows.
+
   | KEffRho
 
-  -- Kind variable.
+-- Kind variable.
+
   | KVar KindId
 
-  -- Kind of type constructors.
+-- Kind of type constructors.
+
   | KFun Kind Kind
 
   deriving (Eq)
@@ -233,22 +259,28 @@ type Name = Text
 
 data TEnv = TEnv {
 
-  -- type variable -> type
+-- type variable -> type
+
   envTvs :: Map TypeId Type,
 
-  -- type variable -> kind
+-- type variable -> kind
+
   envTks :: Map TypeId Kind,
 
-  -- kind variable -> kind
+-- kind variable -> kind
+
   envKvs :: Map KindId Kind,
 
-  -- local variable -> type
+-- local variable -> type
+
   envVs :: Map Name Type,
 
-  -- word -> signature
+-- word -> signature
+
   envSigs :: Map Name Type,
 
-  -- The current state of globally unique type and kind ID generation.
+-- The current state of globally unique type and kind ID generation.
+
   envCurrentType :: IORef TypeId,
   envCurrentKind :: IORef KindId }
 
