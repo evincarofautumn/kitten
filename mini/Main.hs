@@ -329,7 +329,7 @@ inferTypes defs expr0 = do
 -- regeneralized to increase stack polymorphism.
 
 inferType0 :: Map Name Type -> Expr -> Tc (Expr, Type, Kind)
-inferType0 sigs expr = do
+inferType0 sigs expr = while ["inferring the type of", show expr] $ do
   (expr', t, tenv1) <- inferType emptyTEnv { envSigs = sigs } expr
   let zonkedType = zonkType tenv1 t
   let zonkedExpr = zonkExpr tenv1 expr'
@@ -342,13 +342,14 @@ inferType0 sigs expr = do
 -- The default kind of a type is the value kind.
 
 defaultKinds :: TEnv -> Kind -> Tc TEnv
-defaultKinds tenv0 = foldrM (\ x tenv -> unifyKind tenv (KVar x) KVal) tenv0 . Set.toList . freeKvs
+defaultKinds tenv0 = while ["defaulting kinds"]
+  . foldrM (\ x tenv -> unifyKind tenv (KVar x) KVal) tenv0 . Set.toList . freeKvs
 
 -- Kind inference lets us distinguish types from type constructors, and value
 -- types from effect types.
 
 inferKind :: TEnv -> Type -> Tc (Kind, TEnv)
-inferKind tenv0 t = case t of
+inferKind tenv0 t = while ["inferring the kind of", show t] $ case t of
   TCon con -> return (case con of
     CInt -> KVal
     CFun -> KRho ..-> KRho ..-> KEffRho ..-> KVal
@@ -398,7 +399,7 @@ unifyKind tenv0 k1 k2 = case (k1, k2) of
 -- simply encode the type signatures of various intrinsic functions.
 
 inferType :: TEnv -> Expr -> Tc (Expr, Type, TEnv)
-inferType tenv0 expr0 = case expr0 of
+inferType tenv0 expr0 = while ["inferring the type of", show expr0] $ case expr0 of
 
 -- Pushing a value results in a stack with that value on top.
 
@@ -861,7 +862,7 @@ instantiate tenv0 x t = do
   return (replaced, a)
 
 instantiatePrenex :: TEnv -> Type -> Tc (Type, [Type])
-instantiatePrenex tenv0 (TForall x t) = do
+instantiatePrenex tenv0 q@(TForall x t) = while ["instantiating", show q] $ do
   (t', a) <- instantiate tenv0 x t
   (t'', as) <- instantiatePrenex tenv0 t'
   return (t'', a : as)
@@ -1075,6 +1076,13 @@ instance Monad Tc where
 
 liftEither :: Either String a -> Tc a
 liftEither = Tc . return
+
+while :: [String] -> Tc a -> Tc a
+while prefix action = Tc $ do
+  ex <- runTc action
+  return $ case ex of
+    Left message -> Left $ unlines [unwords prefix, message]
+    Right x -> Right x
 
 -- Generating names and named things from a typing environment.
 
