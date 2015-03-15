@@ -349,7 +349,7 @@ inferType0 sigs expr = while ["inferring the type of", show expr] $ do
   rec (expr', t, kind, tenvFinal) <- inferType tenvFinal emptyTEnv { envSigs = sigs } expr
   expr'' <- defaultExprKinds tenvFinal expr'
   regeneralized <- regeneralize tenvFinal <$> defaultTypeKinds tenvFinal (zonkType tenvFinal t)
-  return (expr'', regeneralized, kind)
+  return (zonkExpr tenvFinal expr'', regeneralized, kind)
 
 -- The default kind of a type is the value kind.
 
