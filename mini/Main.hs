@@ -358,7 +358,11 @@ defaultExprKinds tenv e = case e of
   EId (Just t) -> EId <$> (Just <$> defaultTypeKinds tenv t)
   ECat (Just t) e1 e2 -> ECat <$> (Just <$> defaultTypeKinds tenv t) <*> defaultExprKinds tenv e1 <*> defaultExprKinds tenv e2
   EQuote (Just t) e' -> EQuote <$> (Just <$> defaultTypeKinds tenv t) <*> defaultExprKinds tenv e'
-  ECall (Just t) name params -> ECall <$> (Just <$> defaultTypeKinds tenv t) <*> pure name <*> mapM (defaultTypeKinds tenv) params
+  ECall (Just t) name params -> do
+    params' <- mapM (defaultTypeKinds tenv) params
+    paramKinds <- mapM (fmap (\ (_, k, _) -> k) . inferKind tenv) params'
+    let valueParams = map fst . filter ((== KVal) . snd) $ zip params' paramKinds
+    ECall <$> (Just <$> defaultTypeKinds tenv t) <*> pure name <*> pure valueParams
   EPush (Just t) val -> EPush <$> (Just <$> defaultTypeKinds tenv t) <*> defaultValKinds tenv val
   EGo (Just t) name -> EGo <$> (Just <$> defaultTypeKinds tenv t) <*> pure name
   ECome how (Just t) name -> ECome how <$> (Just <$> defaultTypeKinds tenv t) <*> pure name
