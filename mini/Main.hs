@@ -17,6 +17,7 @@ import Data.List
 import Data.Map (Map)
 import Data.Set (Set)
 import Data.Text (Text)
+import GHC.Exts
 import System.IO.Unsafe
 import Test.HUnit
 import Test.Hspec
@@ -46,10 +47,10 @@ spec = do
       $ TForall ir kr (TForall ie ke ((vr .-> vr) ve))
     it "gives the composed type from simple composition"
       $ testScheme (inferEmpty (parse "1 2 add"))
-      $ TForall ir kr (TForall ie ke ((vr .-> vr .* TCon CInt) ve))
+      $ TForall ir kr (TForall ie ke ((vr .-> vr .* cint) ve))
     it "gives the composed type for higher-order composition"
       $ testScheme (inferEmpty (parse "1 quo 2 quo com [add] com app"))
-      $ TForall ir kr (TForall ie ke ((vr .-> vr .* TCon CInt) ve))
+      $ TForall ir kr (TForall ie ke ((vr .-> vr .* cint) ve))
     it "deduces simple side effects"
       $ testScheme (inferEmpty (parse "1 say"))
       $ TForall ir kr (TForall ie ke ((vr .-> vr) (cio .| ve)))
@@ -176,53 +177,23 @@ type KRef = Maybe Kind
 newtype TypeId = TypeId { unTypeId :: Int }
   deriving (Enum, Eq, Ord)
 
-data Con
-
--- Integers.
-
-  = CInt
-
--- Constructor for functions.
-
-  | CFun
-
--- Constructor for stacks.
-
-  | CProd
-
--- Constructor for vectors.
-
-  | CVec
-
--- The pure effect.
-
-  | CPure
-
--- The io effect.
-
-  | CIO
-
--- The fail effect.
-
-  | CFail
-
--- Constructor for effect rows.
-
-  | CJoin
-
+newtype Con = Con Name
   deriving (Eq)
+
+instance IsString Con where
+  fromString = Con . Text.pack
 
 -- Common constructors.
 
 cint, cfun, cprod, cvec, cpure, cio, cfail, cjoin :: Type
-cint = TCon CInt
-cfun = TCon CFun
-cprod = TCon CProd
-cvec = TCon CVec
-cpure = TCon CPure
-cio = TCon CIO
-cfail = TCon CFail
-cjoin = TCon CJoin
+cint = TCon "int"
+cfun = TCon "fun"
+cprod = TCon "prod"
+cvec = TCon "vec"
+cpure = TCon "pure"
+cio = TCon "io"
+cfail = TCon "fail"
+cjoin = TCon "join"
 
 -- A kind is the type of a type. Types with the "value" kind are inhabited by
 -- values; all other types are used only to enforce program invariants, such as
@@ -401,15 +372,18 @@ unannotated thing x = fail $ unwords ["cannot default kind of un-annotated", thi
 
 inferKind :: TEnv -> Type -> Tc (Type, Kind, TEnv)
 inferKind tenv0 t = while ["inferring the kind of", show t] $ case t of
-  TCon con -> return (TCon con, case con of
-    CInt -> KVal
-    CFun -> KRho ..-> KRho ..-> KEffRho ..-> KVal
-    CProd -> KRho ..-> KVal ..-> KRho
-    CVec -> KVal ..-> KVal
-    CPure -> KEff
-    CIO -> KEff
-    CFail -> KEff
-    CJoin -> KEff ..-> KEffRho ..-> KEffRho, tenv0)
+  TCon con -> do
+    k <- case con of
+      "int" -> return $ KVal
+      "fun" -> return $ KRho ..-> KRho ..-> KEffRho ..-> KVal
+      "prod" -> return $ KRho ..-> KVal ..-> KRho
+      "vec" -> return $ KVal ..-> KVal
+      "pure" -> return KEff
+      "io" -> return KEff
+      "fail" -> return KEff
+      "join" -> return $ KEff ..-> KEffRho ..-> KEffRho
+      _ -> fail $ unwords ["cannot infer kind of", show con]
+    return (t, k, tenv0)
   TVar (Just k) _ -> return (t, k, tenv0)
   TVar Nothing x -> case Map.lookup x (envTks tenv0) of
     Just k' -> return (TVar (Just k') x, k', tenv0)
@@ -630,7 +604,7 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
 
 unifyFun :: TEnv -> Type -> Tc (Type, Type, Type, TEnv)
 unifyFun tenv0 t = case t of
-  TCon CFun `TApp` a `TApp` b `TApp` e -> return (a, b, e, tenv0)
+  TCon "fun" `TApp` a `TApp` b `TApp` e -> return (a, b, e, tenv0)
   _ -> do
     a <- freshTv tenv0
     b <- freshTv tenv0
@@ -661,10 +635,10 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
 -- distinct prefix, which could fail to terminate because the algorithm
 -- generates fresh type variables.
 
-  (TCon CJoin `TApp` l `TApp` r, s) -> do
+  (TCon "join" `TApp` l `TApp` r, s) -> do
     ms <- rowIso tenv0 l s
     case ms of
-      Just (TCon CJoin `TApp` _ `TApp` s', substitution, tenv1) -> case substitution of
+      Just (TCon "join" `TApp` _ `TApp` s', substitution, tenv1) -> case substitution of
         Just (x, t)
           | occurs tenv0 x (effectTail r)
           -> fail $ unwords ["cannot unify effects", show t1, "and", show t2]
@@ -680,7 +654,7 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
           unifyType tenv1 b d
         _ -> fail $ unwords ["cannot unify types", show t1, "and", show t2]
 
-  (_, TCon CJoin `TApp` _ `TApp` _) -> commute
+  (_, TCon "join" `TApp` _ `TApp` _) -> commute
 
 -- We fall back to regular unification for value type constructors. This makes
 -- the somewhat iffy assumption that there is no higher-kinded polymorphism
@@ -707,13 +681,13 @@ rowIso :: TEnv -> Type -> Type -> Tc (Maybe (Type, Maybe (TypeId, Type), TEnv))
 -- The "head" rule: a row which already begins with the label is trivially
 -- rewritten by the identity substitution.
 
-rowIso tenv0 lin rin@(TCon CJoin `TApp` l `TApp` _)
+rowIso tenv0 lin rin@(TCon "join" `TApp` l `TApp` _)
   | l == lin = return $ Just (rin, Nothing, tenv0)
 
 -- The "swap" rule: a row which contains the label somewhere within, can be
 -- rewritten to place that label at the head.
 
-rowIso tenv0 l (TCon CJoin `TApp` l' `TApp` r)
+rowIso tenv0 l (TCon "join" `TApp` l' `TApp` r)
   | l /= l' = do
   ms <- rowIso tenv0 l r
   return $ case ms of
@@ -914,7 +888,7 @@ regeneralize tenv t = let
   where
   go :: Type -> Writer [(TypeId, KRef)] Type
   go t' = case t' of
-    TCon CFun `TApp` a `TApp` b `TApp` e
+    TCon "fun" `TApp` a `TApp` b `TApp` e
       | TVar k c <- bottommost a
       , TVar _ d <- bottommost b
       , c == d
@@ -924,7 +898,7 @@ regeneralize tenv t = let
         b' <- go b
         e' <- go e
         return $ TForall c k ((a' .-> b') e')
-    TCon CProd `TApp` a `TApp` b -> do
+    TCon "prod" `TApp` a `TApp` b -> do
       a' <- go a
       b' <- go b
       return $ cprod .$ a' .$ b'
@@ -935,11 +909,11 @@ regeneralize tenv t = let
 -- Utilities for operating on chains of things.
 
 bottommost :: Type -> Type
-bottommost (TCon CProd `TApp` a `TApp` _) = bottommost a
+bottommost (TCon "prod" `TApp` a `TApp` _) = bottommost a
 bottommost t = t
 
 effectTail :: Type -> Type
-effectTail (TCon CJoin `TApp` _ `TApp` a) = effectTail a
+effectTail (TCon "join" `TApp` _ `TApp` a) = effectTail a
 effectTail t = t
 
 -- To instantiate a type scheme, we simply replace all quantified variables with
@@ -989,7 +963,7 @@ skolemize tenv0 t = case t of
     (k', t'') <- skolemize tenv1 (zonkType tenv1 t')
     return (Set.insert k k', t'')
   -- TForall _ t' -> skolemize tenv0 t'
-  TCon CFun `TApp` a `TApp` b `TApp` e -> do
+  TCon "fun" `TApp` a `TApp` b `TApp` e -> do
     (ids, b') <- skolemize tenv0 b
     return (ids, (a .-> b') e)
   _ -> return (Set.empty, t)
@@ -1023,11 +997,11 @@ subsumptionCheck tenv0 (TForall x mk t) t2 = do
   (t1, _, tenv1) <- instantiate tenv0 x k t
   subsumptionCheck tenv1 t1 t2
 
-subsumptionCheck tenv0 t1 (TCon CFun `TApp` a `TApp` b `TApp` e) = do
+subsumptionCheck tenv0 t1 (TCon "fun" `TApp` a `TApp` b `TApp` e) = do
   (a', b', e', tenv1) <- unifyFun tenv0 t1
   subsumptionCheckFun tenv1 a b e a' b' e'
 
-subsumptionCheck tenv0 (TCon CFun `TApp` a' `TApp` b' `TApp` e') t2 = do
+subsumptionCheck tenv0 (TCon "fun" `TApp` a' `TApp` b' `TApp` e') t2 = do
   (a, b, e, tenv1) <- unifyFun tenv0 t2
   subsumptionCheckFun tenv1 a b e a' b' e'
 
@@ -1084,15 +1058,7 @@ instance Show TypeId where
   show (TypeId x) = 't' : show x
 
 instance Show Con where
-  show con = case con of
-    CInt -> "int"
-    CProd -> "pair"
-    CVec -> "vec"
-    CFun -> "fun"
-    CPure -> "pure"
-    CIO -> "io"
-    CFail -> "fail"
-    CJoin -> "join"
+  show (Con con) = Text.unpack con
 
 instance Show Kind where
   showsPrec p k = case k of
