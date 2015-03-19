@@ -57,6 +57,9 @@ spec = do
     it "deduces higher-order side effects"
       $ testScheme (inferEmpty (parse "1 [say] app"))
       $ TForall ir kr (TForall ie ke ((vr .-> vr) ("io" .| ve)))
+    it "removes effects with an effect handler"
+      $ testScheme (inferEmpty (parse "[1 ref deref] unsafe"))
+      $ TForall ir kr (TForall ie ke ((vr .-> vr .* "int") ve))
     it "fails on basic type mismatches"
       $ testFail (inferEmpty (parse "1 [add] add"))
     it "correctly copies from a local"
@@ -369,6 +372,8 @@ inferKind tenv0 t = while ["inferring the kind of", show t] $ case t of
       "fun" -> return $ KRho ..-> KRho ..-> KEffRho ..-> KVal
       "prod" -> return $ KRho ..-> KVal ..-> KRho
       "vec" -> return $ KVal ..-> KVal
+      "ptr" -> return $ KVal ..-> KVal
+      "unsafe" -> return KEff
       "pure" -> return KEff
       "io" -> return KEff
       "fail" -> return KEff
@@ -512,6 +517,32 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
     b <- freshTv tenv0
     e <- freshTv tenv0
     (type_, k, tenv1) <- inferKind tenv0 $ (a .-> b) ("fail" .| e)
+    let type' = zonkType tenvFinal type_
+    return (ECall (Just type') name [], type_, k, tenv1)
+
+-- Unsafe intrinsics.
+
+  ECall Nothing name@"ref" [] -> do
+    a <- freshTv tenv0
+    b <- freshTv tenv0
+    e <- freshTv tenv0
+    (type_, k, tenv1) <- inferKind tenv0 ((a .* b .-> a .* ("ptr" `TApp` b)) ("unsafe" .| e))
+    let type' = zonkType tenvFinal type_
+    return (ECall (Just type') name [], type_, k, tenv1)
+
+  ECall Nothing name@"deref" [] -> do
+    a <- freshTv tenv0
+    b <- freshTv tenv0
+    e <- freshTv tenv0
+    (type_, k, tenv1) <- inferKind tenv0 ((a .* (TCon "ptr" `TApp` b) .-> a .* b) ("unsafe" .| e))
+    let type' = zonkType tenvFinal type_
+    return (ECall (Just type') name [], type_, k, tenv1)
+
+  ECall Nothing name@"unsafe" [] -> do
+    a <- freshTv tenv0
+    b <- freshTv tenv0
+    e <- freshTv tenv0
+    (type_, k, tenv1) <- inferKind tenv0 ((a .* (a .-> b) ("unsafe" .| e) .-> b) e)
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
 
