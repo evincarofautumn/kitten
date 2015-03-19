@@ -39,35 +39,35 @@ spec = do
       $ assertEqual "" (zonkType emptyTEnv { envTvs = Map.singleton ia vb } va) vb
     it "substitutes multiple levels"
       $ assertEqual ""
-        (zonkType emptyTEnv { envTvs = Map.fromList [(ia, vb), (ib, cint)] } va)
-        cint
+        (zonkType emptyTEnv { envTvs = Map.fromList [(ia, vb), (ib, "int")] } va)
+        "int"
   describe "type inference" $ do
     it "gives the identity type for the empty program"
       $ testScheme (inferEmpty (parse ""))
       $ TForall ir kr (TForall ie ke ((vr .-> vr) ve))
     it "gives the composed type from simple composition"
       $ testScheme (inferEmpty (parse "1 2 add"))
-      $ TForall ir kr (TForall ie ke ((vr .-> vr .* cint) ve))
+      $ TForall ir kr (TForall ie ke ((vr .-> vr .* "int") ve))
     it "gives the composed type for higher-order composition"
       $ testScheme (inferEmpty (parse "1 quo 2 quo com [add] com app"))
-      $ TForall ir kr (TForall ie ke ((vr .-> vr .* cint) ve))
+      $ TForall ir kr (TForall ie ke ((vr .-> vr .* "int") ve))
     it "deduces simple side effects"
       $ testScheme (inferEmpty (parse "1 say"))
-      $ TForall ir kr (TForall ie ke ((vr .-> vr) (cio .| ve)))
+      $ TForall ir kr (TForall ie ke ((vr .-> vr) ("io" .| ve)))
     it "deduces higher-order side effects"
       $ testScheme (inferEmpty (parse "1 [say] app"))
-      $ TForall ir kr (TForall ie ke ((vr .-> vr) (cio .| ve)))
+      $ TForall ir kr (TForall ie ke ((vr .-> vr) ("io" .| ve)))
     it "fails on basic type mismatches"
       $ testFail (inferEmpty (parse "1 [add] add"))
     it "correctly copies from a local"
       $ testScheme (inferEmpty (parse "1 &x +x"))
-      $ TForall ir kr (TForall ie ke ((vr .-> vr .* cint) ve))
+      $ TForall ir kr (TForall ie ke ((vr .-> vr .* "int") ve))
     it "correctly copies multiple times from a local"
       $ testScheme (inferEmpty (parse "1 &x +x +x"))
-      $ TForall ir kr (TForall ie ke ((vr .-> vr .* cint .* cint) ve))
+      $ TForall ir kr (TForall ie ke ((vr .-> vr .* "int" .* "int") ve))
     it "correctly moves from a local"
       $ testScheme (inferEmpty (parse "1 &x -x"))
-      $ TForall ir kr (TForall ie ke ((vr .-> vr .* cint) ve))
+      $ TForall ir kr (TForall ie ke ((vr .-> vr .* "int") ve))
     it "fails when moving from a moved-from local"
       $ testFail (inferEmpty (parse "1 &x -x -x"))
     it "fails when copying from a moved-from local"
@@ -167,6 +167,9 @@ data Type
 
   deriving (Eq)
 
+instance IsString Type where
+  fromString = TCon . fromString
+
 -- A nullable reference to a kind.
 
 type KRef = Maybe Kind
@@ -182,18 +185,6 @@ newtype Con = Con Name
 
 instance IsString Con where
   fromString = Con . Text.pack
-
--- Common constructors.
-
-cint, cfun, cprod, cvec, cpure, cio, cfail, cjoin :: Type
-cint = TCon "int"
-cfun = TCon "fun"
-cprod = TCon "prod"
-cvec = TCon "vec"
-cpure = TCon "pure"
-cio = TCon "io"
-cfail = TCon "fail"
-cjoin = TCon "join"
 
 -- A kind is the type of a type. Types with the "value" kind are inhabited by
 -- values; all other types are used only to enforce program invariants, such as
@@ -442,7 +433,7 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
   ECall Nothing name@"add" [] -> do
     a <- freshTv tenv0
     e <- freshTv tenv0
-    (type_, k, tenv1) <- inferKind tenv0 $ (a .* cint .* cint .-> a .* cint) e
+    (type_, k, tenv1) <- inferKind tenv0 $ (a .* "int" .* "int" .-> a .* "int") e
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
   ECall Nothing name@"com" [] -> do
@@ -478,7 +469,7 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
     a <- freshTv tenv0
     b <- freshTv tenv0
     e <- freshTv tenv0
-    (type_, k, tenv1) <- inferKind tenv0 $ (a .* b .-> a .* (cvec .$ b)) e
+    (type_, k, tenv1) <- inferKind tenv0 $ (a .* b .-> a .* ("vec" .$ b)) e
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
 
@@ -486,7 +477,7 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
     a <- freshTv tenv0
     b <- freshTv tenv0
     e <- freshTv tenv0
-    (type_, k, tenv1) <- inferKind tenv0 $ (a .* (cvec .$ b) .-> a .* b) e
+    (type_, k, tenv1) <- inferKind tenv0 $ (a .* ("vec" .$ b) .-> a .* b) e
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
 
@@ -494,7 +485,7 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
     a <- freshTv tenv0
     b <- freshTv tenv0
     e <- freshTv tenv0
-    (type_, k, tenv1) <- inferKind tenv0 $ (a .* (cvec .$ b) .-> a .* (cvec .$ b)) e
+    (type_, k, tenv1) <- inferKind tenv0 $ (a .* ("vec" .$ b) .-> a .* ("vec" .$ b)) e
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
 
@@ -502,7 +493,7 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
     a <- freshTv tenv0
     b <- freshTv tenv0
     e <- freshTv tenv0
-    (type_, k, tenv1) <- inferKind tenv0 $ (a .* (cvec .$ b) .* (cvec .$ b) .-> a .* (cvec .$ b)) e
+    (type_, k, tenv1) <- inferKind tenv0 $ (a .* ("vec" .$ b) .* ("vec" .$ b) .-> a .* ("vec" .$ b)) e
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
 
@@ -512,7 +503,7 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
   ECall Nothing name@"say" [] -> do
     a <- freshTv tenv0
     e <- freshTv tenv0
-    (type_, k, tenv1) <- inferKind tenv0 $ (a .* cint .-> a) (cio .| e)
+    (type_, k, tenv1) <- inferKind tenv0 $ (a .* "int" .-> a) ("io" .| e)
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
 
@@ -520,7 +511,7 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
     a <- freshTv tenv0
     b <- freshTv tenv0
     e <- freshTv tenv0
-    (type_, k, tenv1) <- inferKind tenv0 $ (a .-> b) (cfail .| e)
+    (type_, k, tenv1) <- inferKind tenv0 $ (a .-> b) ("fail" .| e)
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
 
@@ -775,7 +766,7 @@ occursKind tenv0 x = recur
 
 inferVal :: TEnv -> Val -> (Val, Type, TEnv)
 inferVal tenv val = case val of
-  VInt{} -> (val, cint, tenv)
+  VInt{} -> (val, "int", tenv)
 
 -- Zonking a type fully substitutes all type variables. That is, if you have:
 --
@@ -901,7 +892,7 @@ regeneralize tenv t = let
     TCon "prod" `TApp` a `TApp` b -> do
       a' <- go a
       b' <- go b
-      return $ cprod .$ a' .$ b'
+      return $ "prod" .$ a' .$ b'
     TForall{} -> error "cannot regeneralize higher-ranked type"
     a `TApp` b -> TApp <$> go a <*> go b
     _ -> return t'
@@ -1090,7 +1081,7 @@ instance Show TEnv where
 -- Utility operators for constructing types and kinds.
 
 (.->) :: Type -> Type -> Type -> Type
-(t1 .-> t2) e = cfun .$ t1 .$ t2 .$ e
+(t1 .-> t2) e = "fun" .$ t1 .$ t2 .$ e
 infixr 4 .->
 
 (.$) :: Type -> Type -> Type
@@ -1098,11 +1089,11 @@ infixr 4 .->
 infixl 1 .$
 
 (.*) :: Type -> Type -> Type
-t1 .* t2 = cprod .$ t1 .$ t2
+t1 .* t2 = "prod" .$ t1 .$ t2
 infixl 5 .*
 
 (.|) :: Type -> Type -> Type
-t1 .| t2 = cjoin .$ t1 .$ t2
+t1 .| t2 = "join" .$ t1 .$ t2
 infixr 4 .|
 
 (..->) :: Kind -> Kind -> Kind
