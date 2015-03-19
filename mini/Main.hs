@@ -426,9 +426,8 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
 -- Pushing a value results in a stack with that value on top.
 
   EPush Nothing val -> do
+    [a, e] <- fresh 2
     let (val', t, tenv1) = inferVal tenv0 val
-    a <- freshTv tenv1
-    e <- freshTv tenv1
     (type_, k, tenv2) <- inferKind tenv1 $ (a .-> a .* t) e
     let type' = zonkType tenvFinal type_
     return (EPush (Just type') val', type_, k, tenv2)
@@ -436,34 +435,22 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
 -- Pure intrinsics.
 
   ECall Nothing name@"add" [] -> do
-    a <- freshTv tenv0
-    e <- freshTv tenv0
+    [a, e] <- fresh 2
     (type_, k, tenv1) <- inferKind tenv0 $ (a .* "int" .* "int" .-> a .* "int") e
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
   ECall Nothing name@"com" [] -> do
-    a <- freshTv tenv0
-    b <- freshTv tenv0
-    c <- freshTv tenv0
-    d <- freshTv tenv0
-    e1 <- freshTv tenv0
-    e2 <- freshTv tenv0
+    [a, b, c, d, e1, e2] <- fresh 6
     (type_, k, tenv1) <- inferKind tenv0 $ (a .* (b .-> c) e1 .* (c .-> d) e1 .-> a .* (b .-> d) e1) e2
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
   ECall Nothing name@"app" [] -> do
-    a <- freshTv tenv0
-    b <- freshTv tenv0
-    e <- freshTv tenv0
+    [a, b, e] <- fresh 3
     (type_, k, tenv1) <- inferKind tenv0 $ (a .* (a .-> b) e .-> b) e
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
   ECall Nothing name@"quo" [] -> do
-    a  <- freshTv tenv0
-    b  <- freshTv tenv0
-    c  <- freshTv tenv0
-    e1 <- freshTv tenv0
-    e2 <- freshTv tenv0
+    [a, b, c, e1, e2] <- fresh 5
     (type_, k, tenv1) <- inferKind tenv0 $ (a .* b .-> a .* (c .-> c .* b) e1) e2
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
@@ -471,33 +458,25 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
 -- Vector intrinsics.
 
   ECall Nothing name@"vec" [] -> do
-    a <- freshTv tenv0
-    b <- freshTv tenv0
-    e <- freshTv tenv0
+    [a, b, e] <- fresh 3
     (type_, k, tenv1) <- inferKind tenv0 $ (a .* b .-> a .* ("vec" .$ b)) e
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
 
   ECall Nothing name@"head" [] -> do
-    a <- freshTv tenv0
-    b <- freshTv tenv0
-    e <- freshTv tenv0
+    [a, b, e] <- fresh 3
     (type_, k, tenv1) <- inferKind tenv0 $ (a .* ("vec" .$ b) .-> a .* b) e
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
 
   ECall Nothing name@"tail" [] -> do
-    a <- freshTv tenv0
-    b <- freshTv tenv0
-    e <- freshTv tenv0
+    [a, b, e] <- fresh 3
     (type_, k, tenv1) <- inferKind tenv0 $ (a .* ("vec" .$ b) .-> a .* ("vec" .$ b)) e
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
 
   ECall Nothing name@"cat" [] -> do
-    a <- freshTv tenv0
-    b <- freshTv tenv0
-    e <- freshTv tenv0
+    [a, b, e] <- fresh 3
     (type_, k, tenv1) <- inferKind tenv0 $ (a .* ("vec" .$ b) .* ("vec" .$ b) .-> a .* ("vec" .$ b)) e
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
@@ -506,16 +485,13 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
 -- tail, so that effects can be composed.
 
   ECall Nothing name@"say" [] -> do
-    a <- freshTv tenv0
-    e <- freshTv tenv0
+    [a, e] <- fresh 2
     (type_, k, tenv1) <- inferKind tenv0 $ (a .* "int" .-> a) ("io" .| e)
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
 
   ECall Nothing name@"abort" [] -> do
-    a <- freshTv tenv0
-    b <- freshTv tenv0
-    e <- freshTv tenv0
+    [a, b, e] <- fresh 3
     (type_, k, tenv1) <- inferKind tenv0 $ (a .-> b) ("fail" .| e)
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
@@ -523,25 +499,19 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
 -- Unsafe intrinsics.
 
   ECall Nothing name@"ref" [] -> do
-    a <- freshTv tenv0
-    b <- freshTv tenv0
-    e <- freshTv tenv0
+    [a, b, e] <- fresh 3
     (type_, k, tenv1) <- inferKind tenv0 ((a .* b .-> a .* ("ptr" `TApp` b)) ("unsafe" .| e))
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
 
   ECall Nothing name@"deref" [] -> do
-    a <- freshTv tenv0
-    b <- freshTv tenv0
-    e <- freshTv tenv0
+    [a, b, e] <- fresh 3
     (type_, k, tenv1) <- inferKind tenv0 ((a .* (TCon "ptr" `TApp` b) .-> a .* b) ("unsafe" .| e))
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
 
   ECall Nothing name@"unsafe" [] -> do
-    a <- freshTv tenv0
-    b <- freshTv tenv0
-    e <- freshTv tenv0
+    [a, b, e] <- fresh 3
     (type_, k, tenv1) <- inferKind tenv0 ((a .* (a .-> b) ("unsafe" .| e) .-> b) e)
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
@@ -573,8 +543,7 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
 -- The empty program is the identity function on stacks.
 
   EId Nothing -> do
-    a <- freshTv tenv0
-    e <- freshTv tenv0
+    [a, e] <- fresh 2
     let type_ = (a .-> a) e
     let type' = zonkType tenvFinal type_
     return (EId (Just type'), type_, KVal, tenv0)
@@ -582,8 +551,7 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
 -- A quoted expression is pushed rather than being evaluated.
 
   EQuote Nothing expr -> do
-    a <- freshTv tenv0
-    e <- freshTv tenv0
+    [a, e] <- fresh 2
     (expr', b, _, tenv1) <- inferType' tenv0 expr
     let type_ = (a .-> a .* b) e
     let type' = zonkType tenvFinal type_
@@ -592,9 +560,7 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
 -- A value going from the stack to the locals.
 
   EGo Nothing name -> do
-    a <- freshTv tenv0
-    b <- freshTv tenv0
-    e <- freshTv tenv0
+    [a, b, e] <- fresh 3
     let type_ = (a .* b .-> a) e
     let type' = zonkType tenvFinal type_
     return (EGo (Just type') name, type_, KVal, tenv0 { envVs = Map.insert name b (envVs tenv0) })
@@ -604,8 +570,7 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
 -- inferred in left-to-right order.
 
   ECome how Nothing name -> do
-    a <- freshTv tenv0
-    e <- freshTv tenv0
+    [a, e] <- fresh 2
     b <- case Map.lookup name (envVs tenv0) of
       Just t -> return t
       Nothing -> fail $ "unbound variable " ++ Text.unpack name
@@ -621,6 +586,7 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
 
   where
   inferType' = inferType tenvFinal
+  fresh n = replicateM n (freshTv tenv0)
 
 -- A convenience function for unifying a type with a function type.
 
@@ -628,9 +594,7 @@ unifyFun :: TEnv -> Type -> Tc (Type, Type, Type, TEnv)
 unifyFun tenv0 t = case t of
   TCon "fun" `TApp` a `TApp` b `TApp` e -> return (a, b, e, tenv0)
   _ -> do
-    a <- freshTv tenv0
-    b <- freshTv tenv0
-    e <- freshTv tenv0
+    [a, b, e] <- replicateM 3 (freshTv tenv0)
     tenv1 <- unifyType tenv0 t ((a .-> b) e)
     return (a, b, e, tenv1)
 
