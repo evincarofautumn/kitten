@@ -432,99 +432,7 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
     let type' = zonkType tenvFinal type_
     return (EPush (Just type') val', type_, k, tenv2)
 
--- Pure intrinsics.
-
-  ECall Nothing name@"add" [] -> do
-    [a, e] <- fresh 2
-    (type_, k, tenv1) <- inferKind tenv0 $ (a .* "int" .* "int" .-> a .* "int") e
-    let type' = zonkType tenvFinal type_
-    return (ECall (Just type') name [], type_, k, tenv1)
-  ECall Nothing name@"com" [] -> do
-    [a, b, c, d, e1, e2] <- fresh 6
-    (type_, k, tenv1) <- inferKind tenv0 $ (a .* (b .-> c) e1 .* (c .-> d) e1 .-> a .* (b .-> d) e1) e2
-    let type' = zonkType tenvFinal type_
-    return (ECall (Just type') name [], type_, k, tenv1)
-  ECall Nothing name@"app" [] -> do
-    [a, b, e] <- fresh 3
-    (type_, k, tenv1) <- inferKind tenv0 $ (a .* (a .-> b) e .-> b) e
-    let type' = zonkType tenvFinal type_
-    return (ECall (Just type') name [], type_, k, tenv1)
-  ECall Nothing name@"quo" [] -> do
-    [a, b, c, e1, e2] <- fresh 5
-    (type_, k, tenv1) <- inferKind tenv0 $ (a .* b .-> a .* (c .-> c .* b) e1) e2
-    let type' = zonkType tenvFinal type_
-    return (ECall (Just type') name [], type_, k, tenv1)
-
--- Vector intrinsics.
-
-  ECall Nothing name@"vec" [] -> do
-    [a, b, e] <- fresh 3
-    (type_, k, tenv1) <- inferKind tenv0 $ (a .* b .-> a .* ("vec" .$ b)) e
-    let type' = zonkType tenvFinal type_
-    return (ECall (Just type') name [], type_, k, tenv1)
-
-  ECall Nothing name@"head" [] -> do
-    [a, b, e] <- fresh 3
-    (type_, k, tenv1) <- inferKind tenv0 $ (a .* ("vec" .$ b) .-> a .* b) e
-    let type' = zonkType tenvFinal type_
-    return (ECall (Just type') name [], type_, k, tenv1)
-
-  ECall Nothing name@"tail" [] -> do
-    [a, b, e] <- fresh 3
-    (type_, k, tenv1) <- inferKind tenv0 $ (a .* ("vec" .$ b) .-> a .* ("vec" .$ b)) e
-    let type' = zonkType tenvFinal type_
-    return (ECall (Just type') name [], type_, k, tenv1)
-
-  ECall Nothing name@"cat" [] -> do
-    [a, b, e] <- fresh 3
-    (type_, k, tenv1) <- inferKind tenv0 $ (a .* ("vec" .$ b) .* ("vec" .$ b) .-> a .* ("vec" .$ b)) e
-    let type' = zonkType tenvFinal type_
-    return (ECall (Just type') name [], type_, k, tenv1)
-
--- Effectful intrinsics. Note that we allow the effect to be polymorphic in its
--- tail, so that effects can be composed.
-
-  ECall Nothing name@"say" [] -> do
-    [a, e] <- fresh 2
-    (type_, k, tenv1) <- inferKind tenv0 $ (a .* "int" .-> a) ("io" .| e)
-    let type' = zonkType tenvFinal type_
-    return (ECall (Just type') name [], type_, k, tenv1)
-
-  ECall Nothing name@"abort" [] -> do
-    [a, b, e] <- fresh 3
-    (type_, k, tenv1) <- inferKind tenv0 $ (a .-> b) ("fail" .| e)
-    let type' = zonkType tenvFinal type_
-    return (ECall (Just type') name [], type_, k, tenv1)
-
--- Unsafe intrinsics.
-
-  ECall Nothing name@"ref" [] -> do
-    [a, b, e] <- fresh 3
-    (type_, k, tenv1) <- inferKind tenv0 ((a .* b .-> a .* ("ptr" `TApp` b)) ("unsafe" .| e))
-    let type' = zonkType tenvFinal type_
-    return (ECall (Just type') name [], type_, k, tenv1)
-
-  ECall Nothing name@"deref" [] -> do
-    [a, b, e] <- fresh 3
-    (type_, k, tenv1) <- inferKind tenv0 ((a .* (TCon "ptr" `TApp` b) .-> a .* b) ("unsafe" .| e))
-    let type' = zonkType tenvFinal type_
-    return (ECall (Just type') name [], type_, k, tenv1)
-
-  ECall Nothing name@"unsafe" [] -> do
-    [a, b, e] <- fresh 3
-    (type_, k, tenv1) <- inferKind tenv0 ((a .* (a .-> b) ("unsafe" .| e) .-> b) e)
-    let type' = zonkType tenvFinal type_
-    return (ECall (Just type') name [], type_, k, tenv1)
-
--- The type of a definition is simply looked up in the environment.
-
-  ECall Nothing name [] -> case Map.lookup name (envSigs tenv0) of
-    Just t@TForall{} -> do
-      (type_, params, tenv1) <- instantiatePrenex tenv0 t
-      let type' = zonkType tenvFinal type_
-      return (ECall (Just type') name params, type_, KVal, tenv1)
-    Just{} -> error "what is a non-quantified type doing as a type signature?"
-    Nothing -> fail $ "cannot infer type of " ++ show name
+  ECall Nothing name [] -> inferCall tenvFinal tenv0 name
 
 -- The type of the composition of two expressions is the composition of the
 -- types of those expressions.
@@ -586,6 +494,108 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
 
   where
   inferType' = inferType tenvFinal
+  fresh n = replicateM n (freshTv tenv0)
+
+-- Infers the type of a call.
+
+inferCall :: TEnv -> TEnv -> Name -> Tc (Expr, Type, Kind, TEnv)
+inferCall tenvFinal tenv0 name = case name of
+
+-- Pure intrinsics.
+
+  "add" -> do
+    [a, e] <- fresh 2
+    (type_, k, tenv1) <- inferKind tenv0 $ (a .* "int" .* "int" .-> a .* "int") e
+    let type' = zonkType tenvFinal type_
+    return (ECall (Just type') name [], type_, k, tenv1)
+  "com" -> do
+    [a, b, c, d, e1, e2] <- fresh 6
+    (type_, k, tenv1) <- inferKind tenv0 $ (a .* (b .-> c) e1 .* (c .-> d) e1 .-> a .* (b .-> d) e1) e2
+    let type' = zonkType tenvFinal type_
+    return (ECall (Just type') name [], type_, k, tenv1)
+  "app" -> do
+    [a, b, e] <- fresh 3
+    (type_, k, tenv1) <- inferKind tenv0 $ (a .* (a .-> b) e .-> b) e
+    let type' = zonkType tenvFinal type_
+    return (ECall (Just type') name [], type_, k, tenv1)
+  "quo" -> do
+    [a, b, c, e1, e2] <- fresh 5
+    (type_, k, tenv1) <- inferKind tenv0 $ (a .* b .-> a .* (c .-> c .* b) e1) e2
+    let type' = zonkType tenvFinal type_
+    return (ECall (Just type') name [], type_, k, tenv1)
+
+-- Vector intrinsics.
+
+  "vec" -> do
+    [a, b, e] <- fresh 3
+    (type_, k, tenv1) <- inferKind tenv0 $ (a .* b .-> a .* ("vec" .$ b)) e
+    let type' = zonkType tenvFinal type_
+    return (ECall (Just type') name [], type_, k, tenv1)
+
+  "head" -> do
+    [a, b, e] <- fresh 3
+    (type_, k, tenv1) <- inferKind tenv0 $ (a .* ("vec" .$ b) .-> a .* b) e
+    let type' = zonkType tenvFinal type_
+    return (ECall (Just type') name [], type_, k, tenv1)
+
+  "tail" -> do
+    [a, b, e] <- fresh 3
+    (type_, k, tenv1) <- inferKind tenv0 $ (a .* ("vec" .$ b) .-> a .* ("vec" .$ b)) e
+    let type' = zonkType tenvFinal type_
+    return (ECall (Just type') name [], type_, k, tenv1)
+
+  "cat" -> do
+    [a, b, e] <- fresh 3
+    (type_, k, tenv1) <- inferKind tenv0 $ (a .* ("vec" .$ b) .* ("vec" .$ b) .-> a .* ("vec" .$ b)) e
+    let type' = zonkType tenvFinal type_
+    return (ECall (Just type') name [], type_, k, tenv1)
+
+-- Effectful intrinsics. Note that we allow the effect to be polymorphic in its
+-- tail, so that effects can be composed.
+
+  "say" -> do
+    [a, e] <- fresh 2
+    (type_, k, tenv1) <- inferKind tenv0 $ (a .* "int" .-> a) ("io" .| e)
+    let type' = zonkType tenvFinal type_
+    return (ECall (Just type') name [], type_, k, tenv1)
+
+  "abort" -> do
+    [a, b, e] <- fresh 3
+    (type_, k, tenv1) <- inferKind tenv0 $ (a .-> b) ("fail" .| e)
+    let type' = zonkType tenvFinal type_
+    return (ECall (Just type') name [], type_, k, tenv1)
+
+-- Unsafe intrinsics.
+
+  "ref" -> do
+    [a, b, e] <- fresh 3
+    (type_, k, tenv1) <- inferKind tenv0 ((a .* b .-> a .* ("ptr" `TApp` b)) ("unsafe" .| e))
+    let type' = zonkType tenvFinal type_
+    return (ECall (Just type') name [], type_, k, tenv1)
+
+  "deref" -> do
+    [a, b, e] <- fresh 3
+    (type_, k, tenv1) <- inferKind tenv0 ((a .* (TCon "ptr" `TApp` b) .-> a .* b) ("unsafe" .| e))
+    let type' = zonkType tenvFinal type_
+    return (ECall (Just type') name [], type_, k, tenv1)
+
+  "unsafe" -> do
+    [a, b, e] <- fresh 3
+    (type_, k, tenv1) <- inferKind tenv0 ((a .* (a .-> b) ("unsafe" .| e) .-> b) e)
+    let type' = zonkType tenvFinal type_
+    return (ECall (Just type') name [], type_, k, tenv1)
+
+-- The type of a definition is simply looked up in the environment.
+
+  _ -> case Map.lookup name (envSigs tenv0) of
+    Just t@TForall{} -> do
+      (type_, params, tenv1) <- instantiatePrenex tenv0 t
+      let type' = zonkType tenvFinal type_
+      return (ECall (Just type') name params, type_, KVal, tenv1)
+    Just{} -> error "what is a non-quantified type doing as a type signature?"
+    Nothing -> fail $ "cannot infer type of " ++ show name
+
+  where
   fresh n = replicateM n (freshTv tenv0)
 
 -- A convenience function for unifying a type with a function type.
