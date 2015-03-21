@@ -49,17 +49,19 @@ spec = do
       $ testScheme (inferEmpty (parse "1 2 add"))
       $ TForall ir kr (TForall ie ke ((vr .-> vr .* "int") ve))
     it "gives the composed type for higher-order composition"
-      $ testScheme (inferEmpty (parse "1 quo 2 quo com [add] com app"))
+      $ testScheme (inferEmpty (parse "1 quo 2 quo com \\add com app"))
       $ TForall ir kr (TForall ie ke ((vr .-> vr .* "int") ve))
     it "deduces simple side effects"
       $ testScheme (inferEmpty (parse "1 say"))
       $ TForall ir kr (TForall ie ke ((vr .-> vr) ("io" .| ve)))
     it "deduces higher-order side effects"
-      $ testScheme (inferEmpty (parse "1 [say] app"))
+      $ testScheme (inferEmpty (parse "1 \\say app"))
       $ TForall ir kr (TForall ie ke ((vr .-> vr) ("io" .| ve)))
     it "removes effects with an effect handler"
-      $ testScheme (inferEmpty (parse "[1 ref deref] unsafe"))
-      $ TForall ir kr (TForall ie ke ((vr .-> vr .* "int") ve))
+      $ testDefs
+        (Map.singleton "q0" (TForall ir kr (TForall ie ke ((vr .-> vr .* "int") ("unsafe" .| ve))), parse "1 ref deref"))
+        (parse "\\q0 unsafe")
+        (TForall ir kr (TForall ie ke ((vr .-> vr .* "int") ve)))
     it "fails on basic type mismatches"
       $ testFail (inferEmpty (parse "1 [add] add"))
     it "correctly copies from a local"
@@ -78,11 +80,7 @@ spec = do
   describe "definitions" $ do
     it "checks the type of a definition" $ let
       idType = TForall ir kr (TForall ia kv (TForall ie ke ((vr .* va .-> vr .* va) ve)))
-      in testScheme
-        ((\ (_, _, t) -> t) <$> inferTypes
-          (Map.fromList [("id", (idType, parse "&x -x"))])
-          (parse "id"))
-        idType
+      in testDefs (Map.singleton "id" (idType, parse "&x -x")) (parse "id") idType
   where
   inferEmpty expr = do
     (_, scheme, _) <- inferType0 Map.empty expr
@@ -95,6 +93,8 @@ spec = do
       scheme <- inference
       instanceCheck scheme expected
     either assertFailure (const (return ())) result
+  testDefs defs expr scheme
+    = testScheme ((\ (_, _, t) -> t) <$> inferTypes defs expr) scheme
 
   ir = TypeId 0
   vr = TVar kr ir
@@ -117,10 +117,6 @@ data Expr
 -- Compose two expressions.
 
   | ECat TRef Expr Expr
-
--- Quote an expression.
-
-  | EQuote TRef Expr
 
 -- Invoke a word, possibly with some generic type parameters.
 
@@ -230,7 +226,10 @@ newtype KindId = KindId { unKindId :: Int }
 
 -- A value is an instance of a type, which may be placed on the stack.
 
-data Val = VInt Int deriving (Eq)
+data Val
+  = VInt Int
+  | VName Name
+  deriving (Eq)
 
 -- Definitions are indexed by their names.
 
@@ -322,19 +321,15 @@ defaultExprKinds :: TEnv -> Expr -> Tc Expr
 defaultExprKinds tenv e = case e of
   EId (Just t) -> EId <$> (Just <$> defaultTypeKinds tenv t)
   ECat (Just t) e1 e2 -> ECat <$> (Just <$> defaultTypeKinds tenv t) <*> defaultExprKinds tenv e1 <*> defaultExprKinds tenv e2
-  EQuote (Just t) e' -> EQuote <$> (Just <$> defaultTypeKinds tenv t) <*> defaultExprKinds tenv e'
   ECall (Just t) name params -> do
     params' <- mapM (defaultTypeKinds tenv) params
     paramKinds <- mapM (fmap (\ (_, k, _) -> k) . inferKind tenv) params'
     let valueParams = map fst . filter ((== KVal) . snd) $ zip params' paramKinds
     ECall <$> (Just <$> defaultTypeKinds tenv t) <*> pure name <*> pure valueParams
-  EPush (Just t) val -> EPush <$> (Just <$> defaultTypeKinds tenv t) <*> defaultValKinds tenv val
+  EPush (Just t) val -> EPush <$> (Just <$> defaultTypeKinds tenv t) <*> pure val
   EGo (Just t) name -> EGo <$> (Just <$> defaultTypeKinds tenv t) <*> pure name
   ECome how (Just t) name -> ECome how <$> (Just <$> defaultTypeKinds tenv t) <*> pure name
   _ -> unannotated "expression" e
-
-defaultValKinds :: TEnv -> Val -> Tc Val
-defaultValKinds _tenv v@VInt{} = return v
 
 defaultTypeKinds :: TEnv -> Type -> Tc Type
 defaultTypeKinds tenv t = case t of
@@ -427,7 +422,7 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
 
   EPush Nothing val -> do
     [a, e] <- fresh 2
-    let (val', t, tenv1) = inferVal tenv0 val
+    (val', t, tenv1) <- inferVal tenvFinal tenv0 val
     (type_, k, tenv2) <- inferKind tenv1 $ (a .-> a .* t) e
     let type' = zonkType tenvFinal type_
     return (EPush (Just type') val', type_, k, tenv2)
@@ -455,15 +450,6 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
     let type_ = (a .-> a) e
     let type' = zonkType tenvFinal type_
     return (EId (Just type'), type_, KVal, tenv0)
-
--- A quoted expression is pushed rather than being evaluated.
-
-  EQuote Nothing expr -> do
-    [a, e] <- fresh 2
-    (expr', b, _, tenv1) <- inferType' tenv0 expr
-    let type_ = (a .-> a .* b) e
-    let type' = zonkType tenvFinal type_
-    return (EQuote (Just type') expr', type_, KVal, tenv1)
 
 -- A value going from the stack to the locals.
 
@@ -769,9 +755,12 @@ occursKind tenv0 x = recur
 
 -- The inferred type of a value is evident from its constructor.
 
-inferVal :: TEnv -> Val -> (Val, Type, TEnv)
-inferVal tenv val = case val of
-  VInt{} -> (val, "int", tenv)
+inferVal :: TEnv -> TEnv -> Val -> Tc (Val, Type, TEnv)
+inferVal tenvFinal tenv0 val = case val of
+  VInt{} -> return (val, "int", tenv0)
+  VName name -> do
+    (_, type_, _, tenv1) <- inferCall tenvFinal tenv0 name
+    return (val, type_, tenv1)
 
 -- Zonking a type fully substitutes all type variables. That is, if you have:
 --
@@ -819,20 +808,13 @@ zonkExpr :: TEnv -> Expr -> Expr
 zonkExpr tenv0 = recur
   where
   recur expr = case expr of
-    EPush tref val -> EPush (zonkTRef tref) (zonkVal tenv0 val)
+    EPush tref val -> EPush (zonkTRef tref) val
     ECall tref name params -> ECall (zonkTRef tref) name (map (zonkType tenv0) params)
     ECat tref e1 e2 -> ECat (zonkTRef tref) (recur e1) (recur e2)
-    EQuote tref e -> EQuote (zonkTRef tref) (recur e)
     EId tref -> EId (zonkTRef tref)
     EGo tref name -> EGo (zonkTRef tref) name
     ECome how tref name -> ECome how (zonkTRef tref) name
   zonkTRef = fmap (zonkType tenv0)
-
--- Zonking a value might do something in the future, for more interesting kinds
--- of values.
-
-zonkVal :: TEnv -> Val -> Val
-zonkVal _tenv val@VInt{} = val
 
 -- The free variables of a type are those not bound by any quantifier.
 
@@ -1030,7 +1012,6 @@ instance Show Expr where
       ">" ]
     ECat tref a b -> showTyped tref $ unwords' [show a, show b]
     EId tref -> showTyped tref $ ""
-    EQuote tref expr -> showTyped tref $ "[ " ++ show expr ++ " ]"
     EGo tref name -> showTyped tref $ '&' : Text.unpack name
     ECome Move tref name -> showTyped tref $ '-' : Text.unpack name
     ECome Copy tref name -> showTyped tref $ '+' : Text.unpack name
@@ -1071,7 +1052,9 @@ instance Show KindId where
   show (KindId x) = 'k' : show x
 
 instance Show Val where
-  show (VInt i) = show i
+  show v = case v of
+    VInt i -> show i
+    VName name -> Text.unpack name
 
 instance Show TEnv where
   show tenv = concat [
@@ -1189,19 +1172,14 @@ parse s = case Parsec.parse (between spaces eof terms) "" s of
   compose = foldl' (ECat Nothing) (EId Nothing)
   terms = many term
   term = choice [
-    EQuote Nothing . compose <$> between (char '[' <* spaces) (char ']' <* spaces) terms,
+    EPush Nothing . VName <$> (char '\\' *> name),
     EGo Nothing <$> (char '&' *> name),
     ECome Copy Nothing <$> (char '+' *> name),
     ECome Move Nothing <$> (char '-' *> name),
     try $ do
       w <- word
-      when (w == "]") parserZero
       return $ if all isDigit w
         then EPush Nothing (VInt (read w))
         else ECall Nothing (Text.pack w) [] ]
   name = Text.pack <$> word
-  word = many1 (satisfy (not . isSpace .&& not . (== ']'))) <* spaces
-
-(.&&) :: Applicative f => f Bool -> f Bool -> f Bool
-(.&&) = liftA2 (&&)
-infixr 3 .&&
+  word = many1 (satisfy (not . isSpace)) <* spaces
