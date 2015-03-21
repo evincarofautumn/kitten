@@ -44,46 +44,46 @@ spec = do
   describe "type inference" $ do
     it "gives the identity type for the empty program"
       $ testScheme (inferEmpty (parse ""))
-      $ TForall ir kr (TForall ie ke ((vr .-> vr) ve))
+      $ fr $ fe $ (vr .-> vr) ve
     it "gives the composed type from simple composition"
       $ testScheme (inferEmpty (parse "1 2 add"))
-      $ TForall ir kr (TForall ie ke ((vr .-> vr .* "int") ve))
+      $ fr $ fe $ (vr .-> vr .* "int") ve
     it "gives the composed type for higher-order composition"
       $ testScheme (inferEmpty (parse "1 quo 2 quo com \\add com app"))
-      $ TForall ir kr (TForall ie ke ((vr .-> vr .* "int") ve))
+      $ fr $ fe $ (vr .-> vr .* "int") ve
     it "deduces simple side effects"
       $ testScheme (inferEmpty (parse "1 say"))
-      $ TForall ir kr (TForall ie ke ((vr .-> vr) ("io" .| ve)))
+      $ fr $ fe $ (vr .-> vr) ("io" .| ve)
     it "deduces higher-order side effects"
       $ testScheme (inferEmpty (parse "1 \\say app"))
-      $ TForall ir kr (TForall ie ke ((vr .-> vr) ("io" .| ve)))
+      $ fr $ fe $ (vr .-> vr) ("io" .| ve)
     it "removes effects with an effect handler"
       $ testDefs
-        (Map.singleton "q0" (TForall ir kr (TForall ie ke ((vr .-> vr .* "int") ("unsafe" .| ve))), parse "1 ref deref"))
+        (Map.singleton "q0" (fr $ fe $ (vr .-> vr .* "int") ("unsafe" .| ve), parse "1 ref deref"))
         (parse "\\q0 unsafe")
-        (TForall ir kr (TForall ie ke ((vr .-> vr .* "int") ve)))
+        $ fr $ fe $ (vr .-> vr .* "int") ve
     it "fails when missing an effect annotation"
       $ testFail $ inferTypes
-        (Map.singleton "evil" (TForall ir kr (TForall ie ke ((vr .* "int" .-> vr) ve)), parse "say"))
+        (Map.singleton "evil" (fr $ fe $ (vr .* "int" .-> vr) ve, parse "say"))
         (parse "evil")
     it "fails on basic type mismatches"
       $ testFail (inferEmpty (parse "1 [add] add"))
     it "correctly copies from a local"
       $ testScheme (inferEmpty (parse "1 &x +x"))
-      $ TForall ir kr (TForall ie ke ((vr .-> vr .* "int") ve))
+      $ fr $ fe $ (vr .-> vr .* "int") ve
     it "correctly copies multiple times from a local"
       $ testScheme (inferEmpty (parse "1 &x +x +x"))
-      $ TForall ir kr (TForall ie ke ((vr .-> vr .* "int" .* "int") ve))
+      $ fr $ fe $ (vr .-> vr .* "int" .* "int") ve
     it "correctly moves from a local"
       $ testScheme (inferEmpty (parse "1 &x -x"))
-      $ TForall ir kr (TForall ie ke ((vr .-> vr .* "int") ve))
+      $ fr $ fe $ (vr .-> vr .* "int") ve
     it "fails when moving from a moved-from local"
       $ testFail (inferEmpty (parse "1 &x -x -x"))
     it "fails when copying from a moved-from local"
       $ testFail (inferEmpty (parse "1 &x -x +x"))
   describe "definitions" $ do
     it "checks the type of a definition" $ let
-      idType = TForall ir kr (TForall ia kv (TForall ie ke ((vr .* va .-> vr .* va) ve)))
+      idType = fr $ fa $ fe $ (vr .* va .-> vr .* va) ve
       in testDefs (Map.singleton "id" (idType, parse "&x -x")) (parse "id") idType
   where
   inferEmpty expr = do
@@ -111,6 +111,9 @@ spec = do
   kr = Just (KVar (KindId 0))
   kv = Just (KVar (KindId 1))
   ke = Just (KVar (KindId 2))
+  fr = TForall ir kr
+  fa = TForall ia kv
+  fe = TForall ie ke
 
 data Expr
 
