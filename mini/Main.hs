@@ -123,23 +123,23 @@ data Expr
 
 -- Compose two expressions.
 
-  | ECat TRef Expr Expr
+  | ECat TRef !Expr !Expr
 
 -- Invoke a word, possibly with some generic type parameters.
 
-  | ECall TRef Name [Type]
+  | ECall TRef !Name [Type]
 
 -- Push a value to the stack.
 
-  | EPush TRef Val
+  | EPush TRef !Val
 
 -- Send a value to the locals from the stack.
 
-  | EGo TRef Name
+  | EGo TRef !Name
 
 -- Bring a value from the locals to the stack.
 
-  | ECome HowCome TRef Name
+  | ECome !HowCome !TRef !Name
 
   deriving (Eq)
 
