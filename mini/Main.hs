@@ -62,6 +62,10 @@ spec = do
         (Map.singleton "q0" (TForall ir kr (TForall ie ke ((vr .-> vr .* "int") ("unsafe" .| ve))), parse "1 ref deref"))
         (parse "\\q0 unsafe")
         (TForall ir kr (TForall ie ke ((vr .-> vr .* "int") ve)))
+    it "fails when missing an effect annotation"
+      $ testFail $ inferTypes
+        (Map.singleton "evil" (TForall ir kr (TForall ie ke ((vr .* "int" .-> vr) ve)), parse "say"))
+        (parse "evil")
     it "fails on basic type mismatches"
       $ testFail (inferEmpty (parse "1 [add] add"))
     it "correctly copies from a local"
