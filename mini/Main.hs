@@ -18,6 +18,8 @@
 --   Occurs Checks
 -- Instantiation and Regeneralization
 -- Subsumption Checking
+-- Instance Generation
+--
 -- Test Suite
 -- References
 -- Typechecker Monad
@@ -47,11 +49,12 @@ import Control.Monad
 import Control.Monad.Fix
 import Control.Monad.Trans.Writer
 import Data.Char
-import Data.Foldable (foldrM)
+import Data.Foldable (foldlM, foldrM)
 import Data.Function
 import Data.IORef
 import Data.List
 import Data.Map (Map)
+import Data.Monoid
 import Data.Set (Set)
 import Data.Text (Text)
 import GHC.Exts
@@ -94,6 +97,7 @@ data Expr
   | EPush TRef !Val
   | EGo TRef !Name
   | ECome !HowCome !TRef !Name
+  | EForall !TypeId !Expr
   deriving (Eq)
 
 data HowCome = Move | Copy
@@ -236,14 +240,17 @@ currentTypeId = unsafePerformIO (newIORef (TypeId 0))
 inferTypes :: Map Name (Type, Expr) -> Expr -> Tc (Map Name (Type, Expr), Expr, Type)
 inferTypes defs expr0 = do
   inferredDefs <- fmap Map.fromList . mapM go . Map.toList $ defs
-  (expr1, scheme) <- inferType0 sigs expr0
-  return (inferredDefs, expr1, scheme)
+  let sigs' = Map.map fst inferredDefs
+  (expr1, scheme) <- inferType0 sigs' expr0
+  let expr2 = quantifyExpr scheme expr1
+  return (inferredDefs, expr2, scheme)
   where
   sigs = Map.map fst defs
   go (name, (scheme, expr)) = do
     (expr', scheme') <- inferType0 sigs expr
     instanceCheck scheme' scheme
-    return (name, (scheme, expr'))
+    let expr'' = quantifyExpr scheme' expr'
+    return (name, (scheme', expr''))
 
 
 
@@ -438,8 +445,9 @@ inferCall tenvFinal tenv0 name = case name of
   _ -> case Map.lookup name (envSigs tenv0) of
     Just t@TForall{} -> do
       (type_, params, tenv1) <- instantiatePrenex tenv0 t
+      params' <- filterM (fmap (KVal ==) . typeKind) params
       let type' = zonkType tenvFinal type_
-      return (ECall (Just type') name params, type_, tenv1)
+      return (ECall (Just type') name params', type_, tenv1)
     Just{} -> error "what is a non-quantified type doing as a type signature?"
     Nothing -> fail $ "cannot infer type of " ++ show name
 
@@ -689,6 +697,7 @@ zonkExpr tenv0 = recur
     EId tref -> EId (zonkTRef tref)
     EGo tref name -> EGo (zonkTRef tref) name
     ECome how tref name -> ECome how (zonkTRef tref) name
+    EForall{} -> error "cannot zonk generic expression"
   zonkTRef = fmap (zonkType tenv0)
 
 
@@ -718,6 +727,26 @@ replaceTv tenv0 x a = recur
     TVar (Var x' _) | x == x' -> return a
     m :@ n -> (:@) <$> recur m <*> recur n
     _ -> return t
+
+
+
+
+replaceTvExpr :: TEnv -> TypeId -> Type -> Expr -> Tc Expr
+replaceTvExpr tenv x a = recur
+  where
+  recur expr = case expr of
+    EId tref -> EId <$> go' tref
+    ECat tref e1 e2 -> ECat <$> go' tref <*> recur e1 <*> recur e2
+    ECall tref name args -> ECall <$> go' tref <*> pure name <*> mapM go args
+    EPush tref val -> EPush <$> go' tref <*> pure val
+    EGo tref name -> EGo <$> go' tref <*> pure name
+    ECome how tref name -> ECome how <$> go' tref <*> pure name
+    EForall x' _
+      | x == x' -> return expr
+      | otherwise -> error "substituting in a generic expression should not require capture-avoidance"
+  go' (Just t) = Just <$> go t
+  go' Nothing = return Nothing
+  go t = replaceTv tenv x a t
 
 
 
@@ -928,6 +957,145 @@ subsumptionCheckFun tenv0 a b e a' b' e' = do
   tenv1 <- subsumptionCheck tenv0 a' a
   tenv2 <- subsumptionCheck tenv1 b b'
   subsumptionCheck tenv2 e e'
+
+
+
+
+--------------------------------------------------------------------------------
+-- Instance Generation
+--------------------------------------------------------------------------------
+
+
+
+
+-- In order to support unboxed generics, for every call site of a generic
+-- definition in a program, we produce a specialized instantiation of the
+-- definition with the value-kinded type parameters set to the given type
+-- arguments. This is transitive: if a generic definition calls another generic
+-- definition with one of its own generic type parameters as a type argument,
+-- then an instantiation must also be generated of the called definition.
+
+collectInstantiations :: TEnv -> Map Name (Type, Expr) -> Expr -> Tc (Map Name (Type, Expr), Expr)
+collectInstantiations tenv defs0 expr0 = do
+
+-- We first enqueue all the instantiation sites reachable from the top level of
+-- the program, and any non-generic definitions.
+
+  (expr1, q0) <- go emptyQueue expr0
+  (defs1, q1) <- foldrM
+    (\ (name, (type_, expr)) (acc, q) -> do
+      (expr', q') <- go q expr
+      return ((name, (type_, expr')) : acc, q'))
+    ([], q0)
+    (Map.toList defs0)
+
+-- Next, we process the queue. Doing so may enqueue new instantiation sites for
+-- processing; however, this is guaranteed to halt because the number of actual
+-- instantiations is finite.
+
+  defs2 <- processQueue q1 (Map.fromList defs1)
+  return (defs2, expr1)
+  where
+  go :: Queue (Name, [Type]) -> Expr -> Tc (Expr, Queue (Name, [Type]))
+  go q0 expr = case expr of
+    EId{} -> return (expr, q0)
+    ECat tref a b -> do
+      (a', q1) <- go q0 a
+      (b', q2) <- go q1 b
+      return (ECat tref a' b', q2)
+    ECall tref name args -> return (ECall tref (mangleName name args) [], enqueue (name, args) q0)
+    EPush{} -> return (expr, q0)
+    EGo{} -> return (expr, q0)
+    ECome{} -> return (expr, q0)
+    -- If the definition is generic, we simply ignore it; we won't find any
+    -- instantiations in it, because it's not instantiated, itself!
+    EForall{} -> return (expr, q0)
+  processQueue :: Queue (Name, [Type]) -> Map Name (Type, Expr) -> Tc (Map Name (Type, Expr))
+  processQueue q defs = case dequeue q of
+    Nothing -> return defs
+    Just ((name, args), q') -> let
+      mangled = mangleName name args
+      in case Map.lookup mangled defs of
+        Just{} -> processQueue q' defs
+        Nothing -> case Map.lookup name defs of
+          -- The name is not user-defined, so it doesn't need to be mangled.
+          Nothing -> processQueue q' defs
+          Just (type_, expr) -> do
+            expr' <- instantiateExpr tenv expr args
+            (expr'', q'') <- go q' expr'
+            processQueue q'' (Map.insert mangled (type_, expr'') defs)
+
+
+
+
+-- Names are mangled according to the local C++ mangling convention. This is a
+-- silly approximation of the IA-64 convention for testing purposes.
+
+mangleName :: Name -> [Type] -> Name
+mangleName name args = case args of
+  [] -> prefix <> lengthEncode name
+  _ -> prefix <> lengthEncode name <> "I" <> Text.concat (map mangleType args) <> "E"
+  where
+  prefix = "_Z"
+
+mangleType :: Type -> Name
+mangleType ("fun" :@ _ :@ _) = "PFvv"
+mangleType ("ptr" :@ a) = Text.concat ["P", mangleType a]
+mangleType (TCon (Con con)) = case con of
+  "int" -> "i"
+  _ -> lengthEncode con
+mangleType ("prod" :@ a :@ b) = Text.concat $ map mangleType [a, b]
+mangleType _ = "?"
+
+lengthEncode :: Name -> Name
+lengthEncode name = Text.pack (show (Text.length name)) <> name
+
+
+
+
+-- A generic queue with amortized O(1) enqueue/dequeue.
+
+data Queue a = Queue [a] [a]
+
+dequeue :: Queue a -> Maybe (a, Queue a)
+dequeue (Queue i (x : o)) = Just (x, Queue i o)
+dequeue (Queue i@(_ : _) []) = dequeue (Queue [] (reverse i))
+dequeue (Queue [] []) = Nothing
+
+enqueue :: a -> Queue a -> Queue a
+enqueue x (Queue i o) = Queue (x : i) o
+
+emptyQueue :: Queue a
+emptyQueue = Queue [] []
+
+queueFromList :: [a] -> Queue a
+queueFromList = Queue [] . reverse
+
+
+
+
+-- Instantiates a generic expression with the given type arguments.
+
+instantiateExpr :: TEnv -> Expr -> [Type] -> Tc Expr
+instantiateExpr tenv = foldlM go
+  where
+  go (EForall x expr) arg = replaceTvExpr tenv x arg expr
+  go _ _ = error "instantiateExpr: wrong number of type parameters"
+
+
+
+
+-- Copies the top-level generic value-kinded type quantifiers from a polytype to
+-- an expression, thereby making the expression generic, e.g.:
+--
+--     ∀α:ρ. ∀β:*. ∀γ:Ε. (α × β → α × β × β) Ε    dup
+--
+--     Λβ:*. dup
+
+quantifyExpr :: Type -> Expr -> Expr
+quantifyExpr (TForall (Var x KVal) t) e = EForall x (quantifyExpr t e)
+quantifyExpr (TForall _ t) e = quantifyExpr t e
+quantifyExpr _ e = e
 
 
 
@@ -1176,6 +1344,7 @@ instance Show Expr where
     EGo tref name -> showTyped tref $ '&' : Text.unpack name
     ECome Move tref name -> showTyped tref $ '-' : Text.unpack name
     ECome Copy tref name -> showTyped tref $ '+' : Text.unpack name
+    EForall x e' -> concat ["\x039B", show x, ". ", show e']
     where
     showTyped (Just type_) x = "(" ++ x ++ " : " ++ show type_ ++ ")"
     showTyped Nothing x = x
