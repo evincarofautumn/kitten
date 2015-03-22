@@ -142,6 +142,7 @@ infixr 4 .|
 
 
 
+
 -- A kind is the type of a type. Types with the "value" kind (*) are inhabited
 -- by values; all other types are used only to enforce program invariants. These
 -- consist of the "stack" kind (ρ), the "effect" kind (ε), the "effect row" kind
