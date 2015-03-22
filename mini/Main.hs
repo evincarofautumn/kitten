@@ -1,3 +1,43 @@
+--------------------------------------------------------------------------------
+-- Table of Contents
+--------------------------------------------------------------------------------
+
+
+
+
+-- 1. Boilerplate
+-- 2. Data Types
+-- 3. Inference
+--   3.1. Type Inference
+--   3.2. Kind Inference
+-- 4. Unification
+--   4.1. Type Unification
+--   4.2. Row Unification
+--   4.3. Kind Unification
+-- 5. Operations on Types and Kinds
+--   5.1. Zonking
+--   5.2. Substitution
+--   5.3. Free Variables
+--   5.4. Occurs Checks
+-- 6. Instantiation and Regeneralization
+-- 7. Subsumption Checking
+-- 8. Kind Defaulting
+-- 9. Test Suite
+-- 10. References
+-- Appendix A. Typechecker Monad
+-- Appendix B. Parsing
+-- Appendix C. Typeclass Instances
+
+
+
+
+--------------------------------------------------------------------------------
+-- 1. Boilerplate
+--------------------------------------------------------------------------------
+
+
+
+
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
@@ -30,248 +70,152 @@ import qualified Text.Parsec as Parsec
 main :: IO ()
 main = hspec spec
 
-spec :: Spec
-spec = do
-  describe "zonking" $ do
-    it "does nothing to free type variables"
-      $ assertEqual "" (zonkType emptyTEnv va) va
-    it "substitutes one level"
-      $ assertEqual "" (zonkType emptyTEnv { envTvs = Map.singleton ia vb } va) vb
-    it "substitutes multiple levels"
-      $ assertEqual ""
-        (zonkType emptyTEnv { envTvs = Map.fromList [(ia, vb), (ib, "int")] } va)
-        "int"
-  describe "type inference" $ do
-    it "gives the identity type for the empty program"
-      $ testScheme (inferEmpty (parse ""))
-      $ fr $ fe $ (vr .-> vr) ve
-    it "gives the composed type from simple composition"
-      $ testScheme (inferEmpty (parse "1 2 add"))
-      $ fr $ fe $ (vr .-> vr .* "int") ve
-    it "gives the composed type for higher-order composition"
-      $ testScheme (inferEmpty (parse "1 quo 2 quo com \\add com app"))
-      $ fr $ fe $ (vr .-> vr .* "int") ve
-    it "deduces simple side effects"
-      $ testScheme (inferEmpty (parse "1 say"))
-      $ fr $ fe $ (vr .-> vr) ("io" .| ve)
-    it "deduces higher-order side effects"
-      $ testScheme (inferEmpty (parse "1 \\say app"))
-      $ fr $ fe $ (vr .-> vr) ("io" .| ve)
-    it "removes effects with an effect handler"
-      $ testDefs
-        (Map.singleton "q0" (fr $ fe $ (vr .-> vr .* "int") ("unsafe" .| ve), parse "1 ref deref"))
-        (parse "\\q0 unsafe")
-        $ fr $ fe $ (vr .-> vr .* "int") ve
-    it "fails when missing an effect annotation"
-      $ testFail $ inferTypes
-        (Map.singleton "evil" (fr $ fe $ (vr .* "int" .-> vr) ve, parse "say"))
-        (parse "evil")
-    it "fails on basic type mismatches"
-      $ testFail (inferEmpty (parse "1 [add] add"))
-    it "correctly copies from a local"
-      $ testScheme (inferEmpty (parse "1 &x +x"))
-      $ fr $ fe $ (vr .-> vr .* "int") ve
-    it "correctly copies multiple times from a local"
-      $ testScheme (inferEmpty (parse "1 &x +x +x"))
-      $ fr $ fe $ (vr .-> vr .* "int" .* "int") ve
-    it "correctly moves from a local"
-      $ testScheme (inferEmpty (parse "1 &x -x"))
-      $ fr $ fe $ (vr .-> vr .* "int") ve
-    it "fails when moving from a moved-from local"
-      $ testFail (inferEmpty (parse "1 &x -x -x"))
-    it "fails when copying from a moved-from local"
-      $ testFail (inferEmpty (parse "1 &x -x +x"))
-  describe "definitions" $ do
-    it "checks the type of a definition" $ let
-      idType = fr $ fa $ fe $ (vr .* va .-> vr .* va) ve
-      in testDefs (Map.singleton "id" (idType, parse "&x -x")) (parse "id") idType
-  where
-  inferEmpty expr = do
-    (_, scheme, _) <- inferType0 Map.empty expr
-    return scheme
-  testFail action = do
-    result <- runTc action
-    assert $ either (const True) (const False) result
-  testScheme inference expected = do
-    result <- runTc $ do
-      scheme <- inference
-      instanceCheck scheme expected
-    either assertFailure (const (return ())) result
-  testDefs defs expr scheme
-    = testScheme ((\ (_, _, t) -> t) <$> inferTypes defs expr) scheme
 
-  ir = TypeId 0
-  vr = TVar kr ir
-  ia = TypeId 1
-  va = TVar kv ia
-  ib = TypeId 2
-  vb = TVar kv ib
-  ie = TypeId 3
-  ve = TVar ke ie
-  kr = Just (KVar (KindId 0))
-  kv = Just (KVar (KindId 1))
-  ke = Just (KVar (KindId 2))
-  fr = TForall ir kr
-  fa = TForall ia kv
-  fe = TForall ie ke
+
+
+--------------------------------------------------------------------------------
+-- 2. Data Types
+--------------------------------------------------------------------------------
+
+
+
+
+-- This is the core language. It permits pushing values to the stack, invoking
+-- definitions, and moving or copying values between the stack and local
+-- variables.
+--
+-- It also permits empty programs and program concatenation, and together these
+-- form a monoid over programs. The denotation of the concatenation of two
+-- programs is the composition of the denotations of those two programs, which
+-- is to say that there is a homomorphism from the syntactic monoid onto the
+-- semantic monoid.
 
 data Expr
-
--- The identity function.
-
   = EId TRef
-
--- Compose two expressions.
-
   | ECat TRef !Expr !Expr
-
--- Invoke a word, possibly with some generic type parameters.
-
   | ECall TRef !Name [Type]
-
--- Push a value to the stack.
-
   | EPush TRef !Val
-
--- Send a value to the locals from the stack.
-
   | EGo TRef !Name
-
--- Bring a value from the locals to the stack.
-
   | ECome !HowCome !TRef !Name
-
   deriving (Eq)
 
--- A nullable reference to a type.
+data HowCome = Move | Copy
+  deriving (Eq)
 
-type TRef = Maybe Type
+
+
+
+-- This is the type language. It describes a system of conventional
+-- Hindley-Milner types, with type constructors joined by type application, as
+-- well as type variables and constants for constraint solving and instance
+-- checking, respectively. It syntactically permits higher-ranked
+-- quantification, though there are semantic restrictions on this, discussed in
+-- the presentation of the inference algorithm. Type variables are annotated
+-- with their kinds.
 
 data Type
-
--- Type constructor.
-
   = TCon !Con
-
--- Type variable, used during unification.
-
   | TVar !KRef !TypeId
-
--- Skolem constant, used during instance checking.
-
   | TConst !TypeId
-
--- Quantified type, used for both prenex and higher-rank polymorphism.
--- Quantifiers always quantify over value-kinded types; the type reference here
--- indicates the kind of the quantified type variable.
-
   | TForall !TypeId !KRef !Type
-
--- Application of type constructor to type.
-
   | TApp !Type !Type
-
   deriving (Eq)
-
-instance IsString Type where
-  fromString = TCon . fromString
-
--- A nullable reference to a kind.
-
-type KRef = Maybe Kind
-
--- Type variables are distinguished by a "type identifier", which is generated
--- afresh from the typing environment.
-
-newtype TypeId = TypeId { unTypeId :: Int }
-  deriving (Enum, Eq, Ord)
 
 newtype Con = Con Name
   deriving (Eq)
 
-instance IsString Con where
-  fromString = Con . Text.pack
+type TRef = Maybe Type
 
--- A kind is the type of a type. Types with the "value" kind are inhabited by
--- values; all other types are used only to enforce program invariants, such as
--- the restriction that the stack may only contain values, or that a function
--- only has a particular effect.
+(.->) :: Type -> Type -> Type -> Type
+(t1 .-> t2) e = "fun" .$ t1 .$ t2 .$ e
+infixr 4 .->
+
+(.$) :: Type -> Type -> Type
+(.$) = TApp
+infixl 1 .$
+
+(.*) :: Type -> Type -> Type
+t1 .* t2 = "prod" .$ t1 .$ t2
+infixl 5 .*
+
+(.|) :: Type -> Type -> Type
+t1 .| t2 = "join" .$ t1 .$ t2
+infixr 4 .|
+
+
+
+-- A kind is the type of a type. Types with the "value" kind (*) are inhabited
+-- by values; all other types are used only to enforce program invariants. These
+-- consist of the "stack" kind (ρ), the "effect" kind (ε), the "effect row" kind
+-- (Ε), and the "function" kind (κ → κ) used to describe type constructors. Kind
+-- variables are used during kind inference.
 
 data Kind
-
--- Kind of values.
-
   = KVal
-
--- Kind of stacks.
-
   | KRho
-
--- Kind of effect labels.
-
   | KEff
-
--- Kind of effect rows.
-
   | KEffRho
-
--- Kind variable.
-
   | KVar !KindId
-
--- Kind of type constructors.
-
   | KFun !Kind !Kind
-
   deriving (Eq)
 
--- Kind variables are distinguished by "kind identifiers", which are produced in
--- a separate namespace from type identifiers.
+type KRef = Maybe Kind
+
+(..->) :: Kind -> Kind -> Kind
+(..->) = KFun
+infixr 4 ..->
+
+
+
+
+-- Type and kind variables are distinguished by globally unique identifiers.
+-- This makes it easier to support capture-avoiding substitution on types.
+
+newtype TypeId = TypeId { unTypeId :: Int }
+  deriving (Enum, Eq, Ord)
 
 newtype KindId = KindId { unKindId :: Int }
   deriving (Enum, Eq, Ord)
 
--- A value is an instance of a type, which may be placed on the stack.
+
+
+
+-- A value is a literal instance of a type, which may be placed on the stack.
 
 data Val
   = VInt Int
   | VName Name
   deriving (Eq)
 
+
+
+
 -- Definitions are indexed by their names.
 
 type Name = Text
 
--- The typing environment tracks the state of inference.
+
+
+
+-- The typing environment tracks the state of inference. It answers the
+-- following questions:
+--
+--  • What is the type of this type variable?
+--  • What is the kind of this type variable?
+--  • What is the value of this kind variable?
+--  • What is the type of this local variable?
+--  • What is the signature of this definition?
+--
+-- It also provides access to the state of globally unique ID generation.
 
 data TEnv = TEnv {
-
--- type variable -> type
-
   envTvs :: Map TypeId Type,
-
--- type variable -> kind
-
   envTks :: Map TypeId Kind,
-
--- kind variable -> kind
-
   envKvs :: Map KindId Kind,
-
--- local variable -> type
-
   envVs :: Map Name Type,
-
--- word -> signature
-
   envSigs :: Map Name Type,
-
--- The current state of globally unique type and kind ID generation.
-
   envCurrentType :: IORef TypeId,
   envCurrentKind :: IORef KindId }
-
--- An empty typing environment.
 
 emptyTEnv :: TEnv
 emptyTEnv = TEnv {
@@ -283,8 +227,6 @@ emptyTEnv = TEnv {
   envCurrentType = currentTypeId,
   envCurrentKind = currentKindId }
 
--- The current state of globally unique type and kind ID generation.
-
 currentTypeId :: IORef TypeId
 currentTypeId = unsafePerformIO (newIORef (TypeId 0))
 {-# NOINLINE currentTypeId #-}
@@ -292,6 +234,23 @@ currentTypeId = unsafePerformIO (newIORef (TypeId 0))
 currentKindId :: IORef KindId
 currentKindId = unsafePerformIO (newIORef (KindId 0))
 {-# NOINLINE currentKindId #-}
+
+
+
+
+--------------------------------------------------------------------------------
+-- 3. Inference
+--------------------------------------------------------------------------------
+
+
+
+
+----------------------------------------
+-- 3.1. Type Inference
+----------------------------------------
+
+
+
 
 -- To infer the types in a mutually-recursive binding group, the type of each
 -- definition is inferred under the assumption that all signatures in the
@@ -310,10 +269,15 @@ inferTypes defs expr0 = do
     instanceCheck scheme' scheme
     return (name, (scheme, expr'))
 
+
+
+
 -- Since type variables can be generalized if they do not depend on the initial
 -- state of the typing environment, the type of a single definition is inferred
 -- in an empty environment so that it can be trivially generalized. It is then
 -- regeneralized to increase stack polymorphism.
+--
+-- See: Instantiation and Regeneralization
 
 inferType0 :: Map Name Type -> Expr -> Tc (Expr, Type, Kind)
 inferType0 sigs expr = while ["inferring the type of", show expr] $ do
@@ -322,105 +286,11 @@ inferType0 sigs expr = while ["inferring the type of", show expr] $ do
   regeneralized <- regeneralize tenvFinal <$> defaultTypeKinds tenvFinal (zonkType tenvFinal t)
   return (zonkExpr tenvFinal expr'', regeneralized, kind)
 
--- The default kind of a type is the value kind.
 
-defaultExprKinds :: TEnv -> Expr -> Tc Expr
-defaultExprKinds tenv e = case e of
-  EId (Just t) -> EId <$> (Just <$> defaultTypeKinds tenv t)
-  ECat (Just t) e1 e2 -> ECat <$> (Just <$> defaultTypeKinds tenv t) <*> defaultExprKinds tenv e1 <*> defaultExprKinds tenv e2
-  ECall (Just t) name params -> do
-    params' <- mapM (defaultTypeKinds tenv) params
-    paramKinds <- mapM (fmap (\ (_, k, _) -> k) . inferKind tenv) params'
-    let valueParams = map fst . filter ((== KVal) . snd) $ zip params' paramKinds
-    ECall <$> (Just <$> defaultTypeKinds tenv t) <*> pure name <*> pure valueParams
-  EPush (Just t) val -> EPush <$> (Just <$> defaultTypeKinds tenv t) <*> pure val
-  EGo (Just t) name -> EGo <$> (Just <$> defaultTypeKinds tenv t) <*> pure name
-  ECome how (Just t) name -> ECome how <$> (Just <$> defaultTypeKinds tenv t) <*> pure name
-  _ -> unannotated "expression" e
 
-defaultTypeKinds :: TEnv -> Type -> Tc Type
-defaultTypeKinds tenv t = case t of
-  TCon{} -> return t
-  TVar (Just k) x -> TVar <$> (Just <$> defaultKindKinds tenv k) <*> pure x
-  -- FIXME: This isn't supposed to happen.
-  TVar Nothing x -> return $ TVar (Just KVal) x
-  TConst{} -> return t
-  TForall tv (Just k) t' -> TForall tv <$> (Just <$> defaultKindKinds tenv k) <*> pure t'
-  TForall _ Nothing _ -> unannotated "type" t
-  TApp t1 t2 -> TApp <$> defaultTypeKinds tenv t1 <*> defaultTypeKinds tenv t2
 
-defaultKindKinds :: TEnv -> Kind -> Tc Kind
-defaultKindKinds tenv k = let k' = zonkKind tenv k in case k' of
-  KVal -> return k'
-  KRho -> return k'
-  KEff -> return k'
-  KEffRho -> return k'
-  KVar x -> case Map.lookup x (envKvs tenv) of
-    Just{} -> return k'
-    Nothing -> return KVal
-  KFun a b -> KFun <$> defaultKindKinds tenv a <*> defaultKindKinds tenv b
-
-unannotated :: (Show a) => String -> a -> Tc b
-unannotated thing x = fail $ unwords ["cannot default kind of un-annotated", thing, show x]
-
--- Kind inference lets us distinguish types from type constructors, and value
--- types from effect types.
-
-inferKind :: TEnv -> Type -> Tc (Type, Kind, TEnv)
-inferKind tenv0 t = while ["inferring the kind of", show t] $ case t of
-  TCon con -> do
-    k <- case con of
-      "int" -> return $ KVal
-      "fun" -> return $ KRho ..-> KRho ..-> KEffRho ..-> KVal
-      "prod" -> return $ KRho ..-> KVal ..-> KRho
-      "vec" -> return $ KVal ..-> KVal
-      "ptr" -> return $ KVal ..-> KVal
-      "unsafe" -> return KEff
-      "pure" -> return KEff
-      "io" -> return KEff
-      "fail" -> return KEff
-      "join" -> return $ KEff ..-> KEffRho ..-> KEffRho
-      _ -> fail $ unwords ["cannot infer kind of", show con]
-    return (t, k, tenv0)
-  TVar (Just k) _ -> return (t, k, tenv0)
-  TVar Nothing x -> case Map.lookup x (envTks tenv0) of
-    Just k' -> return (TVar (Just k') x, k', tenv0)
-    Nothing -> do
-      k' <- freshKv tenv0
-      return (TVar (Just k') x, k', tenv0 { envTks = Map.insert x k' (envTks tenv0) })
-  TConst{} -> fail "cannot infer kind of skolem constant"
-  TForall tv ma t' -> do
-    a <- maybe (freshKv tenv0) return ma
-    let tenv' = tenv0 { envTks = Map.insert tv a (envTks tenv0) }
-    (t'', k1, _) <- inferKind tenv' t'
-    -- Quantifiers should only wrap value-kinded types (usually functions).
-    _ <- unifyKind tenv' k1 KVal
-    return (TForall tv (Just a) t'', k1, tenv0)
-  TApp t1 t2 -> do
-    (t1', k1, tenv1) <- inferKind tenv0 t1
-    (t2', k2, tenv2) <- inferKind tenv1 t2
-    ka <- freshKv tenv2
-    kb <- freshKv tenv2
-    tenv3 <- unifyKind tenv2 k1 (ka ..-> kb)
-    tenv4 <- unifyKind tenv3 k2 ka
-    return (t1' .$ t2', kb, tenv4)
-
--- Kind unification proceeds similarly to type unification.
-
-unifyKind :: TEnv -> Kind -> Kind -> Tc TEnv
-unifyKind tenv0 k1 k2 = case (k1, k2) of
-  _ | k1 == k2 -> return tenv0
-  (KVar x, t) -> unifyKv tenv0 x t
-  (_, KVar{}) -> commute
-  (a `KFun` b, c `KFun` d) -> do
-    tenv1 <- unifyKind tenv0 a c
-    unifyKind tenv1 b d
-  _ -> fail $ unwords ["cannot unify kinds", show k1, "and", show k2]
-  where
-  commute = unifyKind tenv0 k2 k1
-
--- Inferring the type of an expression is straightforward. Most of these cases
--- simply encode the type signatures of various intrinsic functions.
+-- We infer the type of an expression tree and annotate each terminal with the
+-- inferred type as we go.
 
 inferType :: TEnv -> TEnv -> Expr -> Tc (Expr, Type, Kind, TEnv)
 inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ case expr0 of
@@ -488,6 +358,16 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
   where
   inferType' = inferType tenvFinal
   fresh n = replicateM n (freshTv tenv0)
+
+inferVal :: TEnv -> TEnv -> Val -> Tc (Val, Type, TEnv)
+inferVal tenvFinal tenv0 val = case val of
+  VInt{} -> return (val, "int", tenv0)
+  VName name -> do
+    (_, type_, _, tenv1) <- inferCall tenvFinal tenv0 name
+    return (val, type_, tenv1)
+
+
+
 
 -- Infers the type of a call.
 
@@ -591,18 +471,76 @@ inferCall tenvFinal tenv0 name = case name of
   where
   fresh n = replicateM n (freshTv tenv0)
 
--- A convenience function for unifying a type with a function type.
 
-unifyFun :: TEnv -> Type -> Tc (Type, Type, Type, TEnv)
-unifyFun tenv0 t = case t of
-  TCon "fun" `TApp` a `TApp` b `TApp` e -> return (a, b, e, tenv0)
-  _ -> do
-    [a, b, e] <- replicateM 3 (freshTv tenv0)
-    tenv1 <- unifyType tenv0 t ((a .-> b) e)
-    return (a, b, e, tenv1)
 
--- Type unification. There are two kinds of unification going on here: basic
--- logical unification for value types, and row unification for effect types.
+----------------------------------------
+-- 3.2. Kind Inference
+----------------------------------------
+
+
+
+
+-- Kind inference lets us distinguish types from type constructors, and value
+-- types from effect types.
+
+inferKind :: TEnv -> Type -> Tc (Type, Kind, TEnv)
+inferKind tenv0 t = while ["inferring the kind of", show t] $ case t of
+  TCon con -> do
+    k <- case con of
+      "int" -> return $ KVal
+      "fun" -> return $ KRho ..-> KRho ..-> KEffRho ..-> KVal
+      "prod" -> return $ KRho ..-> KVal ..-> KRho
+      "vec" -> return $ KVal ..-> KVal
+      "ptr" -> return $ KVal ..-> KVal
+      "unsafe" -> return KEff
+      "pure" -> return KEff
+      "io" -> return KEff
+      "fail" -> return KEff
+      "join" -> return $ KEff ..-> KEffRho ..-> KEffRho
+      _ -> fail $ unwords ["cannot infer kind of", show con]
+    return (t, k, tenv0)
+  TVar (Just k) _ -> return (t, k, tenv0)
+  TVar Nothing x -> case Map.lookup x (envTks tenv0) of
+    Just k' -> return (TVar (Just k') x, k', tenv0)
+    Nothing -> do
+      k' <- freshKv tenv0
+      return (TVar (Just k') x, k', tenv0 { envTks = Map.insert x k' (envTks tenv0) })
+  TConst{} -> fail "cannot infer kind of skolem constant"
+  TForall tv ma t' -> do
+    a <- maybe (freshKv tenv0) return ma
+    let tenv' = tenv0 { envTks = Map.insert tv a (envTks tenv0) }
+    (t'', k1, _) <- inferKind tenv' t'
+    -- Quantifiers should only wrap value-kinded types (usually functions).
+    _ <- unifyKind tenv' k1 KVal
+    return (TForall tv (Just a) t'', k1, tenv0)
+  TApp t1 t2 -> do
+    (t1', k1, tenv1) <- inferKind tenv0 t1
+    (t2', k2, tenv2) <- inferKind tenv1 t2
+    ka <- freshKv tenv2
+    kb <- freshKv tenv2
+    tenv3 <- unifyKind tenv2 k1 (ka ..-> kb)
+    tenv4 <- unifyKind tenv3 k2 ka
+    return (t1' .$ t2', kb, tenv4)
+
+
+
+
+--------------------------------------------------------------------------------
+-- 4. Unification
+--------------------------------------------------------------------------------
+
+
+
+
+----------------------------------------
+-- 4.1. Type Unification
+----------------------------------------
+
+
+
+
+-- There are two kinds of unification going on here: basic logical unification
+-- for value types, and row unification for effect types.
 
 unifyType :: TEnv -> Type -> Type -> Tc TEnv
 unifyType tenv0 t1 t2 = case (t1, t2) of
@@ -616,13 +554,11 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
     unifyType tenv1 a b
   (TForall{}, _) -> commute
 
--- Row unification is essentially unification of sets: we attempt to rewrite one
--- row into the other by swapping and dropping, and if we can do so then we know
--- they are isomorphic and unify successfully.
---
--- The occurs check prevents us from unifying rows with a common tail and a
+-- The occurs check here prevents us from unifying rows with a common tail and a
 -- distinct prefix, which could fail to terminate because the algorithm
 -- generates fresh type variables.
+--
+-- See: Row Unification
 
   (TCon "join" `TApp` l `TApp` r, s) -> do
     ms <- rowIso tenv0 l s
@@ -660,10 +596,63 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
 
   where
   commute = unifyType tenv0 t2 t1
+  effectTail (TCon "join" `TApp` _ `TApp` a) = effectTail a
+  effectTail t = t
 
--- The row-isomorphism operation takes an effect label and an effect row, and
+
+
+
+-- Unification of a type variable with a type simply looks up the current value
+-- of the variable and unifies it with the type; if the variable does not exist,
+-- it is added to the environment and unified with the type.
+--
+-- The only interesting bits here are the occurs check, which prevents
+-- constructing infinite types, and the condition that prevents declaring a
+-- variable as equal to itself. Without both of these, zonking could fail to
+-- terminate.
+--
+-- See: Occurs Checks
+
+unifyTv :: TEnv -> TypeId -> Type -> Tc TEnv
+unifyTv tenv0 x t = case t of
+  TVar _ y | x == y -> return tenv0
+  TVar{} -> declare
+  _ -> if occurs tenv0 x t then fail "occurs check" else declare
+  where
+  declare = case Map.lookup x (envTvs tenv0) of
+    Just t2 -> unifyType tenv0 t t2
+    Nothing -> return tenv0 { envTvs = Map.insert x t (envTvs tenv0) }
+
+
+
+
+-- A convenience function for unifying a type with a function type.
+
+unifyFun :: TEnv -> Type -> Tc (Type, Type, Type, TEnv)
+unifyFun tenv0 t = case t of
+  TCon "fun" `TApp` a `TApp` b `TApp` e -> return (a, b, e, tenv0)
+  _ -> do
+    [a, b, e] <- replicateM 3 (freshTv tenv0)
+    tenv1 <- unifyType tenv0 t ((a .-> b) e)
+    return (a, b, e, tenv1)
+
+
+
+
+
+----------------------------------------
+-- 4.2. Row Unification
+----------------------------------------
+
+
+
+
+-- Row unification is essentially unification of sets. The row-isomorphism
+-- operation (as described in [1]) takes an effect label and an effect row, and
 -- asserts that the row can be rewritten to begin with that label under some
--- substitution. It returns the substitution and the tail of the rewritten row.
+-- substitution. It returns the substitution and the tail of the rewritten
+-- row. The substitution is always either empty (∅) or a singleton substitution
+-- (x ↦ τ).
 
 rowIso :: TEnv -> Type -> Type -> Tc (Maybe (Type, Maybe (TypeId, Type), TEnv))
 
@@ -695,27 +684,29 @@ rowIso tenv0 l (TVar _ a) = do
 
 rowIso _ _ _ = return Nothing
 
--- Unification of a type variable with a type simply looks up the current value
--- of the variable and unifies it with the type; if the variable does not exist,
--- it is added to the environment and unified with the type.
---
--- The only interesting bits here are the occurs check, which prevents
--- constructing infinite types, and the condition that prevents declaring a
--- variable as equal to itself. Without both of these, zonking could fail to
--- terminate.
 
-unifyTv :: TEnv -> TypeId -> Type -> Tc TEnv
-unifyTv tenv0 x t = case t of
-  TVar _ y | x == y -> return tenv0
-  TVar{} -> declare
-  _ -> if occurs tenv0 x t then fail "occurs check" else declare
+
+
+----------------------------------------
+-- 4.3. Kind Unification
+----------------------------------------
+
+
+
+
+-- Kind unification proceeds similarly to type unification.
+
+unifyKind :: TEnv -> Kind -> Kind -> Tc TEnv
+unifyKind tenv0 k1 k2 = case (k1, k2) of
+  _ | k1 == k2 -> return tenv0
+  (KVar x, t) -> unifyKv tenv0 x t
+  (_, KVar{}) -> commute
+  (a `KFun` b, c `KFun` d) -> do
+    tenv1 <- unifyKind tenv0 a c
+    unifyKind tenv1 b d
+  _ -> fail $ unwords ["cannot unify kinds", show k1, "and", show k2]
   where
-  declare = case Map.lookup x (envTvs tenv0) of
-    Just t2 -> unifyType tenv0 t t2
-    Nothing -> return tenv0 { envTvs = Map.insert x t (envTvs tenv0) }
-
--- Kind variable unification is virtually identical to type variable
--- unification. This is currently missing an occurs check.
+  commute = unifyKind tenv0 k2 k1
 
 unifyKv :: TEnv -> KindId -> Kind -> Tc TEnv
 unifyKv tenv0 x k = case k of
@@ -726,6 +717,155 @@ unifyKv tenv0 x k = case k of
   declare = case Map.lookup x (envKvs tenv0) of
     Just k2 -> unifyKind tenv0 k k2
     Nothing -> return tenv0 { envKvs = Map.insert x k (envKvs tenv0) }
+
+
+
+
+--------------------------------------------------------------------------------
+-- 5. Operations on Types and Kinds
+--------------------------------------------------------------------------------
+
+
+
+----------------------------------------
+-- 5.1. Zonking
+----------------------------------------
+
+
+
+
+-- Zonking a type fully substitutes all type variables. That is, if you have:
+--
+--     t0 ~ t1
+--     t1 ~ int
+--
+-- Then zonking "t0" gives you "int".
+
+zonkType :: TEnv -> Type -> Type
+zonkType tenv0 = recur
+  where
+  recur t = case t of
+    TCon{} -> t
+    TVar k x -> case Map.lookup x (envTvs tenv0) of
+      Just (TVar _ x') | x == x' -> TVar (zonkKRef k) x
+      Just t' -> recur t'
+      Nothing -> t
+    TConst{} -> t
+    TForall x k t'
+      -> TForall x (zonkKRef k) . zonkType tenv0 { envTvs = Map.delete x (envTvs tenv0) } $ t'
+    a `TApp` b -> recur a .$ recur b
+  zonkKRef = fmap (zonkKind tenv0)
+
+
+
+
+-- Zonking a kind is similar to zonking a type.
+
+zonkKind :: TEnv -> Kind -> Kind
+zonkKind tenv0 = recur
+  where
+  recur k = case k of
+    KVal -> k
+    KRho -> k
+    KEff -> k
+    KEffRho -> k
+    KVar x -> case Map.lookup x (envKvs tenv0) of
+      Just (KVar x') | x == x' -> k
+      Just k' -> recur k'
+      Nothing -> k
+    a `KFun` b -> recur a ..-> recur b
+
+
+
+
+-- Zonking an expression zonks all the annotated types of the terms. This could
+-- be done more efficiently by sharing type references and updating them
+-- impurely, but this implementation is easier to get right and understand.
+
+zonkExpr :: TEnv -> Expr -> Expr
+zonkExpr tenv0 = recur
+  where
+  recur expr = case expr of
+    EPush tref val -> EPush (zonkTRef tref) val
+    ECall tref name params -> ECall (zonkTRef tref) name (map (zonkType tenv0) params)
+    ECat tref e1 e2 -> ECat (zonkTRef tref) (recur e1) (recur e2)
+    EId tref -> EId (zonkTRef tref)
+    EGo tref name -> EGo (zonkTRef tref) name
+    ECome how tref name -> ECome how (zonkTRef tref) name
+  zonkTRef = fmap (zonkType tenv0)
+
+
+
+
+----------------------------------------
+-- 5.2. Substitution
+----------------------------------------
+
+
+
+
+-- Capture-avoiding substitution of a type variable α with a type τ throughout a
+-- type σ, [α ↦ τ]σ.
+
+replaceTv :: TEnv -> TypeId -> Type -> Type -> Tc Type
+replaceTv tenv0 x a = recur
+  where
+  recur t = case t of
+    TForall x' k t'
+      | x == x' -> return t
+      | x' `Set.notMember` freeTvs t' -> TForall x' k <$> recur t'
+      | otherwise -> do
+        z <- freshTypeId tenv0
+        t'' <- replaceTv tenv0 x' (TVar k z) t'
+        TForall z k <$> recur t''
+    TVar _ x' | x == x' -> return a
+    m `TApp` n -> TApp <$> recur m <*> recur n
+    _ -> return t
+
+
+
+
+----------------------------------------
+-- 5.3. Free Variables
+----------------------------------------
+
+
+
+
+-- The free variables of a type are those not bound by any quantifier.
+
+freeTvs :: Type -> Set TypeId
+freeTvs = Set.fromList . Map.keys . freeTvks
+
+freeTvks :: Type -> Map TypeId KRef
+freeTvks t = case t of
+  TCon{} -> Map.empty
+  TVar k x -> Map.singleton x k
+  TConst{} -> Map.empty
+  TForall x _ t' -> Map.delete x (freeTvks t')
+  a `TApp` b -> Map.union (freeTvks a) (freeTvks b)
+
+-- Likewise for kinds, except kinds can't be higher-ranked anyway. I wonder what
+-- that would even mean?
+
+freeKvs :: Kind -> Set KindId
+freeKvs k = case k of
+  KVal -> Set.empty
+  KRho -> Set.empty
+  KEff -> Set.empty
+  KEffRho -> Set.empty
+  a `KFun` b -> freeKvs a `Set.union` freeKvs b
+  KVar x -> Set.singleton x
+
+
+
+
+----------------------------------------
+-- 5.4. Occurs Checks
+----------------------------------------
+
+
+
 
 -- We need to be able to count occurrences of a type variable in a type for two
 -- reasons: to prevent infinite types (the "occurs check"), and to determine
@@ -760,102 +900,52 @@ occursKind tenv0 x = recur
       Just t' -> recur t'
     KFun a b -> recur a || recur b
 
--- The inferred type of a value is evident from its constructor.
 
-inferVal :: TEnv -> TEnv -> Val -> Tc (Val, Type, TEnv)
-inferVal tenvFinal tenv0 val = case val of
-  VInt{} -> return (val, "int", tenv0)
-  VName name -> do
-    (_, type_, _, tenv1) <- inferCall tenvFinal tenv0 name
-    return (val, type_, tenv1)
 
--- Zonking a type fully substitutes all type variables. That is, if you have:
---
---     t0 ~ t1
---     t1 ~ int
---
--- Then zonking "t0" gives you "int".
 
-zonkType :: TEnv -> Type -> Type
-zonkType tenv0 = recur
-  where
-  recur t = case t of
-    TCon{} -> t
-    TVar k x -> case Map.lookup x (envTvs tenv0) of
-      Just (TVar _ x') | x == x' -> TVar (zonkKRef k) x
-      Just t' -> recur t'
-      Nothing -> t
-    TConst{} -> t
-    TForall x k t'
-      -> TForall x (zonkKRef k) . zonkType tenv0 { envTvs = Map.delete x (envTvs tenv0) } $ t'
-    a `TApp` b -> recur a .$ recur b
-  zonkKRef = fmap (zonkKind tenv0)
+--------------------------------------------------------------------------------
+-- 6. Instantiation and Regeneralization
+--------------------------------------------------------------------------------
 
--- Zonking a kind is similar to zonking a type.
 
-zonkKind :: TEnv -> Kind -> Kind
-zonkKind tenv0 = recur
-  where
-  recur k = case k of
-    KVal -> k
-    KRho -> k
-    KEff -> k
-    KEffRho -> k
-    KVar x -> case Map.lookup x (envKvs tenv0) of
-      Just (KVar x') | x == x' -> k
-      Just k' -> recur k'
-      Nothing -> k
-    a `KFun` b -> recur a ..-> recur b
 
--- Zonking an expression zonks all the annotated types of the terms. This could
--- be done more efficiently by sharing type references and updating them
--- impurely, but this implementation is easier to get right and understand.
 
-zonkExpr :: TEnv -> Expr -> Expr
-zonkExpr tenv0 = recur
-  where
-  recur expr = case expr of
-    EPush tref val -> EPush (zonkTRef tref) val
-    ECall tref name params -> ECall (zonkTRef tref) name (map (zonkType tenv0) params)
-    ECat tref e1 e2 -> ECat (zonkTRef tref) (recur e1) (recur e2)
-    EId tref -> EId (zonkTRef tref)
-    EGo tref name -> EGo (zonkTRef tref) name
-    ECome how tref name -> ECome how (zonkTRef tref) name
-  zonkTRef = fmap (zonkType tenv0)
+-- To instantiate a type scheme, we simply replace all quantified variables with
+-- fresh ones and remove the quantifier, returning the types with which the
+-- variables were instantiated, in order.
 
--- The free variables of a type are those not bound by any quantifier.
+instantiate :: TEnv -> TypeId -> Kind -> Type -> Tc (Type, Type, TEnv)
+instantiate tenv0 x k t = do
+  ia <- freshTypeId tenv0
+  let a = TVar (Just k) ia
+  replaced <- replaceTv tenv0 x a t
+  return (replaced, a, tenv0 { envTks = Map.insert ia k (envTks tenv0) })
 
-freeTvs :: Type -> Set TypeId
-freeTvs = Set.fromList . Map.keys . freeTvks
 
-freeTvks :: Type -> Map TypeId KRef
-freeTvks t = case t of
-  TCon{} -> Map.empty
-  TVar k x -> Map.singleton x k
-  TConst{} -> Map.empty
-  TForall x _ t' -> Map.delete x (freeTvks t')
-  a `TApp` b -> Map.union (freeTvks a) (freeTvks b)
 
--- Likewise for kinds, except kinds can't be higher-ranked anyway. I wonder what
--- that would even mean?
 
-freeKvs :: Kind -> Set KindId
-freeKvs k = case k of
-  KVal -> Set.empty
-  KRho -> Set.empty
-  KEff -> Set.empty
-  KEffRho -> Set.empty
-  a `KFun` b -> freeKvs a `Set.union` freeKvs b
-  KVar x -> Set.singleton x
+-- When generating an instantiation of a generic definition, we only want to
+-- instantiate the rank-1 quantifiers; all other quantifiers are irrelevant.
+
+instantiatePrenex :: TEnv -> Type -> Tc (Type, [Type], TEnv)
+instantiatePrenex tenv0 q@(TForall x mk t) = while ["instantiating", show q] $ do
+  k <- maybe (freshKv tenv0) return mk
+  (t', a, tenv1) <- instantiate tenv0 { envTks = Map.insert x k (envTks tenv0) } x k t
+  (t'', as, tenv2) <- instantiatePrenex tenv1 t'
+  return (t'', a : as, tenv2)
+instantiatePrenex tenv0 t = return (t, [], tenv0)
+
+
+
 
 -- Because all functions are polymorphic with respect to the part of the stack
 -- they don't touch, all words of order n can be regeneralized to words of rank
 -- n with respect to the stack-kinded type variables.
 --
--- This means that if a stack-kinded type variable occurs only twice in a type,
--- in the bottommost position on both sides of a function arrow, then its scope
--- can be reduced to only that function arrow by introducing a higher-ranked
--- quantifier. For example, the type of "map":
+-- This means that if a stack-kinded (ρ) type variable occurs only twice in a
+-- type, in the bottommost position on both sides of a function arrow, then its
+-- scope can be reduced to only that function arrow by introducing a
+-- higher-ranked quantifier. For example, the type of "map":
 --
 --     map :: ∀ρσαβ. ρ × vector α × (σ × α → σ × β) → ρ × vector β
 --
@@ -865,6 +955,8 @@ freeKvs k = case k of
 --
 -- In order to correctly regeneralize a type, it needs to contain no
 -- higher-ranked quantifiers.
+--
+-- This is a more conservative rule than used in [3].
 
 regeneralize :: TEnv -> Type -> Type
 regeneralize tenv t = let
@@ -890,68 +982,18 @@ regeneralize tenv t = let
     TForall{} -> error "cannot regeneralize higher-ranked type"
     a `TApp` b -> TApp <$> go a <*> go b
     _ -> return t'
+  bottommost (TCon "prod" `TApp` a `TApp` _) = bottommost a
+  bottommost a = a
 
--- Utilities for operating on chains of things.
 
-bottommost :: Type -> Type
-bottommost (TCon "prod" `TApp` a `TApp` _) = bottommost a
-bottommost t = t
 
-effectTail :: Type -> Type
-effectTail (TCon "join" `TApp` _ `TApp` a) = effectTail a
-effectTail t = t
 
--- To instantiate a type scheme, we simply replace all quantified variables with
--- fresh ones and remove the quantifier, returning the types with which the
--- variables were instantiated, in order.
+--------------------------------------------------------------------------------
+-- 7. Subsumption Checking
+--------------------------------------------------------------------------------
 
-instantiate :: TEnv -> TypeId -> Kind -> Type -> Tc (Type, Type, TEnv)
-instantiate tenv0 x k t = do
-  ia <- freshTypeId tenv0
-  let a = TVar (Just k) ia
-  replaced <- replaceTv tenv0 x a t
-  return (replaced, a, tenv0 { envTks = Map.insert ia k (envTks tenv0) })
 
-instantiatePrenex :: TEnv -> Type -> Tc (Type, [Type], TEnv)
-instantiatePrenex tenv0 q@(TForall x mk t) = while ["instantiating", show q] $ do
-  k <- maybe (freshKv tenv0) return mk
-  (t', a, tenv1) <- instantiate tenv0 { envTks = Map.insert x k (envTks tenv0) } x k t
-  (t'', as, tenv2) <- instantiatePrenex tenv1 t'
-  return (t'', a : as, tenv2)
-instantiatePrenex tenv0 t = return (t, [], tenv0)
 
--- Capture-avoiding substitution of a type variable with a
--- type throughout a type.
-
-replaceTv :: TEnv -> TypeId -> Type -> Type -> Tc Type
-replaceTv tenv0 x a = recur
-  where
-  recur t = case t of
-    TForall x' k t'
-      | x == x' -> return t
-      | x' `Set.notMember` freeTvs t' -> TForall x' k <$> recur t'
-      | otherwise -> do
-        z <- freshTypeId tenv0
-        t'' <- replaceTv tenv0 x' (TVar k z) t'
-        TForall z k <$> recur t''
-    TVar _ x' | x == x' -> return a
-    m `TApp` n -> TApp <$> recur m <*> recur n
-    _ -> return t
-
--- Skolemization replaces quantified type variables with type constants.
-
-skolemize :: TEnv -> Type -> Tc (Set TypeId, Type)
-skolemize tenv0 t = case t of
-  TForall x _ t' -> do
-    k <- freshTypeId tenv0
-    let tenv1 = tenv0 { envTvs = Map.insert x (TConst k) (envTvs tenv0) }
-    (k', t'') <- skolemize tenv1 (zonkType tenv1 t')
-    return (Set.insert k k', t'')
-  -- TForall _ t' -> skolemize tenv0 t'
-  TCon "fun" `TApp` a `TApp` b `TApp` e -> do
-    (ids, b') <- skolemize tenv0 b
-    return (ids, (a .-> b') e)
-  _ -> return (Set.empty, t)
 
 -- Since skolem constants only unify with type variables and themselves,
 -- unifying a skolemized scheme with a type tells you whether one is a generic
@@ -975,24 +1017,42 @@ instanceCheck inferredScheme declaredScheme = do
   where
   prefix = unwords [show inferredScheme, "is not an instance of", show declaredScheme]
 
-subsumptionCheck :: TEnv -> Type -> Type -> Tc TEnv
 
+
+
+-- Skolemization replaces quantified type variables with type constants.
+
+skolemize :: TEnv -> Type -> Tc (Set TypeId, Type)
+skolemize tenv0 t = case t of
+  TForall x _ t' -> do
+    k <- freshTypeId tenv0
+    let tenv1 = tenv0 { envTvs = Map.insert x (TConst k) (envTvs tenv0) }
+    (k', t'') <- skolemize tenv1 (zonkType tenv1 t')
+    return (Set.insert k k', t'')
+  -- TForall _ t' -> skolemize tenv0 t'
+  TCon "fun" `TApp` a `TApp` b `TApp` e -> do
+    (ids, b') <- skolemize tenv0 b
+    return (ids, (a .-> b') e)
+  _ -> return (Set.empty, t)
+
+
+
+
+-- Subsumption checking is largely the same as unification, except for the fact
+-- that a function type is contravariant in its input type.
+
+subsumptionCheck :: TEnv -> Type -> Type -> Tc TEnv
 subsumptionCheck tenv0 (TForall x mk t) t2 = do
   k <- maybe (freshKv tenv0) return mk
   (t1, _, tenv1) <- instantiate tenv0 x k t
   subsumptionCheck tenv1 t1 t2
-
 subsumptionCheck tenv0 t1 (TCon "fun" `TApp` a `TApp` b `TApp` e) = do
   (a', b', e', tenv1) <- unifyFun tenv0 t1
   subsumptionCheckFun tenv1 a b e a' b' e'
-
 subsumptionCheck tenv0 (TCon "fun" `TApp` a' `TApp` b' `TApp` e') t2 = do
   (a, b, e, tenv1) <- unifyFun tenv0 t2
   subsumptionCheckFun tenv1 a b e a' b' e'
-
 subsumptionCheck tenv0 t1 t2 = unifyType tenv0 t1 t2
-
--- This handles contravariance.
 
 subsumptionCheckFun :: TEnv -> Type -> Type -> Type -> Type -> Type -> Type -> Tc TEnv
 subsumptionCheckFun tenv0 a b e a' b' e' = do
@@ -1000,102 +1060,186 @@ subsumptionCheckFun tenv0 a b e a' b' e' = do
   tenv2 <- subsumptionCheck tenv1 b b'
   subsumptionCheck tenv2 e e'
 
--- When a variable is coming from the local stack to the data stack, we want to
--- know whether it's coming by move or by copy.
 
-data HowCome = Move | Copy
-  deriving (Eq)
 
--- Show instances for various types.
 
-instance Show Expr where
-  show e = case e of
-    EPush tref val -> showTyped tref $ show val
-    ECall tref name [] -> showTyped tref $ Text.unpack name
-    ECall tref name params -> showTyped tref $ concat [
-      Text.unpack name,
-      "<",
-      intercalate ", " (map show params),
-      ">" ]
-    ECat tref a b -> showTyped tref $ unwords' [show a, show b]
-    EId tref -> showTyped tref $ ""
-    EGo tref name -> showTyped tref $ '&' : Text.unpack name
-    ECome Move tref name -> showTyped tref $ '-' : Text.unpack name
-    ECome Copy tref name -> showTyped tref $ '+' : Text.unpack name
-    where
-    showTyped (Just type_) x = "(" ++ x ++ " : " ++ show type_ ++ ")"
-    showTyped Nothing x = x
-    unwords' = unwords . filter (not . null)
+--------------------------------------------------------------------------------
+-- 8. Kind Defaulting
+--------------------------------------------------------------------------------
 
-instance Show Type where
-  showsPrec p t = case t of
-    TCon con -> shows con
-    TVar (Just k) x -> showParen True $ shows x . showChar ':' . shows k
-    TVar Nothing x -> shows x
-    TConst x -> shows x
-    TForall x k t' -> showParen True $ showChar '\x2200' . shows (TVar k x) . showString ". " . shows t'
-    a `TApp` b -> showParen (p > appPrec) $ showsPrec appPrec a . showChar ' ' . showsPrec (appPrec + 1) b
-    where
-    appPrec = 1
 
-instance Show TypeId where
-  show (TypeId x) = 't' : show x
 
-instance Show Con where
-  show (Con con) = Text.unpack con
 
-instance Show Kind where
-  showsPrec p k = case k of
-    KVal -> showString "*"
-    KRho -> showString "\x03C1"
-    KEff -> showString "\x03B5"
-    KEffRho -> showString "\x0395"
-    a `KFun` b -> showParen (p > funPrec) $ showsPrec (funPrec + 1) a . showString " \x2192 " . showsPrec funPrec b
-    KVar x -> shows x
-    where
-    funPrec = 1
+-- Defaulting unsolved kind variables to the value kind (*) permits us to have a
+-- kind annotation for every type variable. This is important for generating
+-- instantiations of generic definitions, because such instantiations must be
+-- generated based only on the value-kinded type parameters.
+--
+-- See: Instance Generation
 
-instance Show KindId where
-  show (KindId x) = 'k' : show x
+defaultExprKinds :: TEnv -> Expr -> Tc Expr
+defaultExprKinds tenv e = case e of
+  EId (Just t) -> EId <$> (Just <$> defaultTypeKinds tenv t)
+  ECat (Just t) e1 e2 -> ECat <$> (Just <$> defaultTypeKinds tenv t) <*> defaultExprKinds tenv e1 <*> defaultExprKinds tenv e2
+  ECall (Just t) name params -> do
+    params' <- mapM (defaultTypeKinds tenv) params
+    paramKinds <- mapM (fmap (\ (_, k, _) -> k) . inferKind tenv) params'
+    let valueParams = map fst . filter ((== KVal) . snd) $ zip params' paramKinds
+    ECall <$> (Just <$> defaultTypeKinds tenv t) <*> pure name <*> pure valueParams
+  EPush (Just t) val -> EPush <$> (Just <$> defaultTypeKinds tenv t) <*> pure val
+  EGo (Just t) name -> EGo <$> (Just <$> defaultTypeKinds tenv t) <*> pure name
+  ECome how (Just t) name -> ECome how <$> (Just <$> defaultTypeKinds tenv t) <*> pure name
+  _ -> unannotated "expression" e
 
-instance Show Val where
-  show v = case v of
-    VInt i -> show i
-    VName name -> Text.unpack name
+defaultTypeKinds :: TEnv -> Type -> Tc Type
+defaultTypeKinds tenv t = case t of
+  TCon{} -> return t
+  TVar (Just k) x -> TVar <$> (Just <$> defaultKindKinds tenv k) <*> pure x
+  -- FIXME: This isn't supposed to happen.
+  TVar Nothing x -> return $ TVar (Just KVal) x
+  TConst{} -> return t
+  TForall tv (Just k) t' -> TForall tv <$> (Just <$> defaultKindKinds tenv k) <*> pure t'
+  TForall _ Nothing _ -> unannotated "type" t
+  TApp t1 t2 -> TApp <$> defaultTypeKinds tenv t1 <*> defaultTypeKinds tenv t2
 
-instance Show TEnv where
-  show tenv = concat [
-    "{ ",
-    intercalate ", " $ concat [
-      map (\ (t, t') -> show (TVar Nothing t) ++ " ~ " ++ show t') (Map.toList (envTvs tenv)),
-      map (\ (k, k') -> show (KVar k) ++ " ~ " ++ show k') (Map.toList (envKvs tenv)),
-      map (\ (t, k) -> show (TVar Nothing t) ++ " : " ++ show k) (Map.toList (envTks tenv)),
-      map (\ (v, t) -> Text.unpack v ++ " : " ++ show t) (Map.toList (envVs tenv)) ],
-    " }" ]
+defaultKindKinds :: TEnv -> Kind -> Tc Kind
+defaultKindKinds tenv k = let k' = zonkKind tenv k in case k' of
+  KVal -> return k'
+  KRho -> return k'
+  KEff -> return k'
+  KEffRho -> return k'
+  KVar x -> case Map.lookup x (envKvs tenv) of
+    Just{} -> return k'
+    Nothing -> return KVal
+  KFun a b -> KFun <$> defaultKindKinds tenv a <*> defaultKindKinds tenv b
 
--- Utility operators for constructing types and kinds.
+unannotated :: (Show a) => String -> a -> Tc b
+unannotated thing x = fail $ unwords ["cannot default kind of un-annotated", thing, show x]
 
-(.->) :: Type -> Type -> Type -> Type
-(t1 .-> t2) e = "fun" .$ t1 .$ t2 .$ e
-infixr 4 .->
 
-(.$) :: Type -> Type -> Type
-(.$) = TApp
-infixl 1 .$
 
-(.*) :: Type -> Type -> Type
-t1 .* t2 = "prod" .$ t1 .$ t2
-infixl 5 .*
 
-(.|) :: Type -> Type -> Type
-t1 .| t2 = "join" .$ t1 .$ t2
-infixr 4 .|
+--------------------------------------------------------------------------------
+-- 9. Test Suite
+--------------------------------------------------------------------------------
 
-(..->) :: Kind -> Kind -> Kind
-(..->) = KFun
-infixr 4 ..->
 
--- The typechecker monad.
+
+
+spec :: Spec
+spec = do
+  describe "zonking" $ do
+    it "does nothing to free type variables"
+      $ assertEqual "" (zonkType emptyTEnv va) va
+    it "substitutes one level"
+      $ assertEqual "" (zonkType emptyTEnv { envTvs = Map.singleton ia vb } va) vb
+    it "substitutes multiple levels"
+      $ assertEqual ""
+        (zonkType emptyTEnv { envTvs = Map.fromList [(ia, vb), (ib, "int")] } va)
+        "int"
+  describe "type inference" $ do
+    it "gives the identity type for the empty program"
+      $ testScheme (inferEmpty (parse ""))
+      $ fr $ fe $ (vr .-> vr) ve
+    it "gives the composed type from simple composition"
+      $ testScheme (inferEmpty (parse "1 2 add"))
+      $ fr $ fe $ (vr .-> vr .* "int") ve
+    it "gives the composed type for higher-order composition"
+      $ testScheme (inferEmpty (parse "1 quo 2 quo com \\add com app"))
+      $ fr $ fe $ (vr .-> vr .* "int") ve
+    it "deduces simple side effects"
+      $ testScheme (inferEmpty (parse "1 say"))
+      $ fr $ fe $ (vr .-> vr) ("io" .| ve)
+    it "deduces higher-order side effects"
+      $ testScheme (inferEmpty (parse "1 \\say app"))
+      $ fr $ fe $ (vr .-> vr) ("io" .| ve)
+    it "removes effects with an effect handler"
+      $ testDefs
+        (Map.singleton "q0" (fr $ fe $ (vr .-> vr .* "int") ("unsafe" .| ve), parse "1 ref deref"))
+        (parse "\\q0 unsafe")
+        $ fr $ fe $ (vr .-> vr .* "int") ve
+    it "fails when missing an effect annotation"
+      $ testFail $ inferTypes
+        (Map.singleton "evil" (fr $ fe $ (vr .* "int" .-> vr) ve, parse "say"))
+        (parse "evil")
+    it "fails on basic type mismatches"
+      $ testFail (inferEmpty (parse "1 [add] add"))
+    it "correctly copies from a local"
+      $ testScheme (inferEmpty (parse "1 &x +x"))
+      $ fr $ fe $ (vr .-> vr .* "int") ve
+    it "correctly copies multiple times from a local"
+      $ testScheme (inferEmpty (parse "1 &x +x +x"))
+      $ fr $ fe $ (vr .-> vr .* "int" .* "int") ve
+    it "correctly moves from a local"
+      $ testScheme (inferEmpty (parse "1 &x -x"))
+      $ fr $ fe $ (vr .-> vr .* "int") ve
+    it "fails when moving from a moved-from local"
+      $ testFail (inferEmpty (parse "1 &x -x -x"))
+    it "fails when copying from a moved-from local"
+      $ testFail (inferEmpty (parse "1 &x -x +x"))
+  describe "definitions" $ do
+    it "checks the type of a definition" $ let
+      idType = fr $ fa $ fe $ (vr .* va .-> vr .* va) ve
+      in testDefs (Map.singleton "id" (idType, parse "&x -x")) (parse "id") idType
+  where
+  inferEmpty expr = do
+    (_, scheme, _) <- inferType0 Map.empty expr
+    return scheme
+  testFail action = do
+    result <- runTc action
+    assert $ either (const True) (const False) result
+  testScheme inference expected = do
+    result <- runTc $ do
+      scheme <- inference
+      instanceCheck scheme expected
+    either assertFailure (const (return ())) result
+  testDefs defs expr scheme
+    = testScheme ((\ (_, _, t) -> t) <$> inferTypes defs expr) scheme
+  ir = TypeId 0
+  vr = TVar kr ir
+  ia = TypeId 1
+  va = TVar kv ia
+  ib = TypeId 2
+  vb = TVar kv ib
+  ie = TypeId 3
+  ve = TVar ke ie
+  kr = Just (KVar (KindId 0))
+  kv = Just (KVar (KindId 1))
+  ke = Just (KVar (KindId 2))
+  fr = TForall ir kr
+  fa = TForall ia kv
+  fe = TForall ie ke
+
+
+
+
+--------------------------------------------------------------------------------
+-- 10. References
+--------------------------------------------------------------------------------
+
+
+
+
+-- [1] D. Leijen. Extensible Records with Scoped Labels.
+--
+-- [2] D. Leijen. Koka: Programming with Row-polymorphic Effect Types.
+--
+-- [3] C. Diggins. Simple Type Inference for Higher-order Stack-oriented Languages.
+
+
+
+
+--------------------------------------------------------------------------------
+-- Appendix A. Typechecker Monad
+--------------------------------------------------------------------------------
+
+
+
+
+-- We introduce a typechecker monad for handling failure and the generation of
+-- fresh identifiers. Notably, the typechecker monad does not manage the state
+-- of type environments; these are threaded explicitly. This is more verbose,
+-- but it makes it more apparent which typing environment is in use.
 
 newtype Tc a = Tc { runTc :: IO (Either String a) }
 
@@ -1146,8 +1290,6 @@ while prefix action = Tc $ do
     Left message -> Left $ unlines [unwords prefix, message]
     Right x -> Right x
 
--- Generating names and named things from a typing environment.
-
 freshTv :: TEnv -> Tc Type
 freshTv = fmap (TVar Nothing) . freshTypeId
 
@@ -1169,7 +1311,15 @@ freshKindId tenv = do
   Tc $ Right <$> writeIORef (envCurrentKind tenv) (succ x)
   return x
 
--- Parses an expression, for interactive testing purposes.
+
+
+
+--------------------------------------------------------------------------------
+-- Appendix B. Parsing
+--------------------------------------------------------------------------------
+
+
+
 
 parse :: String -> Expr
 parse s = case Parsec.parse (between spaces eof terms) "" s of
@@ -1190,3 +1340,87 @@ parse s = case Parsec.parse (between spaces eof terms) "" s of
         else ECall Nothing (Text.pack w) [] ]
   name = Text.pack <$> word
   word = many1 (satisfy (not . isSpace)) <* spaces
+
+
+
+
+--------------------------------------------------------------------------------
+-- Appendix C. Typeclass Instances
+--------------------------------------------------------------------------------
+
+
+
+
+instance IsString Con where
+  fromString = Con . Text.pack
+
+instance IsString Type where
+  fromString = TCon . fromString
+
+
+
+
+instance Show Con where
+  show (Con con) = Text.unpack con
+
+instance Show Expr where
+  show e = case e of
+    EPush tref val -> showTyped tref $ show val
+    ECall tref name [] -> showTyped tref $ Text.unpack name
+    ECall tref name params -> showTyped tref $ concat [
+      Text.unpack name,
+      "<",
+      intercalate ", " (map show params),
+      ">" ]
+    ECat tref a b -> showTyped tref $ unwords' [show a, show b]
+    EId tref -> showTyped tref $ ""
+    EGo tref name -> showTyped tref $ '&' : Text.unpack name
+    ECome Move tref name -> showTyped tref $ '-' : Text.unpack name
+    ECome Copy tref name -> showTyped tref $ '+' : Text.unpack name
+    where
+    showTyped (Just type_) x = "(" ++ x ++ " : " ++ show type_ ++ ")"
+    showTyped Nothing x = x
+    unwords' = unwords . filter (not . null)
+
+instance Show Kind where
+  showsPrec p k = case k of
+    KVal -> showString "*"
+    KRho -> showString "\x03C1"
+    KEff -> showString "\x03B5"
+    KEffRho -> showString "\x0395"
+    a `KFun` b -> showParen (p > funPrec) $ showsPrec (funPrec + 1) a . showString " \x2192 " . showsPrec funPrec b
+    KVar x -> shows x
+    where
+    funPrec = 1
+
+instance Show KindId where
+  show (KindId x) = 'k' : show x
+
+instance Show TEnv where
+  show tenv = concat [
+    "{ ",
+    intercalate ", " $ concat [
+      map (\ (t, t') -> show (TVar Nothing t) ++ " ~ " ++ show t') (Map.toList (envTvs tenv)),
+      map (\ (k, k') -> show (KVar k) ++ " ~ " ++ show k') (Map.toList (envKvs tenv)),
+      map (\ (t, k) -> show (TVar Nothing t) ++ " : " ++ show k) (Map.toList (envTks tenv)),
+      map (\ (v, t) -> Text.unpack v ++ " : " ++ show t) (Map.toList (envVs tenv)) ],
+    " }" ]
+
+instance Show Type where
+  showsPrec p t = case t of
+    TCon con -> shows con
+    TVar (Just k) x -> showParen True $ shows x . showChar ':' . shows k
+    TVar Nothing x -> shows x
+    TConst x -> shows x
+    TForall x k t' -> showParen True $ showChar '\x2200' . shows (TVar k x) . showString ". " . shows t'
+    a `TApp` b -> showParen (p > appPrec) $ showsPrec appPrec a . showChar ' ' . showsPrec (appPrec + 1) b
+    where
+    appPrec = 1
+
+instance Show TypeId where
+  show (TypeId x) = 't' : show x
+
+instance Show Val where
+  show v = case v of
+    VInt i -> show i
+    VName name -> Text.unpack name
