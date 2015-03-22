@@ -118,7 +118,7 @@ data Type
   | TVar !KRef !TypeId
   | TConst !TypeId
   | TForall !TypeId !KRef !Type
-  | TApp !Type !Type
+  | !Type :@ !Type
   deriving (Eq)
 
 newtype Con = Con Name
@@ -127,19 +127,17 @@ newtype Con = Con Name
 type TRef = Maybe Type
 
 (.->) :: Type -> Type -> Type -> Type
-(t1 .-> t2) e = "fun" .$ t1 .$ t2 .$ e
+(t1 .-> t2) e = "fun" :@ t1 :@ t2 :@ e
 infixr 4 .->
 
-(.$) :: Type -> Type -> Type
-(.$) = TApp
-infixl 1 .$
+infixl 1 :@
 
 (.*) :: Type -> Type -> Type
-t1 .* t2 = "prod" .$ t1 .$ t2
+t1 .* t2 = "prod" :@ t1 :@ t2
 infixl 5 .*
 
 (.|) :: Type -> Type -> Type
-t1 .| t2 = "join" .$ t1 .$ t2
+t1 .| t2 = "join" :@ t1 :@ t2
 infixr 4 .|
 
 
@@ -401,25 +399,25 @@ inferCall tenvFinal tenv0 name = case name of
 
   "vec" -> do
     [a, b, e] <- fresh 3
-    (type_, k, tenv1) <- inferKind tenv0 $ (a .* b .-> a .* ("vec" .$ b)) e
+    (type_, k, tenv1) <- inferKind tenv0 $ (a .* b .-> a .* ("vec" :@ b)) e
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
 
   "head" -> do
     [a, b, e] <- fresh 3
-    (type_, k, tenv1) <- inferKind tenv0 $ (a .* ("vec" .$ b) .-> a .* b) e
+    (type_, k, tenv1) <- inferKind tenv0 $ (a .* ("vec" :@ b) .-> a .* b) e
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
 
   "tail" -> do
     [a, b, e] <- fresh 3
-    (type_, k, tenv1) <- inferKind tenv0 $ (a .* ("vec" .$ b) .-> a .* ("vec" .$ b)) e
+    (type_, k, tenv1) <- inferKind tenv0 $ (a .* ("vec" :@ b) .-> a .* ("vec" :@ b)) e
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
 
   "cat" -> do
     [a, b, e] <- fresh 3
-    (type_, k, tenv1) <- inferKind tenv0 $ (a .* ("vec" .$ b) .* ("vec" .$ b) .-> a .* ("vec" .$ b)) e
+    (type_, k, tenv1) <- inferKind tenv0 $ (a .* ("vec" :@ b) .* ("vec" :@ b) .-> a .* ("vec" :@ b)) e
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
 
@@ -442,13 +440,13 @@ inferCall tenvFinal tenv0 name = case name of
 
   "ref" -> do
     [a, b, e] <- fresh 3
-    (type_, k, tenv1) <- inferKind tenv0 ((a .* b .-> a .* ("ptr" `TApp` b)) ("unsafe" .| e))
+    (type_, k, tenv1) <- inferKind tenv0 ((a .* b .-> a .* ("ptr" :@ b)) ("unsafe" .| e))
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
 
   "deref" -> do
     [a, b, e] <- fresh 3
-    (type_, k, tenv1) <- inferKind tenv0 ((a .* ("ptr" `TApp` b) .-> a .* b) ("unsafe" .| e))
+    (type_, k, tenv1) <- inferKind tenv0 ((a .* ("ptr" :@ b) .-> a .* b) ("unsafe" .| e))
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
 
@@ -513,14 +511,14 @@ inferKind tenv0 t = while ["inferring the kind of", show t] $ case t of
     -- Quantifiers should only wrap value-kinded types (usually functions).
     _ <- unifyKind tenv' k1 KVal
     return (TForall tv (Just a) t'', k1, tenv0)
-  TApp t1 t2 -> do
+  t1 :@ t2 -> do
     (t1', k1, tenv1) <- inferKind tenv0 t1
     (t2', k2, tenv2) <- inferKind tenv1 t2
     ka <- freshKv tenv2
     kb <- freshKv tenv2
     tenv3 <- unifyKind tenv2 k1 (ka ..-> kb)
     tenv4 <- unifyKind tenv3 k2 ka
-    return (t1' .$ t2', kb, tenv4)
+    return (t1' :@ t2', kb, tenv4)
 
 
 
@@ -560,10 +558,10 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
 --
 -- See: Row Unification
 
-  ("join" `TApp` l `TApp` r, s) -> do
+  ("join" :@ l :@ r, s) -> do
     ms <- rowIso tenv0 l s
     case ms of
-      Just ("join" `TApp` _ `TApp` s', substitution, tenv1) -> case substitution of
+      Just ("join" :@ _ :@ s', substitution, tenv1) -> case substitution of
         Just (x, t)
           | occurs tenv0 x (effectTail r)
           -> fail $ unwords ["cannot unify effects", show t1, "and", show t2]
@@ -574,18 +572,18 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
 
       -- HACK: Duplicates the remaining cases.
       _ -> case (t1, t2) of
-        (a `TApp` b, c `TApp` d) -> do
+        (a :@ b, c :@ d) -> do
           tenv1 <- unifyType tenv0 a c
           unifyType tenv1 b d
         _ -> fail $ unwords ["cannot unify types", show t1, "and", show t2]
 
-  (_, "join" `TApp` _ `TApp` _) -> commute
+  (_, "join" :@ _ :@ _) -> commute
 
 -- We fall back to regular unification for value type constructors. This makes
 -- the somewhat iffy assumption that there is no higher-kinded polymorphism
 -- going on between value type constructors and effect type constructors.
 
-  (a `TApp` b, c `TApp` d) -> do
+  (a :@ b, c :@ d) -> do
     tenv1 <- unifyType tenv0 a c
     unifyType tenv1 b d
 
@@ -596,7 +594,7 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
 
   where
   commute = unifyType tenv0 t2 t1
-  effectTail ("join" `TApp` _ `TApp` a) = effectTail a
+  effectTail ("join" :@ _ :@ a) = effectTail a
   effectTail t = t
 
 
@@ -630,7 +628,7 @@ unifyTv tenv0 x t = case t of
 
 unifyFun :: TEnv -> Type -> Tc (Type, Type, Type, TEnv)
 unifyFun tenv0 t = case t of
-  "fun" `TApp` a `TApp` b `TApp` e -> return (a, b, e, tenv0)
+  "fun" :@ a :@ b :@ e -> return (a, b, e, tenv0)
   _ -> do
     [a, b, e] <- replicateM 3 (freshTv tenv0)
     tenv1 <- unifyType tenv0 t ((a .-> b) e)
@@ -659,13 +657,13 @@ rowIso :: TEnv -> Type -> Type -> Tc (Maybe (Type, Maybe (TypeId, Type), TEnv))
 -- The "head" rule: a row which already begins with the label is trivially
 -- rewritten by the identity substitution.
 
-rowIso tenv0 lin rin@("join" `TApp` l `TApp` _)
+rowIso tenv0 lin rin@("join" :@ l :@ _)
   | l == lin = return $ Just (rin, Nothing, tenv0)
 
 -- The "swap" rule: a row which contains the label somewhere within, can be
 -- rewritten to place that label at the head.
 
-rowIso tenv0 l ("join" `TApp` l' `TApp` r)
+rowIso tenv0 l ("join" :@ l' :@ r)
   | l /= l' = do
   ms <- rowIso tenv0 l r
   return $ case ms of
@@ -753,7 +751,7 @@ zonkType tenv0 = recur
     TConst{} -> t
     TForall x k t'
       -> TForall x (zonkKRef k) . zonkType tenv0 { envTvs = Map.delete x (envTvs tenv0) } $ t'
-    a `TApp` b -> recur a .$ recur b
+    a :@ b -> recur a :@ recur b
   zonkKRef = fmap (zonkKind tenv0)
 
 
@@ -819,7 +817,7 @@ replaceTv tenv0 x a = recur
         t'' <- replaceTv tenv0 x' (TVar k z) t'
         TForall z k <$> recur t''
     TVar _ x' | x == x' -> return a
-    m `TApp` n -> TApp <$> recur m <*> recur n
+    m :@ n -> (:@) <$> recur m <*> recur n
     _ -> return t
 
 
@@ -843,7 +841,7 @@ freeTvks t = case t of
   TVar k x -> Map.singleton x k
   TConst{} -> Map.empty
   TForall x _ t' -> Map.delete x (freeTvks t')
-  a `TApp` b -> Map.union (freeTvks a) (freeTvks b)
+  a :@ b -> Map.union (freeTvks a) (freeTvks b)
 
 -- Likewise for kinds, except kinds can't be higher-ranked anyway. I wonder what
 -- that would even mean?
@@ -882,7 +880,7 @@ occurrences tenv0 x = recur
     TConst{} -> 0
     TForall x' _ t'
       -> if x == x' then 0 else recur t'
-    a `TApp` b -> recur a + recur b
+    a :@ b -> recur a + recur b
 
 occurs :: TEnv -> TypeId -> Type -> Bool
 occurs tenv0 x t = occurrences tenv0 x t > 0
@@ -965,7 +963,7 @@ regeneralize tenv t = let
   where
   go :: Type -> Writer [(TypeId, KRef)] Type
   go t' = case t' of
-    TCon "fun" `TApp` a `TApp` b `TApp` e
+    TCon "fun" :@ a :@ b :@ e
       | TVar k c <- bottommost a
       , TVar _ d <- bottommost b
       , c == d
@@ -975,14 +973,14 @@ regeneralize tenv t = let
         b' <- go b
         e' <- go e
         return $ TForall c k ((a' .-> b') e')
-    TCon "prod" `TApp` a `TApp` b -> do
+    TCon "prod" :@ a :@ b -> do
       a' <- go a
       b' <- go b
-      return $ "prod" .$ a' .$ b'
+      return $ "prod" :@ a' :@ b'
     TForall{} -> error "cannot regeneralize higher-ranked type"
-    a `TApp` b -> TApp <$> go a <*> go b
+    a :@ b -> (:@) <$> go a <*> go b
     _ -> return t'
-  bottommost ("prod" `TApp` a `TApp` _) = bottommost a
+  bottommost ("prod" :@ a :@ _) = bottommost a
   bottommost a = a
 
 
@@ -1030,7 +1028,7 @@ skolemize tenv0 t = case t of
     (k', t'') <- skolemize tenv1 (zonkType tenv1 t')
     return (Set.insert k k', t'')
   -- TForall _ t' -> skolemize tenv0 t'
-  "fun" `TApp` a `TApp` b `TApp` e -> do
+  "fun" :@ a :@ b :@ e -> do
     (ids, b') <- skolemize tenv0 b
     return (ids, (a .-> b') e)
   _ -> return (Set.empty, t)
@@ -1046,10 +1044,10 @@ subsumptionCheck tenv0 (TForall x mk t) t2 = do
   k <- maybe (freshKv tenv0) return mk
   (t1, _, tenv1) <- instantiate tenv0 x k t
   subsumptionCheck tenv1 t1 t2
-subsumptionCheck tenv0 t1 ("fun" `TApp` a `TApp` b `TApp` e) = do
+subsumptionCheck tenv0 t1 ("fun" :@ a :@ b :@ e) = do
   (a', b', e', tenv1) <- unifyFun tenv0 t1
   subsumptionCheckFun tenv1 a b e a' b' e'
-subsumptionCheck tenv0 ("fun" `TApp` a' `TApp` b' `TApp` e') t2 = do
+subsumptionCheck tenv0 ("fun" :@ a' :@ b' :@ e') t2 = do
   (a, b, e, tenv1) <- unifyFun tenv0 t2
   subsumptionCheckFun tenv1 a b e a' b' e'
 subsumptionCheck tenv0 t1 t2 = unifyType tenv0 t1 t2
@@ -1100,7 +1098,7 @@ defaultTypeKinds tenv t = case t of
   TConst{} -> return t
   TForall tv (Just k) t' -> TForall tv <$> (Just <$> defaultKindKinds tenv k) <*> pure t'
   TForall _ Nothing _ -> unannotated "type" t
-  TApp t1 t2 -> TApp <$> defaultTypeKinds tenv t1 <*> defaultTypeKinds tenv t2
+  t1 :@ t2 -> (:@) <$> defaultTypeKinds tenv t1 <*> defaultTypeKinds tenv t2
 
 defaultKindKinds :: TEnv -> Kind -> Tc Kind
 defaultKindKinds tenv k = let k' = zonkKind tenv k in case k' of
@@ -1413,7 +1411,7 @@ instance Show Type where
     TVar Nothing x -> shows x
     TConst x -> shows x
     TForall x k t' -> showParen True $ showChar '\x2200' . shows (TVar k x) . showString ". " . shows t'
-    a `TApp` b -> showParen (p > appPrec) $ showsPrec appPrec a . showChar ' ' . showsPrec (appPrec + 1) b
+    a :@ b -> showParen (p > appPrec) $ showsPrec appPrec a . showChar ' ' . showsPrec (appPrec + 1) b
     where
     appPrec = 1
 
