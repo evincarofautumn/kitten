@@ -448,7 +448,7 @@ inferCall tenvFinal tenv0 name = case name of
 
   "deref" -> do
     [a, b, e] <- fresh 3
-    (type_, k, tenv1) <- inferKind tenv0 ((a .* (TCon "ptr" `TApp` b) .-> a .* b) ("unsafe" .| e))
+    (type_, k, tenv1) <- inferKind tenv0 ((a .* ("ptr" `TApp` b) .-> a .* b) ("unsafe" .| e))
     let type' = zonkType tenvFinal type_
     return (ECall (Just type') name [], type_, k, tenv1)
 
@@ -560,10 +560,10 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
 --
 -- See: Row Unification
 
-  (TCon "join" `TApp` l `TApp` r, s) -> do
+  ("join" `TApp` l `TApp` r, s) -> do
     ms <- rowIso tenv0 l s
     case ms of
-      Just (TCon "join" `TApp` _ `TApp` s', substitution, tenv1) -> case substitution of
+      Just ("join" `TApp` _ `TApp` s', substitution, tenv1) -> case substitution of
         Just (x, t)
           | occurs tenv0 x (effectTail r)
           -> fail $ unwords ["cannot unify effects", show t1, "and", show t2]
@@ -579,7 +579,7 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
           unifyType tenv1 b d
         _ -> fail $ unwords ["cannot unify types", show t1, "and", show t2]
 
-  (_, TCon "join" `TApp` _ `TApp` _) -> commute
+  (_, "join" `TApp` _ `TApp` _) -> commute
 
 -- We fall back to regular unification for value type constructors. This makes
 -- the somewhat iffy assumption that there is no higher-kinded polymorphism
@@ -596,7 +596,7 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
 
   where
   commute = unifyType tenv0 t2 t1
-  effectTail (TCon "join" `TApp` _ `TApp` a) = effectTail a
+  effectTail ("join" `TApp` _ `TApp` a) = effectTail a
   effectTail t = t
 
 
@@ -630,7 +630,7 @@ unifyTv tenv0 x t = case t of
 
 unifyFun :: TEnv -> Type -> Tc (Type, Type, Type, TEnv)
 unifyFun tenv0 t = case t of
-  TCon "fun" `TApp` a `TApp` b `TApp` e -> return (a, b, e, tenv0)
+  "fun" `TApp` a `TApp` b `TApp` e -> return (a, b, e, tenv0)
   _ -> do
     [a, b, e] <- replicateM 3 (freshTv tenv0)
     tenv1 <- unifyType tenv0 t ((a .-> b) e)
@@ -659,13 +659,13 @@ rowIso :: TEnv -> Type -> Type -> Tc (Maybe (Type, Maybe (TypeId, Type), TEnv))
 -- The "head" rule: a row which already begins with the label is trivially
 -- rewritten by the identity substitution.
 
-rowIso tenv0 lin rin@(TCon "join" `TApp` l `TApp` _)
+rowIso tenv0 lin rin@("join" `TApp` l `TApp` _)
   | l == lin = return $ Just (rin, Nothing, tenv0)
 
 -- The "swap" rule: a row which contains the label somewhere within, can be
 -- rewritten to place that label at the head.
 
-rowIso tenv0 l (TCon "join" `TApp` l' `TApp` r)
+rowIso tenv0 l ("join" `TApp` l' `TApp` r)
   | l /= l' = do
   ms <- rowIso tenv0 l r
   return $ case ms of
@@ -982,7 +982,7 @@ regeneralize tenv t = let
     TForall{} -> error "cannot regeneralize higher-ranked type"
     a `TApp` b -> TApp <$> go a <*> go b
     _ -> return t'
-  bottommost (TCon "prod" `TApp` a `TApp` _) = bottommost a
+  bottommost ("prod" `TApp` a `TApp` _) = bottommost a
   bottommost a = a
 
 
@@ -1030,7 +1030,7 @@ skolemize tenv0 t = case t of
     (k', t'') <- skolemize tenv1 (zonkType tenv1 t')
     return (Set.insert k k', t'')
   -- TForall _ t' -> skolemize tenv0 t'
-  TCon "fun" `TApp` a `TApp` b `TApp` e -> do
+  "fun" `TApp` a `TApp` b `TApp` e -> do
     (ids, b') <- skolemize tenv0 b
     return (ids, (a .-> b') e)
   _ -> return (Set.empty, t)
@@ -1046,10 +1046,10 @@ subsumptionCheck tenv0 (TForall x mk t) t2 = do
   k <- maybe (freshKv tenv0) return mk
   (t1, _, tenv1) <- instantiate tenv0 x k t
   subsumptionCheck tenv1 t1 t2
-subsumptionCheck tenv0 t1 (TCon "fun" `TApp` a `TApp` b `TApp` e) = do
+subsumptionCheck tenv0 t1 ("fun" `TApp` a `TApp` b `TApp` e) = do
   (a', b', e', tenv1) <- unifyFun tenv0 t1
   subsumptionCheckFun tenv1 a b e a' b' e'
-subsumptionCheck tenv0 (TCon "fun" `TApp` a' `TApp` b' `TApp` e') t2 = do
+subsumptionCheck tenv0 ("fun" `TApp` a' `TApp` b' `TApp` e') t2 = do
   (a, b, e, tenv1) <- unifyFun tenv0 t2
   subsumptionCheckFun tenv1 a b e a' b' e'
 subsumptionCheck tenv0 t1 t2 = unifyType tenv0 t1 t2
