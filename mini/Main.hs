@@ -5,34 +5,34 @@
 
 
 
--- 1. Boilerplate
--- 2. Data Types
--- 3. Inference
---   3.1. Type Inference
---   3.2. Kind Inference
--- 4. Unification
---   4.1. Type Unification
---   4.2. Row Unification
---   4.3. Kind Unification
--- 5. Operations on Types and Kinds
---   5.1. Zonking
---   5.2. Substitution
---   5.3. Free Variables
---   5.4. Occurs Checks
--- 6. Instantiation and Regeneralization
--- 7. Subsumption Checking
--- 8. Kind Defaulting
--- 9. Test Suite
--- 10. References
--- Appendix A. Typechecker Monad
--- Appendix B. Parsing
--- Appendix C. Typeclass Instances
+-- Boilerplate
+-- Data Types
+-- Inference
+--   Type Inference
+--   Kind Inference
+-- Unification
+--   Type Unification
+--   Row Unification
+--   Kind Unification
+-- Operations on Types and Kinds
+--   Zonking
+--   Substitution
+--   Free Variables
+--   Occurs Checks
+-- Instantiation and Regeneralization
+-- Subsumption Checking
+-- Kind Defaulting
+-- Test Suite
+-- References
+-- Typechecker Monad
+-- Parsing
+-- Typeclass Instances
 
 
 
 
 --------------------------------------------------------------------------------
--- 1. Boilerplate
+-- Boilerplate
 --------------------------------------------------------------------------------
 
 
@@ -74,7 +74,7 @@ main = hspec spec
 
 
 --------------------------------------------------------------------------------
--- 2. Data Types
+-- Data Types
 --------------------------------------------------------------------------------
 
 
@@ -238,14 +238,14 @@ currentKindId = unsafePerformIO (newIORef (KindId 0))
 
 
 --------------------------------------------------------------------------------
--- 3. Inference
+-- Inference
 --------------------------------------------------------------------------------
 
 
 
 
 ----------------------------------------
--- 3.1. Type Inference
+-- Type Inference
 ----------------------------------------
 
 
@@ -473,7 +473,7 @@ inferCall tenvFinal tenv0 name = case name of
 
 
 ----------------------------------------
--- 3.2. Kind Inference
+-- Kind Inference
 ----------------------------------------
 
 
@@ -525,14 +525,14 @@ inferKind tenv0 t = while ["inferring the kind of", show t] $ case t of
 
 
 --------------------------------------------------------------------------------
--- 4. Unification
+-- Unification
 --------------------------------------------------------------------------------
 
 
 
 
 ----------------------------------------
--- 4.1. Type Unification
+-- Type Unification
 ----------------------------------------
 
 
@@ -640,7 +640,7 @@ unifyFun tenv0 t = case t of
 
 
 ----------------------------------------
--- 4.2. Row Unification
+-- Row Unification
 ----------------------------------------
 
 
@@ -687,7 +687,7 @@ rowIso _ _ _ = return Nothing
 
 
 ----------------------------------------
--- 4.3. Kind Unification
+-- Kind Unification
 ----------------------------------------
 
 
@@ -721,13 +721,13 @@ unifyKv tenv0 x k = case k of
 
 
 --------------------------------------------------------------------------------
--- 5. Operations on Types and Kinds
+-- Operations on Types and Kinds
 --------------------------------------------------------------------------------
 
 
 
 ----------------------------------------
--- 5.1. Zonking
+-- Zonking
 ----------------------------------------
 
 
@@ -797,7 +797,7 @@ zonkExpr tenv0 = recur
 
 
 ----------------------------------------
--- 5.2. Substitution
+-- Substitution
 ----------------------------------------
 
 
@@ -825,7 +825,7 @@ replaceTv tenv0 x a = recur
 
 
 ----------------------------------------
--- 5.3. Free Variables
+-- Free Variables
 ----------------------------------------
 
 
@@ -860,7 +860,7 @@ freeKvs k = case k of
 
 
 ----------------------------------------
--- 5.4. Occurs Checks
+-- Occurs Checks
 ----------------------------------------
 
 
@@ -903,7 +903,7 @@ occursKind tenv0 x = recur
 
 
 --------------------------------------------------------------------------------
--- 6. Instantiation and Regeneralization
+-- Instantiation and Regeneralization
 --------------------------------------------------------------------------------
 
 
@@ -988,7 +988,7 @@ regeneralize tenv t = let
 
 
 --------------------------------------------------------------------------------
--- 7. Subsumption Checking
+-- Subsumption Checking
 --------------------------------------------------------------------------------
 
 
@@ -1063,7 +1063,7 @@ subsumptionCheckFun tenv0 a b e a' b' e' = do
 
 
 --------------------------------------------------------------------------------
--- 8. Kind Defaulting
+-- Kind Defaulting
 --------------------------------------------------------------------------------
 
 
@@ -1119,7 +1119,7 @@ unannotated thing x = fail $ unwords ["cannot default kind of un-annotated", thi
 
 
 --------------------------------------------------------------------------------
--- 9. Test Suite
+-- Test Suite
 --------------------------------------------------------------------------------
 
 
@@ -1213,7 +1213,7 @@ spec = do
 
 
 --------------------------------------------------------------------------------
--- 10. References
+-- References
 --------------------------------------------------------------------------------
 
 
@@ -1229,7 +1229,7 @@ spec = do
 
 
 --------------------------------------------------------------------------------
--- Appendix A. Typechecker Monad
+-- Typechecker Monad
 --------------------------------------------------------------------------------
 
 
@@ -1314,7 +1314,7 @@ freshKindId tenv = do
 
 
 --------------------------------------------------------------------------------
--- Appendix B. Parsing
+-- Parsing
 --------------------------------------------------------------------------------
 
 
@@ -1344,7 +1344,7 @@ parse s = case Parsec.parse (between spaces eof terms) "" s of
 
 
 --------------------------------------------------------------------------------
--- Appendix C. Typeclass Instances
+-- Typeclass Instances
 --------------------------------------------------------------------------------
 
 
