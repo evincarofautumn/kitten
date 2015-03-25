@@ -98,6 +98,7 @@ data Expr
   | EGo !TRef !Name
   | ECome !HowCome !TRef !Name
   | EForall !TypeId !Expr
+  | EIf !TRef !Expr !Expr
   deriving (Eq)
 
 data HowCome = Move | Copy
@@ -181,6 +182,7 @@ newtype TypeId = TypeId { unTypeId :: Int }
 data Val
   = VInt !Int
   | VName !Name
+  | VBool !Bool
   deriving (Eq)
 
 
@@ -335,6 +337,16 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
     let type' = zonkType tenvFinal type_
     return (ECome how (Just type') name, type_, tenv1)
 
+  EIf Nothing expr1 expr2 -> do
+    [a, b, e] <- fresh [KRho, KRho, KEffRho]
+    (expr1', t1, tenv1) <- inferType' tenv0 expr1
+    (expr2', t2, tenv2) <- inferType' tenv1 expr2
+    tenv3 <- unifyType tenv2 t1 ((a .-> b) e)
+    tenv4 <- unifyType tenv3 t2 ((a .-> b) e)
+    let type_ = (a .* "bool" .-> b) e
+    let type' = zonkType tenvFinal type_
+    return (EIf (Just type') expr1' expr2', type_, tenv4)
+
   _ -> fail $ unwords ["cannot infer type of already-annotated expression ", show expr0]
 
   where
@@ -344,6 +356,7 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
 inferVal :: TEnv -> TEnv -> Val -> Tc (Val, Type, TEnv)
 inferVal tenvFinal tenv0 val = case val of
   VInt{} -> return (val, "int", tenv0)
+  VBool{} -> return (val, "bool", tenv0)
   VName name -> do
     (_, type_, tenv1) <- inferCall tenvFinal tenv0 name
     return (val, type_, tenv1)
@@ -704,6 +717,7 @@ zonkExpr tenv0 = recur
     EGo tref name -> EGo (zonkTRef tref) name
     ECome how tref name -> ECome how (zonkTRef tref) name
     EForall{} -> error "cannot zonk generic expression"
+    EIf tref e1 e2 -> EIf (zonkTRef tref) (recur e1) (recur e2)
   zonkTRef = fmap (zonkType tenv0)
 
 
@@ -750,6 +764,7 @@ replaceTvExpr tenv x a = recur
     EForall x' _
       | x == x' -> return expr
       | otherwise -> error "substituting in a generic expression should not require capture-avoidance"
+    EIf tref e1 e2 -> EIf <$> go' tref <*> recur e1 <*> recur e2
   go' (Just t) = Just <$> go t
   go' Nothing = return Nothing
   go t = replaceTv tenv x a t
@@ -1016,6 +1031,10 @@ collectInstantiations tenv defs0 expr0 = do
     -- If the definition is generic, we simply ignore it; we won't find any
     -- instantiations in it, because it's not instantiated, itself!
     EForall{} -> return (expr, q0)
+    EIf tref a b -> do
+      (a', q1) <- go q0 a
+      (b', q2) <- go q1 b
+      return (EIf tref a' b', q2)
   processQueue :: Queue (Name, [Type]) -> Map Name (Type, Expr) -> Tc (Map Name (Type, Expr))
   processQueue q defs = case dequeue q of
     Nothing -> return defs
@@ -1301,6 +1320,7 @@ parse s = case Parsec.parse (between spaces eof terms) "" s of
   where
   compose = foldl' (ECat Nothing) (EId Nothing)
   terms = many term
+  composed = compose <$> terms
   term = choice [
     EPush Nothing . VName <$> (char '\\' *> name),
     EGo Nothing <$> (char '&' *> name),
@@ -1308,9 +1328,16 @@ parse s = case Parsec.parse (between spaces eof terms) "" s of
     ECome Move Nothing <$> (char '-' *> name),
     try $ do
       w <- word
-      return $ if all isDigit w
-        then EPush Nothing (VInt (read w))
-        else ECall Nothing (Text.pack w) [] ]
+      when (w `elem` ["if", "else", "end"]) parserZero
+      return $ case w of
+        "true" -> EPush Nothing (VBool True)
+        "false" -> EPush Nothing (VBool False)
+        _
+          | all isDigit w -> EPush Nothing (VInt (read w))
+          | otherwise -> ECall Nothing (Text.pack w) [],
+    EIf Nothing
+      <$> (string "if" *> spaces *> composed)
+      <*> (string "else" *> spaces *> composed <* string "end" <* spaces) ]
   name = Text.pack <$> word
   word = many1 (satisfy (not . isSpace)) <* spaces
 
@@ -1351,6 +1378,7 @@ instance Show Expr where
     ECome Move tref name -> showTyped tref $ '-' : Text.unpack name
     ECome Copy tref name -> showTyped tref $ '+' : Text.unpack name
     EForall x e' -> concat ["\x039B", show x, ". ", show e']
+    EIf tref a b -> showTyped tref $ unwords ["if", show a, "else", show b, "end"]
     where
     showTyped (Just type_) x = "(" ++ x ++ " : " ++ show type_ ++ ")"
     showTyped Nothing x = x
@@ -1395,3 +1423,4 @@ instance Show Val where
   show v = case v of
     VInt i -> show i
     VName name -> Text.unpack name
+    VBool b -> if b then "true" else "false"
