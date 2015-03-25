@@ -1291,7 +1291,7 @@ while :: [String] -> Tc a -> Tc a
 while prefix action = Tc $ do
   ex <- runTc action
   return $ case ex of
-    Left message -> Left $ unlines [unwords prefix, message]
+    Left message -> Left $ unwords prefix ++ "\n" ++ message
     Right x -> Right x
 
 freshTv :: TEnv -> Kind -> Tc Type
