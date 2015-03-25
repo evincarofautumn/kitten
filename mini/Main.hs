@@ -91,11 +91,11 @@ main = hspec spec
 -- semantic monoid.
 
 data Expr
-  = EId TRef
-  | ECat TRef !Expr !Expr
-  | ECall TRef !Name [Type]
-  | EPush TRef !Val
-  | EGo TRef !Name
+  = EId !TRef
+  | ECat !TRef !Expr !Expr
+  | ECall !TRef !Name [Type]
+  | EPush !TRef !Val
+  | EGo !TRef !Name
   | ECome !HowCome !TRef !Name
   | EForall !TypeId !Expr
   deriving (Eq)
@@ -179,8 +179,8 @@ newtype TypeId = TypeId { unTypeId :: Int }
 -- A value is a literal instance of a type, which may be placed on the stack.
 
 data Val
-  = VInt Int
-  | VName Name
+  = VInt !Int
+  | VName !Name
   deriving (Eq)
 
 
