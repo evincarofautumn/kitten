@@ -337,15 +337,35 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
     let type' = zonkType tenvFinal type_
     return (ECome how (Just type') name, type_, tenv1)
 
+-- We first infer the types of the two branches of a conditional in the same
+-- typing environment. Next we compare the local scopes of the resulting
+-- environments. If one branch causes a local to go out of scope or introduces a
+-- new local, then so must the other branch. If the resulting scopes do not
+-- differ, then we can merge the two environments by unification.
+
   EIf Nothing expr1 expr2 -> do
     [a, b, e] <- fresh [KRho, KRho, KEffRho]
-    (expr1', t1, tenv1) <- inferType' tenv0 expr1
-    (expr2', t2, tenv2) <- inferType' tenv1 expr2
-    tenv3 <- unifyType tenv2 t1 ((a .-> b) e)
-    tenv4 <- unifyType tenv3 t2 ((a .-> b) e)
+    (expr1', t1, tenv1) <- while ["checking true branch"] $ inferType' tenv0 expr1
+    (expr2', t2, tenv2) <- while ["checking false branch"] $ inferType' tenv0 expr2
+    let
+      go thisName otherName other (name, type_) (acc, tenv) = case Map.lookup name other of
+        Just type' -> do
+          tenv' <- unifyType tenv type_ type'
+          return (acc, tenv')
+        Nothing -> return
+          (unwords [Text.unpack name, "has type", show type_, "in", thisName, "but is missing in", otherName] : acc, tenv)
+      trueName = "true branch"
+      falseName = "false branch"
+    (trueDifference, tenv3) <- foldrM (go trueName falseName (envVs tenv2)) ([], tenv0) (Map.toList (envVs tenv1))
+    (falseDifference, tenv4) <- foldrM (go falseName trueName (envVs tenv1)) ([], tenv3) (Map.toList (envVs tenv2))
+    let difference = trueDifference ++ falseDifference
+    when (not (null difference)) $ fail $ intercalate "\n" difference
+    let tenv5 = tenv0 { envVs = Map.union (envVs tenv1) (envVs tenv2) }
+    tenv6 <- unifyType tenv5 t1 ((a .-> b) e)
+    tenv7 <- unifyType tenv6 t2 ((a .-> b) e)
     let type_ = (a .* "bool" .-> b) e
     let type' = zonkType tenvFinal type_
-    return (EIf (Just type') expr1' expr2', type_, tenv4)
+    return (EIf (Just type') expr1' expr2', type_, tenv7)
 
   _ -> fail $ unwords ["cannot infer type of already-annotated expression ", show expr0]
 
@@ -1183,6 +1203,30 @@ spec = do
       $ testFail (inferEmpty (parse "1 &x -x -x"))
     it "fails when copying from a moved-from local"
       $ testFail (inferEmpty (parse "1 &x -x +x"))
+    it "allows locals to be moved from in different conditional branches"
+      $ testScheme (inferEmpty (parse "1 &x true if -x else -x end"))
+      $ fr $ fe $ (vr .-> vr .* "int") ve
+    it "fails when moving in true branch but not false branch"
+      $ testFail (inferEmpty (parse "1 &x true if -x else 0 end"))
+    it "fails when moving in false branch but not true branch"
+      $ testFail (inferEmpty (parse "1 &x true if 0 else -x end"))
+    it "fails when moving in true branch and copying in false branch"
+      $ testFail (inferEmpty (parse "1 &x true if -x else +x end"))
+    it "fails when moving in false branch and copying in true branch"
+      $ testFail (inferEmpty (parse "1 &x true if +x else -x end"))
+    it "fails when changing types in true branch and not false branch"
+      $ testFail (inferEmpty (parse "1 &x true if -x vec &x else -x end"))
+    it "fails when changing types in false branch and not true branch"
+      $ testFail (inferEmpty (parse "1 &x true if -x else -x vec &x end"))
+    it "allows changing types in both branches"
+      $ testScheme (inferEmpty (parse "1 &x true if -x vec &x else -x vec &x end"))
+      $ fr $ fe $ (vr .-> vr .* ("vec" :@ "int")) ve
+    it "allows introducing variables in both branches"
+      $ testScheme (inferEmpty (parse "true if 1 &x else 2 &x end -x"))
+      $ fr $ fe $ (vr .-> vr .* ("vec" :@ "int")) ve
+    it "allows removing and reintroducing a variable in one branch"
+      $ testScheme (inferEmpty (parse "1 &x true if else -x 2 &x end -x"))
+      $ fr $ fe $ (vr .-> vr .* "int") ve
   describe "definitions" $ do
     it "checks the type of a definition" $ let
       idType = fr $ fa $ fe $ (vr .* va .-> vr .* va) ve
