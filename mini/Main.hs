@@ -503,7 +503,7 @@ typeKind t = case t of
 unifyType :: TEnv -> Type -> Type -> Tc TEnv
 unifyType tenv0 t1 t2 = case (t1, t2) of
   _ | t1 == t2 -> return tenv0
-  (TVar (Var x _), t) -> unifyTv tenv0 x t
+  (TVar x, t) -> unifyTv tenv0 x t
   (_, TVar{}) -> commute
   -- FIXME: Unify the kinds here?
   (a, TForall (Var x k) t) -> do
@@ -570,11 +570,17 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
 --
 -- See: Occurs Checks
 
-unifyTv :: TEnv -> TypeId -> Type -> Tc TEnv
-unifyTv tenv0 x t = case t of
+unifyTv :: TEnv -> Var -> Type -> Tc TEnv
+unifyTv tenv0 v@(Var x _) t = case t of
   TVar (Var y _) | x == y -> return tenv0
   TVar{} -> declare
-  _ -> if occurs tenv0 x t then fail "occurs check" else declare
+  _ -> if occurs tenv0 x t
+    then let
+      t' = zonkType tenv0 t
+      in fail . unwords $ case t' of
+        "prod" :@ _ :@ _ -> ["found mismatched stack depths solving", show v, "~", show t']
+        _ -> [show v, "~", show t', "cannot be solved because", show x, "occurs in", show t']
+    else declare
   where
   declare = case Map.lookup x (envTvs tenv0) of
     Just t2 -> unifyType tenv0 t t2
