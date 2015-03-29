@@ -62,7 +62,7 @@ import GHC.Exts
 import System.IO.Unsafe
 import Test.HUnit
 import Test.Hspec
-import Text.Parsec hiding (many, parse)
+import Text.Parsec hiding ((<|>), many, parse)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -77,6 +77,16 @@ main = hspec spec
 --------------------------------------------------------------------------------
 -- Data Types
 --------------------------------------------------------------------------------
+
+
+
+
+-- A program consists of a set of definitions.
+
+newtype Program = Program { programDefs :: Map Name (Type, Expr) }
+
+emptyProgram :: Program
+emptyProgram = Program Map.empty
 
 
 
@@ -235,20 +245,46 @@ currentTypeId = unsafePerformIO (newIORef (TypeId 0))
 
 
 
--- To infer the types in a mutually-recursive binding group, the type of each
--- definition is inferred under the assumption that all signatures in the
--- binding group are correct, then the inferred type is checked against the
--- declared type.
+-- When updating a program with a mutually recursive binding group of new
+-- definitions, the new definitions and any existing definitions that reference
+-- them are typechecked with the context of the old definitions. If typechecking
+-- succeeds, the program is updated with the new definitions.
+--
+-- The type of each definition is inferred under the assumption that all
+-- signatures in the binding group are correct, then the inferred type of each
+-- definition is checked against its declared type.
 
-inferTypes :: Map Name (Type, Expr) -> Tc (Map Name (Type, Expr))
-inferTypes defs = fmap Map.fromList . mapM go . Map.toList $ defs
-  where
-  sigs = Map.map fst defs
-  go (name, (scheme, expr)) = do
+updateProgram :: Program -> Map Name (Type, Expr) -> Tc Program
+updateProgram program@(Program existing) new = let
+  -- This union is left-biased, so new definitions will replace old definitions.
+  updated = Map.union new existing
+  needChecking = Map.keys new ++ concatMap (crossReference program) (Map.keys new)
+  sigs = Map.map fst updated
+  go name (scheme, expr) = do
     (expr', scheme') <- inferType0 sigs expr
     instanceCheck scheme' scheme
     let expr'' = quantifyExpr scheme' expr'
     return (name, (scheme', expr''))
+  in Program . (\checked -> Map.union checked existing)
+    . Map.fromList <$> mapM (\name -> go name (updated Map.! name)) needChecking
+
+-- Cross-referencing finds all definitions in a program that reference a name.
+
+crossReference :: Program -> Name -> [Name]
+crossReference (Program defs) callee = mapMaybe (uncurry findName) (Map.toList defs)
+  where
+  findName caller (_, expr) = go expr
+    where
+    go e = case e of
+      EId{} -> Nothing
+      ECat _ a b -> go a <|> go b
+      ECall _ name _ | name == callee -> Just caller
+      EPush _ (VName name) | name == callee -> Just caller
+      EGo{} -> Nothing
+      ECome{} -> Nothing
+      EForall _ a -> go a
+      EIf _ a b -> go a <|> go b
+      _ -> Nothing
 
 
 
@@ -270,26 +306,28 @@ inferType0 sigs expr = while ["inferring the type of", show expr] $ do
 
 
 -- We infer the type of an expression tree and annotate each terminal with the
--- inferred type as we go.
+-- inferred type as we go. We ignore any existing annotations because a
+-- definition may need to be re-inferred and re-annotated when a program is
+-- updated with a new implementation of an existing definition.
 
 inferType :: TEnv -> TEnv -> Expr -> Tc (Expr, Type, TEnv)
 inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ case expr0 of
 
 -- Pushing a value results in a stack with that value on top.
 
-  EPush Nothing val -> do
+  EPush _ val -> do
     [a, e] <- fresh [KRho, KEffRho]
     (val', t, tenv1) <- inferVal tenvFinal tenv0 val
     let type_ = (a .-> a .* t) e
     let type' = zonkType tenvFinal type_
     return (EPush (Just type') val', type_, tenv1)
 
-  ECall Nothing name [] -> inferCall tenvFinal tenv0 name
+  ECall _ name [] -> inferCall tenvFinal tenv0 name
 
 -- The type of the composition of two expressions is the composition of the
 -- types of those expressions.
 
-  ECat Nothing expr1 expr2 -> do
+  ECat _ expr1 expr2 -> do
     (expr1', t1, tenv1) <- inferType' tenv0 expr1
     (expr2', t2, tenv2) <- inferType' tenv1 expr2
     (a, b, e1, tenv3) <- unifyFun tenv2 t1
@@ -302,7 +340,7 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
 
 -- The empty program is the identity function on stacks.
 
-  EId Nothing -> do
+  EId _ -> do
     [a, e] <- fresh [KRho, KEffRho]
     let type_ = (a .-> a) e
     let type' = zonkType tenvFinal type_
@@ -310,7 +348,7 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
 
 -- A value going from the stack to the locals.
 
-  EGo Nothing name -> do
+  EGo _ name -> do
     [a, b, e] <- fresh [KRho, KVal, KEffRho]
     let type_ = (a .* b .-> a) e
     let type' = zonkType tenvFinal type_
@@ -320,7 +358,7 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
 -- name is removed from the local scope. This relies on composition being
 -- inferred in left-to-right order.
 
-  ECome how Nothing name -> do
+  ECome how _ name -> do
     [a, e] <- fresh [KRho, KEffRho]
     b <- case Map.lookup name (envVs tenv0) of
       Just t -> return t
@@ -339,7 +377,7 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
 -- new local, then so must the other branch. If the resulting scopes do not
 -- differ, then we can merge the two environments by unification.
 
-  EIf Nothing expr1 expr2 -> do
+  EIf _ expr1 expr2 -> do
     [a, b, e] <- fresh [KRho, KRho, KEffRho]
     (expr1', t1, tenv1) <- while ["checking true branch"] $ inferType' tenv0 expr1
     (expr2', t2, tenv2) <- while ["checking false branch"] $ inferType' tenv0 expr2
@@ -363,7 +401,7 @@ inferType tenvFinal tenv0 expr0 = while ["inferring the type of", show expr0] $ 
     let type' = zonkType tenvFinal type_
     return (EIf (Just type') expr1' expr2', type_, tenv7)
 
-  _ -> fail $ unwords ["cannot infer type of already-annotated expression ", show expr0]
+  _ -> fail $ unwords ["cannot infer type of", show expr0]
 
   where
   inferType' = inferType tenvFinal
@@ -1183,7 +1221,7 @@ spec = do
           ("", (safeType, parse "\\q0 unsafe")) ])
         safeType
     it "fails when missing an effect annotation"
-      $ testFail $ inferTypes
+      $ testFail $ updateProgram emptyProgram
       $ Map.fromList [
         ("evil", (fr $ fe $ (vr .* "int" .-> vr) ve, parse "say")),
         ("", (fr $ fe $ (vr .* "int" .-> vr) ve, parse "evil")) ]
@@ -1241,7 +1279,7 @@ spec = do
       instanceCheck scheme expected
     either assertFailure (const (return ())) result
   testDefs defs scheme
-    = testScheme (fst . fromJust . Map.lookup "" <$> inferTypes defs) scheme
+    = testScheme (fst . (Map.! "") . programDefs <$> updateProgram emptyProgram defs) scheme
   ir = TypeId 0
   vr = TVar (Var ir kr)
   ia = TypeId 1
