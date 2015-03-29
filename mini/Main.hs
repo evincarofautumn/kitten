@@ -54,6 +54,7 @@ import Data.Function
 import Data.IORef
 import Data.List
 import Data.Map (Map)
+import Data.Maybe
 import Data.Monoid
 import Data.Set (Set)
 import Data.Text (Text)
@@ -239,13 +240,8 @@ currentTypeId = unsafePerformIO (newIORef (TypeId 0))
 -- binding group are correct, then the inferred type is checked against the
 -- declared type.
 
-inferTypes :: Map Name (Type, Expr) -> Expr -> Tc (Map Name (Type, Expr), Expr, Type)
-inferTypes defs expr0 = do
-  inferredDefs <- fmap Map.fromList . mapM go . Map.toList $ defs
-  let sigs' = Map.map fst inferredDefs
-  (expr1, scheme) <- inferType0 sigs' expr0
-  let expr2 = quantifyExpr scheme expr1
-  return (inferredDefs, expr2, scheme)
+inferTypes :: Map Name (Type, Expr) -> Tc (Map Name (Type, Expr))
+inferTypes defs = fmap Map.fromList . mapM go . Map.toList $ defs
   where
   sigs = Map.map fst defs
   go (name, (scheme, expr)) = do
@@ -1179,15 +1175,18 @@ spec = do
     it "deduces higher-order side effects"
       $ testScheme (inferEmpty (parse "1 \\say app"))
       $ fr $ fe $ (vr .-> vr) ("io" .| ve)
-    it "removes effects with an effect handler"
-      $ testDefs
-        (Map.singleton "q0" (fr $ fe $ (vr .-> vr .* "int") ("unsafe" .| ve), parse "1 ref deref"))
-        (parse "\\q0 unsafe")
-        $ fr $ fe $ (vr .-> vr .* "int") ve
+    it "removes effects with an effect handler" $ let
+      safeType = fr $ fe $ (vr .-> vr .* "int") ve
+      in testDefs
+        (Map.fromList [
+          ("q0", (fr $ fe $ (vr .-> vr .* "int") ("unsafe" .| ve), parse "1 ref deref")),
+          ("", (safeType, parse "\\q0 unsafe")) ])
+        safeType
     it "fails when missing an effect annotation"
       $ testFail $ inferTypes
-        (Map.singleton "evil" (fr $ fe $ (vr .* "int" .-> vr) ve, parse "say"))
-        (parse "evil")
+      $ Map.fromList [
+        ("evil", (fr $ fe $ (vr .* "int" .-> vr) ve, parse "say")),
+        ("", (fr $ fe $ (vr .* "int" .-> vr) ve, parse "evil")) ]
     it "fails on basic type mismatches"
       $ testFail (inferEmpty (parse "1 [add] add"))
     it "correctly copies from a local"
@@ -1230,7 +1229,7 @@ spec = do
   describe "definitions" $ do
     it "checks the type of a definition" $ let
       idType = fr $ fa $ fe $ (vr .* va .-> vr .* va) ve
-      in testDefs (Map.singleton "id" (idType, parse "&x -x")) (parse "id") idType
+      in testDefs (Map.fromList [("id", (idType, parse "&x -x")), ("", (idType, parse "id"))]) idType
   where
   inferEmpty expr = snd <$> inferType0 Map.empty expr
   testFail action = do
@@ -1241,8 +1240,8 @@ spec = do
       scheme <- inference
       instanceCheck scheme expected
     either assertFailure (const (return ())) result
-  testDefs defs expr scheme
-    = testScheme ((\ (_, _, t) -> t) <$> inferTypes defs expr) scheme
+  testDefs defs scheme
+    = testScheme (fst . fromJust . Map.lookup "" <$> inferTypes defs) scheme
   ir = TypeId 0
   vr = TVar (Var ir kr)
   ia = TypeId 1
