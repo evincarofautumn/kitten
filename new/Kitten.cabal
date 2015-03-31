@@ -1,0 +1,33 @@
+name: Kitten
+version: 0.1.0.0
+synopsis: Kitten Programming Language
+homepage: http://kittenlang.org/
+license: MIT
+license-file: LICENSE
+author: Jon Purdy
+maintainer: evincarofautumn@gmail.com
+category: Language
+build-type: Simple
+cabal-version: >=1.10
+
+executable kitten
+  build-depends: base >=4.7 && <4.8, Kitten
+  default-language: Haskell2010
+  ghc-options: -Wall
+  hs-source-dirs: src
+  main-is: Main.hs
+
+library
+  build-depends: base >=4.7 && <4.8
+  default-language: Haskell2010
+  exposed-modules: Kitten
+  ghc-options: -Wall
+  hs-source-dirs: lib
+
+test-suite test
+  build-depends: base >=4.7 && <4.8, Kitten
+  default-language: Haskell2010
+  ghc-options: -Wall
+  hs-source-dirs: test
+  main-is: Main.hs
+  type: exitcode-stdio-1.0
