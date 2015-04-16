@@ -1,0 +1,35 @@
+vocab vector;
+
+synonym + _::+
+
+def add (int, int -> int) {
+    (+)
+}
+
+def map<a, b, +e> (vector a, (a -> b +e) -> vector b +e) {
+  -> xs f;
+  xs
+}
+
+/*
+define dup<S...,A,+E> (S..., A -> S..., A, A +E):
+  ->x;
+  x
+  x
+
+
+data maybe<T>:
+  case nothing ()
+  case just (T)
+
+define hello<S...> (S...->S...+io):
+  if (okay):
+    "hello world"
+  else:
+    "goodbye world"
+  say
+
+hello
+  "\
+" 0b1010 blah
+*/
