@@ -218,7 +218,7 @@ showStack = do
 
 interactiveCompile
   :: (Config -> Config)
-  -> Input (Maybe (Program, Int, Type Scalar))
+  -> Input (Maybe (Program, Int, Type 'Scalar))
 interactiveCompile update = do
   program <- lift $ gets envProgram
   mCompiled <- do
