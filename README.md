@@ -20,9 +20,7 @@
 
 # Building [![Build Status](https://travis-ci.org/evincarofautumn/kitten.png?branch=master)](https://travis-ci.org/evincarofautumn/kitten)
 
-To build the compiler, you need GHC 7.8 from the latest [Haskell Platform]. Simply run:
-
-[Haskell Platform]: https://www.haskell.org/platform
+To build the compiler, you need GHC 7.10. Simply run:
 
 ```
 git clone https://github.com/evincarofautumn/kitten.git

@@ -22,7 +22,6 @@ module Kitten.Infer.Scheme
   , skolemize
   ) where
 
-import Control.Applicative hiding (Const)
 import Control.Arrow
 import Control.Monad
 import Control.Monad.Trans.State.Strict
@@ -48,14 +47,14 @@ import Kitten.Util.Monad
 
 import qualified Kitten.IdMap as Id
 
-instantiateM :: Location -> TypeScheme -> K (Type Scalar)
+instantiateM :: Location -> TypeScheme -> K (Type 'Scalar)
 instantiateM loc = liftState . state . instantiate loc
 
 instantiate
   :: Location
   -> TypeScheme
   -> Program
-  -> (Type Scalar, Program)
+  -> (Type 'Scalar, Program)
 instantiate loc (Forall stacks scalars type_) program
   = (sub renamed type', program')
 
@@ -80,21 +79,21 @@ instantiate loc (Forall stacks scalars type_) program
     var <- state (freshVar loc)
     return (declare name var local)
 
-generalize :: K (a, Type Scalar) -> K (a, TypeScheme)
+generalize :: K (a, Type 'Scalar) -> K (a, TypeScheme)
 generalize action = do
   before <- getProgram
   (extra, type_) <- action  -- HACK To preserve effect ordering.
   after <- getProgram
 
   let
-    substituted :: Type Scalar
+    substituted :: Type 'Scalar
     substituted = sub after type_
 
     dependent :: (Occurrences a, ReifyKind a, Unbound a) => KindedId a -> Bool
     dependent = dependentBetween before after
 
-    scalars :: [KindedId Scalar]
-    stacks :: [KindedId Stack]
+    scalars :: [KindedId 'Scalar]
+    stacks :: [KindedId 'Stack]
     (stacks, scalars) = (filter dependent *** filter dependent)
       (freeVars substituted)
 
@@ -123,13 +122,13 @@ dependentBetween before after name
 class Unbound (a :: Kind) where
   unbound :: Program -> [KindedId a]
 
-instance Unbound Scalar where
+instance Unbound 'Scalar where
   unbound env = map KindedId
     $ filter (`Id.notMember` inferenceScalars env)
     $ let n = envMaxScalar env in [n, pred n .. Id 0]
     -- See note [enumerating unbound names].
 
-instance Unbound Stack where
+instance Unbound 'Stack where
   unbound env = map KindedId
     $ filter (`Id.notMember` inferenceStacks env)
     $ let n = envMaxStack env in [n, pred n .. Id 0]
@@ -137,11 +136,11 @@ instance Unbound Stack where
 
 -- | The last allocated name in an environment. Relies on
 -- the fact that 'NameGen' allocates names sequentially.
-envMaxScalar :: Program -> Id TypeSpace
+envMaxScalar :: Program -> Id 'TypeSpace
 envMaxScalar = unkinded . pred . fst . genKinded . programScalarIdGen
 
 -- | See 'envMaxScalar'.
-envMaxStack :: Program -> Id TypeSpace
+envMaxStack :: Program -> Id 'TypeSpace
 envMaxStack = unkinded . pred . fst . genKinded . programStackIdGen
 
 -- Note [enumerating unbound names]:
@@ -159,7 +158,7 @@ regeneralize program (Forall stacks scalars wholeType) = let
   in Forall (foldr S.delete stacks vars) scalars type_
   where
   regeneralize'
-    :: forall a. TypeLevel -> Type a -> Writer [KindedId Stack] (Type a)
+    :: forall a. TypeLevel -> Type a -> Writer [KindedId 'Stack] (Type a)
   regeneralize' level type_ = case type_ of
     TyFunction a b loc
       | level == NonTopLevel
@@ -196,22 +195,22 @@ regeneralize program (Forall stacks scalars wholeType) = let
 freeVars
   :: (Free (Type a))
   => Type a
-  -> ([KindedId Stack], [KindedId Scalar])
+  -> ([KindedId 'Stack], [KindedId 'Scalar])
 freeVars type_
   = let (stacks, scalars) = free type_
   in (nub stacks, nub scalars)
 
 class Free a where
-  free :: a -> ([KindedId Stack], [KindedId Scalar])
+  free :: a -> ([KindedId 'Stack], [KindedId 'Scalar])
 
-instance Free (Type Stack) where
+instance Free (Type 'Stack) where
   free type_ = case type_ of
     TyStack a b -> free a <> free b
     TyConst name _ -> ([name], [])
     TyEmpty{} -> mempty
     TyVar name _ -> ([name], [])
 
-instance Free (Type Scalar) where
+instance Free (Type 'Scalar) where
   free type_ = case type_ of
     TyApply a bs _ -> free a <> F.foldMap free bs
     TyFunction a b _ -> free a <> free b
@@ -231,7 +230,7 @@ instance Free TypeScheme where
     (stacks', scalars') = free type_
     in (stacks' \\ S.toList stacks, scalars' \\ S.toList scalars)
 
-normalize :: Location -> Type Scalar -> Type Scalar
+normalize :: Location -> Type 'Scalar -> Type 'Scalar
 normalize loc type_ = let
   (stacks, scalars) = freeVars type_
   stackCount = length stacks
@@ -249,13 +248,13 @@ normalize loc type_ = let
 occurs
   :: forall a
   . (Occurrences a, ReifyKind a)
-  => Id TypeSpace -> Program -> Type a -> Bool
+  => Id 'TypeSpace -> Program -> Type a -> Bool
 occurs = (> 0) ..: occurrences (reifyKind (KindProxy :: KindProxy a))
 
 class Occurrences a where
-  occurrences :: Kind -> Id TypeSpace -> Program -> Type a -> Int
+  occurrences :: Kind -> Id 'TypeSpace -> Program -> Type a -> Int
 
-instance Occurrences Stack where
+instance Occurrences 'Stack where
   occurrences kind name program type_ = case type_ of
     TyStack a b -> recur a + recur b
     TyConst typeName@(KindedId name') _ -> case retrieve program typeName of
@@ -269,7 +268,7 @@ instance Occurrences Stack where
     recur :: (Occurrences a) => Type a -> Int
     recur = occurrences kind name program
 
-instance Occurrences Scalar where
+instance Occurrences 'Scalar where
   occurrences kind name program type_ = case type_ of
     TyApply a bs _ -> recur a + V.sum (V.map recur bs)
     TyFunction a b _ -> recur a + recur b
@@ -293,14 +292,14 @@ instance Occurrences Scalar where
 class Simplify a where
   simplify :: Program -> Type a -> Type a
 
-instance Simplify Stack where
+instance Simplify 'Stack where
   simplify program type_ = case type_ of
     TyVar name _
       | Right type' <- retrieve program name
       -> simplify program type'
     _ -> type_
 
-instance Simplify Scalar where
+instance Simplify 'Scalar where
   simplify program type_ = case type_ of
     TyVar name _
       | Right type' <- retrieve program name
@@ -310,7 +309,7 @@ instance Simplify Scalar where
 class Substitute a where
   sub :: Program -> Type a -> Type a
 
-instance Substitute Stack where
+instance Substitute 'Stack where
   sub program type_ = case type_ of
     TyStack a b -> TyStack (sub program a) (sub program b)
     TyConst{} -> type_  -- See Note [Constant Substitution].
@@ -321,7 +320,7 @@ instance Substitute Stack where
       | otherwise
       -> type_
 
-instance Substitute Scalar where
+instance Substitute 'Scalar where
   sub program type_ = case type_ of
     TyApply a bs loc -> TyApply (recur a) (V.map recur bs) loc
     TyFunction a b loc -> TyFunction (recur a) (recur b) loc
@@ -354,7 +353,7 @@ instance Substitute Scalar where
 -- constants and the skolemized type.
 skolemize
   :: TypeScheme
-  -> K ([KindedId Stack], [KindedId Scalar], Type Scalar)
+  -> K ([KindedId 'Stack], [KindedId 'Scalar], Type 'Scalar)
 skolemize (Forall stackVars scalarVars type_) = do
   let
     declares
@@ -374,7 +373,7 @@ skolemize (Forall stackVars scalarVars type_) = do
 
 skolemizeType
   :: Type a
-  -> K ([KindedId Stack], [KindedId Scalar], Type a)
+  -> K ([KindedId 'Stack], [KindedId 'Scalar], Type a)
 skolemizeType = \case
   TyFunction a b loc -> do
     (stackConsts, scalarConsts, b') <- skolemizeType b

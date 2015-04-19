@@ -17,7 +17,6 @@ import Data.Maybe
 import Data.Monoid
 import Data.Ord
 import Data.Text (Text)
-import Data.Traversable (traverse)
 import Data.Vector (Vector)
 import Text.Parsec.Pos
 

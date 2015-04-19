@@ -22,7 +22,6 @@ module Kitten.HTML
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Writer
-import Data.Foldable (foldMap)
 import Data.Map (Map)
 import Data.Monoid
 import Data.Text (Text)
@@ -47,7 +46,7 @@ type LocMap = UnionMap FilePath (UnionMap Pos [Node])
 
 data Node
   = Definition !Name
-  | ScalarType !(Type Scalar)
+  | ScalarType !(Type 'Scalar)
   deriving (Show)  -- FIXME(strager): Temporary.
 
 data NodeType

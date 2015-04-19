@@ -35,23 +35,23 @@ import qualified Kitten.IdMap as Id
 class Declare a where
   declare :: KindedId a -> Type a -> Program -> Program
 
-instance Declare Stack where
+instance Declare 'Stack where
   declare (KindedId i) type_ program = program
     { inferenceStacks = Id.insert i type_ (inferenceStacks program) }
 
-instance Declare Scalar where
+instance Declare 'Scalar where
   declare (KindedId i) type_ program = program
     { inferenceScalars = Id.insert i type_ (inferenceScalars program) }
 
 class Retrieve a where
   retrieve :: Program -> KindedId a -> Either ErrorGroup (Type a)
 
-instance Retrieve Stack where
+instance Retrieve 'Stack where
   retrieve Program{..} (KindedId name)
     = flip maybeToEither (Id.lookup name inferenceStacks)
     $ nonexistent "stack" inferenceLocation name
 
-instance Retrieve Scalar where
+instance Retrieve 'Scalar where
   retrieve Program{..} (KindedId name)
     = flip maybeToEither (Id.lookup name inferenceScalars)
     $ nonexistent "scalar" inferenceLocation name
@@ -70,12 +70,12 @@ class Fresh (a :: Kind) where
     . (KindedId a -> Location -> b a)
     -> Location -> Program -> (b a, Program)
 
-instance Fresh Scalar where
+instance Fresh 'Scalar where
   fresh constructor loc program
     = let (typeId, program') = freshScalarId program
     in (constructor typeId loc, program')
 
-instance Fresh Stack where
+instance Fresh 'Stack where
   fresh constructor loc program
     = let (typeId, program') = freshStackId program
     in (constructor typeId loc, program')

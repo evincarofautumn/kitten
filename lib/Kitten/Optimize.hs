@@ -6,7 +6,6 @@ module Kitten.Optimize
   ( optimize
   ) where
 
-import Control.Applicative
 import Data.Function
 import Data.List
 

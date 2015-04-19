@@ -13,7 +13,6 @@ module Kitten.Infer
   , forAll
   ) where
 
-import Control.Applicative hiding (some)
 import Control.Monad
 import Data.Monoid
 import Data.Vector (Vector)
@@ -49,7 +48,7 @@ import qualified Kitten.Util.Vector as V
 
 typeFragment
   :: Fragment ResolvedTerm
-  -> K (Fragment TypedTerm, Type Scalar)
+  -> K (Fragment TypedTerm, Type 'Scalar)
 typeFragment fragment = mdo
   -- Populate environment with definition types.
   --
@@ -164,7 +163,7 @@ instance ForAll (Type a) a where
   forAll = pure
 
 -- | Infers the type of a term.
-infer :: Program -> ResolvedTerm -> K (TypedTerm, Type Scalar)
+infer :: Program -> ResolvedTerm -> K (TypedTerm, Type 'Scalar)
 infer finalProgram resolved = case resolved of
 
   TrCall hint name loc -> asTyped (TrCall hint name) loc
@@ -485,10 +484,10 @@ infer finalProgram resolved = case resolved of
   recur = infer finalProgram
 
   asTyped
-    :: ((Location, Type Scalar) -> a)
+    :: ((Location, Type 'Scalar) -> a)
     -> Location
-    -> K (Type Scalar)
-    -> K (a, Type Scalar)
+    -> K (Type 'Scalar)
+    -> K (a, Type 'Scalar)
   asTyped constructor loc action = do
     type_ <- withLocation loc action
     let type' = setTypeLocation loc type_
@@ -501,7 +500,7 @@ unquantify loc = go
   go (TyQuantified scheme _) = go =<< instantiateM loc scheme
   go type_ = return $ setTypeLocation loc type_
 
-fromConstant :: Type Scalar -> K (Type Scalar)
+fromConstant :: Type 'Scalar -> K (Type 'Scalar)
 fromConstant type_ = do
   a <- freshVarM
   r <- freshVarM
@@ -509,22 +508,22 @@ fromConstant type_ = do
   type_ `shouldBe` (r --> r -: a) loc
   return a
 
-binary :: Type Scalar -> Location -> K (Type Scalar)
+binary :: Type 'Scalar -> Location -> K (Type 'Scalar)
 binary a loc = forAll
   $ \r -> (r -: a -: a --> r -: a) loc
 
-relational :: Type Scalar -> Location -> K (Type Scalar)
+relational :: Type 'Scalar -> Location -> K (Type 'Scalar)
 relational a loc = forAll
   $ \r -> (r -: a -: a --> r -: tyBool loc) loc
 
-unary :: Type Scalar -> Location -> K (Type Scalar)
+unary :: Type 'Scalar -> Location -> K (Type 'Scalar)
 unary a loc = forAll
   $ \r -> (r -: a --> r -: a) loc
 
-string :: Location -> Type Scalar
+string :: Location -> Type 'Scalar
 string loc = TyVector (tyChar loc) loc
 
-local :: Type Scalar -> K a -> K a
+local :: Type 'Scalar -> K a -> K a
 local type_ action = do
   modifyProgram $ \program -> program
     { inferenceLocals = type_ : inferenceLocals program }
@@ -533,7 +532,7 @@ local type_ action = do
     { inferenceLocals = tail $ inferenceLocals program }
   return result
 
-withClosure :: Vector (Type Scalar) -> K a -> K a
+withClosure :: Vector (Type 'Scalar) -> K a -> K a
 withClosure types action = do
   original <- getsProgram inferenceClosure
   modifyProgram $ \program -> program { inferenceClosure = types }
@@ -541,12 +540,12 @@ withClosure types action = do
   modifyProgram $ \program -> program { inferenceClosure = original }
   return result
 
-getClosedName :: ClosedName -> K (Type Scalar)
+getClosedName :: ClosedName -> K (Type 'Scalar)
 getClosedName name = case name of
   ClosedName index -> getsProgram $ (!! index) . inferenceLocals
   ReclosedName index -> getsProgram $ (V.! index) . inferenceClosure
 
-inferValue :: Program -> ResolvedValue -> K (TypedValue, Type Scalar)
+inferValue :: Program -> ResolvedValue -> K (TypedValue, Type 'Scalar)
 inferValue finalProgram value = getLocation >>= \pushLoc -> case value of
   TrBool val loc -> ret loc (tyBool pushLoc) (TrBool val)
   TrChar val loc -> ret loc (tyChar pushLoc) (TrChar val)
@@ -569,7 +568,7 @@ inferValue finalProgram value = getLocation >>= \pushLoc -> case value of
     type' = setTypeLocation loc type_
     in return (constructor (loc, type'), type')
 
-unifyEach :: Vector (Type Scalar) -> K (Type Scalar)
+unifyEach :: Vector (Type 'Scalar) -> K (Type 'Scalar)
 unifyEach xs = go 0
   where
   go i
@@ -580,9 +579,9 @@ unifyEach xs = go 0
       go (i + 1)
 
 inferCompose
-  :: Type Stack -> Type Stack
-  -> Type Stack -> Type Stack
-  -> K (Type Scalar)
+  :: Type 'Stack -> Type 'Stack
+  -> Type 'Stack -> Type 'Stack
+  -> K (Type 'Scalar)
 inferCompose in1 out1 in2 out2 = do
   out1 `shouldBe` in2
   return $ TyFunction in1 out2 (typeLocation out2)

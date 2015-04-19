@@ -21,13 +21,13 @@ import Kitten.Util.Text (ToText(..))
 class DiagnosticLocations a where
   diagnosticLocations :: Type a -> [(Location, Text)]
 
-instance DiagnosticLocations Scalar where
+instance DiagnosticLocations 'Scalar where
   diagnosticLocations = scalarLocations
 
-instance DiagnosticLocations Stack where
+instance DiagnosticLocations 'Stack where
   diagnosticLocations = stackLocations
 
-scalarLocations :: Type Scalar -> [(Location, Text)]
+scalarLocations :: Type 'Scalar -> [(Location, Text)]
 scalarLocations type_ = case type_ of
   TyApply a bs _ -> recur a ++ F.foldMap recur bs
   TyConst _ loc -> yield loc
@@ -43,7 +43,7 @@ scalarLocations type_ = case type_ of
   yield loc = [(loc, toText type_)]
   recur = scalarLocations
 
-stackLocations :: Type Stack -> [(Location, Text)]
+stackLocations :: Type 'Stack -> [(Location, Text)]
 stackLocations type_ = case type_ of
   TyStack a b -> stackLocations a ++ scalarLocations b
   TyEmpty loc -> yield loc

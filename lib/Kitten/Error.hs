@@ -10,7 +10,6 @@ module Kitten.Error
   , printCompileErrors
   ) where
 
-import Control.Applicative
 import Control.Monad.Trans.State
 import Data.Function
 import Data.List

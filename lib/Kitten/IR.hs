@@ -14,12 +14,10 @@ module Kitten.IR
   , ir
   ) where
 
-import Control.Applicative hiding (some)
 import Control.Monad.Trans.State.Strict
 import Data.List
 import Data.Maybe
 import Data.Monoid
-import Data.Traversable (traverse)
 
 import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as H

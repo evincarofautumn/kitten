@@ -12,11 +12,9 @@
 
 module Kitten.Type where
 
-import Data.Foldable (Foldable)
 import Data.Monoid
 import Data.Set (Set)
 import Data.Text (Text)
-import Data.Traversable (Traversable)
 import Data.Vector (Vector)
 import Text.Parsec.Pos
 
@@ -33,18 +31,18 @@ import Kitten.Name
 import Kitten.Util.Text (ToText(..), showText)
 
 data Type (a :: Kind) where
-  TyApply :: !(Type Scalar) -> !(Vector (Type Scalar)) -> !Location -> Type Scalar
+  TyApply :: !(Type 'Scalar) -> !(Vector (Type 'Scalar)) -> !Location -> Type 'Scalar
   TyConst :: !(KindedId a) -> !Location -> Type a
-  TyCtor :: !Ctor -> !Location -> Type Scalar
-  TyEmpty :: !Location -> Type Stack
-  TyFunction :: !(Type Stack) -> !(Type Stack) -> !Location -> Type Scalar
-  TyOption :: !(Type Scalar) -> !Location -> Type Scalar
-  TyProduct :: !(Type Scalar) -> !(Type Scalar) -> !Location -> Type Scalar
-  TyQuantified :: !TypeScheme -> !Location -> Type Scalar
-  TyStack :: !(Type Stack) -> !(Type Scalar) -> Type Stack
-  TySum :: !(Type Scalar) -> !(Type Scalar) -> !Location -> Type Scalar
+  TyCtor :: !Ctor -> !Location -> Type 'Scalar
+  TyEmpty :: !Location -> Type 'Stack
+  TyFunction :: !(Type 'Stack) -> !(Type 'Stack) -> !Location -> Type 'Scalar
+  TyOption :: !(Type 'Scalar) -> !Location -> Type 'Scalar
+  TyProduct :: !(Type 'Scalar) -> !(Type 'Scalar) -> !Location -> Type 'Scalar
+  TyQuantified :: !TypeScheme -> !Location -> Type 'Scalar
+  TyStack :: !(Type 'Stack) -> !(Type 'Scalar) -> Type 'Stack
+  TySum :: !(Type 'Scalar) -> !(Type 'Scalar) -> !Location -> Type 'Scalar
   TyVar :: !(KindedId a) -> !Location -> Type a
-  TyVector :: !(Type Scalar) -> !Location -> Type Scalar
+  TyVector :: !(Type 'Scalar) -> !Location -> Type 'Scalar
 
 typeLocation :: Type a -> Location
 typeLocation = \case
@@ -89,7 +87,7 @@ data Ctor
   | CtorUser !Name
   deriving (Eq)
 
-tyBool, tyChar, tyFloat, tyHandle, tyInt :: Location -> Type Scalar
+tyBool, tyChar, tyFloat, tyHandle, tyInt :: Location -> Type 'Scalar
 tyBool = TyCtor CtorBool
 tyChar = TyCtor CtorChar
 tyFloat = TyCtor CtorFloat
@@ -122,14 +120,14 @@ instance Eq (Type a) where
   TyVector a _ == TyVector b _ = a == b
   _ == _ = False
 
-instance Show (Type Scalar) where
+instance Show (Type 'Scalar) where
   show = T.unpack . toText
 
-instance Show (Type Stack) where
+instance Show (Type 'Stack) where
   show = T.unpack . toText
 
 -- TODO showsPrec
-instance ToText (Type Scalar) where
+instance ToText (Type 'Scalar) where
   toText = \case
     TyApply t1 ts _ -> toText t1 <> case V.toList ts of
       [] -> ""
@@ -147,7 +145,7 @@ instance ToText (Type Scalar) where
     TyVar (KindedId (Id i)) _ -> "t" <> showText i
     TyVector t _ -> T.concat ["[", toText t, "]"]
 
-instance ToText (Type Stack) where
+instance ToText (Type 'Stack) where
   toText = \case
     TyConst (KindedId (Id i)) _
       -> "s" <> showText i <> "..."  -- TODO Show differently?
@@ -162,8 +160,8 @@ data StackHint
 
 -- FIXME Derived 'Eq' instance may be too restrictive.
 data Scheme a = Forall
-  (Set (KindedId Stack))
-  (Set (KindedId Scalar))
+  (Set (KindedId 'Stack))
+  (Set (KindedId 'Scalar))
   a
   deriving (Eq, Foldable, Functor, Traversable)
 
@@ -185,25 +183,25 @@ instance (ToText a) => ToText (Scheme a) where
     loc = Location
       { locationStart = newPos "" 0 0, locationIndent = -1 }
 
-type TypeScheme = Scheme (Type Scalar)
+type TypeScheme = Scheme (Type 'Scalar)
 
 infix 6 &:
 infix 6 |:
 infixl 5 -:
 infix 4 -->
 
-(-->) :: Type Stack -> Type Stack -> Location -> Type Scalar
+(-->) :: Type 'Stack -> Type 'Stack -> Location -> Type 'Scalar
 (-->) = TyFunction
 
-(&:), (|:) :: Type Scalar -> Type Scalar -> Location -> Type Scalar
+(&:), (|:) :: Type 'Scalar -> Type 'Scalar -> Location -> Type 'Scalar
 (&:) = TyProduct
 (|:) = TySum
 
-(-:) :: Type Stack -> Type Scalar -> Type Stack
+(-:) :: Type 'Stack -> Type 'Scalar -> Type 'Stack
 (-:) = TyStack
 
 -- | Gets the bottommost element of a stack type.
-bottommost :: Type Stack -> Type Stack
+bottommost :: Type 'Stack -> Type 'Stack
 bottommost type_ = case type_ of
   TyStack a _ -> bottommost a
   _ -> type_
@@ -211,10 +209,10 @@ bottommost type_ = case type_ of
 mono :: a -> Scheme a
 mono = Forall S.empty S.empty
 
-stackVar :: TypeId -> KindedId Stack
+stackVar :: TypeId -> KindedId 'Stack
 stackVar = KindedId
 
-scalarVar :: TypeId -> KindedId Scalar
+scalarVar :: TypeId -> KindedId 'Scalar
 scalarVar = KindedId
 
 unscheme :: Scheme a -> a

@@ -37,9 +37,9 @@ import Kitten.Id
 newtype IdMap (n :: Namespace) a = IdMap (IntMap a)
   deriving (Eq, Monoid, Show)
 
-type DefIdMap = IdMap DefSpace
-type LabelIdMap = IdMap LabelSpace
-type TypeIdMap = IdMap TypeSpace
+type DefIdMap = IdMap 'DefSpace
+type LabelIdMap = IdMap 'LabelSpace
+type TypeIdMap = IdMap 'TypeSpace
 
 (!) :: IdMap n a -> Id n -> a
 (!) (IdMap ids) (Id index) = ids I.! index

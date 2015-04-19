@@ -8,13 +8,11 @@ module Kitten.Resolve
   , searchAbbrev
   ) where
 
-import Control.Applicative hiding (some)
 import Control.Arrow
 import Data.HashMap.Strict (HashMap)
 import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
-import Data.Traversable (traverse)
 import GHC.Exts
 
 import qualified Data.HashMap.Strict as H

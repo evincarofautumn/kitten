@@ -30,9 +30,9 @@ data Namespace
 newtype Id (n :: Namespace) = Id Int
   deriving (Enum, Eq, Ord)
 
-type DefId = Id DefSpace
-type LabelId = Id LabelSpace
-type TypeId = Id TypeSpace
+type DefId = Id 'DefSpace
+type LabelId = Id 'LabelSpace
+type TypeId = Id 'TypeSpace
 
 instance Show (Id n) where
   show = T.unpack . toText
@@ -43,9 +43,9 @@ instance ToText (Id n) where
 newtype IdGen (n :: Namespace) = IdGen (Id n)
   deriving (Show)
 
-type DefIdGen = IdGen DefSpace
-type LabelIdGen = IdGen LabelSpace
-type TypeIdGen = IdGen TypeSpace
+type DefIdGen = IdGen 'DefSpace
+type LabelIdGen = IdGen 'LabelSpace
+type TypeIdGen = IdGen 'TypeSpace
 
 genId :: IdGen n -> (Id n, IdGen n)
 genId (IdGen i) = (i, IdGen (succ i))

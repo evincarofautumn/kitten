@@ -8,7 +8,6 @@
 
 module Kitten.Program where 
 
-import Control.Applicative
 import Control.Monad.Fix
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
@@ -49,19 +48,19 @@ data Program = Program
   , programDefIdGen :: !DefIdGen
   , programFixities :: !(HashMap Name Fixity)
   , programOperators :: [Operator]
-  , programScalarIdGen :: !(KindedGen Scalar)
-  , programStackIdGen :: !(KindedGen Stack)
+  , programScalarIdGen :: !(KindedGen 'Scalar)
+  , programStackIdGen :: !(KindedGen 'Stack)
   , programSymbols :: !(HashMap Name DefId)
   , programTypes :: !(HashMap Name TypeDef)
 
   , inferenceContext :: [Name]
-  , inferenceClosure :: !(Vector (Type Scalar))
+  , inferenceClosure :: !(Vector (Type 'Scalar))
   , inferenceDefs :: !(HashMap Name TypeScheme)
   , inferenceDecls :: !(HashMap Name TypeScheme)
-  , inferenceLocals :: [Type Scalar]
+  , inferenceLocals :: [Type 'Scalar]
   , inferenceLocation :: !Location
-  , inferenceScalars :: !(TypeIdMap (Type Scalar))
-  , inferenceStacks :: !(TypeIdMap (Type Stack))
+  , inferenceScalars :: !(TypeIdMap (Type 'Scalar))
+  , inferenceStacks :: !(TypeIdMap (Type 'Stack))
   }
 
 instance Show Program where
@@ -111,20 +110,20 @@ freshDefId program = let
 freshDefIdM :: K (DefId)
 freshDefIdM = liftState $ state freshDefId
 
-freshScalarId :: Program -> (KindedId Scalar, Program)
+freshScalarId :: Program -> (KindedId 'Scalar, Program)
 freshScalarId program = let
   (i, gen') = genKinded (programScalarIdGen program)
   in (i, program { programScalarIdGen = gen' })
 
-freshScalarIdM :: K (KindedId Scalar)
+freshScalarIdM :: K (KindedId 'Scalar)
 freshScalarIdM = liftState $ state freshScalarId
 
-freshStackId :: Program -> (KindedId Stack, Program)
+freshStackId :: Program -> (KindedId 'Stack, Program)
 freshStackId program = let
   (i, gen') = genKinded (programStackIdGen program)
   in (i, program { programStackIdGen = gen' })
 
-freshStackIdM :: K (KindedId Stack)
+freshStackIdM :: K (KindedId 'Stack)
 freshStackIdM = liftState $ state freshStackId
 
 freshM
@@ -139,7 +138,7 @@ data IrInstruction
   | IrIntrinsic !Intrinsic
   | IrCall !DefId
   | IrClosure !Int
-  | IrConstruct !Int !Int !(Type Scalar)
+  | IrConstruct !Int !Int !(Type 'Scalar)
   | IrDrop !Int
   | IrEnter !Int
   | IrLabel !DefId
@@ -153,7 +152,7 @@ data IrInstruction
   | IrTailCall !Int !DefId
   deriving (Eq)
 
-type IrAct = (DefId, Vector ClosedName, Type Scalar)
+type IrAct = (DefId, Vector ClosedName, Type 'Scalar)
 
 data IrCase = IrCase !Int !IrAct
   deriving (Eq)

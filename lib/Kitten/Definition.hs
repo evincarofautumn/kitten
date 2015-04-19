@@ -4,9 +4,6 @@
 
 module Kitten.Definition where
 
-import Data.Foldable (Foldable)
-import Data.Traversable (Traversable)
-
 import Kitten.Annotation
 import Kitten.Location
 import Kitten.Name

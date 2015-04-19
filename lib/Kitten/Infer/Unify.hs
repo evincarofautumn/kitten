@@ -49,7 +49,7 @@ class Unification a where
     -> Program
     -> Either [ErrorGroup] Program
 
-instance Unification Stack where
+instance Unification 'Stack where
   unification have want program = case (have, want) of
     _ | have == want -> Right program
     (TyStack a b, TyStack c d) -> unify b d program >>= unify a c
@@ -61,7 +61,7 @@ instance Unification Stack where
     where
     loc = inferenceLocation program
 
-instance Unification Scalar where
+instance Unification 'Scalar where
   unification have want program = case (have, want) of
     _ | have == want -> Right program
     (TyProduct a b _, TyProduct c d _) -> unify b d program >>= unify a c

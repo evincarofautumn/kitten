@@ -15,14 +15,12 @@ module Kitten.Resolve.Monad
   , withLocal
   ) where
 
-import Control.Applicative
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.HashMap.Strict (HashMap)
 import Data.List
 import Data.Set (Set)
 import Data.Text (Text)
-import Data.Traversable (Traversable)
 
 import Kitten.Error
 import Kitten.Name

@@ -6,7 +6,6 @@ module Kitten.C
   ( toC
   ) where
 
-import Control.Applicative
 import Control.Monad.Trans.State.Strict
 import Data.IntMap (IntMap)
 import Data.List
@@ -32,7 +31,7 @@ import qualified Kitten.IdMap as Id
 import qualified Kitten.Util.Vector as V
 
 data Env = Env
-  { envIdGen :: !(IdGen LabelSpace)
+  { envIdGen :: !(IdGen 'LabelSpace)
   , envNames :: !(IntMap DefId)
   , envOffsets :: !(LabelIdMap Int)
   }

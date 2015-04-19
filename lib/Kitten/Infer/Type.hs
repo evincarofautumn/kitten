@@ -7,7 +7,6 @@ module Kitten.Infer.Type
   ( fromAnno
   ) where
 
-import Control.Applicative
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.HashMap.Strict (HashMap)
@@ -36,15 +35,15 @@ import Kitten.Util.Text (ToText(..))
 data Env = Env
   { envAbbrevs :: !(HashMap (Qualifier, Text) Qualifier)
 
-  , envAnonStacks :: [KindedId Stack]
+  , envAnonStacks :: [KindedId 'Stack]
   -- ^ Anonymous stacks implicit on both sides of an
   -- 'Anno.Function' constructor.
 
-  , envStacks :: !(HashMap Name (KindedId Stack, Location))
+  , envStacks :: !(HashMap Name (KindedId 'Stack, Location))
   -- ^ Map from stack variable names to stack variables
   -- themselves.
 
-  , envScalars :: !(HashMap Name (KindedId Scalar, Location))
+  , envScalars :: !(HashMap Name (KindedId 'Scalar, Location))
   -- ^ Map from scalar variable names to scalar variables
   -- themselves.
 
@@ -60,7 +59,7 @@ fromAnno
   -> HashMap Name TypeDef
   -> HashMap (Qualifier, Text) Qualifier
   -> Anno
-  -> K (Scheme (Type Scalar))
+  -> K (Scheme (Type 'Scalar))
 fromAnno vocab typeDefNames newAbbrevs (Anno annoType) = do
   oldAbbrevs <- getsProgram programAbbrevs
   (type_, env) <- flip runStateT Env
@@ -78,7 +77,7 @@ fromAnno vocab typeDefNames newAbbrevs (Anno annoType) = do
     type_
   where
 
-  fromAnnoType' :: AnType -> Converted (Type Scalar)
+  fromAnnoType' :: AnType -> Converted (Type 'Scalar)
   fromAnnoType' = \case
     AnApp a bs loc -> TyApply
       <$> fromAnnoType' a
@@ -129,11 +128,11 @@ fromAnno vocab typeDefNames newAbbrevs (Anno annoType) = do
 
   makeFunction
     :: Location
-    -> Type Stack
+    -> Type 'Stack
     -> Vector AnType
-    -> Type Stack
+    -> Type 'Stack
     -> Vector AnType
-    -> Converted (Type Scalar)
+    -> Converted (Type 'Scalar)
   makeFunction loc leftStack leftScalars rightStack rightScalars = TyFunction
     <$> (V.foldl' TyStack leftStack <$> V.mapM fromAnnoType' leftScalars)
     <*> (V.foldl' TyStack rightStack <$> V.mapM fromAnnoType' rightScalars)
@@ -142,7 +141,7 @@ fromAnno vocab typeDefNames newAbbrevs (Anno annoType) = do
 fromAnno _ _ _ TestAnno = error "cannot make type from test annotation"
 
 -- | Gets a scalar variable by name from the environment.
-annoScalarVar :: Name -> Location -> Converted (Type Scalar)
+annoScalarVar :: Name -> Location -> Converted (Type 'Scalar)
 annoScalarVar name loc = do
   existing <- gets $ H.lookup name . envScalars
   vocab <- gets envVocabulary
@@ -166,7 +165,7 @@ annoScalarVar name loc = do
   call x = return $ TyCtor (CtorUser x) loc
 
 -- | Gets a stack variable by name from the environment.
-annoStackVar :: Name -> Location -> Converted (Type Stack)
+annoStackVar :: Name -> Location -> Converted (Type 'Stack)
 annoStackVar name loc = do
   existing <- gets $ H.lookup name . envStacks
   case existing of

@@ -139,7 +139,7 @@ matched :: String -> Bool
 matched = go Outside (0::Int)
   where
   go q n ('\\':x:xs)
-    | x `elem` "'\"" = go q n xs
+    | x `elem` ("'\"" :: String) = go q n xs
     | otherwise = go q n xs
   go q n ('"':xs) = go (case q of Inside -> Outside; Outside -> Inside) n xs
   go Inside n (_:xs) = go Inside n xs
@@ -149,8 +149,8 @@ matched = go Outside (0::Int)
     | isClose x = n <= 0 || go Outside (pred n) xs
     | otherwise = go Outside n xs
   go Outside n [] = n == 0
-  isOpen = (`elem` "([{")
-  isClose = (`elem` "}])")
+  isOpen = (`elem` ("([{" :: String))
+  isClose = (`elem` ("}])" :: String))
 
 continue :: Int -> Text -> Input ()
 continue offset acc = do

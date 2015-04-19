@@ -9,7 +9,6 @@ module Kitten.Interpret
   , typeOf
   ) where
 
-import Control.Applicative hiding (some)
 import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
@@ -499,7 +498,7 @@ proceed :: Interpret Offset
 proceed = return $ Just (fmap succ)
 
 data InterpreterValue
-  = Activation !DefId !(Vector InterpreterValue) !(Type Scalar)
+  = Activation !DefId !(Vector InterpreterValue) !(Type 'Scalar)
   | Bool !Bool
   | Char !Char
   | Choice !Bool !InterpreterValue
@@ -509,7 +508,7 @@ data InterpreterValue
   | Option !(Maybe InterpreterValue)
   | Pair !InterpreterValue !InterpreterValue
   | Vector !(Vector InterpreterValue)
-  | User !Int !(Vector InterpreterValue) !(Type Scalar)
+  | User !Int !(Vector InterpreterValue) !(Type 'Scalar)
 
 instance Show InterpreterValue where
   show = T.unpack . toText
@@ -599,12 +598,12 @@ stringFromChars = V.toList . V.map fromChar
 typeOf
   :: Location
   -> InterpreterValue
-  -> KindedGen Scalar
-  -> (Type Scalar, KindedGen Scalar)
+  -> KindedGen 'Scalar
+  -> (Type 'Scalar, KindedGen 'Scalar)
 typeOf loc = runState . typeOfM loc
 
 typeOfM
-  :: Location -> InterpreterValue -> State (KindedGen Scalar) (Type Scalar)
+  :: Location -> InterpreterValue -> State (KindedGen 'Scalar) (Type 'Scalar)
 typeOfM loc value = case value of
   Activation _ _ type_ -> pure type_
   Bool _ -> pure $ tyBool loc
@@ -624,5 +623,5 @@ typeOfM loc value = case value of
   where
   recur = typeOfM loc
 
-  freshVarM :: State (KindedGen Scalar) (Type Scalar)
+  freshVarM :: State (KindedGen 'Scalar) (Type 'Scalar)
   freshVarM = TyVar <$> state genKinded <*> pure loc

@@ -19,10 +19,10 @@ data KindProxy (a :: Kind) = KindProxy
 class ReifyKind (a :: Kind) where
   reifyKind :: KindProxy a -> Kind
 
-instance ReifyKind Stack where
+instance ReifyKind 'Stack where
   reifyKind _ = Stack
 
-instance ReifyKind Scalar where
+instance ReifyKind 'Scalar where
   reifyKind _ = Scalar
 
 instance ToText Kind where

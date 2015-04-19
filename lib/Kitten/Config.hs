@@ -22,7 +22,7 @@ data Config = Config
   , configOptimizations :: !OptConfig
   , configPredefined :: !(Vector (Def TypedTerm))
   , configSource :: !Text
-  , configStackTypes :: Vector (Type Scalar)
+  , configStackTypes :: Vector (Type 'Scalar)
   }
 
 -- TODO Add flags for other optimizations.

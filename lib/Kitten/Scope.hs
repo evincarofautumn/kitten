@@ -4,12 +4,10 @@ module Kitten.Scope
   ( scope
   ) where
 
-import Control.Applicative hiding (some)
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
 import Data.Monoid
-import Data.Traversable (traverse)
 import Data.Vector (Vector)
 
 import qualified Data.HashMap.Strict as H

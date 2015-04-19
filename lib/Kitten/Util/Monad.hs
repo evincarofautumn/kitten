@@ -9,7 +9,6 @@ module Kitten.Util.Monad
 
 import Control.Monad
 import Data.Maybe
-import Data.Traversable (Traversable)
 
 import qualified Data.Traversable as T
 

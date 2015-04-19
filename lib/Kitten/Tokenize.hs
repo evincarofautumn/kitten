@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 
@@ -186,7 +187,7 @@ silence = skipMany $ comment <|> whitespace
     pos <- getPosition
     putState $ sourceColumn pos
 
-  nonNewline = void $ Parsec.satisfy (`elem` "\t\v\f\r ")
+  nonNewline = void $ Parsec.satisfy (`elem` ("\t\v\f\r " :: String))
 
   comment = single <|> multi <?> "comment"
 

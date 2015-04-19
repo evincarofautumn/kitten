@@ -4,7 +4,6 @@
 
 module Kitten.Term where
 
-import Control.Applicative
 import Data.Monoid
 import Data.Text (Text)
 import Data.Vector (Vector)
@@ -112,8 +111,8 @@ type ParsedValue = TrValue Location
 type ResolvedTerm = TrTerm Location
 type ResolvedValue = TrValue Location
 
-type TypedTerm = TrTerm (Location, Type Scalar)
-type TypedValue = TrValue (Location, Type Scalar)
+type TypedTerm = TrTerm (Location, Type 'Scalar)
+type TypedValue = TrValue (Location, Type 'Scalar)
 
 defTypeScheme :: Def TypedTerm -> TypeScheme
 defTypeScheme def = type_ <$ defTerm def
@@ -135,7 +134,7 @@ termMetadata = \case
 typedLocation :: TypedTerm -> Location
 typedLocation = fst . termMetadata
 
-typedType :: TypedTerm -> Type Scalar
+typedType :: TypedTerm -> Type 'Scalar
 typedType = snd . termMetadata
 
 parsedLocation :: ParsedTerm -> Location

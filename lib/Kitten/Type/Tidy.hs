@@ -13,7 +13,6 @@ module Kitten.Type.Tidy
   , tidyStackType
   ) where
 
-import Control.Applicative hiding (Const)
 import Control.Monad.Trans.State
 
 import qualified Data.Vector as V
@@ -28,13 +27,13 @@ import qualified Kitten.IdMap as Id
 import qualified Kitten.Util.Set as Set
 
 data TidyKindState a = TidyKindState
-  { ids :: !(IdMap TypeSpace (KindedId a))
-  , idGen :: !(IdGen TypeSpace)
+  { ids :: !(IdMap 'TypeSpace (KindedId a))
+  , idGen :: !(IdGen 'TypeSpace)
   }
 
 data TidyState = TidyState
-  { scalars :: !(TidyKindState Scalar)
-  , stacks :: !(TidyKindState Stack)
+  { scalars :: !(TidyKindState 'Scalar)
+  , stacks :: !(TidyKindState 'Stack)
   }
 
 newtype Tidy a = Tidy (State TidyState a)
@@ -43,10 +42,10 @@ newtype Tidy a = Tidy (State TidyState a)
 class TidyType (a :: Kind) where
   tidyType :: Type a -> Tidy (Type a)
 
-instance TidyType Scalar where
+instance TidyType 'Scalar where
   tidyType = tidyScalarType
 
-instance TidyType Stack where
+instance TidyType 'Stack where
   tidyType = tidyStackType
 
 emptyKindState :: TidyKindState a
@@ -88,15 +87,15 @@ tidyIdM getKindState putKindState typeId = Tidy $ do
   modify (putKindState kindState')
   return typeId'
 
-tidyScalar :: KindedId Scalar -> Tidy (KindedId Scalar)
+tidyScalar :: KindedId 'Scalar -> Tidy (KindedId 'Scalar)
 tidyScalar = tidyIdM scalars
   (\scalars' s -> s { scalars = scalars' })
 
-tidyStack :: KindedId Stack -> Tidy (KindedId Stack)
+tidyStack :: KindedId 'Stack -> Tidy (KindedId 'Stack)
 tidyStack = tidyIdM stacks
   (\stacks' s -> s { stacks = stacks' })
 
-tidyScalarType :: Type Scalar -> Tidy (Type Scalar)
+tidyScalarType :: Type 'Scalar -> Tidy (Type 'Scalar)
 tidyScalarType type_ = case type_ of
   TyApply t1 ts loc -> TyApply <$> tidyScalarType t1 <*> V.mapM tidyScalarType ts <*> pure loc
   TyConst i loc -> TyConst <$> tidyScalar i <*> pure loc
@@ -117,7 +116,7 @@ tidyScalarType type_ = case type_ of
   TyVar i loc -> TyVar <$> tidyScalar i <*> pure loc
   TyVector t loc -> TyVector <$> tidyScalarType t <*> pure loc
 
-tidyStackType :: Type Stack -> Tidy (Type Stack)
+tidyStackType :: Type 'Stack -> Tidy (Type 'Stack)
 tidyStackType type_ = case type_ of
   TyStack t1 t2 -> TyStack <$> tidyStackType t1 <*> tidyScalarType t2
   TyConst i loc -> TyConst <$> tidyStack i <*> pure loc

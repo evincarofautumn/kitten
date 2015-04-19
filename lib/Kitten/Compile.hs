@@ -6,7 +6,6 @@ module Kitten.Compile
   ( compile
   ) where
 
-import Control.Applicative
 import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Either
@@ -69,7 +68,7 @@ parseSource line name source = do
 compile
   :: Config
   -> Program
-  -> IO (Either [ErrorGroup] (Program, Int, Type Scalar))
+  -> IO (Either [ErrorGroup] (Program, Int, Type 'Scalar))
 compile config@Config{..} program
   = liftM (mapLeft sort) . runEitherT $ do
 

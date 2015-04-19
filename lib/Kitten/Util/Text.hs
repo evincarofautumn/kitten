@@ -9,7 +9,6 @@ module Kitten.Util.Text
   , module Data.Text
   ) where
 
-import Control.Applicative
 import Data.Text
 import Data.Text.Encoding
 
