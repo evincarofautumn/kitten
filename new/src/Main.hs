@@ -1,5 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -9,14 +11,16 @@
 module Main where
 
 import Control.Applicative
+import Control.Arrow ((&&&))
 import Control.Concurrent
 import Control.Monad
 import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Data.Char
-import Data.Functor.Identity (Identity)
+import Data.Functor.Identity (Identity, runIdentity)
 import Data.IORef
 import Data.List
+import Data.Map (Map)
 import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
@@ -29,9 +33,11 @@ import System.IO.Unsafe
 import Text.Parsec hiding ((<|>), letter, many, newline, optional, parse, token, tokens)
 import Text.Parsec.Text ()
 import qualified Data.ByteString as ByteString
+import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Text.Parsec as Parsec
+import qualified Text.Parsec.Expr as Expression
 
 main :: IO ()
 main = do
@@ -53,7 +59,8 @@ compile paths = do
   parsed <- mconcat <$> zipWithM parse paths laidout
   checkpoint
   let substituted = substituteSynonyms parsed
-  return substituted
+  postfix <- desugarInfix substituted
+  return postfix
 
 substituteSynonyms :: Fragment -> Fragment
 substituteSynonyms fragment = fragment {
@@ -77,11 +84,105 @@ substituteSynonyms fragment = fragment {
       Generic a b origin -> Generic a (inTerm b) origin
       If a b c origin -> If a (inTerm b) (inTerm c) origin
       Match a b c origin -> Match a (map inCase b) (fmap inElse c) origin
+      Push a b origin -> Push a (inValue b) origin
       _ -> term
+    inValue :: Value -> Value
+    inValue value = case value of
+      Quotation term -> Quotation (inTerm term)
+      _ -> value
     inCase :: Case -> Case
     inCase (Case a b origin) = Case a (inTerm b) origin
     inElse :: Else -> Else
     inElse (Else a origin) = Else (inTerm a) origin
+
+desugarInfix :: Fragment -> K Fragment
+desugarInfix fragment = do
+  desugared <- mapM desugarDefinition (fragmentDefinitions fragment)
+  return fragment { fragmentDefinitions = desugared }
+  where
+
+  desugarDefinition :: Definition -> K Definition
+  desugarDefinition definition = do
+    desugared <- desugarTerm (definitionBody definition)
+    return definition { definitionBody = desugared }
+
+  desugarTerm :: Term -> K Term
+  desugarTerm term = case term of
+    Compose _ a b -> do
+      a' <- desugarTerm a
+      b' <- desugarTerm b
+      let
+        expression' = infixExpression <* eof
+        infixExpression = compose (termOrigin a)  -- FIXME
+          <$> many (expression {- <|> lambdaTerm -})
+      case Parsec.runParser expression' () "" (Compose Nothing a' b') of
+        Left parseError -> fail (show parseError)
+        Right result -> return result
+    _ -> return term
+
+  expression :: Rewriter Term
+  expression = Expression.buildExpressionParser operatorTable (operands <?> "operand")
+    where
+    operands = do
+      origin <- getOrigin
+      results <- operand
+      return $ compose origin results
+    operand = many1 $ termSatisfy $ \term -> case term of
+      Call _ Infix _ _ -> False  -- An operator is not an operand.
+      -- FIXME: What should be done about "lambdas"?
+      _ -> True
+
+  operatorTable :: [[Expression.Operator Term () Identity Term]]
+  operatorTable = map (map toOperator) rawOperatorTable
+
+  fragmentFixities :: Map Name Fixity
+  fragmentFixities = Map.fromList (map (definitionName &&& definitionFixity) (fragmentDefinitions fragment))
+
+  rawOperatorTable :: [[Operator]]
+  rawOperatorTable = let
+    useDefault name fixity
+      = fixity == Infix
+      && not (any ((name ==) . operatorName) (fragmentOperators fragment))
+    flat = fragmentOperators fragment ++ map (\ name -> Operator {
+      operatorAssociativity = Leftward,
+      operatorName = name,
+      operatorPrecedence = 6 })
+      (Map.keys (Map.filterWithKey useDefault fragmentFixities))
+    in map (\ p -> filter ((p ==) . operatorPrecedence) flat) [9, 8 .. 0]
+
+  toOperator :: Operator -> Expression.Operator Term () Identity Term
+  toOperator operator = Expression.Infix (binaryOperator (operatorName operator))
+    $ case operatorAssociativity operator of
+      Nonassociative -> Expression.AssocNone
+      Leftward -> Expression.AssocRight
+      Rightward -> Expression.AssocLeft
+
+  binaryOperator :: Name -> Rewriter (Term -> Term -> Term)
+  binaryOperator name = mapTerm $ \ term -> case term of
+    Call _ Infix name' loc | name == name' -> Just (binary name loc)
+    _ -> Nothing
+
+  binary :: Name -> Origin -> Term -> Term -> Term
+  binary name origin x y = compose origin [x, y, Call Nothing Postfix name origin]
+
+  mapTerm :: (Term -> Maybe a) -> Rewriter a
+  mapTerm = tokenPrim show advanceTerm
+
+  termSatisfy :: (Term -> Bool) -> Rewriter Term
+  termSatisfy predicate = tokenPrim show advanceTerm
+    $ \ token -> if predicate token then Just token else Nothing
+
+  advanceTerm :: SourcePos -> t -> Term -> SourcePos
+  advanceTerm sourcePos _ stream = case runIdentity (uncons stream) of
+    Just (next, _) -> rangeBegin (termOrigin next)
+    Nothing -> sourcePos
+
+instance (Monad m) => Stream Term m Term where
+  uncons term = case term of
+    Compose _ Compose{} _ -> error ("composition must be left-associative: " ++ show term)
+    Compose _ a b -> return (Just (a, b))
+    Identity{} -> return Nothing
+    _ -> return (Just (term, Identity Nothing (termOrigin term)))
 
 tokenize :: FilePath -> Text -> K [Token]
 tokenize path text = case Parsec.runParser fileTokenizer 1 path text of
@@ -90,6 +191,7 @@ tokenize path text = case Parsec.runParser fileTokenizer 1 path text of
 
 type Tokenizer a = ParsecT Text Column Identity a
 type Parser a = ParsecT [Token] Name Identity a
+type Rewriter a = ParsecT Term () Identity a
 
 fileTokenizer :: Tokenizer [Token]
 fileTokenizer = silenceTokenizer *> tokensTokenizer <* eof
@@ -117,13 +219,13 @@ silenceTokenizer = skipMany $ comment <|> whitespace
 tokensTokenizer :: Tokenizer [Token]
 tokensTokenizer = tokenTokenizer `sepEndBy` silenceTokenizer
 
-rangedTokenizer :: Tokenizer (Origin -> Token) -> Tokenizer Token
+rangedTokenizer :: Tokenizer (Origin -> Indent -> Token) -> Tokenizer Token
 rangedTokenizer parser = do
   column <- getState
   begin <- getPosition
   result <- parser
   end <- getPosition
-  return (result (Range begin end column))
+  return (result (Range begin end) (Just column))
 
 tokenTokenizer :: Tokenizer Token
 tokenTokenizer = rangedTokenizer $ choice [
@@ -225,17 +327,17 @@ insertBraces = (concat <$> many unit) <* eof
   unitWhere :: (Token -> Bool) -> Parser [Token]
   unitWhere predicate
     = try (lookAhead $ tokenSatisfy predicate) *> choice [
-    bracket (BlockBeginToken Nonlayout Anywhere) (BlockEndToken Anywhere),
-    bracket (GroupBeginToken Anywhere) (GroupEndToken Anywhere),
-    bracket (VectorBeginToken Anywhere) (VectorEndToken Anywhere),
+    bracket (BlockBeginToken Nonlayout) BlockEndToken,
+    bracket GroupBeginToken GroupEndToken,
+    bracket VectorBeginToken VectorEndToken,
     layoutBlock,
     (:[]) <$> tokenSatisfy nonbracket ]
 
-  bracket :: Token -> Token -> Parser [Token]
+  bracket :: (Origin -> Indent -> Token) -> (Origin -> Indent -> Token) -> Parser [Token]
   bracket open close = do
-    begin <- tokenMatch open
+    begin <- parserMatch open
     inner <- concat <$> many unit
-    end <- tokenMatch close
+    end <- parserMatch close
     return (begin : inner ++ [end])
 
   nonbracket :: Token -> Bool
@@ -243,36 +345,33 @@ insertBraces = (concat <$> many unit) <* eof
 
   brackets :: [Token]
   brackets = blockBrackets ++ [
-    GroupBeginToken Anywhere,
-    GroupEndToken Anywhere,
-    VectorBeginToken Anywhere,
-    VectorEndToken Anywhere ]
+    GroupBeginToken Anywhere Nothing,
+    GroupEndToken Anywhere Nothing,
+    VectorBeginToken Anywhere Nothing,
+    VectorEndToken Anywhere Nothing ]
 
   blockBrackets :: [Token]
   blockBrackets = [
-    BlockBeginToken Nonlayout Anywhere,
-    BlockEndToken Anywhere,
-    LayoutToken Anywhere ]
+    BlockBeginToken Nonlayout Anywhere Nothing,
+    BlockEndToken Anywhere Nothing,
+    LayoutToken Anywhere Nothing ]
 
   layoutBlock :: Parser [Token]
   layoutBlock = do
-    colon <- tokenMatch (LayoutToken Anywhere)
+    colon <- parserMatch LayoutToken
     let
       colonOrigin = tokenOrigin colon
-      colonIndent = rangeIndent colonOrigin
+      colonIndent = tokenIndent colon
       validFirst token = let
-        column = sourceColumn (rangeBegin (tokenOrigin token))
-        in column > 1 && column >= colonIndent
+        column = tokenIndent token
+        in column > Just 1 && column >= colonIndent
     first <- lookAhead (tokenSatisfy validFirst)
       <?> "token indented no less than start of layout block"
     let
       firstOrigin = rangeBegin (tokenOrigin first)
       inside token = sourceColumn (rangeBegin (tokenOrigin token)) >= sourceColumn firstOrigin
     body <- concat <$> many (unitWhere inside)
-    return (BlockBeginToken Layout colonOrigin : body ++ [BlockEndToken colonOrigin])
-
-tokenMatch :: Token -> Parser Token
-tokenMatch token = tokenSatisfy (token ==)
+    return (BlockBeginToken Layout colonOrigin colonIndent : body ++ [BlockEndToken colonOrigin colonIndent])
 
 tokenSatisfy :: (Token -> Bool) -> Parser Token
 tokenSatisfy predicate = tokenPrim show advance
@@ -282,10 +381,10 @@ tokenSatisfy predicate = tokenPrim show advance
   advance _ _ (token : _) = rangeBegin (tokenOrigin token)
   advance sourcePos _ _ = sourcePos
 
-parserMatch :: (Origin -> Token) -> Parser Token
-parserMatch token = tokenSatisfy (== token Anywhere) <?> show (token Anywhere)
+parserMatch :: (Origin -> Indent -> Token) -> Parser Token
+parserMatch token = tokenSatisfy (== token Anywhere Nothing) <?> show (token Anywhere Nothing)
 
-parserMatch_ :: (Origin -> Token) -> Parser ()
+parserMatch_ :: (Origin -> Indent -> Token) -> Parser ()
 parserMatch_ = void . parserMatch
 
 parse :: FilePath -> [Token] -> K Fragment
@@ -363,12 +462,12 @@ unqualifiedNameParser = wordNameParser <|> operatorNameParser
 
 wordNameParser :: Parser Name
 wordNameParser = parseOne $ \x -> case x of
-  WordToken name _ -> Just name
+  WordToken name _ _ -> Just name
   _ -> Nothing
 
 operatorNameParser :: Parser Name
 operatorNameParser = parseOne $ \x -> case x of
-  OperatorToken name _ -> Just name
+  OperatorToken name _ _ -> Just name
   _ -> Nothing
 
 parseOne :: (Token -> Maybe a) -> Parser a
@@ -411,7 +510,7 @@ operatorParser = do
   where
   precedenceParser :: Parser Precedence
   precedenceParser = (<?> "decimal integer precedence from 0 to 9") $ parseOne $ \token -> case token of
-    IntegerToken value Decimal _
+    IntegerToken value Decimal _ _
       | value >= 0 && value <= 9 -> Just (fromInteger value)
     _ -> Nothing
 
@@ -533,11 +632,11 @@ termParser = do
   where
   toLiteral :: Token -> Maybe (Value, Origin)
   toLiteral token = case token of
-    BooleanToken x origin -> Just (Boolean x, origin)
-    CharacterToken x origin -> Just (Character x, origin)
-    FloatToken x origin -> Just (Float x, origin)
-    IntegerToken x _ origin -> Just (Integer x, origin)
-    TextToken x origin -> Just (Text x, origin)
+    BooleanToken x origin _ -> Just (Boolean x, origin)
+    CharacterToken x origin _ -> Just (Character x, origin)
+    FloatToken x origin _ -> Just (Float x, origin)
+    IntegerToken x _ origin _ -> Just (Integer x, origin)
+    TextToken x origin _ -> Just (Text x, origin)
     _ -> Nothing
   sectionParser :: Parser Term
   sectionParser = (<?> "operator section") $ groupedParser $ choice [
@@ -645,7 +744,7 @@ makeLambda parsed body origin = foldr
 getOrigin :: (Monad m, Stream s m c) => ParsecT s u m Origin
 getOrigin = do
   start <- getPosition
-  return (Location start)
+  return (Range start start)
 
 data Element
   = DataDefinitionElement !DataDefinition
@@ -681,7 +780,7 @@ data Operator = Operator {
   deriving (Show)
 
 data Fixity = Infix | Postfix
-  deriving (Show)
+  deriving (Eq, Show)
 
 data Synonym = Synonym !Name !Name !Origin
   deriving (Show)
@@ -706,7 +805,7 @@ data Term
   deriving (Show)
 
 compose :: Origin -> [Term] -> Term
-compose origin = foldl' (Compose Nothing) (Identity Nothing origin)
+compose origin = foldr (Compose Nothing) (Identity Nothing origin)
 
 termOrigin :: Term -> Origin
 termOrigin term = case term of
@@ -845,126 +944,161 @@ halt = K $ const $ return Nothing
 readFileUtf8 :: FilePath -> IO Text
 readFileUtf8 = fmap Text.decodeUtf8 . ByteString.readFile
 
+type Indent = Maybe Column
+
 data Token
-  = ArrowToken !Origin                      -- ->
-  | BlockBeginToken !Layoutness !Origin     -- { :
-  | BlockEndToken !Origin                   -- }
-  | BooleanToken !Bool !Origin              -- true false
-  | CaseToken !Origin                       -- case
-  | CharacterToken !Char !Origin            -- 'x'
-  | CommaToken !Origin                      -- ,
-  | DataToken !Origin                       -- data
-  | DefineToken !Origin                     -- define
-  | EllipsisToken !Origin                   -- ...
-  | ElifToken !Origin                       -- elif
-  | ElseToken !Origin                       -- else
-  | FloatToken !Double !Origin              -- 1.0
-  | GroupBeginToken !Origin                 -- (
-  | GroupEndToken !Origin                   -- )
-  | IfToken !Origin                         -- if
-  | IgnoreToken !Origin                     -- _
-  | InfixToken !Origin                      -- infix
-  | IntegerToken !Integer !Base !Origin     -- 1 0b1 0o1 0x1
-  | LayoutToken !Origin                     -- :
-  | MatchToken !Origin                      -- match
-  | OperatorToken !Name !Origin             -- +
-  | ReferenceToken !Origin                  -- \
-  | SynonymToken !Origin                    -- synonym
-  | TextToken !Text !Origin                 -- "..."
-  | VectorBeginToken !Origin                -- [
-  | VectorEndToken !Origin                  -- ]
-  | VocabToken !Origin                      -- vocab
-  | VocabLookupToken !Origin                -- ::
-  | WordToken !Name !Origin                 -- word
+  = ArrowToken !Origin !Indent                   -- ->
+  | BlockBeginToken !Layoutness !Origin !Indent  -- { :
+  | BlockEndToken !Origin !Indent                -- }
+  | BooleanToken !Bool !Origin !Indent           -- true false
+  | CaseToken !Origin !Indent                    -- case
+  | CharacterToken !Char !Origin !Indent         -- 'x'
+  | CommaToken !Origin !Indent                   -- ,
+  | DataToken !Origin !Indent                    -- data
+  | DefineToken !Origin !Indent                  -- define
+  | EllipsisToken !Origin !Indent                -- ...
+  | ElifToken !Origin !Indent                    -- elif
+  | ElseToken !Origin !Indent                    -- else
+  | FloatToken !Double !Origin !Indent           -- 1.0
+  | GroupBeginToken !Origin !Indent              -- (
+  | GroupEndToken !Origin !Indent                -- )
+  | IfToken !Origin !Indent                      -- if
+  | IgnoreToken !Origin !Indent                  -- _
+  | InfixToken !Origin !Indent                   -- infix
+  | IntegerToken !Integer !Base !Origin !Indent  -- 1 0b1 0o1 0x1
+  | LayoutToken !Origin !Indent                  -- :
+  | MatchToken !Origin !Indent                   -- match
+  | OperatorToken !Name !Origin !Indent          -- +
+  | ReferenceToken !Origin !Indent               -- \
+  | SynonymToken !Origin !Indent                 -- synonym
+  | TextToken !Text !Origin !Indent              -- "..."
+  | VectorBeginToken !Origin !Indent             -- [
+  | VectorEndToken !Origin !Indent               -- ]
+  | VocabToken !Origin !Indent                   -- vocab
+  | VocabLookupToken !Origin !Indent             -- ::
+  | WordToken !Name !Origin !Indent              -- word
 
 instance Eq Token where
-  ArrowToken _        == ArrowToken _        = True
-  BlockBeginToken _ _ == BlockBeginToken _ _ = True
-  BlockEndToken _     == BlockEndToken _     = True
-  BooleanToken a _    == BooleanToken b _    = a == b
-  CaseToken _         == CaseToken _         = True
-  CharacterToken a _  == CharacterToken b _  = a == b
-  CommaToken _        == CommaToken _        = True
-  DataToken _         == DataToken _         = True
-  DefineToken _       == DefineToken _       = True
-  EllipsisToken _     == EllipsisToken _     = True
-  ElifToken _         == ElifToken _         = True
-  ElseToken _         == ElseToken _         = True
-  FloatToken a _      == FloatToken b _      = a == b
-  GroupBeginToken _   == GroupBeginToken _   = True
-  GroupEndToken _     == GroupEndToken _     = True
-  IfToken _           == IfToken _           = True
-  IgnoreToken _       == IgnoreToken _       = True
-  InfixToken _        == InfixToken _        = True
-  IntegerToken a _ _  == IntegerToken b _ _  = a == b
-  LayoutToken _       == LayoutToken _       = True
-  MatchToken _        == MatchToken _        = True
-  OperatorToken a _   == OperatorToken b _   = a == b
-  ReferenceToken _    == ReferenceToken _    = True
-  SynonymToken _      == SynonymToken _      = True
-  TextToken a _       == TextToken b _       = a == b
-  VectorBeginToken _  == VectorBeginToken _  = True
-  VectorEndToken _    == VectorEndToken _    = True
-  VocabToken _        == VocabToken _        = True
-  VocabLookupToken _  == VocabLookupToken _  = True
-  WordToken a _       == WordToken b _       = a == b
-  _                   == _                   = False
+  ArrowToken _ _        == ArrowToken _ _        = True
+  BlockBeginToken _ _ _ == BlockBeginToken _ _ _ = True
+  BlockEndToken _ _     == BlockEndToken _ _     = True
+  BooleanToken a _ _    == BooleanToken b _ _    = a == b
+  CaseToken _ _         == CaseToken _ _         = True
+  CharacterToken a _ _  == CharacterToken b _ _  = a == b
+  CommaToken _ _        == CommaToken _ _        = True
+  DataToken _ _         == DataToken _ _         = True
+  DefineToken _ _       == DefineToken _ _       = True
+  EllipsisToken _ _     == EllipsisToken _ _     = True
+  ElifToken _ _         == ElifToken _ _         = True
+  ElseToken _ _         == ElseToken _ _         = True
+  FloatToken a _ _      == FloatToken b _ _      = a == b
+  GroupBeginToken _ _   == GroupBeginToken _ _   = True
+  GroupEndToken _ _     == GroupEndToken _ _     = True
+  IfToken _ _           == IfToken _ _           = True
+  IgnoreToken _ _       == IgnoreToken _ _       = True
+  InfixToken _ _        == InfixToken _ _        = True
+  IntegerToken a _ _ _  == IntegerToken b _ _ _  = a == b
+  LayoutToken _ _       == LayoutToken _ _       = True
+  MatchToken _ _        == MatchToken _ _        = True
+  OperatorToken a _ _   == OperatorToken b _ _   = a == b
+  ReferenceToken _ _    == ReferenceToken _ _    = True
+  SynonymToken _ _      == SynonymToken _ _      = True
+  TextToken a _ _       == TextToken b _ _       = a == b
+  VectorBeginToken _ _  == VectorBeginToken _ _  = True
+  VectorEndToken _ _    == VectorEndToken _ _    = True
+  VocabToken _ _        == VocabToken _ _        = True
+  VocabLookupToken _ _  == VocabLookupToken _ _  = True
+  WordToken a _ _       == WordToken b _ _       = a == b
+  _                     == _                   = False
 
 tokenOrigin :: Token -> Origin
 tokenOrigin token = case token of
-  ArrowToken o        -> o
-  BlockBeginToken _ o -> o
-  BlockEndToken o     -> o
-  BooleanToken _ o    -> o
-  CaseToken o         -> o
-  CharacterToken _ o  -> o
-  CommaToken o        -> o
-  DataToken o         -> o
-  DefineToken o       -> o
-  EllipsisToken o     -> o
-  ElifToken o         -> o
-  ElseToken o         -> o
-  FloatToken _ o      -> o
-  GroupBeginToken o   -> o
-  GroupEndToken o     -> o
-  IfToken o           -> o
-  IgnoreToken o       -> o
-  InfixToken o        -> o
-  IntegerToken _ _ o  -> o
-  LayoutToken o       -> o
-  MatchToken o        -> o
-  OperatorToken _ o   -> o
-  ReferenceToken o    -> o
-  SynonymToken o      -> o
-  TextToken _ o       -> o
-  VectorBeginToken o  -> o
-  VectorEndToken o    -> o
-  VocabToken o        -> o
-  VocabLookupToken o  -> o
-  WordToken _ o       -> o
+  ArrowToken origin _ -> origin
+  BlockBeginToken _ origin _ -> origin
+  BlockEndToken origin _ -> origin
+  BooleanToken _ origin _ -> origin
+  CaseToken origin _ -> origin
+  CharacterToken _ origin _ -> origin
+  CommaToken origin _ -> origin
+  DataToken origin _ -> origin
+  DefineToken origin _ -> origin
+  EllipsisToken origin _ -> origin
+  ElifToken origin _ -> origin
+  ElseToken origin _ -> origin
+  FloatToken _ origin _ -> origin
+  GroupBeginToken origin _ -> origin
+  GroupEndToken origin _ -> origin
+  IfToken origin _ -> origin
+  IgnoreToken origin _ -> origin
+  InfixToken origin _ -> origin
+  IntegerToken _ _ origin _ -> origin
+  LayoutToken origin _ -> origin
+  MatchToken origin _ -> origin
+  OperatorToken _ origin _ -> origin
+  ReferenceToken origin _ -> origin
+  SynonymToken origin _ -> origin
+  TextToken _ origin _ -> origin
+  VectorBeginToken origin _ -> origin
+  VectorEndToken origin _ -> origin
+  VocabToken origin _ -> origin
+  VocabLookupToken origin _ -> origin
+  WordToken _ origin _ -> origin
+
+tokenIndent :: Token -> Indent
+tokenIndent token = case token of
+  ArrowToken _ indent        -> indent
+  BlockBeginToken _ _ indent -> indent
+  BlockEndToken _ indent     -> indent
+  BooleanToken _ _ indent    -> indent
+  CaseToken _ indent         -> indent
+  CharacterToken _ _ indent  -> indent
+  CommaToken _ indent        -> indent
+  DataToken _ indent         -> indent
+  DefineToken _ indent       -> indent
+  EllipsisToken _ indent     -> indent
+  ElifToken _ indent         -> indent
+  ElseToken _ indent         -> indent
+  FloatToken _ _ indent      -> indent
+  GroupBeginToken _ indent   -> indent
+  GroupEndToken _ indent     -> indent
+  IfToken _ indent           -> indent
+  IgnoreToken _ indent       -> indent
+  InfixToken _ indent        -> indent
+  IntegerToken _ _ _ indent  -> indent
+  LayoutToken _ indent       -> indent
+  MatchToken _ indent        -> indent
+  OperatorToken _ _ indent   -> indent
+  ReferenceToken _ indent    -> indent
+  SynonymToken _ indent      -> indent
+  TextToken _ _ indent       -> indent
+  VectorBeginToken _ indent  -> indent
+  VectorEndToken _ indent    -> indent
+  VocabToken _ indent        -> indent
+  VocabLookupToken _ indent  -> indent
+  WordToken _ _ indent       -> indent
 
 instance Show Token where
   show token = show (tokenOrigin token) ++ ": " ++ case token of
     ArrowToken{} -> "->"
-    BlockBeginToken _ _ -> "{"
+    BlockBeginToken _ _ _ -> "{"
     BlockEndToken{} -> "}"
-    BooleanToken True _ -> "true"
-    BooleanToken False _ -> "false"
+    BooleanToken True _ _ -> "true"
+    BooleanToken False _ _ -> "false"
     CaseToken{} -> "case"
-    CharacterToken c _ -> show c
+    CharacterToken c _ _ -> show c
     CommaToken{} -> ","
     DataToken{} -> "data"
     DefineToken{} -> "define"
     EllipsisToken{} -> "..."
     ElifToken{} -> "elif"
     ElseToken{} -> "else"
-    FloatToken f _ -> show f
+    FloatToken f _ _ -> show f
     GroupBeginToken{} -> "("
     GroupEndToken{} -> ")"
     IfToken{} -> "if"
     IgnoreToken{} -> "_"
     InfixToken{} -> "infix"
-    IntegerToken value hint _ -> if value < 0 then '-' : shown else shown
+    IntegerToken value hint _ _ -> if value < 0 then '-' : shown else shown
       where
       shown = prefix ++ showIntAtBase base (digits !!) (abs value) ""
       (base :: Integer, prefix :: String, digits) = case hint of
@@ -974,15 +1108,15 @@ instance Show Token where
         Hexadecimal -> (16, "0x", ['0'..'9'] ++ ['A'..'F'])
     LayoutToken{} -> ":"
     MatchToken{} -> "match"
-    OperatorToken name _ -> show name
+    OperatorToken name _ _ -> show name
     ReferenceToken{} -> "\\"
     SynonymToken{} -> "synonym"
-    TextToken t _ -> show t
+    TextToken t _ _ -> show t
     VectorBeginToken{} -> "["
     VectorEndToken{} -> "]"
     VocabToken{} -> "vocab"
     VocabLookupToken{} -> "::"
-    WordToken name _ -> show name
+    WordToken name _ _ -> show name
 
 data Layoutness = Layout | Nonlayout
   deriving (Show)
@@ -994,9 +1128,7 @@ data Base = Binary | Octal | Decimal | Hexadecimal
 data Origin
   = Range {
     rangeBegin :: !SourcePos,
-    rangeEnd :: !SourcePos,
-    rangeIndent :: !Column }
-  | Location !SourcePos
+    rangeEnd :: !SourcePos }
   | Anywhere
   deriving (Show)
 
@@ -1015,10 +1147,10 @@ instance Show Origin where
 -}
 
 data Root = Absolute | Relative
-  deriving (Eq)
+  deriving (Eq, Ord)
 
 data Name = Name { nameRoot :: !Root, nameParts :: [Text] }
-  deriving (Eq)
+  deriving (Eq, Ord)
 
 joinNames :: Name -> Name -> Name
 joinNames (Name root as) (Name Relative bs) = Name root (as ++ bs)
