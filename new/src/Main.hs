@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -16,13 +17,15 @@ import Control.Concurrent
 import Control.Monad
 import Control.Monad.Fix
 import Control.Monad.IO.Class
+import Control.Monad.Trans.Class
+import Control.Monad.Trans.State
 import Data.Char
 import Data.Functor.Identity (Identity, runIdentity)
 import Data.IORef
 import Data.List
 import Data.Map (Map)
 import Data.Maybe
-import Data.Monoid
+import Data.Set (Set)
 import Data.Text (Text)
 import GHC.Exts
 import Numeric
@@ -34,66 +37,116 @@ import Text.Parsec hiding ((<|>), letter, many, newline, optional, parse, token,
 import Text.Parsec.Text ()
 import qualified Data.ByteString as ByteString
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Expr as Expression
 
+import Debug.Trace
+
 main :: IO ()
 main = do
   liftIO $ hSetEncoding stdout utf8
-  errors <- newIORef []
+  reports <- newIORef []
   paths <- liftIO getArgs
-  result <- runK (compile paths) Env { envErrors = errors }
+  result <- runK (compile paths) Env { envReports = reports }
   case result of
-    Nothing -> readIORef errors >>= mapM (hPutStrLn stderr) >> exitFailure
+    Nothing -> readIORef reports >>= mapM (hPutStrLn stderr . showReport) >> exitFailure
     Just fragment -> print fragment
 
 compile :: [FilePath] -> K Fragment
 compile paths = do
   sources <- liftIO (mapM readFileUtf8 paths)
-  tokenized <- zipWithM tokenize paths sources
-  checkpoint
-  laidout <- zipWithM layout paths tokenized
-  checkpoint
-  parsed <- mconcat <$> zipWithM parse paths laidout
-  checkpoint
-  let substituted = substituteSynonyms parsed
-  postfix <- desugarInfix substituted
+  tokenized <- zipWithM tokenize paths sources; checkpoint
+  laidout <- zipWithM layout paths tokenized; checkpoint
+  parsed <- mconcat <$> zipWithM parse paths laidout; checkpoint
+  resolved <- resolveNames parsed; checkpoint
+  postfix <- desugarInfix resolved
   return postfix
 
-substituteSynonyms :: Fragment -> Fragment
-substituteSynonyms fragment = fragment {
-  fragmentDefinitions = foldr
-    (map . inDefinition)
-    (fragmentDefinitions fragment)
-    (fragmentSynonyms fragment) }
+type Resolved a = StateT [Unqualified] K a
+
+resolveNames :: Fragment -> K Fragment
+resolveNames fragment = do
+  reportDuplicateDefinitions (map (definitionName &&& definitionOrigin) (fragmentDefinitions fragment))
+  flip evalStateT [] $ do
+    definitions <- mapM resolveDefinition (fragmentDefinitions fragment)
+    return fragment { fragmentDefinitions = definitions }
   where
-  inDefinition :: Synonym -> Definition -> Definition
-  inDefinition (Synonym from to _) definition
-    = if nameVocabulary from == nameVocabulary (definitionName definition)
-      then definition { definitionBody = inTerm (definitionBody definition) }
-      else definition
+  definedNames = Set.fromList (map definitionName (fragmentDefinitions fragment))
+  isDefined = flip Set.member definedNames
+  resolveDefinition :: Definition -> Resolved Definition
+  resolveDefinition definition = do
+    let vocabulary = qualifierName (definitionName definition)
+    body <- resolveTerm vocabulary (definitionBody definition)
+    return definition { definitionBody = body }
+  resolveTerm :: Qualifier -> Term -> Resolved Term
+  resolveTerm vocabulary = recur
     where
-    inTerm :: Term -> Term
-    inTerm term = case term of
-      Call a b name origin
-        | name == nameRelative from -> Call a b to origin
-        | otherwise -> term
-      Compose a b c -> Compose a (inTerm b) (inTerm c)
-      Generic a b origin -> Generic a (inTerm b) origin
-      If a b c origin -> If a (inTerm b) (inTerm c) origin
-      Match a b c origin -> Match a (map inCase b) (fmap inElse c) origin
-      Push a b origin -> Push a (inValue b) origin
-      _ -> term
-    inValue :: Value -> Value
-    inValue value = case value of
-      Quotation term -> Quotation (inTerm term)
-      _ -> value
-    inCase :: Case -> Case
-    inCase (Case a b origin) = Case a (inTerm b) origin
-    inElse :: Else -> Else
-    inElse (Else a origin) = Else (inTerm a) origin
+    recur unresolved = case unresolved of
+      Call _ fixity name origin -> Call Nothing fixity <$> resolveName vocabulary name origin <*> pure origin
+      Compose _ a b -> Compose Nothing <$> recur a <*> recur b
+      Drop{} -> return unresolved
+      Generic{} -> error "generic expression should not appear before name resolution"
+      Identity{} -> return unresolved
+      If _ a b origin -> If Nothing <$> recur a <*> recur b <*> pure origin
+      Lambda _ name term origin -> withLocal name $ Lambda Nothing name <$> recur term <*> pure origin
+      Match _ cases mElse origin -> Match Nothing <$> mapM resolveCase cases <*> traverse resolveElse mElse <*> pure origin
+        where
+        resolveCase :: Case -> Resolved Case
+        resolveCase (Case name term origin) = do
+          resolved <- resolveName vocabulary name origin
+          Case resolved <$> recur term <*> pure origin
+        resolveElse :: Else -> Resolved Else
+        resolveElse (Else term origin) = Else <$> recur term <*> pure origin
+      Push _ value origin -> Push Nothing <$> resolveValue vocabulary value <*> pure origin
+      Swap{} -> return unresolved
+  resolveValue :: Qualifier -> Value -> Resolved Value
+  resolveValue vocabulary value = case value of
+    Boolean{} -> return value
+    Character{} -> return value
+    Closed{} -> error "closed name should not appear before name resolution"
+    Closure{} -> error "closure should not appear before name resolution"
+    Float{} -> return value
+    Integer{} -> return value
+    Local{} -> error "local should not appear before name resolution"
+    Quotation term -> Quotation <$> resolveTerm vocabulary term
+    Text{} -> return value
+  resolveName :: Qualifier -> GeneralName -> Origin -> Resolved GeneralName
+  resolveName vocabulary name origin = case name of
+    -- An unqualified name may refer to a local, a name in the current
+    -- vocabulary, or a name in the global scope, respectively.
+    UnqualifiedName unqualified -> do
+      mLocalIndex <- gets (elemIndex unqualified)
+      case mLocalIndex of
+        Just index -> return (LocalName index)
+        Nothing -> do
+          let qualified = Qualified vocabulary unqualified
+          if isDefined qualified then return (QualifiedName qualified) else do
+            let global = Qualified globalVocabulary unqualified
+            if isDefined global then return (QualifiedName global) else do
+              lift $ report $ Report (Text.concat ["undefined word '", Text.pack (show name), "'"]) origin
+              return name
+    -- A qualified name must be fully qualified, and may refer to an intrinsic
+    -- or a definition, respectively.
+    QualifiedName qualified -> case intrinsicFromName qualified of
+      Just intrinsic -> return (IntrinsicName intrinsic)
+      Nothing -> do
+        if isDefined qualified then return name else do
+          lift $ report $ Report (Text.concat ["undefined word '", Text.pack (show name), "'"]) origin
+          return name
+    LocalName{} -> error "local name should not appear before name resolution"
+    ClosedName{} -> error "closed name should not appear before name resolution"
+    IntrinsicName{} -> error "intrinsic name should not appear before name resolution"
+  withLocal :: Unqualified -> Resolved a -> Resolved a
+  withLocal name action = do
+    modify (name :)
+    result <- action
+    modify tail
+    return result
+
+reportDuplicateDefinitions _ = return ()
 
 desugarInfix :: Fragment -> K Fragment
 desugarInfix fragment = do
@@ -103,39 +156,73 @@ desugarInfix fragment = do
 
   desugarDefinition :: Definition -> K Definition
   desugarDefinition definition = do
-    desugared <- desugarTerm (definitionBody definition)
+    desugared <- desugarTerms (flattenTerm (definitionBody definition))
     return definition { definitionBody = desugared }
+
+  desugarTerms :: [Term] -> K Term
+  desugarTerms terms = do
+    terms' <- mapM desugarTerm terms
+    let
+      expression' = infixExpression <* eof
+      infixExpression = compose Anywhere  -- FIXME: Use better origin.
+        <$> many (expression <|> lambda)
+    case Parsec.runParser expression' () "" terms' of
+      Left parseError -> do
+        report $ Report (Text.pack (show parseError)) Anywhere  -- FIXME: Use better origin.
+        return $ compose Anywhere terms
+      Right result -> return result
 
   desugarTerm :: Term -> K Term
   desugarTerm term = case term of
-    Compose _ a b -> do
-      a' <- desugarTerm a
-      b' <- desugarTerm b
-      let
-        expression' = infixExpression <* eof
-        infixExpression = compose (termOrigin a)  -- FIXME
-          <$> many (expression {- <|> lambdaTerm -})
-      case Parsec.runParser expression' () "" (Compose Nothing a' b') of
-        Left parseError -> fail (show parseError)
-        Right result -> return result
-    _ -> return term
+    Call{} -> return term
+    Compose _ a b -> Compose Nothing <$> desugarTerm a <*> desugarTerm b
+    Drop{} -> return term
+    Generic{} -> error "generic expression should not appear before infix desugaring"
+    Identity{} -> return term
+    If _ a b origin -> If Nothing <$> desugarTerm a <*> desugarTerm b <*> pure origin
+    Intrinsic{} -> return term
+    Lambda _ name body origin -> Lambda Nothing name <$> desugarTerm body <*> pure origin
+    Match _ cases mElse origin -> Match Nothing <$> mapM desugarCase cases <*> traverse desugarElse mElse <*> pure origin
+      where
+      desugarCase :: Case -> K Case
+      desugarCase (Case name body origin) = Case name <$> desugarTerm body <*> pure origin
+      desugarElse :: Else -> K Else
+      desugarElse (Else body origin) = Else <$> desugarTerm body <*> pure origin
+    Push _ value origin -> Push Nothing <$> desugarValue value <*> pure origin
+    Swap{} -> return term
+
+  desugarValue :: Value -> K Value
+  desugarValue value = case value of
+    Boolean{} -> return value
+    Character{} -> return value
+    Closed{} -> return value
+    Closure names body -> Closure names <$> desugarTerm body
+    Float{} -> return value
+    Integer{} -> return value
+    Local{} -> return value
+    Quotation body -> Quotation <$> desugarTerm body
+    Text{} -> return value
 
   expression :: Rewriter Term
-  expression = Expression.buildExpressionParser operatorTable (operands <?> "operand")
+  expression = Expression.buildExpressionParser operatorTable (operand <?> "operand")
     where
-    operands = do
+    operand = do
       origin <- getOrigin
-      results <- operand
+      results <- many1 $ termSatisfy $ \ term -> case term of
+        Call _ Infix _ _ -> False
+        Lambda{} -> False
+        _ -> True
       return $ compose origin results
-    operand = many1 $ termSatisfy $ \term -> case term of
-      Call _ Infix _ _ -> False  -- An operator is not an operand.
-      -- FIXME: What should be done about "lambdas"?
-      _ -> True
 
-  operatorTable :: [[Expression.Operator Term () Identity Term]]
+  lambda :: Rewriter Term
+  lambda = termSatisfy $ \ term -> case term of
+    Lambda{} -> True
+    _ -> False
+
+  operatorTable :: [[Expression.Operator [Term] () Identity Term]]
   operatorTable = map (map toOperator) rawOperatorTable
 
-  fragmentFixities :: Map Name Fixity
+  fragmentFixities :: Map Qualified Fixity
   fragmentFixities = Map.fromList (map (definitionName &&& definitionFixity) (fragmentDefinitions fragment))
 
   rawOperatorTable :: [[Operator]]
@@ -150,19 +237,19 @@ desugarInfix fragment = do
       (Map.keys (Map.filterWithKey useDefault fragmentFixities))
     in map (\ p -> filter ((p ==) . operatorPrecedence) flat) [9, 8 .. 0]
 
-  toOperator :: Operator -> Expression.Operator Term () Identity Term
-  toOperator operator = Expression.Infix (binaryOperator (operatorName operator))
+  toOperator :: Operator -> Expression.Operator [Term] () Identity Term
+  toOperator operator = Expression.Infix (binaryOperator (QualifiedName (operatorName operator)))
     $ case operatorAssociativity operator of
       Nonassociative -> Expression.AssocNone
       Leftward -> Expression.AssocRight
       Rightward -> Expression.AssocLeft
 
-  binaryOperator :: Name -> Rewriter (Term -> Term -> Term)
-  binaryOperator name = mapTerm $ \ term -> case term of
-    Call _ Infix name' loc | name == name' -> Just (binary name loc)
-    _ -> Nothing
+  binaryOperator :: GeneralName -> Rewriter (Term -> Term -> Term)
+  binaryOperator name = trace ("binaryOperator " ++ show name) $ mapTerm $ \ term -> case term of
+    Call _ Infix name' origin | name == name' -> trace ("match: " ++ show term) $ Just (binary name origin)
+    _ -> trace ("no match: " ++ show term) Nothing
 
-  binary :: Name -> Origin -> Term -> Term -> Term
+  binary :: GeneralName -> Origin -> Term -> Term -> Term
   binary name origin x y = compose origin [x, y, Call Nothing Postfix name origin]
 
   mapTerm :: (Term -> Maybe a) -> Rewriter a
@@ -172,17 +259,42 @@ desugarInfix fragment = do
   termSatisfy predicate = tokenPrim show advanceTerm
     $ \ token -> if predicate token then Just token else Nothing
 
-  advanceTerm :: SourcePos -> t -> Term -> SourcePos
-  advanceTerm sourcePos _ stream = case runIdentity (uncons stream) of
-    Just (next, _) -> rangeBegin (termOrigin next)
-    Nothing -> sourcePos
+  advanceTerm :: SourcePos -> t -> [Term] -> SourcePos
+  advanceTerm _ _ (term : _) = rangeBegin (termOrigin term)
+  advanceTerm sourcePos _ _ = sourcePos
 
+{-
+
+o
+|\
+o c -> (a, o  )
+|\         |\
+a b        b c
+
+o
+|\  -> (a, b)
+a b
+
+-}
+
+flattenTerm :: Term -> [Term]
+flattenTerm (Compose _ a b) = flattenTerm a ++ flattenTerm b
+flattenTerm Identity{} = []
+flattenTerm term = [term]
+
+{-
 instance (Monad m) => Stream Term m Term where
-  uncons term = case term of
-    Compose _ Compose{} _ -> error ("composition must be left-associative: " ++ show term)
-    Compose _ a b -> return (Just (a, b))
-    Identity{} -> return Nothing
-    _ -> return (Just (term, Identity Nothing (termOrigin term)))
+  uncons = return . go
+    where
+    go (Compose _ a b) = let
+      ma = go a
+      in case ma of
+        Nothing -> go b
+        Just (a', Identity{}) -> trace ("unconsed " ++ show a') $ Just (a', b)
+        Just (a', a'') -> trace ("unconsed " ++ show a' ++ " with remainder") $ Just (a', Compose Nothing a'' b)
+    go Identity{} = trace "unconsed nothing" Nothing
+    go term = trace ("unconsed " ++ show term ++ " with no remainder") $ Just (term, Identity Nothing (termOrigin term))
+-}
 
 tokenize :: FilePath -> Text -> K [Token]
 tokenize path text = case Parsec.runParser fileTokenizer 1 path text of
@@ -190,8 +302,8 @@ tokenize path text = case Parsec.runParser fileTokenizer 1 path text of
   Right result -> return result
 
 type Tokenizer a = ParsecT Text Column Identity a
-type Parser a = ParsecT [Token] Name Identity a
-type Rewriter a = ParsecT Term () Identity a
+type Parser a = ParsecT [Token] Qualifier Identity a
+type Rewriter a = ParsecT [Term] () Identity a
 
 fileTokenizer :: Tokenizer [Token]
 fileTokenizer = silenceTokenizer *> tokensTokenizer <* eof
@@ -205,7 +317,7 @@ silenceTokenizer = skipMany $ comment <|> whitespace
     void $ char '\n' *> many nonNewline
     pos <- getPosition
     putState $ sourceColumn pos
-  nonNewline = void $ Parsec.satisfy (`elem` "\t\v\f\r ")
+  nonNewline = void $ Parsec.satisfy (`elem` ("\t\v\f\r " :: String))
   comment = single <|> multi <?> "comment"
   single = try (string "//")
     *> (anyChar `skipManyTill` (newline <|> eof))
@@ -269,7 +381,7 @@ tokenTokenizer = rangedTokenizer $ choice [
   try $ ArrowToken <$ string "->" <* notFollowedBy symbol,
   let
     alphanumeric = (Text.pack .) . (:) <$> (letter <|> char '_') <*> (many . choice) [letter, char '_', digit]
-    symbolic = Name Relative . (:[]) . Text.pack <$> many1 symbol
+    symbolic = Unqualified . Text.pack <$> many1 symbol
     in choice [
       flip fmap alphanumeric $ \name -> case name of
         "case" -> CaseToken
@@ -284,7 +396,7 @@ tokenTokenizer = rangedTokenizer $ choice [
         "synonym" -> SynonymToken
         "true" -> BooleanToken True
         "vocab" -> VocabToken
-        _ -> WordToken (Name Relative [name]),
+        _ -> WordToken (Unqualified name),
       OperatorToken <$> symbolic ] ]
   where
   character quote = (Just <$> noneOf ('\\' : [quote])) <|> escape
@@ -313,7 +425,7 @@ tokenTokenizer = rangedTokenizer $ choice [
   text = Text.pack . catMaybes <$> many (character '"')
 
 layout :: FilePath -> [Token] -> K [Token]
-layout path tokens = case Parsec.runParser insertBraces (Name Absolute []) path tokens of
+layout path tokens = case Parsec.runParser insertBraces (Qualifier []) path tokens of
   Left parseError -> fail (show parseError)
   Right result -> return result
 
@@ -388,7 +500,7 @@ parserMatch_ :: (Origin -> Indent -> Token) -> Parser ()
 parserMatch_ = void . parserMatch
 
 parse :: FilePath -> [Token] -> K Fragment
-parse name tokens = case Parsec.runParser fragmentParser (Name Absolute []) name tokens of
+parse name tokens = case Parsec.runParser fragmentParser globalVocabulary name tokens of
   Left parseError -> fail (show parseError)
   Right result -> return result
 
@@ -413,7 +525,10 @@ instance Monoid Fragment where
 
 fragmentParser :: Parser Fragment
 fragmentParser = do
-  partitionElements . concat <$> many (vocabularyParser <|> (:[]) <$> elementParser) <* eof
+  partitionElements <$> elementsParser <* eof
+
+elementsParser :: Parser [Element]
+elementsParser = concat <$> many (vocabularyParser <|> (:[]) <$> elementParser)
 
 partitionElements :: [Element] -> Fragment
 partitionElements = foldr go (Fragment [] [] [] [])
@@ -427,14 +542,21 @@ partitionElements = foldr go (Fragment [] [] [] [])
 vocabularyParser :: Parser [Element]
 vocabularyParser = do
   parserMatch_ VocabToken
-  prefix <- getState
-  suffix <- nameParser
-  putState (joinNames prefix suffix)
+  original@(Qualifier outer) <- getState
+  (vocabularyName, _) <- nameParser
+  let
+    (inner, name) = case vocabularyName of
+      QualifiedName (Qualified (Qualifier qualifier) (Unqualified unqualified)) -> (qualifier, unqualified)
+      UnqualifiedName (Unqualified unqualified) -> ([], unqualified)
+      LocalName{} -> error "local name should not appear as vocabulary name"
+      ClosedName{} -> error "closed name should not appear as vocabulary name"
+      IntrinsicName{} -> error "intrinsic name should not appear as vocabulary name"
+  putState (Qualifier (outer ++ inner ++ [name]))
   choice [
-    [] <$ parserMatch (OperatorToken ";"),
+    [] <$ parserMatch (OperatorToken (Unqualified ";")),
     do
-      elements <- blockedParser (many elementParser)
-      putState prefix
+      elements <- blockedParser elementsParser
+      putState original
       return elements ]
 
 blockedParser :: Parser a -> Parser a
@@ -449,23 +571,33 @@ groupParser = do
   groupedParser (compose origin <$> many1 termParser)
 
 angledParser :: Parser a -> Parser a
-angledParser = between (parserMatch (OperatorToken "<")) (parserMatch (OperatorToken ">"))
+angledParser = between (parserMatch (OperatorToken (Unqualified "<"))) (parserMatch (OperatorToken (Unqualified ">")))
 
-nameParser :: Parser Name
+nameParser :: Parser (GeneralName, Fixity)
 nameParser = do
   global <- isJust <$> optionMaybe (parserMatch IgnoreToken <* parserMatch VocabLookupToken)
-  parts <- concatMap nameParts <$> (unqualifiedNameParser `sepBy1` parserMatch VocabLookupToken)
-  return (Name (if global then Absolute else Relative) parts)
+  parts <- choice [(Postfix,) <$> wordNameParser <|> (Infix,) <$> operatorNameParser]
+    `sepBy1` parserMatch VocabLookupToken
+  return $ case parts of
+    [(fixity, unqualified)] -> ((if global then QualifiedName . Qualified globalVocabulary else UnqualifiedName)
+      unqualified, fixity)
+    _ -> let
+      parts' = map ((\ (Unqualified part) -> part) . snd) parts
+      qualifier = init parts'
+      (fixity, unqualified) = last parts
+      in (QualifiedName $ Qualified
+        (Qualifier ((if global then (globalVocabularyName :) else id) qualifier))
+        unqualified, fixity)
 
-unqualifiedNameParser :: Parser Name
+unqualifiedNameParser :: Parser Unqualified
 unqualifiedNameParser = wordNameParser <|> operatorNameParser
 
-wordNameParser :: Parser Name
+wordNameParser :: Parser Unqualified
 wordNameParser = parseOne $ \x -> case x of
   WordToken name _ _ -> Just name
   _ -> Nothing
 
-operatorNameParser :: Parser Name
+operatorNameParser :: Parser Unqualified
 operatorNameParser = parseOne $ \x -> case x of
   OperatorToken name _ _ -> Just name
   _ -> Nothing
@@ -487,10 +619,8 @@ elementParser = choice [
 synonymParser :: Parser Synonym
 synonymParser = (<?> "synonym") $ do
   origin <- getOrigin <* parserMatch_ SynonymToken
-  prefix <- getState
-  suffix <- (wordNameParser <|> operatorNameParser)
-  let from = joinNames prefix suffix
-  to <- nameParser
+  from <- Qualified <$> getState <*> (wordNameParser <|> operatorNameParser)
+  (to, _) <- nameParser
   return (Synonym from to origin)
 
 operatorParser :: Parser Operator
@@ -498,11 +628,9 @@ operatorParser = do
   parserMatch_ InfixToken
   (associativity, precedence) <- choice [
     (Nonassociative,) <$> precedenceParser,
-    (Leftward,) <$> (parserMatch_ (WordToken "left") *> precedenceParser),
-    (Rightward,) <$> (parserMatch_ (WordToken "right") *> precedenceParser) ]
-  prefix <- getState
-  suffix <- operatorNameParser
-  let name = joinNames prefix suffix
+    (Leftward,) <$> (parserMatch_ (WordToken (Unqualified "left")) *> precedenceParser),
+    (Rightward,) <$> (parserMatch_ (WordToken (Unqualified "right")) *> precedenceParser) ]
+  name <- Qualified <$> getState <*> operatorNameParser
   return Operator {
     operatorAssociativity = associativity,
     operatorName = name,
@@ -517,25 +645,23 @@ operatorParser = do
 dataDefinitionParser :: Parser DataDefinition
 dataDefinitionParser = (<?> "data definition") $ do
   origin <- getOrigin <* parserMatch DataToken
-  prefix <- getState
-  suffix <- wordNameParser <?> "data definition name"
-  let name = joinNames prefix suffix
+  name <- Qualified <$> getState <*> (wordNameParser <?> "data definition name")
   parameters <- option [] quantifierParser
-  constructors <- blockedParser (many (constructorParser name))
+  constructors <- blockedParser (many (constructorParser (qualifierFromName name)))
   return DataDefinition {
     dataConstructors = constructors,
     dataName = name,
     dataOrigin = origin,
     dataParameters = parameters }
 
-constructorParser :: Name -> Parser DataConstructor
-constructorParser prefix = (<?> "data constructor") $ do
+constructorParser :: Qualifier -> Parser DataConstructor
+constructorParser vocabulary = (<?> "data constructor") $ do
   origin <- getOrigin <* parserMatch CaseToken
-  suffix <- wordNameParser <?> "constructor name"
+  name <- Qualified vocabulary <$> (wordNameParser <?> "constructor name")
   fields <- option [] (groupedParser (typeParser `sepEndBy` parserMatch CommaToken))
   return DataConstructor {
     constructorFields = fields,
-    constructorName = joinNames prefix suffix,
+    constructorName = name,
     constructorOrigin = origin }
 
 typeParser :: Parser Signature
@@ -554,12 +680,15 @@ functionTypeParser = (<?> "function type") $ do
       origin <- arrow
       rightTypes <- right
       return (FunctionSignature leftTypes rightTypes, origin) ]
-  sideEffects <- many (parserMatch (OperatorToken "+") *> wordNameParser)
+  sideEffects <- many (parserMatch (OperatorToken (Unqualified "+")) *> (fst <$> nameParser))
   return $ stackEffect sideEffects origin
   where
+  stack :: Parser Unqualified
   stack = wordNameParser <* parserMatch EllipsisToken
-  left = basicTypeParser `sepEndBy1` parserMatch CommaToken
-  right = typeParser `sepEndBy1` parserMatch CommaToken
+  left, right :: Parser [Signature]
+  left = basicTypeParser `sepEndBy` parserMatch CommaToken
+  right = typeParser `sepEndBy` parserMatch CommaToken
+  arrow :: Parser Origin
   arrow = getOrigin <* parserMatch ArrowToken
 
 basicTypeParser :: Parser Signature
@@ -571,13 +700,13 @@ basicTypeParser = (<?> "basic type") $ do
       SignatureVariable <$> wordNameParser <*> pure origin,
     groupedParser typeParser ])
 
-quantifierParser :: Parser [(Name, Kind, Origin)]
+quantifierParser :: Parser [(Unqualified, Kind, Origin)]
 quantifierParser = angledParser (var `sepEndBy1` parserMatch CommaToken)
   where
   var = do
     origin <- getOrigin
     choice [
-      (, Effect, origin) <$> (parserMatch (OperatorToken "+") *> wordNameParser),
+      (, Effect, origin) <$> (parserMatch (OperatorToken (Unqualified "+")) *> wordNameParser),
       do
         name <- wordNameParser
         (name,, origin) <$> option Value (Stack <$ parserMatch EllipsisToken) ]
@@ -591,10 +720,9 @@ definitionParser :: Parser Definition
 definitionParser = (<?> "definition") $ do
   origin <- getOrigin <* parserMatch DefineToken
   (fixity, suffix) <- choice [(Postfix,) <$> wordNameParser, (Infix,) <$> operatorNameParser] <?> "definition name"
+  name <- Qualified <$> getState <*> pure suffix
   signature <- signatureParser
   body <- choice [blockParser, blockLambdaParser] <?> "definition body"
-  prefix <- getState
-  let name = joinNames prefix suffix
   return Definition {
     definitionBody = body,
     definitionFixity = fixity,
@@ -621,8 +749,9 @@ termParser = do
   origin <- getOrigin
   choice [
     try (uncurry (Push Nothing) <$> parseOne toLiteral <?> "literal"),
-    Call Nothing Infix <$> operatorNameParser <*> pure origin,
-    Call Nothing Postfix <$> wordNameParser <*> pure origin,
+    do
+      (name, fixity) <- nameParser
+      return $ Call Nothing fixity name origin,
     try sectionParser,
     try groupParser <?> "parenthesized expression",
     lambdaParser,
@@ -647,18 +776,18 @@ termParser = do
         do
           operandOrigin <- getOrigin
           operand <- many1 termParser
-          return $ compose operandOrigin $ operand ++ [Call Nothing Postfix function origin],
-        return (Call Nothing Postfix function origin) ],
+          return $ compose operandOrigin $ operand ++ [Call Nothing Postfix (UnqualifiedName function) origin],
+        return (Call Nothing Postfix (UnqualifiedName function) origin) ],
     do
       operandOrigin <- getOrigin
       operand <- many1 (notFollowedBy operatorNameParser *> termParser)
       origin <- getOrigin
       function <- operatorNameParser
-      return $ compose operandOrigin $ operand ++ [Swap Nothing origin, Call Nothing Postfix function origin] ]
+      return $ compose operandOrigin $ operand ++ [Swap Nothing origin, Call Nothing Postfix (UnqualifiedName function) origin] ]
   lambdaParser :: Parser Term
   lambdaParser = (<?> "variable introduction") $ choice [
     try $ parserMatch ArrowToken *> do
-      names <- lambdaNamesParser <* parserMatch (OperatorToken ";")
+      names <- lambdaNamesParser <* parserMatch (OperatorToken (Unqualified ";"))
       origin <- getOrigin
       body <- blockContentsParser
       return $ makeLambda names body origin,
@@ -674,7 +803,7 @@ termParser = do
     (cases, mElse) <- blockedParser $ do
       cases' <- many $ (<?> "case") $ parserMatch CaseToken *> do
         origin <- getOrigin
-        name <- nameParser
+        (name, _) <- nameParser
         body <- choice [blockParser, blockLambdaParser]
         return $ Case name body origin
       mElse' <- optionMaybe $ do
@@ -710,18 +839,18 @@ termParser = do
     origin <- getOrigin
     let
       reference = Call Nothing Postfix
-        <$> (parserMatch ReferenceToken *> nameParser)
+        <$> (parserMatch ReferenceToken *> (fst <$> nameParser))
         <*> pure origin
     Quotation <$> (blockParser <|> reference)
 
-lambdaBlockParser :: Parser ([(Maybe Name, Origin)], Term, Origin)
+lambdaBlockParser :: Parser ([(Maybe Unqualified, Origin)], Term, Origin)
 lambdaBlockParser = parserMatch ArrowToken *> do
   names <- lambdaNamesParser
   origin <- getOrigin
   body <- blockParser
   return (names, body, origin)
 
-lambdaNamesParser :: Parser [(Maybe Name, Origin)]
+lambdaNamesParser :: Parser [(Maybe Unqualified, Origin)]
 lambdaNamesParser = many1 $ do
   origin <- getOrigin
   name <- Just <$> wordNameParser <|> Nothing <$ parserMatch IgnoreToken
@@ -732,11 +861,11 @@ blockLambdaParser = do
   (names, body, origin) <- lambdaBlockParser
   return $ makeLambda names body origin
 
-makeLambda :: [(Maybe Name, Origin)] -> Term -> Origin -> Term
+makeLambda :: [(Maybe Unqualified, Origin)] -> Term -> Origin -> Term
 makeLambda parsed body origin = foldr
   (\ (nameMaybe, nameOrigin) acc -> maybe
     (Compose Nothing (Drop Nothing origin) acc)
-    (\ name -> Compose Nothing (Go Nothing name nameOrigin) acc)
+    (\ name -> Lambda Nothing name acc nameOrigin)
     nameMaybe)
   body
   (reverse parsed)
@@ -755,34 +884,34 @@ data Element
 data Definition = Definition {
   definitionBody :: !Term,
   definitionFixity :: !Fixity,
-  definitionName :: !Name,
+  definitionName :: !Qualified,
   definitionOrigin :: !Origin,
   definitionSignature :: !Signature }
   deriving (Show)
 
 data DataDefinition = DataDefinition {
   dataConstructors :: [DataConstructor],
-  dataName :: !Name,
+  dataName :: !Qualified,
   dataOrigin :: !Origin,
-  dataParameters :: [(Name, Kind, Origin)] }
+  dataParameters :: [(Unqualified, Kind, Origin)] }
   deriving (Show)
 
 data DataConstructor = DataConstructor {
   constructorFields :: [Signature],
-  constructorName :: !Name,
+  constructorName :: !Qualified,
   constructorOrigin :: !Origin }
   deriving (Show)
 
 data Operator = Operator {
   operatorAssociativity :: !Associativity,
-  operatorName :: !Name,
+  operatorName :: !Qualified,
   operatorPrecedence :: !Precedence }
   deriving (Show)
 
 data Fixity = Infix | Postfix
   deriving (Eq, Show)
 
-data Synonym = Synonym !Name !Name !Origin
+data Synonym = Synonym !Qualified !GeneralName !Origin
   deriving (Show)
 
 data Associativity = Nonassociative | Leftward | Rightward
@@ -791,18 +920,26 @@ data Associativity = Nonassociative | Leftward | Rightward
 type Precedence = Int
 
 data Term
-  = Call !(Maybe Type) !Fixity !Name !Origin
+  = Call !(Maybe Type) !Fixity !GeneralName !Origin
   | Compose !(Maybe Type) !Term !Term
-  | Come !HowCome !(Maybe Type) !Name !Origin
   | Drop !(Maybe Type) !Origin
   | Generic !TypeIdentifier !Term !Origin
-  | Go !(Maybe Type) !Name !Origin
   | Identity !(Maybe Type) !Origin
   | If !(Maybe Type) !Term !Term !Origin
+  | Intrinsic !(Maybe Type) !Intrinsic !Origin
+  | Lambda !(Maybe Type) !Unqualified !Term !Origin
   | Match !(Maybe Type) [Case] !(Maybe Else) !Origin
   | Push !(Maybe Type) !Value !Origin
   | Swap !(Maybe Type) !Origin
   deriving (Show)
+
+data Intrinsic = AddIntrinsic
+  deriving (Eq, Ord, Show)
+
+intrinsicFromName :: Qualified -> Maybe Intrinsic
+intrinsicFromName name = case name of
+  Qualified globalVocabulary (Unqualified "+") -> Just AddIntrinsic
+  _ -> Nothing
 
 compose :: Origin -> [Term] -> Term
 compose origin = foldr (Compose Nothing) (Identity Nothing origin)
@@ -811,12 +948,11 @@ termOrigin :: Term -> Origin
 termOrigin term = case term of
   Call _ _ _ origin -> origin
   Compose _ a _ -> termOrigin a
-  Come _ _ _ origin -> origin
   Drop _ origin -> origin
   Generic _ _ origin -> origin
-  Go _ _ origin -> origin
   Identity _ origin -> origin
   If _ _ _ origin -> origin
+  Lambda _ _ _ origin -> origin
   Match _ _ _ origin -> origin
   Push _ _ origin -> origin
   Swap _ origin -> origin
@@ -825,7 +961,7 @@ data Value
   = Boolean !Bool
   | Character !Char
   | Closed !ClosureIndex
-  | Closure [Closed]
+  | Closure [Closed] !Term
   | Float !Double
   | Integer !Integer
   | Local !LocalIndex
@@ -833,21 +969,18 @@ data Value
   | Text !Text
   deriving (Show)
 
-data Case = Case !Name !Term !Origin
+data Case = Case !GeneralName !Term !Origin
   deriving (Show)
 
 data Else = Else !Term !Origin
   deriving (Show)
 
-data HowCome = Copy | Move
-  deriving (Show)
-
 data Signature
   = ApplicationSignature Signature Signature !Origin
-  | FunctionSignature [Signature] [Signature] [Name] !Origin
-  | QuantifiedSignature [(Name, Kind, Origin)] !Signature !Origin
-  | SignatureVariable !Name !Origin
-  | StackFunctionSignature !Name [Signature] !Name [Signature] [Name] !Origin
+  | FunctionSignature [Signature] [Signature] [GeneralName] !Origin
+  | QuantifiedSignature [(Unqualified, Kind, Origin)] !Signature !Origin
+  | SignatureVariable !Unqualified !Origin
+  | StackFunctionSignature !Unqualified [Signature] !Unqualified [Signature] [GeneralName] !Origin
   deriving (Show)
 
 signatureOrigin :: Signature -> Origin
@@ -875,7 +1008,7 @@ data Variable = Variable !TypeIdentifier !Kind
 data Kind = Value | Stack | Label | Effect | !Kind :-> !Kind
   deriving (Eq, Show)
 
-newtype Constructor = Constructor Name
+newtype Constructor = Constructor Qualified
   deriving (Eq, Show)
 
 type LocalIndex = Int
@@ -888,9 +1021,12 @@ data Closed = ClosedLocal !LocalIndex | ClosedClosure !ClosureIndex
 data Limit = Unlimited | Limit0 | Limit1
   deriving (Show)
 
-type Error = String
+data Report = Report !Text !Origin
 
-data Env = Env { envErrors :: IORef [Error] }
+showReport :: Report -> String
+showReport (Report message origin) = showOriginPrefix origin ++ Text.unpack message
+
+data Env = Env { envReports :: IORef [Report] }
 
 newtype K a = K { runK :: Env -> IO (Maybe a) }
 
@@ -914,7 +1050,7 @@ instance Monad K where
     case mx of
       Nothing -> return Nothing
       Just x -> runK (f x) env
-  fail = (>> halt) . err
+  fail = (>> halt) . report . flip Report Anywhere . Text.pack  -- FIXME: Use better origin.
 
 instance MonadFix K where
   mfix k = K $ \env -> do
@@ -932,11 +1068,11 @@ instance MonadIO K where
 
 checkpoint :: K ()
 checkpoint = K $ \env -> do
-  errors <- readIORef (envErrors env)
+  errors <- readIORef (envReports env)
   return $ if null errors then Just () else Nothing
 
-err :: Error -> K ()
-err e = K $ \env -> Just <$> modifyIORef (envErrors env) (e :)
+report :: Report -> K ()
+report r = K $ \env -> Just <$> modifyIORef (envReports env) (r :)
 
 halt :: K a
 halt = K $ const $ return Nothing
@@ -968,7 +1104,7 @@ data Token
   | IntegerToken !Integer !Base !Origin !Indent  -- 1 0b1 0o1 0x1
   | LayoutToken !Origin !Indent                  -- :
   | MatchToken !Origin !Indent                   -- match
-  | OperatorToken !Name !Origin !Indent          -- +
+  | OperatorToken !Unqualified !Origin !Indent   -- +
   | ReferenceToken !Origin !Indent               -- \
   | SynonymToken !Origin !Indent                 -- synonym
   | TextToken !Text !Origin !Indent              -- "..."
@@ -976,7 +1112,7 @@ data Token
   | VectorEndToken !Origin !Indent               -- ]
   | VocabToken !Origin !Indent                   -- vocab
   | VocabLookupToken !Origin !Indent             -- ::
-  | WordToken !Name !Origin !Indent              -- word
+  | WordToken !Unqualified !Origin !Indent       -- word
 
 instance Eq Token where
   ArrowToken _ _        == ArrowToken _ _        = True
@@ -1132,44 +1268,46 @@ data Origin
   | Anywhere
   deriving (Show)
 
-{-
-instance Show Origin where
-  show (Range a b n) = concat
-    $ [sourceName a, ":", show al, ".", show ac, "-"]
-    ++ (if al == bl then [show bc] else [show bl, ".", show bc])
-    ++ [": indent ", show n]
-    where
-    al = sourceLine a
-    bl = sourceLine b
-    ac = sourceColumn a
-    bc = sourceColumn b - 1
-  show _ = ""
--}
+showOriginPrefix :: Origin -> String
+showOriginPrefix (Range a b) = concat
+  $ [sourceName a, ":", show al, ".", show ac, "-"]
+  ++ (if al == bl then [show bc] else [show bl, ".", show bc])
+  ++ [": "]
+  where
+  al = sourceLine a
+  bl = sourceLine b
+  ac = sourceColumn a
+  bc = sourceColumn b - 1
+showOriginPrefix _ = "<unknown location>: "
 
 data Root = Absolute | Relative
   deriving (Eq, Ord)
 
-data Name = Name { nameRoot :: !Root, nameParts :: [Text] }
-  deriving (Eq, Ord)
+data Qualifier = Qualifier [Text]
+  deriving (Eq, Ord, Show)
 
-joinNames :: Name -> Name -> Name
-joinNames (Name root as) (Name Relative bs) = Name root (as ++ bs)
-joinNames _ (Name Absolute _) = error "joining absolute names"
+qualifierFromName :: Qualified -> Qualifier
+qualifierFromName (Qualified (Qualifier parts) (Unqualified name)) = Qualifier (parts ++ [name])
 
-nameVocabulary :: Name -> Name
-nameVocabulary (Name _ []) = Name Absolute []
-nameVocabulary (Name root parts) = Name root (init parts)
+data Qualified = Qualified { qualifierName :: !Qualifier, unqualifiedName :: !Unqualified }
+  deriving (Eq, Ord, Show)
 
-nameRelative :: Name -> Name
-nameRelative (Name _ []) = error "cannot convert global vocab to relative"
-nameRelative (Name _ parts) = Name Relative (tail parts)
+data Unqualified = Unqualified Text
+  deriving (Eq, Ord, Show)
 
-instance Show Name where
-  show (Name Relative parts) = Text.unpack (Text.intercalate "::" parts)
-  show (Name Absolute parts) = Text.unpack (Text.intercalate "::" ("_" : parts))
+data GeneralName
+  = QualifiedName !Qualified
+  | UnqualifiedName !Unqualified
+  | LocalName !Int
+  | ClosedName !Int
+  | IntrinsicName !Intrinsic
+  deriving (Eq, Ord, Show)
 
-instance IsString Name where
-  fromString s = Name Relative [fromString s]
+globalVocabulary :: Qualifier
+globalVocabulary = Qualifier [globalVocabularyName]
+
+globalVocabularyName :: Text
+globalVocabularyName = ""
 
 skipManyTill :: ParsecT s u m a -> ParsecT s u m b -> ParsecT s u m ()
 a `skipManyTill` b = void (try b) <|> a *> (a `skipManyTill` b)
