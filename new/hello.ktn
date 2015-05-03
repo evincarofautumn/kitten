@@ -1,17 +1,35 @@
-vocab vector;
+def + (int, int -> int) { /* ... */ }
+infix right 6 +
 
-synonym + _::+
+def - (int, int -> int) { /* ... */ }
+infix left 6 -
 
-def add (int, int -> int) {
-    (+)
-}
+def * (int, int -> int) { /* ... */ }
+infix left 7 *
 
-def map<a, b, +e> (vector a, (a -> b +e) -> vector b +e) {
-  -> xs f;
-  xs
+def / (int, int -> int) { /* ... */ }
+infix left 7 /
+
+def sqrt (int -> int) { /* ... */ }
+
+vocab foo::bar {
+
+def quadratic (int int int -> int):
+  -> a b c;
+  (a + (b * b - 4 * a * c) sqrt) / (2 * a)
+
 }
 
 /*
+
+def map<a, b, +e> (vector a, (a -> b +e) -> vector b +e):
+  -> $xs $f;
+  $xs init_last { $f map } { $f call } both
+
+def map<a, b, +e> (vector a, (a -> b +e) -> vector b +e):
+  -> xs f;
+  xs init_last { f map } { f call } both
+
 define dup<S...,A,+E> (S..., A -> S..., A, A +E):
   ->x;
   x
