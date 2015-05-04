@@ -4,7 +4,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
@@ -20,14 +19,12 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State
 import Data.Char
-import Data.Functor.Identity (Identity, runIdentity)
+import Data.Functor.Identity (Identity)
 import Data.IORef
 import Data.List
 import Data.Map (Map)
 import Data.Maybe
-import Data.Set (Set)
 import Data.Text (Text)
-import GHC.Exts
 import Numeric
 import System.Environment
 import System.Exit
@@ -35,6 +32,7 @@ import System.IO
 import System.IO.Unsafe
 import Text.Parsec hiding ((<|>), letter, many, newline, optional, parse, token, tokens)
 import Text.Parsec.Text ()
+import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.ByteString as ByteString
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -42,6 +40,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Expr as Expression
+import qualified Text.PrettyPrint as Pretty
 
 import Debug.Trace
 
@@ -53,7 +52,7 @@ main = do
   result <- runK (compile paths) Env { envReports = reports }
   case result of
     Nothing -> readIORef reports >>= mapM (hPutStrLn stderr . showReport) >> exitFailure
-    Just fragment -> print fragment
+    Just fragment -> putStrLn (Pretty.render (pPrint fragment))
 
 compile :: [FilePath] -> K Fragment
 compile paths = do
@@ -89,28 +88,28 @@ resolveNames fragment = do
       Compose _ a b -> Compose Nothing <$> recur a <*> recur b
       Drop{} -> return unresolved
       Generic{} -> error "generic expression should not appear before name resolution"
+      Group a -> Group <$> recur a
       Identity{} -> return unresolved
+      Intrinsic{} -> error "intrinsic name should not appear before name resolution"
       If _ a b origin -> If Nothing <$> recur a <*> recur b <*> pure origin
       Lambda _ name term origin -> withLocal name $ Lambda Nothing name <$> recur term <*> pure origin
       Match _ cases mElse origin -> Match Nothing <$> mapM resolveCase cases <*> traverse resolveElse mElse <*> pure origin
         where
         resolveCase :: Case -> Resolved Case
-        resolveCase (Case name term origin) = do
-          resolved <- resolveName vocabulary name origin
-          Case resolved <$> recur term <*> pure origin
+        resolveCase (Case name term caseOrigin) = do
+          resolved <- resolveName vocabulary name caseOrigin
+          Case resolved <$> recur term <*> pure caseOrigin
         resolveElse :: Else -> Resolved Else
-        resolveElse (Else term origin) = Else <$> recur term <*> pure origin
+        resolveElse (Else term elseOrigin) = Else <$> recur term <*> pure elseOrigin
       Push _ value origin -> Push Nothing <$> resolveValue vocabulary value <*> pure origin
       Swap{} -> return unresolved
   resolveValue :: Qualifier -> Value -> Resolved Value
   resolveValue vocabulary value = case value of
     Boolean{} -> return value
     Character{} -> return value
-    Closed{} -> error "closed name should not appear before name resolution"
     Closure{} -> error "closure should not appear before name resolution"
     Float{} -> return value
     Integer{} -> return value
-    Local{} -> error "local should not appear before name resolution"
     Quotation term -> Quotation <$> resolveTerm vocabulary term
     Text{} -> return value
   resolveName :: Qualifier -> GeneralName -> Origin -> Resolved GeneralName
@@ -146,17 +145,20 @@ resolveNames fragment = do
     modify tail
     return result
 
+reportDuplicateDefinitions :: [(Qualified, Origin)] -> K ()
 reportDuplicateDefinitions _ = return ()
 
 desugarInfix :: Fragment -> K Fragment
 desugarInfix fragment = do
+  liftIO $ print rawOperatorTable
   desugared <- mapM desugarDefinition (fragmentDefinitions fragment)
   return fragment { fragmentDefinitions = desugared }
   where
 
   desugarDefinition :: Definition -> K Definition
   desugarDefinition definition = do
-    desugared <- desugarTerms (flattenTerm (definitionBody definition))
+    desugared <- desugarTerms' (definitionBody definition)
+    liftIO (putStrLn (Pretty.render (pPrint desugared)))
     return definition { definitionBody = desugared }
 
   desugarTerms :: [Term] -> K Term
@@ -175,19 +177,20 @@ desugarInfix fragment = do
   desugarTerm :: Term -> K Term
   desugarTerm term = case term of
     Call{} -> return term
-    Compose _ a b -> Compose Nothing <$> desugarTerm a <*> desugarTerm b
+    Compose _ a b -> desugarTerms (decompose a ++ decompose b)
     Drop{} -> return term
     Generic{} -> error "generic expression should not appear before infix desugaring"
+    Group a -> Group <$> desugarTerms' a
     Identity{} -> return term
-    If _ a b origin -> If Nothing <$> desugarTerm a <*> desugarTerm b <*> pure origin
+    If _ a b origin -> If Nothing <$> desugarTerms' a <*> desugarTerms' b <*> pure origin
     Intrinsic{} -> return term
-    Lambda _ name body origin -> Lambda Nothing name <$> desugarTerm body <*> pure origin
+    Lambda _ name body origin -> Lambda Nothing name <$> desugarTerms' body <*> pure origin
     Match _ cases mElse origin -> Match Nothing <$> mapM desugarCase cases <*> traverse desugarElse mElse <*> pure origin
       where
       desugarCase :: Case -> K Case
-      desugarCase (Case name body origin) = Case name <$> desugarTerm body <*> pure origin
+      desugarCase (Case name body caseOrigin) = Case name <$> desugarTerms' body <*> pure caseOrigin
       desugarElse :: Else -> K Else
-      desugarElse (Else body origin) = Else <$> desugarTerm body <*> pure origin
+      desugarElse (Else body elseOrigin) = Else <$> desugarTerms' body <*> pure elseOrigin
     Push _ value origin -> Push Nothing <$> desugarValue value <*> pure origin
     Swap{} -> return term
 
@@ -195,13 +198,13 @@ desugarInfix fragment = do
   desugarValue value = case value of
     Boolean{} -> return value
     Character{} -> return value
-    Closed{} -> return value
-    Closure names body -> Closure names <$> desugarTerm body
+    Closure names body -> Closure names <$> desugarTerms' body
     Float{} -> return value
     Integer{} -> return value
-    Local{} -> return value
-    Quotation body -> Quotation <$> desugarTerm body
+    Quotation body -> Quotation <$> desugarTerms' body
     Text{} -> return value
+
+  desugarTerms' = desugarTerms . decompose
 
   expression :: Rewriter Term
   expression = Expression.buildExpressionParser operatorTable (operand <?> "operand")
@@ -211,7 +214,7 @@ desugarInfix fragment = do
       results <- many1 $ termSatisfy $ \ term -> case term of
         Call _ Infix _ _ -> False
         Lambda{} -> False
-        _ -> True
+        _ -> trace ("got operand " ++ Pretty.render (pPrint term)) True
       return $ compose origin results
 
   lambda :: Rewriter Term
@@ -245,12 +248,12 @@ desugarInfix fragment = do
       Rightward -> Expression.AssocLeft
 
   binaryOperator :: GeneralName -> Rewriter (Term -> Term -> Term)
-  binaryOperator name = trace ("binaryOperator " ++ show name) $ mapTerm $ \ term -> case term of
-    Call _ Infix name' origin | name == name' -> trace ("match: " ++ show term) $ Just (binary name origin)
-    _ -> trace ("no match: " ++ show term) Nothing
+  binaryOperator name = mapTerm $ \ term -> case term of
+    Call _ Infix name' origin | name == name' -> trace (Pretty.render (pPrint name) ++ " matches " ++ Pretty.render (pPrint term)) $ Just (binary name origin)
+    _ -> trace (Pretty.render (pPrint name) ++ " does not match " ++ Pretty.render (pPrint term)) Nothing
 
   binary :: GeneralName -> Origin -> Term -> Term -> Term
-  binary name origin x y = compose origin [x, y, Call Nothing Postfix name origin]
+  binary name origin x y = trace "binary!" $ compose origin [x, y, Call Nothing Postfix name origin]
 
   mapTerm :: (Term -> Maybe a) -> Rewriter a
   mapTerm = tokenPrim show advanceTerm
@@ -277,10 +280,10 @@ a b
 
 -}
 
-flattenTerm :: Term -> [Term]
-flattenTerm (Compose _ a b) = flattenTerm a ++ flattenTerm b
-flattenTerm Identity{} = []
-flattenTerm term = [term]
+decompose :: Term -> [Term]
+decompose (Compose _ a b) = decompose a ++ decompose b
+decompose Identity{} = []
+decompose term = [term]
 
 {-
 instance (Monad m) => Stream Term m Term where
@@ -353,7 +356,7 @@ tokenTokenizer = rangedTokenizer $ choice [
   GroupBeginToken <$ char '(',
   GroupEndToken <$ char ')',
   try $ IgnoreToken <$ char '_' <* notFollowedBy letter,
-  try $ VocabLookupToken <$ string "::",
+  try $ VocabLookupToken <$ string ".",
   LayoutToken <$ char ':',
   VectorBeginToken <$ char '[',
   VectorEndToken <$ char ']',
@@ -568,7 +571,7 @@ groupedParser = between (parserMatch GroupBeginToken) (parserMatch GroupEndToken
 groupParser :: Parser Term
 groupParser = do
   origin <- getOrigin
-  groupedParser (compose origin <$> many1 termParser)
+  groupedParser (Group . compose origin <$> many1 termParser)
 
 angledParser :: Parser a -> Parser a
 angledParser = between (parserMatch (OperatorToken (Unqualified "<"))) (parserMatch (OperatorToken (Unqualified ">")))
@@ -924,6 +927,7 @@ data Term
   | Compose !(Maybe Type) !Term !Term
   | Drop !(Maybe Type) !Origin
   | Generic !TypeIdentifier !Term !Origin
+  | Group !Term
   | Identity !(Maybe Type) !Origin
   | If !(Maybe Type) !Term !Term !Origin
   | Intrinsic !(Maybe Type) !Intrinsic !Origin
@@ -938,7 +942,7 @@ data Intrinsic = AddIntrinsic
 
 intrinsicFromName :: Qualified -> Maybe Intrinsic
 intrinsicFromName name = case name of
-  Qualified globalVocabulary (Unqualified "+") -> Just AddIntrinsic
+  Qualified qualifier (Unqualified "+") | qualifier == globalVocabulary -> Just AddIntrinsic
   _ -> Nothing
 
 compose :: Origin -> [Term] -> Term
@@ -950,8 +954,10 @@ termOrigin term = case term of
   Compose _ a _ -> termOrigin a
   Drop _ origin -> origin
   Generic _ _ origin -> origin
+  Group a -> termOrigin a
   Identity _ origin -> origin
   If _ _ _ origin -> origin
+  Intrinsic _ _ origin -> origin
   Lambda _ _ _ origin -> origin
   Match _ _ _ origin -> origin
   Push _ _ origin -> origin
@@ -960,11 +966,9 @@ termOrigin term = case term of
 data Value
   = Boolean !Bool
   | Character !Char
-  | Closed !ClosureIndex
   | Closure [Closed] !Term
   | Float !Double
   | Integer !Integer
-  | Local !LocalIndex
   | Quotation !Term
   | Text !Text
   deriving (Show)
@@ -1251,7 +1255,7 @@ instance Show Token where
     VectorBeginToken{} -> "["
     VectorEndToken{} -> "]"
     VocabToken{} -> "vocab"
-    VocabLookupToken{} -> "::"
+    VocabLookupToken{} -> "."
     WordToken name _ _ -> show name
 
 data Layoutness = Layout | Nonlayout
@@ -1311,3 +1315,91 @@ globalVocabularyName = ""
 
 skipManyTill :: ParsecT s u m a -> ParsecT s u m b -> ParsecT s u m ()
 a `skipManyTill` b = void (try b) <|> a *> (a `skipManyTill` b)
+
+instance Pretty Fragment where
+  pPrint fragment = Pretty.vcat (intersperse (Pretty.text "") (concat docs))
+    where
+    docs :: [[Pretty.Doc]]
+    docs = [
+      pretties (fragmentDataDefinitions fragment),
+      pretties (fragmentDefinitions fragment),
+      pretties (fragmentOperators fragment),
+      pretties (fragmentSynonyms fragment) ]
+    pretties :: Pretty a => [a] -> [Pretty.Doc]
+    pretties = map pPrint
+
+-- FIXME: Support parameters.
+instance Pretty DataDefinition where
+  pPrint definition = Pretty.vcat [
+    Pretty.text "data" Pretty.<+> pPrint (dataName definition) Pretty.<> Pretty.text ":",
+    Pretty.nest 4 (Pretty.vcat (map pPrint (dataConstructors definition))) ]
+
+-- FIXME: Support fields.
+instance Pretty DataConstructor where
+  pPrint constructor = Pretty.text "case" Pretty.<+> pPrint (constructorName constructor)
+
+-- FIXME: Support signatures.
+instance Pretty Definition where
+  pPrint definition = Pretty.vcat [
+    Pretty.text "def" Pretty.<+> pPrint (definitionName definition) Pretty.<> Pretty.text ":",
+    Pretty.nest 4 (pPrint (definitionBody definition)) ]
+
+instance Pretty Operator where
+  pPrint operator = Pretty.hsep $
+    (case operatorAssociativity operator of
+      Nonassociative -> id
+      Leftward -> (Pretty.text "left" :)
+      Rightward -> (Pretty.text "right" :)) [
+    pPrint (operatorPrecedence operator),
+    pPrint (operatorName operator) ]
+
+instance Pretty Term where
+  pPrint term = case term of
+    Call _ _ name _ -> pPrint name
+    Compose _ a b -> pPrint a Pretty.<+> pPrint b
+    Drop _ _ -> Pretty.text "drop"
+    Generic{} -> error "TODO: pretty-print generic expressions"
+    Group a -> Pretty.parens (pPrint a)
+    Identity{} -> Pretty.empty
+    If _ a b _ -> Pretty.text "if:" Pretty.$$ Pretty.nest 4 (pPrint a) Pretty.$$ "else:" Pretty.$$ Pretty.nest 4 (pPrint b)
+    Intrinsic _ name _ -> pPrint name
+    Lambda _ name body _ -> Pretty.text "->" Pretty.<+> pPrint name Pretty.<> ";" Pretty.$$ pPrint body
+    Match{} -> error "TODO: pretty-print match expressions"
+    Push _ value _ -> pPrint value
+    Swap{} -> Pretty.text "swap"
+
+instance Pretty Value where
+  pPrint value = case value of
+    Boolean True -> Pretty.text "true"
+    Boolean False -> Pretty.text "false"
+    Character c -> Pretty.quotes (Pretty.char c)
+    Closure{} -> error "TODO: pretty-print closure values"
+    Float f -> Pretty.double f
+    Integer i -> Pretty.integer i
+    Quotation body -> Pretty.braces (pPrint body)
+    Text t -> Pretty.doubleQuotes (Pretty.text (Text.unpack t))
+
+instance Pretty Qualified where
+  pPrint qualified = pPrint (qualifierName qualified) Pretty.<> Pretty.text "." Pretty.<> pPrint (unqualifiedName qualified)
+
+instance Pretty Qualifier where
+  pPrint (Qualifier ("" : parts)) = pPrint (Qualifier ("_" : parts))
+  pPrint (Qualifier parts) = Pretty.text (Text.unpack (Text.intercalate "." parts))
+
+instance Pretty Unqualified where
+  pPrint (Unqualified unqualified) = Pretty.text (Text.unpack unqualified)
+
+instance Pretty GeneralName where
+  pPrint name = case name of
+    QualifiedName qualified -> pPrint qualified
+    UnqualifiedName unqualified -> pPrint unqualified
+    LocalName i -> Pretty.text "local." Pretty.<> Pretty.int i
+    ClosedName i -> Pretty.text "closure." Pretty.<> Pretty.int i
+    IntrinsicName intrinsic -> pPrint intrinsic
+
+instance Pretty Intrinsic where
+  pPrint _ = error "TODO: pretty-print intrinsic names"
+
+-- FIXME: Real instance.
+instance Pretty Synonym where
+  pPrint _ = "synonym"
