@@ -12,7 +12,7 @@ infix left 7 /
 
 def sqrt (int -> int) { /* ... */ }
 
-vocab foo.bar {
+vocab foo::bar {
 
 def quadratic (int int int -> int):
   -> a b c;

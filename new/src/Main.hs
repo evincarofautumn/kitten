@@ -187,7 +187,7 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
   , GroupBeginToken <$ Parsec.char '('
   , GroupEndToken <$ Parsec.char ')'
   , Parsec.try $ IgnoreToken <$ Parsec.char '_' <* Parsec.notFollowedBy letter
-  , Parsec.try $ VocabLookupToken <$ Parsec.string "."
+  , Parsec.try $ VocabLookupToken <$ Parsec.string "::"
   , LayoutToken <$ Parsec.char ':'
   , VectorBeginToken <$ Parsec.char '['
   , VectorEndToken <$ Parsec.char ']'
@@ -425,7 +425,7 @@ instance Show Token where
     VectorBeginToken{} -> "["
     VectorEndToken{} -> "]"
     VocabToken{} -> "vocab"
-    VocabLookupToken{} -> "."
+    VocabLookupToken{} -> "::"
     WordToken name _ _ -> show name
 
 --------------------------------------------------------------------------------
@@ -1479,12 +1479,12 @@ instance Pretty Value where
 
 instance Pretty Qualified where
   pPrint qualified = pPrint (qualifierName qualified)
-    Pretty.<> Pretty.text "." Pretty.<> pPrint (unqualifiedName qualified)
+    Pretty.<> Pretty.text "::" Pretty.<> pPrint (unqualifiedName qualified)
 
 instance Pretty Qualifier where
   pPrint (Qualifier ("" : parts)) = pPrint $ Qualifier $ "_" : parts
   pPrint (Qualifier parts) = Pretty.text
-    $ Text.unpack $ Text.intercalate "." parts
+    $ Text.unpack $ Text.intercalate "::" parts
 
 instance Pretty Unqualified where
   pPrint (Unqualified unqualified) = Pretty.text $ Text.unpack unqualified
