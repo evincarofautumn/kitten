@@ -824,9 +824,11 @@ functionTypeParser :: Parser Signature
 functionTypeParser = (<?> "function type") $ do
   (stackEffect, origin) <- Parsec.choice
     [ Parsec.try $ do
-      leftVar <- stack; leftTypes <- left
+      leftVar <- stack
+      leftTypes <- Parsec.option [] (parserMatch CommaToken *> left)
       origin <- arrow
-      rightVar <- stack; rightTypes <- right
+      rightVar <- stack
+      rightTypes <- Parsec.option [] (parserMatch CommaToken *> right)
       return (StackFunctionSignature
         leftVar leftTypes rightVar rightTypes, origin)
     , do
@@ -843,8 +845,11 @@ functionTypeParser = (<?> "function type") $ do
   stack = wordNameParser <* parserMatch EllipsisToken
 
   left, right :: Parser [Signature]
-  left = basicTypeParser `Parsec.sepEndBy` parserMatch CommaToken
-  right = typeParser `Parsec.sepEndBy` parserMatch CommaToken
+  left = basicTypeParser `Parsec.sepEndBy` comma
+  right = typeParser `Parsec.sepEndBy` comma
+
+  comma :: Parser ()
+  comma = void $ parserMatch CommaToken
 
   arrow :: Parser Origin
   arrow = getOrigin <* parserMatch ArrowToken
