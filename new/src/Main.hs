@@ -1298,7 +1298,7 @@ desugarInfix fragment = do
     Drop{} -> return term
     Generic{} -> error
       "generic expression should not appear before infix desugaring"
-    Group a -> Group <$> desugarTerms' a
+    Group a -> desugarTerms' a
     Identity{} -> return term
     If _ a b origin -> If Nothing
       <$> desugarTerms' a <*> desugarTerms' b <*> pure origin
