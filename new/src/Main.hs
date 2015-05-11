@@ -9,6 +9,7 @@ import Control.Monad
 import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
+import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
 import Data.Char
 import Data.Functor.Identity (Identity)
@@ -62,7 +63,9 @@ compile paths = do
   resolved <- resolveNames parsed
   checkpoint
   postfix <- desugarInfix resolved
-  return postfix
+  checkpoint
+  let scoped = scope postfix
+  return scoped
   where
 
   readFileUtf8 :: FilePath -> IO Text
@@ -614,9 +617,11 @@ data Term
 data Value
   = Boolean !Bool
   | Character !Char
+  | Closed !ClosureIndex
   | Closure [Closed] !Term
   | Float !Double
   | Integer !Integer
+  | Local !LocalIndex
   | Quotation !Term
   | Text !Text
   deriving (Show)
@@ -1199,9 +1204,11 @@ resolveNames fragment = do
   resolveValue vocabulary value = case value of
     Boolean{} -> return value
     Character{} -> return value
+    Closed{} -> error "closed name should not appear before name resolution"
     Closure{} -> error "closure should not appear before name resolution"
     Float{} -> return value
     Integer{} -> return value
+    Local{} -> error "local name should not appear before name resolution"
     Quotation term -> Quotation <$> resolveTerm vocabulary term
     Text{} -> return value
 
@@ -1326,9 +1333,11 @@ desugarInfix fragment = do
   desugarValue value = case value of
     Boolean{} -> return value
     Character{} -> return value
+    Closed{} -> error "closed name should not appear before infix desugaring"
     Closure names body -> Closure names <$> desugarTerms' body
     Float{} -> return value
     Integer{} -> return value
+    Local{} -> error "local name should not appear before infix desugaring"
     Quotation body -> Quotation <$> desugarTerms' body
     Text{} -> return value
 
@@ -1398,6 +1407,172 @@ desugarInfix fragment = do
   advanceTerm sourcePos _ _ = sourcePos
 
 --------------------------------------------------------------------------------
+-- Scope Resolution
+--------------------------------------------------------------------------------
+
+-- Whereas name resolution is concerned with resolving references to
+-- definitions, scope resolution resolves references to locals and converts
+-- quotations to use explicit closures.
+
+scope :: Fragment -> Fragment
+scope fragment = fragment
+  { fragmentDefinitions = map scopeDefinition (fragmentDefinitions fragment) }
+  where
+
+  scopeDefinition :: Definition -> Definition
+  scopeDefinition definition = definition
+    { definitionBody = scopeTerm [0] (definitionBody definition) }
+
+  scopeTerm :: [Int] -> Term -> Term
+  scopeTerm stack = recur
+    where
+    recur term = case term of
+      Call _ _ (LocalName index) origin
+        -> Push Nothing (scopeValue stack (Local index)) origin
+      Call{} -> term
+      Compose _ a b -> Compose Nothing (recur a) (recur b)
+      Drop{} -> term
+      Generic{} -> error
+        "generic expression should not appear before scope resolution"
+      Group{} -> error
+        "group expression should not appear after infix desugaring"
+      Identity{} -> term
+      If _ a b origin -> If Nothing (recur a) (recur b) origin
+      Intrinsic{} -> term
+      Lambda _ name a origin -> Lambda Nothing name
+        (scopeTerm (mapHead succ stack) a) origin
+      Match _ cases mElse origin -> Match Nothing
+        (map (\ (Case name a caseOrigin)
+          -> Case name (recur a) caseOrigin) cases)
+        (fmap (\ (Else a elseOrigin)
+          -> Else (recur a) elseOrigin) mElse)
+        origin
+      Push _ value origin -> Push Nothing (scopeValue stack value) origin
+      Swap{} -> term
+
+  scopeValue :: [Int] -> Value -> Value
+  scopeValue stack value = case value of
+    Boolean{} -> value
+    Character{} -> value
+    Closed{} -> error "closed name should not appear before scope resolution"
+    Closure{} -> error "closure should not appear before scope resolution"
+    Float{} -> value
+    Integer{} -> value
+    Local{} -> value
+    Quotation body -> Closure (map ClosedLocal capturedNames) capturedTerm
+      where
+
+      capturedTerm :: Term
+      capturedNames :: [LocalIndex]
+      (capturedTerm, capturedNames) = runCapture stack' $ captureTerm scoped
+
+      scoped :: Term
+      scoped = scopeTerm stack' body
+
+      stack' :: [Int]
+      stack' = 0 : stack
+
+    Text{} -> value
+
+data ScopeEnv = ScopeEnv
+  { scopeStack :: [ScopeDepth]
+  , scopeDepth :: !ScopeDepth
+  }
+
+type ScopeDepth = Int
+
+type Captured a = ReaderT ScopeEnv (State [LocalIndex]) a
+
+runCapture :: [Int] -> Captured a -> (a, [LocalIndex])
+runCapture stack = flip runState []
+  . flip runReaderT ScopeEnv { scopeStack = stack, scopeDepth = 0 }
+
+captureTerm :: Term -> Captured Term
+captureTerm term = case term of
+  Call{} -> return term
+  Compose _ a b -> Compose Nothing <$> captureTerm a <*> captureTerm b
+  Drop{} -> return term
+  Generic{} -> error
+    "generic expression should not appear before scope resolution"
+  Group{} -> error
+    "group expression should not appear after infix desugaring"
+  Identity{} -> return term
+  If _ a b origin -> If Nothing
+    <$> captureTerm a <*> captureTerm b <*> pure origin
+  Intrinsic{} -> return term
+  Lambda _ name a origin -> let
+    inside env = env
+      { scopeStack = mapHead succ (scopeStack env)
+      , scopeDepth = succ (scopeDepth env)
+      }
+    in Lambda Nothing name <$> local inside (captureTerm a) <*> pure origin
+  Match _ cases mElse origin -> Match Nothing
+    <$> mapM captureCase cases <*> traverse captureElse mElse <*> pure origin
+    where
+
+    captureCase :: Case -> Captured Case
+    captureCase (Case name a caseOrigin)
+      = Case name <$> captureTerm a <*> pure caseOrigin
+
+    captureElse :: Else -> Captured Else
+    captureElse (Else a elseOrigin)
+      = Else <$> captureTerm a <*> pure elseOrigin
+
+  Push _ value origin -> Push Nothing <$> captureValue value <*> pure origin
+  Swap{} -> return term
+
+captureValue :: Value -> Captured Value
+captureValue value = case value of
+  Boolean{} -> return value
+  Character{} -> return value
+  Closed{} -> return value
+  Closure names term -> Closure <$> mapM close names <*> pure term
+    where
+
+    close :: Closed -> Captured Closed
+    close original = case original of
+      ClosedLocal index -> do
+        closed <- closeLocal index
+        return $ case closed of
+          Nothing -> original
+          Just index' -> ClosedClosure index'
+      ClosedClosure{} -> return original
+
+  Float{} -> return value
+  Integer{} -> return value
+  Local index -> do
+    closed <- closeLocal index
+    return $ case closed of
+      Nothing -> value
+      Just index' -> Closed index'
+  Quotation term -> let
+    inside env = env { scopeStack = 0 : scopeStack env }
+    in Quotation <$> local inside (captureTerm term)
+  Text{} -> return value
+
+closeLocal :: LocalIndex -> Captured (Maybe ClosureIndex)
+closeLocal index = do
+  stack <- asks scopeStack
+  depth <- asks scopeDepth
+  case stack of
+    here : _ | index >= here -> Just <$> addName (index - depth)
+    _ -> return Nothing
+  where
+
+  addName :: LocalIndex -> Captured ClosureIndex
+  addName name = do
+    names <- lift get
+    case elemIndex name names of
+      Just existing -> return existing
+      Nothing -> do
+        lift $ put $ names ++ [name]
+        return $ length names
+
+mapHead :: (a -> a) -> [a] -> [a]
+mapHead _ [] = []
+mapHead f (x : xs) = f x : xs
+
+--------------------------------------------------------------------------------
 -- Pretty Printing
 --------------------------------------------------------------------------------
 
@@ -1453,7 +1628,7 @@ instance Pretty Operator where
 instance Pretty Term where
   pPrint term = case term of
     Call _ _ name _ -> pPrint name
-    Compose _ a b -> pPrint a Pretty.<+> pPrint b
+    Compose _ a b -> pPrint a Pretty.$+$ pPrint b
     Drop _ _ -> Pretty.text "drop"
     Generic{} -> error "TODO: pretty-print generic expressions"
     Group a -> Pretty.parens (pPrint a)
@@ -1466,7 +1641,7 @@ instance Pretty Term where
     Lambda _ name body _ -> Pretty.text "->"
       Pretty.<+> pPrint name
       Pretty.<> ";"
-      Pretty.$$ pPrint body
+      Pretty.$+$ pPrint body
     Match{} -> error "TODO: pretty-print match expressions"
     Push _ value _ -> pPrint value
     Swap{} -> Pretty.text "swap"
@@ -1476,11 +1651,24 @@ instance Pretty Value where
     Boolean True -> Pretty.text "true"
     Boolean False -> Pretty.text "false"
     Character c -> Pretty.quotes $ Pretty.char c
-    Closure{} -> error "TODO: pretty-print closure values"
+    Closed index -> pPrint $ ClosedName index
+    Closure names term -> Pretty.hcat
+      [ Pretty.char '$'
+      , Pretty.parens
+        $ Pretty.hcat $ intersperse (Pretty.text ", ") $ map pPrint names
+      , Pretty.braces $ pPrint term
+      ]
     Float f -> Pretty.double f
     Integer i -> Pretty.integer i
-    Quotation body -> Pretty.braces (pPrint body)
+    Local index -> pPrint $ LocalName index
+    Quotation body -> Pretty.braces $ pPrint body
     Text t -> Pretty.doubleQuotes $ Pretty.text $ Text.unpack t
+
+instance Pretty Closed where
+  pPrint (ClosedLocal index) = Pretty.hcat
+    [Pretty.text "local.", Pretty.int index]
+  pPrint (ClosedClosure index) = Pretty.hcat
+    [Pretty.text "closure.", Pretty.int index]
 
 instance Pretty Qualified where
   pPrint qualified = pPrint (qualifierName qualified)
