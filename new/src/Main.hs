@@ -65,7 +65,8 @@ compile paths = do
   postfix <- desugarInfix resolved
   checkpoint
   let scoped = scope postfix
-  return scoped
+  desugared <- desugarDataDefinitions scoped
+  return desugared
   where
 
   readFileUtf8 :: FilePath -> IO Text
@@ -578,7 +579,7 @@ data DataDefinition = DataDefinition
 
 data DataConstructor = DataConstructor
   { constructorFields :: [Signature]
-  , constructorName :: !Qualified
+  , constructorName :: !Unqualified
   , constructorOrigin :: !Origin
   } deriving (Show)
 
@@ -610,9 +611,12 @@ data Term
   | Intrinsic !(Maybe Type) !Intrinsic !Origin
   | Lambda !(Maybe Type) !Unqualified !Term !Origin
   | Match !(Maybe Type) [Case] !(Maybe Else) !Origin
+  | New !(Maybe Type) !ConstructorIndex !Origin
   | Push !(Maybe Type) !Value !Origin
   | Swap !(Maybe Type) !Origin
   deriving (Show)
+
+type ConstructorIndex = Int
 
 data Value
   = Boolean !Bool
@@ -636,7 +640,7 @@ data Signature
   = ApplicationSignature Signature Signature !Origin
   | FunctionSignature [Signature] [Signature] [GeneralName] !Origin
   | QuantifiedSignature [(Unqualified, Kind, Origin)] !Signature !Origin
-  | SignatureVariable !Unqualified !Origin
+  | SignatureVariable !GeneralName !Origin
   | StackFunctionSignature
     !Unqualified [Signature] !Unqualified [Signature] [GeneralName] !Origin
   deriving (Show)
@@ -801,8 +805,7 @@ dataDefinitionParser = (<?> "data definition") $ do
   name <- Qualified <$> Parsec.getState
     <*> (wordNameParser <?> "data definition name")
   parameters <- Parsec.option [] quantifierParser
-  constructors <- blockedParser
-    $ many $ constructorParser $ qualifierFromName name
+  constructors <- blockedParser $ many constructorParser
   return DataDefinition
     { dataConstructors = constructors
     , dataName = name
@@ -810,10 +813,10 @@ dataDefinitionParser = (<?> "data definition") $ do
     , dataParameters = parameters
     }
 
-constructorParser :: Qualifier -> Parser DataConstructor
-constructorParser vocabulary = (<?> "data constructor") $ do
+constructorParser :: Parser DataConstructor
+constructorParser = (<?> "data constructor") $ do
   origin <- getOrigin <* parserMatch CaseToken
-  name <- Qualified vocabulary <$> (wordNameParser <?> "constructor name")
+  name <- wordNameParser <?> "constructor name"
   fields <- Parsec.option [] $ groupedParser
     $ typeParser `Parsec.sepEndBy` parserMatch CommaToken
   return DataConstructor
@@ -866,7 +869,7 @@ basicTypeParser = (<?> "basic type") $ do
     [ quantifiedParser $ groupedParser typeParser
     , do
       origin <- getOrigin
-      SignatureVariable <$> wordNameParser <*> pure origin
+      SignatureVariable <$> (fst <$> nameParser) <*> pure origin
     , groupedParser typeParser
     ]
 
@@ -1093,6 +1096,7 @@ termOrigin term = case term of
   If _ _ _ origin -> origin
   Intrinsic _ _ origin -> origin
   Lambda _ _ _ origin -> origin
+  New _ _ origin -> origin
   Match _ _ _ origin -> origin
   Push _ _ origin -> origin
   Swap _ origin -> origin
@@ -1196,6 +1200,7 @@ resolveNames fragment = do
         resolveElse (Else term elseOrigin)
           = Else <$> recur term <*> pure elseOrigin
 
+      New{} -> return unresolved
       Push _ value origin -> Push Nothing
         <$> resolveValue vocabulary value <*> pure origin
       Swap{} -> return unresolved
@@ -1273,8 +1278,53 @@ globalVocabularyName :: Text
 globalVocabularyName = ""
 
 --------------------------------------------------------------------------------
--- Infix Desugaring
+-- Desugaring
 --------------------------------------------------------------------------------
+
+----------------------------------------
+-- Data Definition Desugaring
+----------------------------------------
+
+desugarDataDefinitions :: Fragment -> K Fragment
+desugarDataDefinitions fragment = do
+  definitions <- fmap concat $ mapM desugarDefinition
+    $ fragmentDataDefinitions fragment
+  return fragment { fragmentDefinitions
+    = fragmentDefinitions fragment ++ definitions }
+  where
+
+  desugarDefinition :: DataDefinition -> K [Definition]
+  desugarDefinition definition = mapM (uncurry desugarConstructor)
+    $ zip [0..] $ dataConstructors definition
+    where
+    desugarConstructor :: Int -> DataConstructor -> K Definition
+    desugarConstructor index constructor = do
+      let
+        resultSignature = foldl'
+          (\ a b -> ApplicationSignature a b origin)
+          (SignatureVariable (QualifiedName $ dataName definition)
+            $ dataOrigin definition)
+          $ map (\ (parameter, _, parameterOrigin)
+            -> SignatureVariable (UnqualifiedName parameter) parameterOrigin)
+          $ dataParameters definition
+        constructorSignature = QuantifiedSignature (dataParameters definition)
+          (FunctionSignature
+            (constructorFields constructor) [resultSignature] [] origin)
+          origin
+      return Definition
+        { definitionBody = New Nothing index $ constructorOrigin constructor
+        , definitionFixity = Postfix
+        , definitionName = Qualified qualifier $ constructorName constructor
+        , definitionOrigin = origin
+        , definitionSignature = constructorSignature
+        }
+      where
+      origin = constructorOrigin constructor
+      qualifier = qualifierFromName $ dataName definition
+
+----------------------------------------
+-- Infix Desugaring
+----------------------------------------
 
 type Rewriter a = ParsecT [Term] () Identity a
 
@@ -1326,6 +1376,7 @@ desugarInfix fragment = do
       desugarElse :: Else -> K Else
       desugarElse (Else body elseOrigin)
         = Else <$> desugarTerms' body <*> pure elseOrigin
+    New{} -> return term
     Push _ value origin -> Push Nothing <$> desugarValue value <*> pure origin
     Swap{} -> return term
 
@@ -1447,6 +1498,7 @@ scope fragment = fragment
         (fmap (\ (Else a elseOrigin)
           -> Else (recur a) elseOrigin) mElse)
         origin
+      New{} -> term
       Push _ value origin -> Push Nothing (scopeValue stack value) origin
       Swap{} -> term
 
@@ -1518,6 +1570,7 @@ captureTerm term = case term of
     captureElse (Else a elseOrigin)
       = Else <$> captureTerm a <*> pure elseOrigin
 
+  New{} -> return term
   Push _ value origin -> Push Nothing <$> captureValue value <*> pure origin
   Swap{} -> return term
 
@@ -1643,6 +1696,7 @@ instance Pretty Term where
       Pretty.<> ";"
       Pretty.$+$ pPrint body
     Match{} -> error "TODO: pretty-print match expressions"
+    New _ index _ -> Pretty.text "new." Pretty.<> pPrint index
     Push _ value _ -> pPrint value
     Swap{} -> Pretty.text "swap"
 

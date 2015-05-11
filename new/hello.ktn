@@ -1,3 +1,7 @@
+data maybe<A>:
+  case nothing
+  case just (A)
+
 def + (int, int -> int) { /* ... */ }
 infix right 6 +
 
