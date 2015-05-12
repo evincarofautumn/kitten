@@ -1661,11 +1661,11 @@ instance Pretty DataConstructor where
   pPrint constructor = Pretty.text "case"
     Pretty.<+> pPrint (constructorName constructor)
 
--- FIXME: Support signatures.
 instance Pretty Definition where
   pPrint definition = Pretty.vcat
     [ Pretty.text "def"
       Pretty.<+> pPrint (definitionName definition)
+      Pretty.<+> pPrint (definitionSignature definition)
       Pretty.<> Pretty.text ":"
     , Pretty.nest 4 $ pPrint $ definitionBody definition
     ]
@@ -1711,8 +1711,7 @@ instance Pretty Value where
     Closed index -> pPrint $ ClosedName index
     Closure names term -> Pretty.hcat
       [ Pretty.char '$'
-      , Pretty.parens
-        $ Pretty.hcat $ intersperse (Pretty.text ", ") $ map pPrint names
+      , Pretty.parens $ prettyList $ map pPrint names
       , Pretty.braces $ pPrint term
       ]
     Float f -> Pretty.double f
@@ -1753,6 +1752,37 @@ instance Pretty Intrinsic where
 -- FIXME: Real instance.
 instance Pretty Synonym where
   pPrint _ = "synonym"
+
+instance Pretty Signature where
+  pPrint signature = case signature of
+    ApplicationSignature a b _ -> Pretty.parens $ pPrint a Pretty.<+> pPrint b
+    FunctionSignature as bs es _ -> Pretty.parens $ Pretty.hsep $
+      [ prettyList $ map pPrint as
+      , Pretty.text "->"
+      , prettyList $ map pPrint bs
+      ] ++ map ((Pretty.char '+' Pretty.<>) . pPrint) es
+    QuantifiedSignature names type_ _ -> Pretty.hcat
+      [ Pretty.char '<'
+      , prettyList $ map prettyVar names
+      , Pretty.char '>'
+      ] Pretty.<+> pPrint type_
+      where
+
+      prettyVar :: (Unqualified, Kind, Origin) -> Pretty.Doc
+      prettyVar (name, kind, _) = case kind of
+        Value -> pPrint name
+        Stack -> pPrint name Pretty.<> Pretty.text "..."
+        Effect -> Pretty.char '+' Pretty.<> pPrint name
+        _ -> error "quantified signature contains variable of invalid kind"
+    SignatureVariable name _ -> pPrint name
+    StackFunctionSignature r as s bs es _ -> Pretty.parens $ Pretty.hsep
+      $ (pPrint r Pretty.<> Pretty.text "...")
+      : map pPrint as ++ [Pretty.text "->"]
+      ++ ((pPrint s Pretty.<> Pretty.text "...") : map pPrint bs)
+      ++ map ((Pretty.char '+' Pretty.<>) . pPrint) es
+
+prettyList :: [Pretty.Doc] -> Pretty.Doc
+prettyList = Pretty.hcat . intersperse (Pretty.text ", ")
 
 --------------------------------------------------------------------------------
 -- Type Inference

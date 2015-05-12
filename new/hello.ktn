@@ -48,7 +48,7 @@ def scope (-> +io) {
 
 vocab foo::bar {
 
-def quadratic (int int int -> int):
+def quadratic (int, int, int -> int):
   -> a b c;
   (a + (b * b - 4 * a * c) sqrt) / (2 * a)
 
