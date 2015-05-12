@@ -867,9 +867,12 @@ basicTypeParser = (<?> "basic type") $ do
   let makeSignature a b = ApplicationSignature a b $ signatureOrigin a
   fmap (foldl1' makeSignature) $ Parsec.many1 $ Parsec.choice
     [ quantifiedParser $ groupedParser typeParser
-    , do
+    , Parsec.try $ do
       origin <- getOrigin
-      SignatureVariable <$> (fst <$> nameParser) <*> pure origin
+      (name, fixity) <- nameParser
+      -- Must be a word, not an operator, but may be qualified.
+      guard $ fixity == Postfix
+      return $ SignatureVariable name origin
     , groupedParser typeParser
     ]
 
