@@ -40,10 +40,13 @@ main = do
   hSetEncoding stdout utf8
   reports <- newIORef []
   paths <- getArgs
-  result <- runK (compile paths) Env { envReports = reports }
+  result <- runK (compile paths) Env { envContext = [], envReports = reports }
   case result of
     Nothing -> do
-      mapM_ (hPutStrLn stderr . showReport) =<< readIORef reports
+      paragraphs <- readIORef reports
+      forM_ paragraphs $ \ paragraph -> do
+        forM_ (reverse paragraph) $ hPutStrLn stderr . showReport
+        hPutStrLn stderr ""
       exitFailure
     Just fragment -> putStrLn $ Pretty.render $ pPrint fragment
 
@@ -1814,7 +1817,7 @@ newtype Constructor = Constructor Qualified
 
 newtype K a = K { runK :: Env -> IO (Maybe a) }
 
-data Env = Env { envReports :: IORef [Report] }
+data Env = Env { envContext :: [Report], envReports :: IORef [[Report]] }
 
 data Report = Report !Text !Origin
 
@@ -1861,10 +1864,15 @@ checkpoint = K $ \env -> do
   return (if null errors then Just () else Nothing)
 
 report :: Report -> K ()
-report r = K (\env -> Just <$> modifyIORef (envReports env) (r :))
+report r = K $ \ env -> Just
+  <$> modifyIORef (envReports env) ((r : envContext env) :)
 
 halt :: K a
 halt = K (const (return Nothing))
+
+while :: Report -> K a -> K a
+while prefix action = K $ \ env
+  -> runK action env { envContext = prefix : envContext env }
 
 showReport :: Report -> String
 showReport (Report message origin)
