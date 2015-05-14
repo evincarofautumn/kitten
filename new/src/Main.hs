@@ -1,4 +1,6 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecursiveDo #-}
 
 module Main where
 
@@ -11,13 +13,17 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
+import Control.Monad.Trans.Writer
 import Data.Char
+import Data.Function
 import Data.Functor.Identity (Identity)
 import Data.IORef
 import Data.List
 import Data.Map (Map)
 import Data.Maybe
+import Data.Set (Set)
 import Data.Text (Text)
+import GHC.Exts (IsString(..))
 import Numeric
 import System.Environment
 import System.Exit
@@ -50,6 +56,9 @@ main = do
       exitFailure
     Just fragment -> putStrLn $ Pretty.render $ pPrint fragment
 
+
+
+
 --------------------------------------------------------------------------------
 -- Compilation
 --------------------------------------------------------------------------------
@@ -69,11 +78,31 @@ compile paths = do
   checkpoint
   let scoped = scope postfix
   desugared <- desugarDataDefinitions scoped
+  -- TODO:
+  -- infer types
+  -- inferred <- inferTypes desugared
+  -- lift closures into top-level definitions
+  --   (possibly introducing a new "Flat" term type)
+  --   value representation: def a (...) { ... $(local.0, local.1){ q... } ... }
+  --                      -> def a (...) { ... local.0 local.1 \a::lambda0 new.act ... }
+  --                         def b (...) { q... }
+  -- make dup/drop explicit
+  --   when copying from a local, insert dup
+  --   when ignoring a value with ->_;, insert drop immediately
+  --   when simply ignoring a local, insert drop at end of scope
+  --     (warn about this unless prefixed with _, e.g., ->_ptr;)
+  -- generate instantiations
+  -- generate instance declarations
+  --   (so inference can know what's available in a precompiled module)
+  -- generate code
   return desugared
   where
 
   readFileUtf8 :: FilePath -> IO Text
   readFileUtf8 = fmap Text.decodeUtf8 . ByteString.readFile
+
+
+
 
 --------------------------------------------------------------------------------
 -- Tokenization
@@ -435,15 +464,24 @@ instance Show Token where
     VocabLookupToken{} -> "::"
     WordToken name _ _ -> show name
 
+
+
+
 --------------------------------------------------------------------------------
 -- Layout and Parsing
 --------------------------------------------------------------------------------
 
 type Parser a = ParsecT [Token] Qualifier Identity a
 
+
+
+
 ----------------------------------------
 -- Layout
 ----------------------------------------
+
+
+
 
 layout :: FilePath -> [Token] -> K [Token]
 layout path tokens
@@ -530,9 +568,15 @@ parserMatch token = tokenSatisfy
 parserMatch_ :: (Origin -> Indent -> Token) -> Parser ()
 parserMatch_ = void . parserMatch
 
+
+
+
 ----------------------------------------
 -- Parsing
 ----------------------------------------
+
+
+
 
 data Fragment = Fragment
   { fragmentDataDefinitions :: [DataDefinition]
@@ -603,23 +647,32 @@ data Associativity = Nonassociative | Leftward | Rightward
 
 type Precedence = Int
 
-data Term
-  = Call !(Maybe Type) !Fixity !GeneralName !Origin
-  | Compose !(Maybe Type) !Term !Term
-  | Drop !(Maybe Type) !Origin
-  | Generic !TypeIdentifier !Term !Origin
-  | Group !Term
-  | Identity !(Maybe Type) !Origin
-  | If !(Maybe Type) !Term !Term !Origin
-  | Intrinsic !(Maybe Type) !Intrinsic !Origin
-  | Lambda !(Maybe Type) !Unqualified !Term !Origin
-  | Match !(Maybe Type) [Case] !(Maybe Else) !Origin
-  | New !(Maybe Type) !ConstructorIndex !Origin
-  | Push !(Maybe Type) !Value !Origin
-  | Swap !(Maybe Type) !Origin
-  deriving (Show)
 
-type ConstructorIndex = Int
+
+
+-- This is the core language. It permits pushing values to the stack, invoking
+-- definitions, and moving values between the stack and local variables.
+--
+-- It also permits empty programs and program concatenation. Together these form
+-- a monoid over programs. The denotation of the concatenation of two programs
+-- is the composition of the denotations of those two programs. In other words,
+-- there is a homomorphism from the syntactic monoid onto the semantic monoid.
+
+data Term
+  = Call !(Maybe Type) !Fixity !GeneralName !Origin   -- f
+  | Compose !(Maybe Type) !Term !Term                 -- e1 e2
+  | Drop !(Maybe Type) !Origin                        -- drop
+  | Generic !TypeId !Term !Origin                     -- Λx. e
+  | Group !Term                                       -- (e)
+  | Identity !(Maybe Type) !Origin                    --
+  | If !(Maybe Type) !Term !Term !Origin              -- if { e1 } else { e2 }
+  | Intrinsic !(Maybe Type) !Intrinsic !Origin        -- _::+
+  | Lambda !(Maybe Type) !Unqualified !Term !Origin   -- → x; e
+  | Match !(Maybe Type) [Case] !(Maybe Else) !Origin  -- match { case C {...}... else {...} }
+  | New !(Maybe Type) !ConstructorIndex !Origin       -- new.n
+  | Push !(Maybe Type) !Value !Origin                 -- push v
+  | Swap !(Maybe Type) !Origin                        -- swap
+  deriving (Show)
 
 data Value
   = Boolean !Bool
@@ -633,11 +686,18 @@ data Value
   | Text !Text
   deriving (Show)
 
+data Closed = ClosedLocal !LocalIndex | ClosedClosure !ClosureIndex
+  deriving (Show)
+
+type ClosureIndex = Int
+
 data Case = Case !GeneralName !Term !Origin
   deriving (Show)
 
 data Else = Else !Term !Origin
   deriving (Show)
+
+type ConstructorIndex = Int
 
 data Signature
   = ApplicationSignature Signature Signature !Origin
@@ -648,13 +708,16 @@ data Signature
     !Unqualified [Signature] !Unqualified [Signature] [GeneralName] !Origin
   deriving (Show)
 
-data Closed = ClosedLocal !LocalIndex | ClosedClosure !ClosureIndex
-  deriving (Show)
-
 data Limit = Unlimited | Limit0 | Limit1
   deriving (Show)
 
+
+
+
 ----------------------------------------
+
+
+
 
 parse :: FilePath -> [Token] -> K Fragment
 parse name tokens = let
@@ -693,7 +756,6 @@ vocabularyParser = do
         -> (qualifier, unqualified)
       UnqualifiedName (Unqualified unqualified) -> ([], unqualified)
       LocalName{} -> error "local name should not appear as vocabulary name"
-      ClosedName{} -> error "closed name should not appear as vocabulary name"
       IntrinsicName{} -> error
         "intrinsic name should not appear as vocabulary name"
   Parsec.putState (Qualifier (outer ++ inner ++ [name]))
@@ -1119,11 +1181,17 @@ signatureOrigin signature = case signature of
 -- Name Resolution
 --------------------------------------------------------------------------------
 
+
+
+
+-- Names are complex. A qualified name consists of an unqualified name ('x')
+-- plus a qualifier ('q::'). Name resolution is necessary because the referent
+-- of an unqualified name is ambiguous without non-local knowledge.
+
 data GeneralName
   = QualifiedName !Qualified
   | UnqualifiedName !Unqualified
   | LocalName !LocalIndex
-  | ClosedName !ClosureIndex
   | IntrinsicName !Intrinsic
   deriving (Eq, Ord, Show)
 
@@ -1140,14 +1208,16 @@ data Unqualified = Unqualified Text
 
 type LocalIndex = Int
 
-type ClosureIndex = Int
-
 data Intrinsic = AddIntrinsic
   deriving (Eq, Ord, Show)
 
 type Resolved a = StateT [Unqualified] K a
 
-----------------------------------------
+
+
+
+-- Name resolution is responsible for rewriting unqualified calls to definitions
+-- into fully qualified calls.
 
 resolveNames :: Fragment -> K Fragment
 resolveNames fragment = do
@@ -1226,8 +1296,9 @@ resolveNames fragment = do
   resolveName :: Qualifier -> GeneralName -> Origin -> Resolved GeneralName
   resolveName vocabulary name origin = case name of
 
-    -- An unqualified name may refer to a local, a name in the current
-    -- vocabulary, or a name in the global scope, respectively.
+-- An unqualified name may refer to a local, a name in the current vocabulary,
+-- or a name in the global scope, respectively.
+
     UnqualifiedName unqualified -> do
       mLocalIndex <- gets (elemIndex unqualified)
       case mLocalIndex of
@@ -1242,8 +1313,9 @@ resolveNames fragment = do
                 origin
               return name
 
-    -- A qualified name must be fully qualified, and may refer to an intrinsic
-    -- or a definition, respectively.
+-- A qualified name must be fully qualified, and may refer to an intrinsic or a
+-- definition, respectively.
+
     QualifiedName qualified -> case intrinsicFromName qualified of
       Just intrinsic -> return (IntrinsicName intrinsic)
       Nothing -> do
@@ -1254,7 +1326,6 @@ resolveNames fragment = do
           return name
 
     LocalName{} -> error "local name should not appear before name resolution"
-    ClosedName{} -> error "closed name should not appear before name resolution"
     IntrinsicName{} -> error
       "intrinsic name should not appear before name resolution"
 
@@ -1275,7 +1346,8 @@ intrinsicFromName name = case name of
   _ -> Nothing
 
 qualifierFromName :: Qualified -> Qualifier
-qualifierFromName (Qualified (Qualifier parts) (Unqualified name)) = Qualifier (parts ++ [name])
+qualifierFromName (Qualified (Qualifier parts) (Unqualified name))
+  = Qualifier (parts ++ [name])
 
 globalVocabulary :: Qualifier
 globalVocabulary = Qualifier [globalVocabularyName]
@@ -1283,54 +1355,22 @@ globalVocabulary = Qualifier [globalVocabularyName]
 globalVocabularyName :: Text
 globalVocabularyName = ""
 
+
+
+
 --------------------------------------------------------------------------------
 -- Desugaring
 --------------------------------------------------------------------------------
 
-----------------------------------------
--- Data Definition Desugaring
-----------------------------------------
 
-desugarDataDefinitions :: Fragment -> K Fragment
-desugarDataDefinitions fragment = do
-  definitions <- fmap concat $ mapM desugarDefinition
-    $ fragmentDataDefinitions fragment
-  return fragment { fragmentDefinitions
-    = fragmentDefinitions fragment ++ definitions }
-  where
 
-  desugarDefinition :: DataDefinition -> K [Definition]
-  desugarDefinition definition = mapM (uncurry desugarConstructor)
-    $ zip [0..] $ dataConstructors definition
-    where
-    desugarConstructor :: Int -> DataConstructor -> K Definition
-    desugarConstructor index constructor = do
-      let
-        resultSignature = foldl'
-          (\ a b -> ApplicationSignature a b origin)
-          (SignatureVariable (QualifiedName $ dataName definition)
-            $ dataOrigin definition)
-          $ map (\ (parameter, _, parameterOrigin)
-            -> SignatureVariable (UnqualifiedName parameter) parameterOrigin)
-          $ dataParameters definition
-        constructorSignature = QuantifiedSignature (dataParameters definition)
-          (FunctionSignature
-            (constructorFields constructor) [resultSignature] [] origin)
-          origin
-      return Definition
-        { definitionBody = New Nothing index $ constructorOrigin constructor
-        , definitionFixity = Postfix
-        , definitionName = Qualified qualifier $ constructorName constructor
-        , definitionOrigin = origin
-        , definitionSignature = constructorSignature
-        }
-      where
-      origin = constructorOrigin constructor
-      qualifier = qualifierFromName $ dataName definition
 
 ----------------------------------------
 -- Infix Desugaring
 ----------------------------------------
+
+
+
 
 type Rewriter a = ParsecT [Term] () Identity a
 
@@ -1463,9 +1503,62 @@ desugarInfix fragment = do
   advanceTerm _ _ (term : _) = rangeBegin (termOrigin term)
   advanceTerm sourcePos _ _ = sourcePos
 
+
+
+
+----------------------------------------
+-- Data Definition Desugaring
+----------------------------------------
+
+
+
+
+desugarDataDefinitions :: Fragment -> K Fragment
+desugarDataDefinitions fragment = do
+  definitions <- fmap concat $ mapM desugarDefinition
+    $ fragmentDataDefinitions fragment
+  return fragment { fragmentDefinitions
+    = fragmentDefinitions fragment ++ definitions }
+  where
+
+  desugarDefinition :: DataDefinition -> K [Definition]
+  desugarDefinition definition = mapM (uncurry desugarConstructor)
+    $ zip [0..] $ dataConstructors definition
+    where
+    desugarConstructor :: Int -> DataConstructor -> K Definition
+    desugarConstructor index constructor = do
+      let
+        resultSignature = foldl'
+          (\ a b -> ApplicationSignature a b origin)
+          (SignatureVariable (QualifiedName $ dataName definition)
+            $ dataOrigin definition)
+          $ map (\ (parameter, _, parameterOrigin)
+            -> SignatureVariable (UnqualifiedName parameter) parameterOrigin)
+          $ dataParameters definition
+        constructorSignature = QuantifiedSignature (dataParameters definition)
+          (FunctionSignature
+            (constructorFields constructor) [resultSignature] [] origin)
+          origin
+      return Definition
+        { definitionBody = New Nothing index $ constructorOrigin constructor
+        , definitionFixity = Postfix
+        , definitionName = Qualified qualifier $ constructorName constructor
+        , definitionOrigin = origin
+        , definitionSignature = constructorSignature
+        }
+      where
+      origin = constructorOrigin constructor
+      qualifier = qualifierFromName $ dataName definition
+
+
+
+
 --------------------------------------------------------------------------------
 -- Scope Resolution
 --------------------------------------------------------------------------------
+
+
+
 
 -- Whereas name resolution is concerned with resolving references to
 -- definitions, scope resolution resolves references to locals and converts
@@ -1631,9 +1724,343 @@ mapHead :: (a -> a) -> [a] -> [a]
 mapHead _ [] = []
 mapHead f (x : xs) = f x : xs
 
+
+
+
+--------------------------------------------------------------------------------
+-- Type Inference
+--------------------------------------------------------------------------------
+
+
+
+
+-- A program consists of a set of definitions.
+
+newtype Program = Program { programDefinitions :: Map Qualified (Type, Term) }
+
+emptyProgram :: Program
+emptyProgram = Program Map.empty
+
+
+
+
+-- This is the type language. It describes a system of conventional Hindley–
+-- Milner types, with type constructors joined by type application, as well as
+-- type variables and constants for constraint solving and instance checking,
+-- respectively. It syntactically permits higher-ranked quantification, though
+-- there are semantic restrictions on this, discussed in the presentation of the
+-- inference algorithm. Type variables have explicit kinds.
+
+data Type
+  = !Type :@ !Type
+  | TypeConstructor !Constructor
+  | TypeVar !Var
+  | TypeConstant !Var
+  | Forall !Var !Type
+ deriving (Eq, Show)
+
+newtype Constructor = Constructor Qualified
+  deriving (Eq, Show)
+
+data Var = Var !TypeId !Kind
+  deriving (Eq, Show)
+
+instance IsString Constructor where
+  fromString = Constructor
+    . Qualified globalVocabulary . Unqualified . Text.pack
+
+instance IsString Type where
+  fromString = TypeConstructor . fromString
+
+(.->) :: Type -> Type -> Type -> Type
+(t1 .-> t2) e = "fun" :@ t1 :@ t2 :@ e
+infixr 4 .->
+
+infixl 1 :@
+
+(.*) :: Type -> Type -> Type
+t1 .* t2 = "prod" :@ t1 :@ t2
+infixl 5 .*
+
+(.|) :: Type -> Type -> Type
+t1 .| t2 = "join" :@ t1 :@ t2
+infixr 4 .|
+
+
+
+
+-- Type variables are distinguished by globally unique identifiers. This makes
+-- it easier to support capture-avoiding substitution on types.
+
+newtype TypeId = TypeId Int
+  deriving (Enum, Eq, Ord, Show)
+
+
+
+
+-- A kind (κ) is the type of a type. Types with the "value" kind (*) are
+-- inhabited by values; all other types are used only to enforce program
+-- invariants. These include:
+--
+--  • The "stack" kind (ρ), used to enforce that the stack cannot contain
+--    other stacks.
+--
+--  • The "effect label" kind (λ), used to identify a side effect.
+--
+--  • The "effect" kind (ε), denoting a set of side effects.
+--
+--  • The "function" kind (κ → κ), used to describe type constructors.
+
+data Kind = Value | Stack | Label | Effect | !Kind :-> !Kind
+  deriving (Eq, Show)
+
+
+
+
+-- The typing environment tracks the state of inference. It answers the
+-- following questions:
+--
+--  • What is the type of this type variable?
+--  • What is the kind of this type variable?
+--  • What is the type of this local variable?
+--  • What are the types of the current closure?
+--  • What is the signature of this definition?
+--
+-- It also provides access to the state of globally unique ID generation.
+
+data TypeEnv = TypeEnv
+  { tenvTvs :: !(Map TypeId Type)
+  , tenvTks :: !(Map TypeId Kind)
+  , tenvVs :: !(Map Unqualified Type)
+  , tenvClosure :: [Type]
+  , tenvSigs :: !(Map Qualified Type)
+  , tenvCurrentType :: !(IORef TypeId)
+  }
+
+emptyTypeEnv :: TypeEnv
+emptyTypeEnv = TypeEnv
+  { tenvTvs = Map.empty
+  , tenvTks = Map.empty
+  , tenvVs = Map.empty
+  , tenvClosure = []
+  , tenvSigs = Map.empty
+  , tenvCurrentType = currentTypeId
+  }
+
+currentTypeId :: IORef TypeId
+currentTypeId = unsafePerformIO (newIORef (TypeId 0))
+{-# NOINLINE currentTypeId #-}
+
+
+
+
+inferTypes :: Fragment -> K Fragment
+inferTypes _fragment = error "TODO: inferTypes"
+
+
+
+
+-- Since type variables can be generalized if they do not depend on the initial
+-- state of the typing environment, the type of a single definition is inferred
+-- in an empty environment so that it can be trivially generalized. It is then
+-- regeneralized to increase stack polymorphism.
+
+inferType0 :: Map Qualified Type -> Term -> K (Term, Type)
+inferType0 sigs term = {- while ["inferring the type of", show term] $ -} do
+  rec
+    (term', t, tenvFinal) <- inferType tenvFinal
+      emptyTypeEnv { tenvSigs = sigs } term
+  let regeneralized = regeneralize tenvFinal (zonkType tenvFinal t)
+  return (zonkTerm tenvFinal term', regeneralized)
+
+
+
+
+-- We infer the type of a term and annotate each terminal with the inferred type
+-- as we go. We ignore any existing annotations because a definition may need to
+-- be re-inferred and re-annotated if a program is updated with a new
+-- implementation of an existing definition.
+
+inferType :: TypeEnv -> TypeEnv -> Term -> K (Term, Type, TypeEnv)
+inferType _tenvFinal _tenv _term = error "TODO: inferType"
+
+
+
+
+----------------------------------------
+-- Zonking
+----------------------------------------
+
+
+
+-- Zonking a type fully substitutes all type variables. That is, if you have:
+--
+--     t0 ~ t1
+--     t1 ~ int
+--
+-- Then zonking "t0" gives you "int".
+
+zonkType :: TypeEnv -> Type -> Type
+zonkType tenv0 = recur
+  where
+  recur t = case t of
+    TypeConstructor{} -> t
+    TypeVar (Var x k) -> case Map.lookup x (tenvTvs tenv0) of
+      Just (TypeVar (Var x' _)) | x == x' -> TypeVar (Var x k)
+      Just t' -> recur t'
+      Nothing -> t
+    TypeConstant{} -> t
+    Forall (Var x k) t' -> Forall (Var x k)
+      $ zonkType tenv0 { tenvTvs = Map.delete x (tenvTvs tenv0) } t'
+    a :@ b -> recur a :@ recur b
+
+
+
+
+-- Zonking a term zonks all the annotated types of its subterms. This could be
+-- done more efficiently by sharing type references and updating them impurely,
+-- but this implementation is easier to get right and understand.
+
+zonkTerm :: TypeEnv -> Term -> Term
+zonkTerm _tenv0 = error "TODO: zonkTerm"
+{-
+  where
+  recur term = case term of
+    EPush tref val -> EPush (zonkMay tref) val
+    ECall tref name params -> ECall (zonkMay tref) name (map (zonkType tenv0) params)
+    ECat tref e1 e2 -> ECat (zonkMay tref) (recur e1) (recur e2)
+    EId tref -> EId (zonkMay tref)
+    EGo tref name -> EGo (zonkMay tref) name
+    ECome how tref name -> ECome how (zonkMay tref) name
+    EForall{} -> error "cannot zonk generic expression"
+    EIf tref e1 e2 -> EIf (zonkMay tref) (recur e1) (recur e2)
+  zonkMay = fmap (zonkType tenv0)
+-}
+
+
+
+
+----------------------------------------
+-- Regeneralization
+----------------------------------------
+
+
+
+
+-- Because all functions are polymorphic with respect to the part of the stack
+-- they don't touch, all words of order n can be regeneralized to words of rank
+-- n with respect to the stack-kinded type variables.
+--
+-- This means that if a stack-kinded (ρ) type variable occurs only twice in a
+-- type, in the bottommost position on both sides of a function arrow, then its
+-- scope can be reduced to only that function arrow by introducing a
+-- higher-ranked quantifier. This is a more conservative rule than used in [3].
+-- For example, the type of "map":
+--
+--     map :: ∀ρσαβ. ρ × vector α × (σ × α → σ × β) → ρ × vector β
+--
+-- Can be regeneralized like so:
+--
+--     map :: ∀ραβ. ρ × vector α × (∀σ. σ × α → σ × β) → ρ × vector β
+--
+-- In order to correctly regeneralize a type, it needs to contain no
+-- higher-ranked quantifiers.
+
+regeneralize :: TypeEnv -> Type -> Type
+regeneralize tenv t = let
+  (t', vars) = runWriter $ go t
+  in foldr (uncurry ((Forall .) . Var)) t'
+    $ foldr (deleteBy ((==) `on` fst)) (Map.toList (freeTvks t')) vars
+  where
+  go :: Type -> Writer [(TypeId, Kind)] Type
+  go t' = case t' of
+    TypeConstructor "fun" :@ a :@ b :@ e
+      | TypeVar (Var c k) <- bottommost a
+      , TypeVar (Var d _) <- bottommost b
+      , c == d
+      -> do
+        when (occurrences tenv c t == 2) $ tell [(c, k)]
+        a' <- go a
+        b' <- go b
+        e' <- go e
+        return $ Forall (Var c k) ((a' .-> b') e')
+    TypeConstructor "prod" :@ a :@ b -> do
+      a' <- go a
+      b' <- go b
+      return $ "prod" :@ a' :@ b'
+    Forall{} -> error "cannot regeneralize higher-ranked type"
+    a :@ b -> (:@) <$> go a <*> go b
+    _ -> return t'
+
+
+
+
+bottommost :: Type -> Type
+bottommost (TypeConstructor "prod" :@ a :@ _) = bottommost a
+bottommost a = a
+
+
+
+
+----------------------------------------
+-- Free Variables
+----------------------------------------
+
+
+
+
+-- The free variables of a type are those not bound by any quantifier.
+
+freeTvs :: Type -> Set TypeId
+freeTvs = Set.fromList . Map.keys . freeTvks
+
+freeTvks :: Type -> Map TypeId Kind
+freeTvks t = case t of
+  TypeConstructor{} -> Map.empty
+  TypeVar (Var x k) -> Map.singleton x k
+  TypeConstant{} -> Map.empty
+  Forall (Var x _) t' -> Map.delete x (freeTvks t')
+  a :@ b -> Map.union (freeTvks a) (freeTvks b)
+
+
+
+
+----------------------------------------
+-- Occurs Checks
+----------------------------------------
+
+
+
+
+-- We need to be able to count occurrences of a type variable in a type, not
+-- just check for its presence. This is for two reasons: to prevent infinite
+-- types (the "occurs check"), and to determine whether a stack variable can be
+-- generalized to a higher rank.
+
+occurrences :: TypeEnv -> TypeId -> Type -> Int
+occurrences tenv0 x = recur
+  where
+  recur t = case t of
+    TypeConstructor{} -> 0
+    TypeVar (Var y _) -> case Map.lookup y (tenvTvs tenv0) of
+      Nothing -> if x == y then 1 else 0
+      Just t' -> recur t'
+    TypeConstant{} -> 0
+    Forall (Var x' _) t' -> if x == x' then 0 else recur t'
+    a :@ b -> recur a + recur b
+
+occurs :: TypeEnv -> TypeId -> Type -> Bool
+occurs tenv0 x t = occurrences tenv0 x t > 0
+
+
+
+
 --------------------------------------------------------------------------------
 -- Pretty Printing
 --------------------------------------------------------------------------------
+
+
+
 
 instance Pretty Fragment where
   pPrint fragment = Pretty.vcat (intersperse (Pretty.text "") (concat docs))
@@ -1711,7 +2138,7 @@ instance Pretty Value where
     Boolean True -> Pretty.text "true"
     Boolean False -> Pretty.text "false"
     Character c -> Pretty.quotes $ Pretty.char c
-    Closed index -> pPrint $ ClosedName index
+    Closed index -> Pretty.text "closure." Pretty.<> Pretty.int index
     Closure names term -> Pretty.hcat
       [ Pretty.char '$'
       , Pretty.parens $ prettyList $ map pPrint names
@@ -1719,7 +2146,7 @@ instance Pretty Value where
       ]
     Float f -> Pretty.double f
     Integer i -> Pretty.integer i
-    Local index -> pPrint $ LocalName index
+    Local index -> Pretty.text "local." Pretty.<> Pretty.int index
     Quotation body -> Pretty.braces $ pPrint body
     Text t -> Pretty.doubleQuotes $ Pretty.text $ Text.unpack t
 
@@ -1746,7 +2173,6 @@ instance Pretty GeneralName where
     QualifiedName qualified -> pPrint qualified
     UnqualifiedName unqualified -> pPrint unqualified
     LocalName i -> Pretty.text "local." Pretty.<> Pretty.int i
-    ClosedName i -> Pretty.text "closure." Pretty.<> Pretty.int i
     IntrinsicName intrinsic -> pPrint intrinsic
 
 instance Pretty Intrinsic where
@@ -1787,33 +2213,15 @@ instance Pretty Signature where
 prettyList :: [Pretty.Doc] -> Pretty.Doc
 prettyList = Pretty.hcat . intersperse (Pretty.text ", ")
 
---------------------------------------------------------------------------------
--- Type Inference
---------------------------------------------------------------------------------
 
-data Type
-  = !Type :@ !Type
-  | TypeConstructor !Constructor
-  | TypeVariable !Variable
-  | TypeConstant !Variable
-  | Forall !Variable !Type
- deriving (Eq, Show)
 
-data TypeIdentifier = TypeIdentifier !Int
-  deriving (Eq, Show)
-
-data Variable = Variable !TypeIdentifier !Kind
-  deriving (Eq, Show)
-
-data Kind = Value | Stack | Label | Effect | !Kind :-> !Kind
-  deriving (Eq, Show)
-
-newtype Constructor = Constructor Qualified
-  deriving (Eq, Show)
 
 --------------------------------------------------------------------------------
 -- K Monad
 --------------------------------------------------------------------------------
+
+
+
 
 newtype K a = K { runK :: Env -> IO (Maybe a) }
 
