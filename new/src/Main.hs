@@ -80,7 +80,7 @@ compile paths = do
   desugared <- desugarDataDefinitions scoped
   -- TODO:
   -- infer types
-  -- inferred <- inferTypes desugared
+  inferred <- inferTypes desugared
   -- lift closures into top-level definitions
   --   (possibly introducing a new "Flat" term type)
   --   value representation: def a (...) { ... $(local.0, local.1){ q... } ... }
@@ -699,15 +699,6 @@ data Else = Else !Term !Origin
 
 type ConstructorIndex = Int
 
-data Signature
-  = ApplicationSignature Signature Signature !Origin
-  | FunctionSignature [Signature] [Signature] [GeneralName] !Origin
-  | QuantifiedSignature [(Unqualified, Kind, Origin)] !Signature !Origin
-  | SignatureVariable !GeneralName !Origin
-  | StackFunctionSignature
-    !Unqualified [Signature] !Unqualified [Signature] [GeneralName] !Origin
-  deriving (Show)
-
 data Limit = Unlimited | Limit0 | Limit1
   deriving (Show)
 
@@ -1308,9 +1299,8 @@ resolveNames fragment = do
           if isDefined qualified then return (QualifiedName qualified) else do
             let global = Qualified globalVocabulary unqualified
             if isDefined global then return (QualifiedName global) else do
-              lift $ report $ Report
-                (Text.concat ["undefined word '", Text.pack (show name), "'"])
-                origin
+              lift $ report $ Report origin
+                $ Text.concat ["undefined word '", Text.pack (show name), "'"]
               return name
 
 -- A qualified name must be fully qualified, and may refer to an intrinsic or a
@@ -1320,9 +1310,8 @@ resolveNames fragment = do
       Just intrinsic -> return (IntrinsicName intrinsic)
       Nothing -> do
         if isDefined qualified then return name else do
-          lift $ report $ Report
-            (Text.concat ["undefined word '", Text.pack (show name), "'"])
-            origin
+          lift $ report $ Report origin
+            $ Text.concat ["undefined word '", Text.pack (show name), "'"]
           return name
 
     LocalName{} -> error "local name should not appear before name resolution"
@@ -1395,7 +1384,7 @@ desugarInfix fragment = do
     case Parsec.runParser expression' () "" terms' of
       Left parseError -> do
         -- FIXME: Use better origin.
-        report $ Report (Text.pack (show parseError)) Anywhere
+        report $ Report Anywhere $ Text.pack $ show parseError
         return $ compose Anywhere terms
       Right result -> return result
 
@@ -1851,11 +1840,35 @@ currentTypeId :: IORef TypeId
 currentTypeId = unsafePerformIO (newIORef (TypeId 0))
 {-# NOINLINE currentTypeId #-}
 
+freshTv :: TypeEnv -> Kind -> K Type
+freshTv tenv k = TypeVar <$> (Var <$> freshTypeId tenv <*> pure k)
+
+freshTypeId :: TypeEnv -> K TypeId
+freshTypeId tenv = do
+  x <- liftIO $ readIORef $ tenvCurrentType tenv
+  liftIO $ writeIORef (tenvCurrentType tenv) $ succ x
+  return x
 
 
 
-inferTypes :: Fragment -> K Fragment
-inferTypes _fragment = error "TODO: inferTypes"
+
+inferTypes :: Fragment -> K Program
+inferTypes fragment = do
+  let tenv0 = emptyTypeEnv
+  definitions <- forM (fragmentDefinitions fragment) $ \ definition -> do
+    type_ <- typeFromSignature tenv0 $ definitionSignature definition
+    return (definitionName definition, (type_, definitionBody definition))
+  let
+    declaredTypes = Map.fromList
+      $ map (\ (name, (type_, _)) -> (name, type_)) definitions
+    infer = inferType0 declaredTypes
+    go name (scheme, term) = do
+      (term', scheme') <- infer term
+      instanceCheck scheme' scheme
+      let term'' = quantifyTerm scheme' term'
+      return (name, (scheme', term''))
+  definitions' <- mapM (uncurry go) definitions
+  return Program { programDefinitions = Map.fromList definitions' }
 
 
 
@@ -1883,6 +1896,245 @@ inferType0 sigs term = {- while ["inferring the type of", show term] $ -} do
 
 inferType :: TypeEnv -> TypeEnv -> Term -> K (Term, Type, TypeEnv)
 inferType _tenvFinal _tenv _term = error "TODO: inferType"
+
+
+
+
+----------------------------------------
+-- Unification
+----------------------------------------
+
+
+
+--------------------------------------------------------------------------------
+-- Unification
+--------------------------------------------------------------------------------
+
+
+
+
+-- There are two kinds of unification going on here: basic logical unification
+-- for value types, and row unification for effect types.
+
+unifyType :: TypeEnv -> Type -> Type -> K TypeEnv
+unifyType tenv0 t1 t2 = case (t1, t2) of
+  _ | t1 == t2 -> return tenv0
+  (TypeVar x, t) -> unifyTv tenv0 x t
+  (_, TypeVar{}) -> commute
+  -- FIXME: Unify the kinds here?
+  (a, Forall (Var x k) t) -> do
+    (b, _, tenv1) <- instantiate tenv0 x k t
+    unifyType tenv1 a b
+  (Forall{}, _) -> commute
+
+-- The occurs check here prevents us from unifying rows with a common tail and a
+-- distinct prefix, which could fail to terminate because the algorithm
+-- generates fresh type variables.
+--
+-- See: Row Unification
+
+  ("join" :@ l :@ r, s) -> do
+    ms <- rowIso tenv0 l s
+    case ms of
+      Just ("join" :@ _ :@ s', substitution, tenv1) -> case substitution of
+        Just (x, t)
+          | occurs tenv0 x (effectTail r)
+          -> fail $ unwords ["cannot unify effects", show t1, "and", show t2]
+          | otherwise -> let
+            tenv2 = tenv1 { tenvTvs = Map.insert x t $ tenvTvs tenv1 }
+            in unifyType tenv2 r s'
+        Nothing -> unifyType tenv1 r s'
+
+      -- HACK: Duplicates the remaining cases.
+      _ -> case (t1, t2) of
+        (a :@ b, c :@ d) -> do
+          tenv1 <- unifyType tenv0 a c
+          unifyType tenv1 b d
+        _ -> fail $ unwords ["cannot unify types", show t1, "and", show t2]
+
+  (_, "join" :@ _ :@ _) -> commute
+
+-- We fall back to regular unification for value type constructors. This makes
+-- the somewhat iffy assumption that there is no higher-kinded polymorphism
+-- going on between value type constructors and effect type constructors.
+
+  (a :@ b, c :@ d) -> do
+    tenv1 <- unifyType tenv0 a c
+    unifyType tenv1 b d
+
+  _ -> fail $ unwords ["cannot unify types", show t1, "and", show t2]
+
+-- Unification is commutative. If we fail to handle a case, this can result in
+-- an infinite loop.
+
+  where
+  commute = unifyType tenv0 t2 t1
+  effectTail ("join" :@ _ :@ a) = effectTail a
+  effectTail t = t
+
+
+
+
+-- Unification of a type variable with a type simply looks up the current value
+-- of the variable and unifies it with the type; if the variable does not exist,
+-- it is added to the environment and unified with the type.
+--
+-- The only interesting bits here are the occurs check, which prevents
+-- constructing infinite types, and the condition that prevents declaring a
+-- variable as equal to itself. Without both of these, zonking could fail to
+-- terminate.
+--
+-- See: Occurs Checks
+
+unifyTv :: TypeEnv -> Var -> Type -> K TypeEnv
+unifyTv tenv0 v@(Var x _) t = case t of
+  TypeVar (Var y _) | x == y -> return tenv0
+  TypeVar{} -> declare
+  _ -> if occurs tenv0 x t
+    then let
+      t' = zonkType tenv0 t
+      in fail . unwords $ case t' of
+        "prod" :@ _ :@ _ -> ["found mismatched stack depths solving", show v, "~", show t']
+        _ -> [show v, "~", show t', "cannot be solved because", show x, "occurs in", show t']
+    else declare
+  where
+  declare = case Map.lookup x $ tenvTvs tenv0 of
+    Just t2 -> unifyType tenv0 t t2
+    Nothing -> return tenv0 { tenvTvs = Map.insert x t $ tenvTvs tenv0 }
+
+
+
+
+-- A convenience function for unifying a type with a function type.
+
+unifyFun :: TypeEnv -> Type -> K (Type, Type, Type, TypeEnv)
+unifyFun tenv0 t = case t of
+  "fun" :@ a :@ b :@ e -> return (a, b, e, tenv0)
+  _ -> do
+    a <- freshTv tenv0 Stack
+    b <- freshTv tenv0 Stack
+    e <- freshTv tenv0 Effect
+    tenv1 <- unifyType tenv0 t ((a .-> b) e)
+    return (a, b, e, tenv1)
+
+
+
+
+-- Row unification is essentially unification of sets. The row-isomorphism
+-- operation (as described in [1]) takes an effect label and an effect row, and
+-- asserts that the row can be rewritten to begin with that label under some
+-- substitution. It returns the substitution and the tail of the rewritten
+-- row. The substitution is always either empty (∅) or a singleton substitution
+-- (x ↦ τ).
+
+rowIso
+  :: TypeEnv -> Type -> Type
+  -> K (Maybe (Type, Maybe (TypeId, Type), TypeEnv))
+
+-- The "head" rule: a row which already begins with the label is trivially
+-- rewritten by the identity substitution.
+
+rowIso tenv0 lin rin@("join" :@ l :@ _)
+  | l == lin = return $ Just (rin, Nothing, tenv0)
+
+-- The "swap" rule: a row which contains the label somewhere within, can be
+-- rewritten to place that label at the head.
+
+rowIso tenv0 l ("join" :@ l' :@ r)
+  | l /= l' = do
+  ms <- rowIso tenv0 l r
+  return $ case ms of
+    Just (r', substitution, tenv1) -> Just (l .| l' .| r', substitution, tenv1)
+    Nothing -> Nothing
+
+-- The "var" rule: no label is present, so we cannot test for equality, and must
+-- return a fresh variable for the row tail.
+
+rowIso tenv0 l (TypeVar (Var a _)) = do
+  b <- freshTv tenv0 Effect
+  let res = l .| b
+  return $ Just (res, Just (a, res), tenv0)
+
+-- In any other case, the rows are not isomorphic.
+
+rowIso _ _ _ = return Nothing
+
+
+
+
+----------------------------------------
+-- Desugaring
+----------------------------------------
+
+
+
+
+data Signature
+  = ApplicationSignature Signature Signature !Origin
+  | FunctionSignature [Signature] [Signature] [GeneralName] !Origin
+  | QuantifiedSignature [(Unqualified, Kind, Origin)] !Signature !Origin
+  | SignatureVariable !GeneralName !Origin
+  | StackFunctionSignature
+    !Unqualified [Signature] !Unqualified [Signature] [GeneralName] !Origin
+  deriving (Show)
+
+
+
+
+-- Here we desugar a parsed signature into an actual type. We resolve whether
+-- names refer to quantified type variables or data definitions, and make stack
+-- polymorphism explicit.
+
+typeFromSignature :: TypeEnv -> Signature -> K Type
+typeFromSignature tenv signature0 = do
+  (type_, env) <- flip runStateT SignatureEnv
+    { sigEnvAnonymous = []
+    , sigEnvVars = Map.empty
+    } $ go signature0
+  return
+    $ foldr (\ a -> Forall (Var a Stack))
+      (foldr (\ (var, _origin) -> Forall var) type_ $ Map.elems $ sigEnvVars env)
+    $ sigEnvAnonymous env
+  where
+
+  go :: Signature -> StateT SignatureEnv K Type
+  go signature = case signature of
+    ApplicationSignature a b _ -> (:@) <$> go a <*> go b
+    FunctionSignature as bs es _ -> do
+      r <- lift $ freshTypeId tenv
+      let var = Var r Stack
+      let typeVar = TypeVar var
+      Forall var <$> makeFunction typeVar as typeVar bs es
+    QuantifiedSignature vars a _ -> error "TODO: convert quantified signature"
+      -- [(Unqualified, Kind, Origin)]
+    SignatureVariable name origin -> fromVar name origin
+    StackFunctionSignature r as s bs es origin -> do
+      r' <- fromVar (UnqualifiedName r) origin
+      s' <- fromVar (UnqualifiedName s) origin
+      makeFunction r' as s' bs es
+
+  fromVar :: GeneralName -> Origin -> StateT SignatureEnv K Type
+  fromVar (UnqualifiedName name) origin = do
+    existing <- gets $ Map.lookup name . sigEnvVars
+    case existing of
+      Just (var, _) -> return $ TypeVar var
+      Nothing -> lift $ do
+        report $ Report origin
+          $ Text.pack $ Pretty.render
+            $ "unknown or undeclared type variable"
+            Pretty.<+> Pretty.quotes (pPrint name)
+        halt
+  fromVar _ _ = error "TODO: fromVar"
+
+  makeFunction
+    :: Type -> [Signature] -> Type -> [Signature] -> [GeneralName]
+    -> StateT SignatureEnv K Type
+  makeFunction = error "TODO: makeFunction"
+
+data SignatureEnv = SignatureEnv
+  { sigEnvAnonymous :: [TypeId]
+  , sigEnvVars :: !(Map Unqualified (Var, Origin))
+  }
 
 
 
@@ -1936,6 +2188,49 @@ zonkTerm _tenv0 = error "TODO: zonkTerm"
     EIf tref e1 e2 -> EIf (zonkMay tref) (recur e1) (recur e2)
   zonkMay = fmap (zonkType tenv0)
 -}
+
+
+
+
+----------------------------------------
+-- Instantiation
+----------------------------------------
+
+
+
+--------------------------------------------------------------------------------
+-- Instantiation and Regeneralization
+--------------------------------------------------------------------------------
+
+
+
+
+-- To instantiate a type scheme, we simply replace all quantified variables with
+-- fresh ones and remove the quantifier, returning the types with which the
+-- variables were instantiated, in order. Because type identifiers are globally
+-- unique, we know a fresh type variable will never be erroneously captured.
+
+instantiate :: TypeEnv -> TypeId -> Kind -> Type -> K (Type, Type, TypeEnv)
+instantiate tenv0 x k t = do
+  ia <- freshTypeId tenv0
+  let a = TypeVar (Var ia k)
+  replaced <- replaceTv tenv0 x a t
+  return (replaced, a, tenv0 { tenvTks = Map.insert ia k $ tenvTks tenv0 })
+
+
+
+
+-- When generating an instantiation of a generic definition, we only want to
+-- instantiate the rank-1 quantifiers; all other quantifiers are irrelevant.
+
+instantiatePrenex :: TypeEnv -> Type -> K (Type, [Type], TypeEnv)
+instantiatePrenex tenv0 q@(Forall (Var x k) t)
+  = {- while ["instantiating", show q] $ -} do
+    (t', a, tenv1) <- instantiate
+      tenv0 { tenvTks = Map.insert x k $ tenvTks tenv0 } x k t
+    (t'', as, tenv2) <- instantiatePrenex tenv1 t'
+    return (t'', a : as, tenv2)
+instantiatePrenex tenv0 t = return (t, [], tenv0)
 
 
 
@@ -1998,6 +2293,295 @@ regeneralize tenv t = let
 bottommost :: Type -> Type
 bottommost (TypeConstructor "prod" :@ a :@ _) = bottommost a
 bottommost a = a
+
+
+
+
+----------------------------------------
+-- Instance Checking
+----------------------------------------
+
+
+
+
+-- Since skolem constants only unify with type variables and themselves,
+-- unifying a skolemized scheme with a type tells you whether one is a generic
+-- instance of the other. This is used to check the signatures of definitions.
+
+instanceCheck :: Type -> Type -> K ()
+instanceCheck inferredScheme declaredScheme = do
+  let tenv0 = emptyTypeEnv
+  (inferredType, _, tenv1) <- instantiatePrenex tenv0 inferredScheme
+  (ids, declaredType) <- skolemize tenv1 declaredScheme
+  check <- K $ \ env -> do
+    result <- runK (subsumptionCheck tenv1 inferredType declaredType) env
+    return $ Just result
+  case check of
+    Nothing -> failure
+    _ -> return ()
+  let escaped = freeTvs inferredScheme `Set.union` freeTvs declaredScheme
+  let bad = Set.filter (`Set.member` escaped) ids
+  unless (Set.null bad) failure
+  return ()
+  where
+  failure = report $ Report Anywhere
+    $ Text.pack $ Pretty.render $ Pretty.hsep
+      [ pPrint inferredScheme
+      , "is not an instance of"
+      , pPrint declaredScheme
+      ]
+
+
+
+
+-- Skolemization replaces quantified type variables with type constants.
+
+skolemize :: TypeEnv -> Type -> K (Set TypeId, Type)
+skolemize tenv0 t = case t of
+  Forall (Var x k) t' -> do
+    c <- freshTypeId tenv0
+    let tenv1 = tenv0 { tenvTvs = Map.insert x (TypeConstant (Var c k)) (tenvTvs tenv0) }
+    (c', t'') <- skolemize tenv1 (zonkType tenv1 t')
+    return (Set.insert c c', t'')
+  -- TForall _ t' -> skolemize tenv0 t'
+  "fun" :@ a :@ b :@ e -> do
+    (ids, b') <- skolemize tenv0 b
+    return (ids, (a .-> b') e)
+  _ -> return (Set.empty, t)
+
+
+
+
+-- Subsumption checking is largely the same as unification, except for the fact
+-- that a function type is contravariant in its input type.
+
+subsumptionCheck :: TypeEnv -> Type -> Type -> K TypeEnv
+subsumptionCheck tenv0 (Forall (Var x k) t) t2 = do
+  (t1, _, tenv1) <- instantiate tenv0 x k t
+  subsumptionCheck tenv1 t1 t2
+subsumptionCheck tenv0 t1 ("fun" :@ a :@ b :@ e) = do
+  (a', b', e', tenv1) <- unifyFun tenv0 t1
+  subsumptionCheckFun tenv1 a b e a' b' e'
+subsumptionCheck tenv0 ("fun" :@ a' :@ b' :@ e') t2 = do
+  (a, b, e, tenv1) <- unifyFun tenv0 t2
+  subsumptionCheckFun tenv1 a b e a' b' e'
+subsumptionCheck tenv0 t1 t2 = unifyType tenv0 t1 t2
+
+subsumptionCheckFun
+  :: TypeEnv -> Type -> Type -> Type -> Type -> Type -> Type -> K TypeEnv
+subsumptionCheckFun tenv0 a b e a' b' e' = do
+  tenv1 <- subsumptionCheck tenv0 a' a
+  tenv2 <- subsumptionCheck tenv1 b b'
+  subsumptionCheck tenv2 e e'
+
+
+
+
+----------------------------------------
+-- Instance Generation
+----------------------------------------
+
+
+
+
+
+--------------------------------------------------------------------------------
+-- Instance Generation
+--------------------------------------------------------------------------------
+
+
+
+
+-- In order to support unboxed generics, for every call site of a generic
+-- definition in a program, we produce a specialized instantiation of the
+-- definition with the value-kinded type parameters set to the given type
+-- arguments. This is transitive: if a generic definition calls another generic
+-- definition with one of its own generic type parameters as a type argument,
+-- then an instantiation must also be generated of the called definition.
+
+{-
+
+collectInstantiations :: TypeEnv -> Program -> K Program
+collectInstantiations tenv (Program defs0) = do
+
+-- We first enqueue all the instantiation sites reachable from the top level of
+-- the program, and any non-generic definitions.
+
+  (expr1, q0) <- go emptyQueue expr0
+  (defs1, q1) <- foldrM
+    (\ (name, (type_, expr)) (acc, q) -> do
+      (expr', q') <- go q expr
+      return ((name, (type_, expr')) : acc, q'))
+    ([], q0)
+    (Map.toList defs0)
+
+-- Next, we process the queue. Doing so may enqueue new instantiation sites for
+-- processing; however, this is guaranteed to halt because the number of actual
+-- instantiations is finite.
+
+  defs2 <- processQueue q1 $ Map.fromList defs1
+  return (defs2, expr1)
+  where
+
+  go :: Queue (Name, [Type]) -> Expr -> K (Expr, Queue (Name, [Type]))
+  go q0 expr = case expr of
+    EId{} -> return (expr, q0)
+    ECat tref a b -> do
+      (a', q1) <- go q0 a
+      (b', q2) <- go q1 b
+      return (ECat tref a' b', q2)
+    ECall tref name args -> return (ECall tref (mangleName name args) [], enqueue (name, args) q0)
+    EPush{} -> return (expr, q0)
+    EGo{} -> return (expr, q0)
+    ECome{} -> return (expr, q0)
+    -- If the definition is generic, we simply ignore it; we won't find any
+    -- instantiations in it, because it's not instantiated, itself!
+    EForall{} -> return (expr, q0)
+    EIf tref a b -> do
+      (a', q1) <- go q0 a
+      (b', q2) <- go q1 b
+      return (EIf tref a' b', q2)
+
+  processQueue
+    :: Queue (Name, [Type]) -> Program -> K Program
+  processQueue q (Program defs) = case dequeue q of
+    Nothing -> return $ Program defs
+    Just ((name, args), q') -> let
+      mangled = mangleName name args
+      in case Map.lookup mangled defs of
+        Just{} -> processQueue q' defs
+        Nothing -> case Map.lookup name defs of
+          -- The name is not user-defined, so it doesn't need to be mangled.
+          Nothing -> processQueue q' defs
+          Just (type_, expr) -> do
+            expr' <- instantiateExpr tenv expr args
+            (expr'', q'') <- go q' expr'
+            processQueue q'' $ Map.insert mangled (type_, expr'') defs
+
+
+
+
+-- Names are mangled according to the local C++ mangling convention. This is a
+-- silly approximation of the IA-64 convention for testing purposes.
+
+mangleName :: Name -> [Type] -> Name
+mangleName name args = case args of
+  [] -> prefix <> lengthEncode name
+  _ -> prefix <> lengthEncode name <> "I" <> Text.concat (map mangleType args) <> "E"
+  where
+  prefix = "_Z"
+
+mangleType :: Type -> Name
+mangleType ("fun" :@ _ :@ _) = "PFvv"
+mangleType ("ptr" :@ a) = Text.concat ["P", mangleType a]
+mangleType (TCon (Con con)) = case con of
+  "int" -> "i"
+  _ -> lengthEncode con
+mangleType ("prod" :@ a :@ b) = Text.concat $ map mangleType [a, b]
+mangleType _ = "?"
+
+lengthEncode :: Name -> Name
+lengthEncode name = Text.pack (show (Text.length name)) <> name
+
+
+
+
+-- A generic queue with amortized O(1) enqueue/dequeue.
+
+data Queue a = Queue [a] [a]
+
+dequeue :: Queue a -> Maybe (a, Queue a)
+dequeue (Queue i (x : o)) = Just (x, Queue i o)
+dequeue (Queue i@(_ : _) []) = dequeue (Queue [] (reverse i))
+dequeue (Queue [] []) = Nothing
+
+enqueue :: a -> Queue a -> Queue a
+enqueue x (Queue i o) = Queue (x : i) o
+
+emptyQueue :: Queue a
+emptyQueue = Queue [] []
+
+queueFromList :: [a] -> Queue a
+queueFromList = Queue [] . reverse
+
+
+
+
+-- Instantiates a generic expression with the given type arguments.
+
+instantiateExpr :: TypeEnv -> Term -> [Type] -> K Term
+instantiateExpr tenv = foldlM go
+  where
+  go (Generic x expr) arg = replaceTvExpr tenv x arg expr
+  go _ _ = error "instantiateExpr: wrong number of type parameters"
+
+-}
+
+
+
+
+-- Copies the top-level generic value-kinded type quantifiers from a polytype to
+-- an expression, thereby making the expression generic, e.g.:
+--
+--     ∀α:ρ. ∀β:*. ∀γ:Ε. (α × β → α × β × β) Ε    dup
+--
+--     Λβ:*. dup
+
+quantifyTerm :: Type -> Term -> Term
+quantifyTerm (Forall (Var x Value) t) e = Generic x (quantifyTerm t e) Anywhere
+quantifyTerm (Forall _ t) e = quantifyTerm t e
+quantifyTerm _ e = e
+
+
+
+
+----------------------------------------
+-- Substitution
+----------------------------------------
+
+
+
+
+-- Capture-avoiding substitution of a type variable α with a type τ throughout a
+-- type σ, [α ↦ τ]σ.
+
+replaceTv :: TypeEnv -> TypeId -> Type -> Type -> K Type
+replaceTv tenv0 x a = recur
+  where
+  recur t = case t of
+    Forall (Var x' k) t'
+      | x == x' -> return t
+      | x' `Set.notMember` freeTvs t' -> Forall (Var x' k) <$> recur t'
+      | otherwise -> do
+        z <- freshTypeId tenv0
+        t'' <- replaceTv tenv0 x' (TypeVar (Var z k)) t'
+        Forall (Var z k) <$> recur t''
+    TypeVar (Var x' _) | x == x' -> return a
+    m :@ n -> (:@) <$> recur m <*> recur n
+    _ -> return t
+
+
+
+
+replaceTvExpr :: TypeEnv -> TypeId -> Type -> Term -> K Term
+replaceTvExpr tenv x a = error "TODO: replaceTvExpr"  -- recur
+  where
+{-
+  recur expr = case expr of
+    EId tref -> EId <$> go' tref
+    ECat tref e1 e2 -> ECat <$> go' tref <*> recur e1 <*> recur e2
+    ECall tref name args -> ECall <$> go' tref <*> pure name <*> mapM go args
+    EPush tref val -> EPush <$> go' tref <*> pure val
+    EGo tref name -> EGo <$> go' tref <*> pure name
+    ECome how tref name -> ECome how <$> go' tref <*> pure name
+    EForall x' _
+      | x == x' -> return expr
+      | otherwise -> error "substituting in a generic expression should not require capture-avoidance"
+    EIf tref e1 e2 -> EIf <$> go' tref <*> recur e1 <*> recur e2
+  go' (Just t) = Just <$> go t
+  go' Nothing = return Nothing
+  go t = replaceTv tenv x a t
+-}
 
 
 
@@ -2190,11 +2774,9 @@ instance Pretty Signature where
       , Pretty.text "->"
       , prettyList $ map pPrint bs
       ] ++ map ((Pretty.char '+' Pretty.<>) . pPrint) es
-    QuantifiedSignature names type_ _ -> Pretty.hcat
-      [ Pretty.char '<'
-      , prettyList $ map prettyVar names
-      , Pretty.char '>'
-      ] Pretty.<+> pPrint type_
+    QuantifiedSignature names type_ _
+      -> (prettyAngles $ prettyList $ map prettyVar names)
+        Pretty.<+> pPrint type_
       where
 
       prettyVar :: (Unqualified, Kind, Origin) -> Pretty.Doc
@@ -2203,12 +2785,42 @@ instance Pretty Signature where
         Stack -> pPrint name Pretty.<> Pretty.text "..."
         Effect -> Pretty.char '+' Pretty.<> pPrint name
         _ -> error "quantified signature contains variable of invalid kind"
+
     SignatureVariable name _ -> pPrint name
     StackFunctionSignature r as s bs es _ -> Pretty.parens $ Pretty.hsep
       $ (pPrint r Pretty.<> Pretty.text "...")
       : map pPrint as ++ [Pretty.text "->"]
       ++ ((pPrint s Pretty.<> Pretty.text "...") : map pPrint bs)
       ++ map ((Pretty.char '+' Pretty.<>) . pPrint) es
+
+instance Pretty Type where
+  pPrint type_ = case type_ of
+    a :@ b -> pPrint a Pretty.<+> pPrint b
+    TypeConstructor (Constructor name) -> pPrint name
+    TypeVar var -> pPrint var
+    TypeConstant var -> pPrint var
+    Forall var a -> prettyAngles (pPrint var)
+      Pretty.<+> Pretty.parens (pPrint a)
+
+instance Pretty Kind where
+  pPrint kind = case kind of
+    Value -> "value"
+    Stack -> "stack"
+    Label -> "label"
+    Effect -> "effect"
+    a :-> b -> Pretty.parens $ Pretty.hsep
+      [pPrint a, Pretty.text "->", pPrint b]
+
+instance Pretty Var where
+  pPrint (Var (TypeId i) kind) = Pretty.parens $ Pretty.hcat
+    [ Pretty.char 'T'
+    , Pretty.int i
+    , Pretty.char ':'
+    , pPrint kind
+    ]
+
+prettyAngles :: Pretty.Doc -> Pretty.Doc
+prettyAngles doc = Pretty.hcat [Pretty.char '<', doc, Pretty.char '>']
 
 prettyList :: [Pretty.Doc] -> Pretty.Doc
 prettyList = Pretty.hcat . intersperse (Pretty.text ", ")
@@ -2227,7 +2839,7 @@ newtype K a = K { runK :: Env -> IO (Maybe a) }
 
 data Env = Env { envContext :: [Report], envReports :: IORef [[Report]] }
 
-data Report = Report !Text !Origin
+data Report = Report !Origin !Text
 
 instance Functor K where
   fmap f (K ax) = K (fmap (fmap f) . ax)
@@ -2250,7 +2862,7 @@ instance Monad K where
       Nothing -> return Nothing
       Just x -> runK (f x) env
   -- FIXME: Use better origin.
-  fail = (>> halt) . report . flip Report Anywhere . Text.pack
+  fail = (>> halt) . report . Report Anywhere . Text.pack
 
 instance MonadFix K where
   mfix k = K $ \env -> do
@@ -2283,7 +2895,7 @@ while prefix action = K $ \ env
   -> runK action env { envContext = prefix : envContext env }
 
 showReport :: Report -> String
-showReport (Report message origin)
+showReport (Report origin message)
   = showOriginPrefix origin ++ Text.unpack message
 
 showOriginPrefix :: Origin -> String
