@@ -2160,7 +2160,9 @@ typeFromSignature tenv signature0 = do
         report $ Report origin $ "unknown or undeclared type variable"
           Pretty.<+> Pretty.quotes (pPrint name)
         halt
-  fromVar _ _ = error "TODO: fromVar"
+  fromVar (QualifiedName name) origin
+    = return $ TypeConstructor $ Constructor name
+  fromVar _ _ = error "incorrectly resolved name in signature"
 
   makeFunction
     :: Type -> [Signature] -> Type -> [Signature] -> [GeneralName]
