@@ -1314,7 +1314,7 @@ resolveNames fragment = do
     defined = Set.fromList $ map dataName $ fragmentDataDefinitions fragment
 
   resolveName
-    :: Text -> (Qualified -> Bool) -> Qualifier -> GeneralName -> Origin
+    :: Pretty.Doc -> (Qualified -> Bool) -> Qualifier -> GeneralName -> Origin
     -> Resolved GeneralName
   resolveName thing isDefined vocabulary name origin = case name of
 
@@ -1330,8 +1330,11 @@ resolveNames fragment = do
           if isDefined qualified then return (QualifiedName qualified) else do
             let global = Qualified globalVocabulary unqualified
             if isDefined global then return (QualifiedName global) else do
-              lift $ report $ Report origin $ Text.concat
-                ["undefined ", thing, " '", Text.pack (show name), "'"]
+              lift $ report $ Report origin $ Pretty.hsep
+                [ "undefined"
+                , thing
+                , Pretty.quotes (pPrint name)
+                ]
               return name
 
 -- A qualified name must be fully qualified, and may refer to an intrinsic or a
@@ -1341,8 +1344,11 @@ resolveNames fragment = do
       Just intrinsic -> return (IntrinsicName intrinsic)
       Nothing -> do
         if isDefined qualified then return name else do
-          lift $ report $ Report origin
-            $ Text.concat ["undefined word '", Text.pack (show name), "'"]
+          lift $ report $ Report origin $ Pretty.hsep
+            [ "undefined"
+            , thing
+            , Pretty.quotes (pPrint name)
+            ]
           return name
 
     LocalName{} -> error "local name should not appear before name resolution"
@@ -1415,7 +1421,8 @@ desugarInfix fragment = do
     case Parsec.runParser expression' () "" terms' of
       Left parseError -> do
         -- FIXME: Use better origin.
-        report $ Report Anywhere $ Text.pack $ show parseError
+        -- FIXME: Pretty-print parse errors.
+        report $ Report Anywhere $ Pretty.text $ show parseError
         return $ compose Anywhere terms
       Right result -> return result
 
@@ -2150,10 +2157,8 @@ typeFromSignature tenv signature0 = do
     case existing of
       Just (var, _) -> return $ TypeVar var
       Nothing -> lift $ do
-        report $ Report origin
-          $ Text.pack $ Pretty.render
-            $ "unknown or undeclared type variable"
-            Pretty.<+> Pretty.quotes (pPrint name)
+        report $ Report origin $ "unknown or undeclared type variable"
+          Pretty.<+> Pretty.quotes (pPrint name)
         halt
   fromVar _ _ = error "TODO: fromVar"
 
@@ -2368,12 +2373,11 @@ instanceCheck inferredScheme declaredScheme = do
   unless (Set.null bad) failure
   return ()
   where
-  failure = report $ Report Anywhere
-    $ Text.pack $ Pretty.render $ Pretty.hsep
-      [ pPrint inferredScheme
-      , "is not an instance of"
-      , pPrint declaredScheme
-      ]
+  failure = report $ Report Anywhere $ Pretty.hsep
+    [ pPrint inferredScheme
+    , "is not an instance of"
+    , pPrint declaredScheme
+    ]
 
 
 
@@ -2691,7 +2695,7 @@ occurs tenv0 x t = occurrences tenv0 x t > 0
 
 
 instance Pretty Fragment where
-  pPrint fragment = Pretty.vcat (intersperse (Pretty.text "") (concat docs))
+  pPrint fragment = Pretty.vcat (intersperse "" (concat docs))
     where
 
     docs :: [[Pretty.Doc]]
@@ -2708,33 +2712,33 @@ instance Pretty Fragment where
 -- FIXME: Support parameters.
 instance Pretty DataDefinition where
   pPrint definition = Pretty.vcat
-    [ Pretty.text "data"
+    [ "data"
       Pretty.<+> pPrint (dataName definition)
-      Pretty.<> Pretty.text ":"
+      Pretty.<> ":"
     , Pretty.nest 4 $ Pretty.vcat $ map pPrint $ dataConstructors definition
     ]
 
 -- FIXME: Support fields.
 instance Pretty DataConstructor where
-  pPrint constructor = Pretty.text "case"
+  pPrint constructor = "case"
     Pretty.<+> pPrint (constructorName constructor)
 
 instance Pretty Definition where
   pPrint definition = Pretty.vcat
-    [ Pretty.text "def"
+    [ "def"
       Pretty.<+> pPrint (definitionName definition)
       Pretty.<+> pPrint (definitionSignature definition)
-      Pretty.<> Pretty.text ":"
+      Pretty.<> ":"
     , Pretty.nest 4 $ pPrint $ definitionBody definition
     ]
 
 instance Pretty Operator where
   pPrint operator = Pretty.hsep
-    $ (Pretty.text "infix" :)
+    $ ("infix" :)
     $ (case operatorAssociativity operator of
       Nonassociative -> id
-      Leftward -> (Pretty.text "left" :)
-      Rightward -> (Pretty.text "right" :))
+      Leftward -> ("left" :)
+      Rightward -> ("right" :))
     [ pPrint $ operatorPrecedence operator
     , pPrint $ operatorName operator
     ]
@@ -2743,30 +2747,30 @@ instance Pretty Term where
   pPrint term = case term of
     Call _ _ name _ -> pPrint name
     Compose _ a b -> pPrint a Pretty.$+$ pPrint b
-    Drop _ _ -> Pretty.text "drop"
+    Drop _ _ -> "drop"
     Generic{} -> error "TODO: pretty-print generic expressions"
     Group a -> Pretty.parens (pPrint a)
     Identity{} -> Pretty.empty
-    If _ a b _ -> Pretty.text "if:"
+    If _ a b _ -> "if:"
       Pretty.$$ Pretty.nest 4 (pPrint a)
       Pretty.$$ "else:"
       Pretty.$$ Pretty.nest 4 (pPrint b)
     Intrinsic _ name _ -> pPrint name
-    Lambda _ name body _ -> Pretty.text "->"
+    Lambda _ name body _ -> "->"
       Pretty.<+> pPrint name
       Pretty.<> ";"
       Pretty.$+$ pPrint body
     Match{} -> error "TODO: pretty-print match expressions"
-    New _ index _ -> Pretty.text "new." Pretty.<> pPrint index
+    New _ index _ -> "new." Pretty.<> pPrint index
     Push _ value _ -> pPrint value
-    Swap{} -> Pretty.text "swap"
+    Swap{} -> "swap"
 
 instance Pretty Value where
   pPrint value = case value of
-    Boolean True -> Pretty.text "true"
-    Boolean False -> Pretty.text "false"
+    Boolean True -> "true"
+    Boolean False -> "false"
     Character c -> Pretty.quotes $ Pretty.char c
-    Closed index -> Pretty.text "closure." Pretty.<> Pretty.int index
+    Closed index -> "closure." Pretty.<> Pretty.int index
     Closure names term -> Pretty.hcat
       [ Pretty.char '$'
       , Pretty.parens $ prettyList $ map pPrint names
@@ -2774,19 +2778,19 @@ instance Pretty Value where
       ]
     Float f -> Pretty.double f
     Integer i -> Pretty.integer i
-    Local index -> Pretty.text "local." Pretty.<> Pretty.int index
+    Local index -> "local." Pretty.<> Pretty.int index
     Quotation body -> Pretty.braces $ pPrint body
     Text t -> Pretty.doubleQuotes $ Pretty.text $ Text.unpack t
 
 instance Pretty Closed where
   pPrint (ClosedLocal index) = Pretty.hcat
-    [Pretty.text "local.", Pretty.int index]
+    ["local.", Pretty.int index]
   pPrint (ClosedClosure index) = Pretty.hcat
-    [Pretty.text "closure.", Pretty.int index]
+    ["closure.", Pretty.int index]
 
 instance Pretty Qualified where
   pPrint qualified = pPrint (qualifierName qualified)
-    Pretty.<> Pretty.text "::" Pretty.<> pPrint (unqualifiedName qualified)
+    Pretty.<> "::" Pretty.<> pPrint (unqualifiedName qualified)
 
 instance Pretty Qualifier where
   pPrint (Qualifier ("" : parts)) = pPrint $ Qualifier $ "_" : parts
@@ -2800,7 +2804,7 @@ instance Pretty GeneralName where
   pPrint name = case name of
     QualifiedName qualified -> pPrint qualified
     UnqualifiedName unqualified -> pPrint unqualified
-    LocalName i -> Pretty.text "local." Pretty.<> Pretty.int i
+    LocalName i -> "local." Pretty.<> Pretty.int i
     IntrinsicName intrinsic -> pPrint intrinsic
 
 instance Pretty Intrinsic where
@@ -2815,7 +2819,7 @@ instance Pretty Signature where
     ApplicationSignature a b _ -> Pretty.parens $ pPrint a Pretty.<+> pPrint b
     FunctionSignature as bs es _ -> Pretty.parens $ Pretty.hsep $
       [ prettyList $ map pPrint as
-      , Pretty.text "->"
+      , "->"
       , prettyList $ map pPrint bs
       ] ++ map ((Pretty.char '+' Pretty.<>) . pPrint) es
     QuantifiedSignature names type_ _
@@ -2826,15 +2830,15 @@ instance Pretty Signature where
       prettyVar :: (Unqualified, Kind, Origin) -> Pretty.Doc
       prettyVar (name, kind, _) = case kind of
         Value -> pPrint name
-        Stack -> pPrint name Pretty.<> Pretty.text "..."
+        Stack -> pPrint name Pretty.<> "..."
         Effect -> Pretty.char '+' Pretty.<> pPrint name
         _ -> error "quantified signature contains variable of invalid kind"
 
     SignatureVariable name _ -> pPrint name
     StackFunctionSignature r as s bs es _ -> Pretty.parens $ Pretty.hsep
-      $ (pPrint r Pretty.<> Pretty.text "...")
-      : map pPrint as ++ [Pretty.text "->"]
-      ++ ((pPrint s Pretty.<> Pretty.text "...") : map pPrint bs)
+      $ (pPrint r Pretty.<> "...")
+      : map pPrint as ++ ["->"]
+      ++ ((pPrint s Pretty.<> "...") : map pPrint bs)
       ++ map ((Pretty.char '+' Pretty.<>) . pPrint) es
 
 instance Pretty Type where
@@ -2853,7 +2857,7 @@ instance Pretty Kind where
     Label -> "label"
     Effect -> "effect"
     a :-> b -> Pretty.parens $ Pretty.hsep
-      [pPrint a, Pretty.text "->", pPrint b]
+      [pPrint a, "->", pPrint b]
 
 instance Pretty Var where
   pPrint (Var (TypeId i) kind) = Pretty.parens $ Pretty.hcat
@@ -2867,7 +2871,7 @@ prettyAngles :: Pretty.Doc -> Pretty.Doc
 prettyAngles doc = Pretty.hcat [Pretty.char '<', doc, Pretty.char '>']
 
 prettyList :: [Pretty.Doc] -> Pretty.Doc
-prettyList = Pretty.hcat . intersperse (Pretty.text ", ")
+prettyList = Pretty.hcat . intersperse ", "
 
 
 
@@ -2883,7 +2887,7 @@ newtype K a = K { runK :: Env -> IO (Maybe a) }
 
 data Env = Env { envContext :: [Report], envReports :: IORef [[Report]] }
 
-data Report = Report !Origin !Text
+data Report = Report !Origin !Pretty.Doc
 
 instance Functor K where
   fmap f (K ax) = K (fmap (fmap f) . ax)
@@ -2906,7 +2910,7 @@ instance Monad K where
       Nothing -> return Nothing
       Just x -> runK (f x) env
   -- FIXME: Use better origin.
-  fail = (>> halt) . report . Report Anywhere . Text.pack
+  fail = (>> halt) . report . Report Anywhere . Pretty.text
 
 instance MonadFix K where
   mfix k = K $ \env -> do
@@ -2940,7 +2944,7 @@ while prefix action = K $ \ env
 
 showReport :: Report -> String
 showReport (Report origin message)
-  = showOriginPrefix origin ++ Text.unpack message
+  = showOriginPrefix origin ++ Pretty.render message
 
 showOriginPrefix :: Origin -> String
 showOriginPrefix (Range a b) = concat
