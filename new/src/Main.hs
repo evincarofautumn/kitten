@@ -1219,19 +1219,15 @@ resolveNames fragment = do
     return fragment { fragmentDefinitions = definitions }
   where
 
-  isDefined :: Qualified -> Bool
-  isDefined = flip Set.member definedNames
-    where
-    definedNames
-      = Set.fromList
-      $ map definitionName
-      $ fragmentDefinitions fragment
-
   resolveDefinition :: Definition -> Resolved Definition
   resolveDefinition definition = do
     let vocabulary = qualifierName $ definitionName definition
     body <- resolveTerm vocabulary $ definitionBody definition
-    return definition { definitionBody = body }
+    signature <- resolveSignature vocabulary $ definitionSignature definition
+    return definition
+      { definitionBody = body
+      , definitionSignature = signature
+      }
 
   resolveTerm :: Qualifier -> Term -> Resolved Term
   resolveTerm vocabulary = recur
@@ -1240,7 +1236,7 @@ resolveNames fragment = do
     recur :: Term -> Resolved Term
     recur unresolved = case unresolved of
       Call _ fixity name origin -> Call Nothing fixity
-        <$> resolveName vocabulary name origin <*> pure origin
+        <$> resolveDefinitionName vocabulary name origin <*> pure origin
       Compose _ a b -> Compose Nothing <$> recur a <*> recur b
       Drop{} -> return unresolved
       Generic{} -> error
@@ -1260,7 +1256,7 @@ resolveNames fragment = do
 
         resolveCase :: Case -> Resolved Case
         resolveCase (Case name term caseOrigin) = do
-          resolved <- resolveName vocabulary name caseOrigin
+          resolved <- resolveDefinitionName vocabulary name caseOrigin
           Case resolved <$> recur term <*> pure caseOrigin
 
         resolveElse :: Else -> Resolved Else
@@ -1284,8 +1280,43 @@ resolveNames fragment = do
     Quotation term -> Quotation <$> resolveTerm vocabulary term
     Text{} -> return value
 
-  resolveName :: Qualifier -> GeneralName -> Origin -> Resolved GeneralName
-  resolveName vocabulary name origin = case name of
+  resolveSignature :: Qualifier -> Signature -> Resolved Signature
+  resolveSignature vocabulary = go
+    where
+
+    go :: Signature -> Resolved Signature
+    go signature = case signature of
+      ApplicationSignature a b origin -> ApplicationSignature
+        <$> go a <*> go b <*> pure origin
+      FunctionSignature as bs es origin -> FunctionSignature
+        <$> mapM go as <*> mapM go bs
+        <*> mapM (uncurry (resolveTypeName vocabulary)) (zip es (repeat origin))
+        <*> pure origin
+      QuantifiedSignature vars a origin -> QuantifiedSignature vars
+        <$> foldr withLocal (go a) (map (\ (name, _, _) -> name) vars)
+        <*> pure origin
+      SignatureVariable name origin -> SignatureVariable
+        <$> resolveTypeName vocabulary name origin <*> pure origin
+      StackFunctionSignature r as s bs es origin -> StackFunctionSignature r
+        <$> mapM go as <*> pure s <*> mapM go bs
+        <*> mapM (uncurry (resolveTypeName vocabulary)) (zip es (repeat origin))
+        <*> pure origin
+
+  resolveDefinitionName, resolveTypeName
+    :: Qualifier -> GeneralName -> Origin -> Resolved GeneralName
+
+  resolveDefinitionName = resolveName "word" $ flip Set.member defined
+    where
+    defined = Set.fromList $ map definitionName $ fragmentDefinitions fragment
+
+  resolveTypeName = resolveName "type" $ flip Set.member defined
+    where
+    defined = Set.fromList $ map dataName $ fragmentDataDefinitions fragment
+
+  resolveName
+    :: Text -> (Qualified -> Bool) -> Qualifier -> GeneralName -> Origin
+    -> Resolved GeneralName
+  resolveName thing isDefined vocabulary name origin = case name of
 
 -- An unqualified name may refer to a local, a name in the current vocabulary,
 -- or a name in the global scope, respectively.
@@ -1299,8 +1330,8 @@ resolveNames fragment = do
           if isDefined qualified then return (QualifiedName qualified) else do
             let global = Qualified globalVocabulary unqualified
             if isDefined global then return (QualifiedName global) else do
-              lift $ report $ Report origin
-                $ Text.concat ["undefined word '", Text.pack (show name), "'"]
+              lift $ report $ Report origin $ Text.concat
+                ["undefined ", thing, " '", Text.pack (show name), "'"]
               return name
 
 -- A qualified name must be fully qualified, and may refer to an intrinsic or a
@@ -2129,7 +2160,20 @@ typeFromSignature tenv signature0 = do
   makeFunction
     :: Type -> [Signature] -> Type -> [Signature] -> [GeneralName]
     -> StateT SignatureEnv K Type
-  makeFunction = error "TODO: makeFunction"
+  makeFunction r as s bs es = do
+    as' <- mapM go as
+    bs' <- mapM go bs
+    e <- lift $ freshTv tenv Effect
+    return $ (stack r as' .-> stack s bs') $ foldl' (.|) e $ map fromEffect es
+    where
+
+    stack :: Type -> [Type] -> Type
+    stack = foldl' (.*)
+
+    fromEffect :: GeneralName -> Type
+    fromEffect (QualifiedName name) = TypeConstructor $ Constructor name
+    fromEffect _ = error
+      "effect name should be fully qualified after name resolution"
 
 data SignatureEnv = SignatureEnv
   { sigEnvAnonymous :: [TypeId]

@@ -1,3 +1,9 @@
+data vector<A> { /* ... */ }
+
+data int { /* ... */ }
+
+data io { /* ... */ }
+
 data maybe<A>:
   case nothing
   case just (A)
@@ -53,6 +59,8 @@ def quadratic (int, int, int -> int):
   (a + (b * b - 4 * a * c) sqrt) / (2 * a)
 
 }
+
+def map<r..., a, b, +e> (r..., vector a, <s...> (s..., a -> s..., b +e) -> r..., vector b +e) { /* ... */ }
 
 /*
 
