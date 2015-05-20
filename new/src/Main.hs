@@ -15,6 +15,7 @@ import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Writer
 import Data.Char
+import Data.Foldable (foldrM)
 import Data.Function
 import Data.Functor.Identity (Identity)
 import Data.IORef
@@ -1305,18 +1306,23 @@ resolveNames fragment = do
   resolveDefinitionName, resolveTypeName
     :: Qualifier -> GeneralName -> Origin -> Resolved GeneralName
 
-  resolveDefinitionName = resolveName "word" $ flip Set.member defined
+  resolveDefinitionName = resolveName "word" resolveLocal isDefined
     where
+    isDefined = flip Set.member defined
     defined = Set.fromList $ map definitionName $ fragmentDefinitions fragment
+    resolveLocal _ index = return $ LocalName index
 
-  resolveTypeName = resolveName "type" $ flip Set.member defined
+  resolveTypeName = resolveName "type" resolveLocal isDefined
     where
+    isDefined = flip Set.member defined
     defined = Set.fromList $ map dataName $ fragmentDataDefinitions fragment
+    resolveLocal name _ = return $ UnqualifiedName name
 
   resolveName
-    :: Pretty.Doc -> (Qualified -> Bool) -> Qualifier -> GeneralName -> Origin
+    :: Pretty.Doc -> (Unqualified -> LocalIndex -> Resolved GeneralName)
+    -> (Qualified -> Bool) -> Qualifier -> GeneralName -> Origin
     -> Resolved GeneralName
-  resolveName thing isDefined vocabulary name origin = case name of
+  resolveName thing resolveLocal isDefined vocabulary name origin = case name of
 
 -- An unqualified name may refer to a local, a name in the current vocabulary,
 -- or a name in the global scope, respectively.
@@ -1324,7 +1330,7 @@ resolveNames fragment = do
     UnqualifiedName unqualified -> do
       mLocalIndex <- gets (elemIndex unqualified)
       case mLocalIndex of
-        Just index -> return (LocalName index)
+        Just index -> resolveLocal unqualified index
         Nothing -> do
           let qualified = Qualified vocabulary unqualified
           if isDefined qualified then return (QualifiedName qualified) else do
@@ -1896,6 +1902,7 @@ inferTypes fragment = do
   definitions <- forM (fragmentDefinitions fragment) $ \ definition -> do
     type_ <- typeFromSignature tenv0 $ definitionSignature definition
     return (definitionName definition, (type_, definitionBody definition))
+  liftIO $ mapM_ (putStrLn . Pretty.render . pPrint) definitions
   let
     declaredTypes = Map.fromList
       $ map (\ (name, (type_, _)) -> (name, type_)) definitions
@@ -2129,30 +2136,75 @@ typeFromSignature tenv signature0 = do
     { sigEnvAnonymous = []
     , sigEnvVars = Map.empty
     } $ go signature0
+  let
+    forallAnonymous = Forall
+    forallVar (var, _origin) = Forall var
   return
-    $ foldr (\ a -> Forall (Var a Stack))
-      (foldr (\ (var, _origin) -> Forall var) type_ $ Map.elems $ sigEnvVars env)
+    $ foldr forallAnonymous
+      (foldr forallVar type_ $ Map.elems $ sigEnvVars env)
     $ sigEnvAnonymous env
   where
 
   go :: Signature -> StateT SignatureEnv K Type
   go signature = case signature of
     ApplicationSignature a b _ -> (:@) <$> go a <*> go b
-    FunctionSignature as bs es _ -> do
+    FunctionSignature as bs es origin -> do
       r <- lift $ freshTypeId tenv
       let var = Var r Stack
       let typeVar = TypeVar var
-      Forall var <$> makeFunction typeVar as typeVar bs es
-    QuantifiedSignature vars a _ -> error "TODO: convert quantified signature"
-      -- [(Unqualified, Kind, Origin)]
-    SignatureVariable name origin -> fromVar name origin
-    StackFunctionSignature r as s bs es origin -> do
-      r' <- fromVar (UnqualifiedName r) origin
-      s' <- fromVar (UnqualifiedName s) origin
-      makeFunction r' as s' bs es
+      es' <- mapM (fromVar origin) es
+      (me, es'') <- lift $ effectVar origin es'
+      Forall var <$> makeFunction typeVar as typeVar bs es'' me
+    QuantifiedSignature vars a _ -> do
+      original <- get
+      (envVars, vars') <- foldrM ((lift .) . declare)
+        (sigEnvVars original, []) vars
+      modify $ \ env -> env { sigEnvVars = envVars }
+      a' <- go a
+      let result = foldr Forall a' vars'
+      put original
+      return result
+      where
 
-  fromVar :: GeneralName -> Origin -> StateT SignatureEnv K Type
-  fromVar (UnqualifiedName name) origin = do
+      declare
+        :: (Unqualified, Kind, Origin)
+        -> (Map Unqualified (Var, Origin), [Var])
+        -> K (Map Unqualified (Var, Origin), [Var])
+      declare (name, kind, origin) (envVars, vars) = do
+        x <- freshTypeId tenv
+        let var = Var x kind
+        return (Map.insert name (var, origin) envVars, var : vars)
+
+    SignatureVariable name origin -> fromVar origin name
+    StackFunctionSignature r as s bs es origin -> do
+      let var = fromVar origin
+      r' <- var $ UnqualifiedName r
+      s' <- var $ UnqualifiedName s
+      es' <- mapM var es
+      (me, es'') <- lift $ effectVar origin es'
+      makeFunction r' as s' bs es'' me
+
+  effectVar :: Origin -> [Type] -> K (Maybe Type, [Type])
+  effectVar origin types = case findIndex isTypeVar types of
+    Just index -> case splitAt index types of
+      (preceding, type_ : following) -> case find isTypeVar following of
+        Nothing -> return (Just type_, preceding ++ following)
+        Just type' -> do
+          report $ Report origin $ Pretty.hsep
+            [ "this signature has multiple effect variables:"
+            , Pretty.quotes $ pPrint type_
+            , "and"
+            , Pretty.quotes $ pPrint type'
+            ]
+          halt
+      _ -> error "splitting effect row"
+    Nothing -> return (Nothing, types)
+    where
+    isTypeVar TypeVar{} = True
+    isTypeVar _ = False
+
+  fromVar :: Origin -> GeneralName -> StateT SignatureEnv K Type
+  fromVar origin (UnqualifiedName name) = do
     existing <- gets $ Map.lookup name . sigEnvVars
     case existing of
       Just (var, _) -> return $ TypeVar var
@@ -2160,30 +2212,32 @@ typeFromSignature tenv signature0 = do
         report $ Report origin $ "unknown or undeclared type variable"
           Pretty.<+> Pretty.quotes (pPrint name)
         halt
-  fromVar (QualifiedName name) origin
+  fromVar origin (QualifiedName name)
     = return $ TypeConstructor $ Constructor name
-  fromVar _ _ = error "incorrectly resolved name in signature"
+  fromVar _ name = error
+    $ "incorrectly resolved name in signature: " ++ show name
 
   makeFunction
-    :: Type -> [Signature] -> Type -> [Signature] -> [GeneralName]
+    :: Type -> [Signature] -> Type -> [Signature] -> [Type] -> Maybe Type
     -> StateT SignatureEnv K Type
-  makeFunction r as s bs es = do
+  makeFunction r as s bs es me = do
     as' <- mapM go as
     bs' <- mapM go bs
-    e <- lift $ freshTv tenv Effect
-    return $ (stack r as' .-> stack s bs') $ foldl' (.|) e $ map fromEffect es
+    e <- case me of
+      Just e -> return e
+      Nothing -> do
+        ex <- lift $ freshTypeId tenv
+        let var = Var ex Effect
+        modify $ \ env -> env { sigEnvAnonymous = var : sigEnvAnonymous env }
+        return $ TypeVar var
+    return $ (stack r as' .-> stack s bs') $ foldl' (.|) e es
     where
 
     stack :: Type -> [Type] -> Type
     stack = foldl' (.*)
 
-    fromEffect :: GeneralName -> Type
-    fromEffect (QualifiedName name) = TypeConstructor $ Constructor name
-    fromEffect _ = error
-      "effect name should be fully qualified after name resolution"
-
 data SignatureEnv = SignatureEnv
-  { sigEnvAnonymous :: [TypeId]
+  { sigEnvAnonymous :: [Var]
   , sigEnvVars :: !(Map Unqualified (Var, Origin))
   }
 
@@ -2845,7 +2899,7 @@ instance Pretty Signature where
 
 instance Pretty Type where
   pPrint type_ = case type_ of
-    a :@ b -> pPrint a Pretty.<+> pPrint b
+    a :@ b -> Pretty.parens (pPrint a) Pretty.<+> Pretty.parens (pPrint b)
     TypeConstructor (Constructor name) -> pPrint name
     TypeVar var -> pPrint var
     TypeConstant var -> pPrint var
