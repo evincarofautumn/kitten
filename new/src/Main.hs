@@ -660,19 +660,19 @@ type Precedence = Int
 -- there is a homomorphism from the syntactic monoid onto the semantic monoid.
 
 data Term
-  = Call !(Maybe Type) !Fixity !GeneralName !Origin   -- f
-  | Compose !(Maybe Type) !Term !Term                 -- e1 e2
-  | Drop !(Maybe Type) !Origin                        -- drop
-  | Generic !TypeId !Term !Origin                     -- Λx. e
-  | Group !Term                                       -- (e)
-  | Identity !(Maybe Type) !Origin                    --
-  | If !(Maybe Type) !Term !Term !Origin              -- if { e1 } else { e2 }
-  | Intrinsic !(Maybe Type) !Intrinsic !Origin        -- _::+
-  | Lambda !(Maybe Type) !Unqualified !Term !Origin   -- → x; e
-  | Match !(Maybe Type) [Case] !(Maybe Else) !Origin  -- match { case C {...}... else {...} }
-  | New !(Maybe Type) !ConstructorIndex !Origin       -- new.n
-  | Push !(Maybe Type) !Value !Origin                 -- push v
-  | Swap !(Maybe Type) !Origin                        -- swap
+  = Call !(Maybe Type) !Fixity !GeneralName [Type] !Origin  -- f
+  | Compose !(Maybe Type) !Term !Term                       -- e1 e2
+  | Drop !(Maybe Type) !Origin                              -- drop
+  | Generic !TypeId !Term !Origin                           -- Λx. e
+  | Group !Term                                             -- (e)
+  | Identity !(Maybe Type) !Origin                          --
+  | If !(Maybe Type) !Term !Term !Origin                    -- if { e1 } else { e2 }
+  | Intrinsic !(Maybe Type) !Intrinsic !Origin              -- _::+
+  | Lambda !(Maybe Type) !Unqualified !Term !Origin         -- → x; e
+  | Match !(Maybe Type) [Case] !(Maybe Else) !Origin        -- match { case C {...}... else {...} }
+  | New !(Maybe Type) !ConstructorIndex !Origin             -- new.n
+  | Push !(Maybe Type) !Value !Origin                       -- push v
+  | Swap !(Maybe Type) !Origin                              -- swap
   deriving (Show)
 
 data Value
@@ -993,7 +993,7 @@ termParser = do
     [ Parsec.try (uncurry (Push Nothing) <$> parseOne toLiteral <?> "literal")
     , do
       (name, fixity) <- nameParser
-      return (Call Nothing fixity name origin)
+      return (Call Nothing fixity name [] origin)
     , Parsec.try sectionParser
     , Parsec.try groupParser <?> "parenthesized expression"
     , lambdaParser
@@ -1017,7 +1017,7 @@ termParser = do
     [ do
       origin <- getOrigin
       function <- operatorNameParser
-      let call = Call Nothing Postfix (UnqualifiedName function) origin
+      let call = Call Nothing Postfix (UnqualifiedName function) [] origin
       Parsec.choice
         [ do
           operandOrigin <- getOrigin
@@ -1033,7 +1033,7 @@ termParser = do
       function <- operatorNameParser
       return $ compose operandOrigin $ operand ++
         [ Swap Nothing origin
-        , Call Nothing Postfix (UnqualifiedName function) origin
+        , Call Nothing Postfix (UnqualifiedName function) [] origin
         ]
     ]
 
@@ -1099,6 +1099,7 @@ termParser = do
     let
       reference = Call Nothing Postfix
         <$> (parserMatch ReferenceToken *> (fst <$> nameParser))
+        <*> pure []
         <*> pure origin
     Quotation <$> (blockParser <|> reference)
 
@@ -1147,7 +1148,7 @@ decompose term = [term]
 
 termOrigin :: Term -> Origin
 termOrigin term = case term of
-  Call _ _ _ origin -> origin
+  Call _ _ _ _ origin -> origin
   Compose _ a _ -> termOrigin a
   Drop _ origin -> origin
   Generic _ _ origin -> origin
@@ -1198,6 +1199,9 @@ data Qualifier = Qualifier [Text]
 data Unqualified = Unqualified Text
   deriving (Eq, Ord, Show)
 
+instance IsString Unqualified where
+  fromString = Unqualified . Text.pack
+
 type LocalIndex = Int
 
 data Intrinsic = AddIntrinsic
@@ -1236,8 +1240,9 @@ resolveNames fragment = do
 
     recur :: Term -> Resolved Term
     recur unresolved = case unresolved of
-      Call _ fixity name origin -> Call Nothing fixity
-        <$> resolveDefinitionName vocabulary name origin <*> pure origin
+      Call _ fixity name params origin -> Call Nothing fixity
+        <$> resolveDefinitionName vocabulary name origin
+        <*> pure params <*> pure origin
       Compose _ a b -> Compose Nothing <$> recur a <*> recur b
       Drop{} -> return unresolved
       Generic{} -> error
@@ -1479,7 +1484,7 @@ desugarInfix fragment = do
     operand = (<?> "operand") $ do
       origin <- getOrigin
       results <- Parsec.many1 $ termSatisfy $ \ term -> case term of
-        Call _ Infix _ _ -> False
+        Call _ Infix _ _ _ -> False
         Lambda{} -> False
         _ -> True
       return (compose origin results)
@@ -1518,12 +1523,12 @@ desugarInfix fragment = do
 
   binaryOperator :: GeneralName -> Rewriter (Term -> Term -> Term)
   binaryOperator name = mapTerm $ \ term -> case term of
-    Call _ Infix name' origin | name == name' -> Just (binary name origin)
+    Call _ Infix name' _ origin | name == name' -> Just (binary name origin)
     _ -> Nothing
 
   binary :: GeneralName -> Origin -> Term -> Term -> Term
   binary name origin x y = compose origin
-    [x, y, Call Nothing Postfix name origin]
+    [x, y, Call Nothing Postfix name [] origin]
 
   mapTerm :: (Term -> Maybe a) -> Rewriter a
   mapTerm = Parsec.tokenPrim show advanceTerm
@@ -1594,8 +1599,8 @@ desugarDataDefinitions fragment = do
 
 
 -- Whereas name resolution is concerned with resolving references to
--- definitions, scope resolution resolves references to locals and converts
--- quotations to use explicit closures.
+-- definitions, scope resolution resolves local names to relative (De Bruijn)
+-- indices, and converts quotations to use explicit closures.
 
 scope :: Fragment -> Fragment
 scope fragment = fragment
@@ -1610,7 +1615,7 @@ scope fragment = fragment
   scopeTerm stack = recur
     where
     recur term = case term of
-      Call _ _ (LocalName index) origin
+      Call _ _ (LocalName index) _ origin
         -> Push Nothing (scopeValue stack (Local index)) origin
       Call{} -> term
       Compose _ a b -> Compose Nothing (recur a) (recur b)
@@ -1854,7 +1859,6 @@ data Kind = Value | Stack | Label | Effect | !Kind :-> !Kind
 -- following questions:
 --
 --  • What is the type of this type variable?
---  • What is the kind of this type variable?
 --  • What is the type of this local variable?
 --  • What are the types of the current closure?
 --  • What is the signature of this definition?
@@ -1863,8 +1867,7 @@ data Kind = Value | Stack | Label | Effect | !Kind :-> !Kind
 
 data TypeEnv = TypeEnv
   { tenvTvs :: !(Map TypeId Type)
-  , tenvTks :: !(Map TypeId Kind)
-  , tenvVs :: !(Map Unqualified Type)
+  , tenvVs :: [Type]
   , tenvClosure :: [Type]
   , tenvSigs :: !(Map Qualified Type)
   , tenvCurrentType :: !(IORef TypeId)
@@ -1873,8 +1876,7 @@ data TypeEnv = TypeEnv
 emptyTypeEnv :: TypeEnv
 emptyTypeEnv = TypeEnv
   { tenvTvs = Map.empty
-  , tenvTks = Map.empty
-  , tenvVs = Map.empty
+  , tenvVs = []
   , tenvClosure = []
   , tenvSigs = Map.empty
   , tenvCurrentType = currentTypeId
@@ -1940,7 +1942,191 @@ inferType0 sigs term = {- while ["inferring the type of", show term] $ -} do
 -- implementation of an existing definition.
 
 inferType :: TypeEnv -> TypeEnv -> Term -> K (Term, Type, TypeEnv)
-inferType _tenvFinal _tenv _term = error "TODO: inferType"
+inferType tenvFinal tenv0 term0
+  = {- while ["inferring the type of", show term] $ -} case term0 of
+
+    -- FIXME: Should generic parameters be restricted to none?
+    Call _ _fixity name _ origin -> inferCall tenvFinal tenv0 name origin
+
+-- The type of the composition of two expressions is the composition of the
+-- types of those expressions.
+
+    Compose _ term1 term2 -> do
+      (term1', t1, tenv1) <- inferType' tenv0 term1
+      (term2', t2, tenv2) <- inferType' tenv1 term2
+      (a, b, e1, tenv3) <- unifyFunction tenv2 t1
+      (c, d, e2, tenv4) <- unifyFunction tenv3 t2
+      tenv5 <- unifyType tenv4 b c
+      tenv6 <- unifyType tenv5 e1 e2
+      let type_ = (a .-> d) e1
+      let type' = zonkType tenvFinal type_
+      return (Compose (Just type') term1' term2', type_, tenv6)
+
+    Drop _ origin -> do
+      [a, b, e] <- fresh [Stack, Value, Effect]
+      let type_ = (a .* b .-> a) e
+      let type' = zonkType tenvFinal type_
+      return (Drop (Just type') origin, type_, tenv0)
+
+    Generic{} -> error
+      "generic expresison should not appear during type inference"
+    Group{} -> error
+      "group expression should not appear during type inference"
+
+-- The empty program is the identity function on stacks.
+
+    Identity _ origin -> do
+      [a, e] <- fresh [Stack, Effect]
+      let type_ = (a .-> a) e
+      let type' = zonkType tenvFinal type_
+      return (Identity (Just type') origin, type_, tenv0)
+
+-- A conditional expression consumes a Boolean and applies one of its two
+-- branches to the remainder of the stack. Note that an 'if' without an 'else'
+-- is sugar for an 'if' with an empty (i.e., identity) 'else' branch, and this
+-- works out neatly in the types.
+
+    If _ true false origin -> do
+      [a, b, e] <- fresh [Stack, Stack, Effect]
+      (true', t1, tenv1) <- {- while ["checking true branch"] $ -}
+        inferType' tenv0 true
+      (false', t2, tenv2) <- {- while ["checking true branch"] $ -}
+        inferType' tenv1 true
+      tenv3 <- unifyType tenv2 t1 $ (a .-> b) e
+      tenv4 <- unifyType tenv3 t2 $ (a .-> b) e
+      let type_ = (a .* "bool" .-> b) e
+      let type' = zonkType tenvFinal type_
+      return (If (Just type') true' false' origin, type_, tenv4)
+
+    Intrinsic _ name origin -> inferIntrinsic tenvFinal tenv0 name origin
+
+-- A local variable binding in Kitten is in fact a lambda term in the ordinary
+-- lambda-calculus sense. We infer the type of its body in the
+
+    Lambda _ name term origin -> do
+      a <- freshTv tenv0 Value
+      let localEnv = tenv0 { tenvVs = a : tenvVs tenv0 }
+      (term', t1, tenv1) <- inferType tenvFinal localEnv term
+      (b, c, e, tenv2) <- unifyFunction tenv1 t1
+      let type_ = (b .* a .-> c) e
+      let type' = zonkType tenvFinal type_
+      return (Lambda (Just type') name term' origin, type_, tenv2)
+
+    Match _ cases mElse origin -> error
+      "TODO: infer type of match expression"
+
+    New _ constructor origin -> error
+      "TODO: infer type of constructor expression"
+
+-- Pushing a value results in a stack with that value on top.
+
+    Push _ value origin -> do
+      [a, e] <- fresh [Stack, Effect]
+      (value', t, tenv1) <- inferValue tenvFinal tenv0 value
+      let type_ = (a .-> a .* t) e
+      let type' = zonkType tenvFinal type_
+      return (Push (Just type') value' origin, type_, tenv1)
+
+    Swap _ origin -> do
+      [a, b, c, e] <- fresh [Stack, Value, Value, Effect]
+      let type_ = (a .* b .* c .-> a .* c .* b) e
+      let type' = zonkType tenvFinal type_
+      return (Drop (Just type') origin, type_, tenv0)
+
+  where
+
+  inferType' = inferType tenvFinal
+  fresh = foldrM (\k ts -> (: ts) <$> freshTv tenv0 k) []
+
+
+
+
+inferValue :: TypeEnv -> TypeEnv -> Value -> K (Value, Type, TypeEnv)
+inferValue tenvFinal tenv0 value = case value of
+  Boolean{} -> return (value, "bool", tenv0)
+  Character{} -> return (value, "char", tenv0)
+  Closed index -> return (value, tenvClosure tenv0 !! index, tenv0)
+  Closure names term -> do
+    let types = map (getClosed tenv0) names
+    let oldClosure = tenvClosure tenv0
+    let localEnv = tenv0 { tenvClosure = types }
+    (term', t1, tenv1) <- inferType tenvFinal localEnv term
+    let tenv2 = tenv1 { tenvClosure = oldClosure }
+    return (Closure names term', t1, tenv2)
+  Float{} -> return (value, "float", tenv0)
+  Integer{} -> return (value, "int", tenv0)
+  Local index -> return (value, tenvVs tenv0 !! index, tenv0)
+  Quotation{} -> error "quotation should not appear during type inference"
+  Text{} -> return (value, "vector" :@ "char", tenv0)
+  where
+
+  getClosed :: TypeEnv -> Closed -> Type
+  getClosed tenv name = case name of
+    ClosedLocal index -> tenvVs tenv !! index
+    ClosedClosure index -> tenvClosure tenv !! index
+
+
+
+
+inferCall
+  :: TypeEnv -> TypeEnv -> GeneralName -> Origin -> K (Term, Type, TypeEnv)
+inferCall tenvFinal tenv0 (QualifiedName name) origin
+  = case Map.lookup name $ tenvSigs tenv0 of
+    Just t@Forall{} -> do
+      (type_, params, tenv1) <- instantiatePrenex tenv0 t
+      params' <- filterM (fmap (Value ==) . typeKind) params
+      let type' = zonkType tenvFinal type_
+      return
+        ( Call (Just type') Postfix (QualifiedName name) params' origin
+        , type_
+        , tenv1
+        )
+    Just{} -> error "what is a non-quantified type doing as a type signature?"
+    Nothing -> do
+      report $ Report origin
+        $ Pretty.hsep ["cannot infer type of", Pretty.quotes $ pPrint name]
+      halt
+inferCall _ _ _ _ = error "cannot infer type of non-qualified name"
+
+
+
+
+inferIntrinsic
+  :: TypeEnv -> TypeEnv -> Intrinsic -> Origin -> K (Term, Type, TypeEnv)
+inferIntrinsic = error "TODO: infer intrinsic"
+
+
+
+
+typeKind :: Type -> K Kind
+typeKind t = case t of
+  -- TODON'T: hard-code these.
+  TypeConstructor constructor -> case constructor of
+    Constructor (Qualified qualifier unqualified)
+      | qualifier == globalVocabulary -> case unqualified of
+        "int" -> return $ Value
+        "fun" -> return $ Stack :-> Stack :-> Effect :-> Value
+        "prod" -> return $ Stack :-> Value :-> Stack
+        "vec" -> return $ Value :-> Value
+        "ptr" -> return $ Value :-> Value
+        "unsafe" -> return Label
+        "pure" -> return Label
+        "io" -> return Label
+        "fail" -> return Label
+        "join" -> return $ Label :-> Effect :-> Effect
+        _ -> do
+          report $ Report Anywhere
+            $ Pretty.hsep ["cannot infer kind of", pPrint constructor]
+          halt
+    _ -> error "TODO: infer kinds properly"
+  TypeVar (Var _ k) -> return k
+  TypeConstant (Var _ k) -> return k
+  Forall _ t' -> typeKind t'
+  a :@ b -> do
+    ka <- typeKind a
+    case ka of
+      _ :-> k -> return k
+      _ -> fail $ unwords ["applying non-constructor", show a, "to type", show b]
 
 
 
@@ -1948,12 +2134,6 @@ inferType _tenvFinal _tenv _term = error "TODO: inferType"
 ----------------------------------------
 -- Unification
 ----------------------------------------
-
-
-
---------------------------------------------------------------------------------
--- Unification
---------------------------------------------------------------------------------
 
 
 
@@ -2052,8 +2232,8 @@ unifyTv tenv0 v@(Var x _) t = case t of
 
 -- A convenience function for unifying a type with a function type.
 
-unifyFun :: TypeEnv -> Type -> K (Type, Type, Type, TypeEnv)
-unifyFun tenv0 t = case t of
+unifyFunction :: TypeEnv -> Type -> K (Type, Type, Type, TypeEnv)
+unifyFunction tenv0 t = case t of
   "fun" :@ a :@ b :@ e -> return (a, b, e, tenv0)
   _ -> do
     a <- freshTv tenv0 Stack
@@ -2320,7 +2500,7 @@ instantiate tenv0 x k t = do
   ia <- freshTypeId tenv0
   let a = TypeVar (Var ia k)
   replaced <- replaceTv tenv0 x a t
-  return (replaced, a, tenv0 { tenvTks = Map.insert ia k $ tenvTks tenv0 })
+  return (replaced, a, tenv0)
 
 
 
@@ -2331,8 +2511,7 @@ instantiate tenv0 x k t = do
 instantiatePrenex :: TypeEnv -> Type -> K (Type, [Type], TypeEnv)
 instantiatePrenex tenv0 q@(Forall (Var x k) t)
   = {- while ["instantiating", show q] $ -} do
-    (t', a, tenv1) <- instantiate
-      tenv0 { tenvTks = Map.insert x k $ tenvTks tenv0 } x k t
+    (t', a, tenv1) <- instantiate tenv0 x k t
     (t'', as, tenv2) <- instantiatePrenex tenv1 t'
     return (t'', a : as, tenv2)
 instantiatePrenex tenv0 t = return (t, [], tenv0)
@@ -2464,10 +2643,10 @@ subsumptionCheck tenv0 (Forall (Var x k) t) t2 = do
   (t1, _, tenv1) <- instantiate tenv0 x k t
   subsumptionCheck tenv1 t1 t2
 subsumptionCheck tenv0 t1 ("fun" :@ a :@ b :@ e) = do
-  (a', b', e', tenv1) <- unifyFun tenv0 t1
+  (a', b', e', tenv1) <- unifyFunction tenv0 t1
   subsumptionCheckFun tenv1 a b e a' b' e'
 subsumptionCheck tenv0 ("fun" :@ a' :@ b' :@ e') t2 = do
-  (a, b, e, tenv1) <- unifyFun tenv0 t2
+  (a, b, e, tenv1) <- unifyFunction tenv0 t2
   subsumptionCheckFun tenv1 a b e a' b' e'
 subsumptionCheck tenv0 t1 t2 = unifyType tenv0 t1 t2
 
@@ -2801,7 +2980,8 @@ instance Pretty Operator where
 
 instance Pretty Term where
   pPrint term = case term of
-    Call _ _ name _ -> pPrint name
+    -- TODO: Pretty-print generic parameters.
+    Call _ _ name _params _ -> pPrint name
     Compose _ a b -> pPrint a Pretty.$+$ pPrint b
     Drop _ _ -> "drop"
     Generic{} -> error "TODO: pretty-print generic expressions"
@@ -2900,11 +3080,14 @@ instance Pretty Signature where
 instance Pretty Type where
   pPrint type_ = case type_ of
     a :@ b -> Pretty.parens (pPrint a) Pretty.<+> Pretty.parens (pPrint b)
-    TypeConstructor (Constructor name) -> pPrint name
+    TypeConstructor constructor -> pPrint constructor
     TypeVar var -> pPrint var
     TypeConstant var -> pPrint var
     Forall var a -> prettyAngles (pPrint var)
       Pretty.<+> Pretty.parens (pPrint a)
+
+instance Pretty Constructor where
+  pPrint (Constructor name) = pPrint name
 
 instance Pretty Kind where
   pPrint kind = case kind of
