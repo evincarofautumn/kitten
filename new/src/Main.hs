@@ -55,7 +55,7 @@ main = do
         forM_ (reverse paragraph) $ hPutStrLn stderr . showReport
         hPutStrLn stderr ""
       exitFailure
-    Just fragment -> putStrLn $ Pretty.render $ pPrint fragment
+    Just program -> putStrLn $ Pretty.render $ pPrint program
 
 
 
@@ -64,7 +64,7 @@ main = do
 -- Compilation
 --------------------------------------------------------------------------------
 
-compile :: [FilePath] -> K Fragment
+compile :: [FilePath] -> K Program
 compile paths = do
   sources <- liftIO $ mapM readFileUtf8 paths
   tokenized <- zipWithM tokenize paths sources
@@ -96,7 +96,7 @@ compile paths = do
   -- generate instance declarations
   --   (so inference can know what's available in a precompiled module)
   -- generate code
-  return desugared
+  return inferred
   where
 
   readFileUtf8 :: FilePath -> IO Text
@@ -1904,7 +1904,6 @@ inferTypes fragment = do
   definitions <- forM (fragmentDefinitions fragment) $ \ definition -> do
     type_ <- typeFromSignature tenv0 $ definitionSignature definition
     return (definitionName definition, (type_, definitionBody definition))
-  liftIO $ mapM_ (putStrLn . Pretty.render . pPrint) definitions
   let
     declaredTypes = Map.fromList
       $ map (\ (name, (type_, _)) -> (name, type_)) definitions
@@ -1930,7 +1929,7 @@ inferType0 sigs term = {- while ["inferring the type of", show term] $ -} do
   rec
     (term', t, tenvFinal) <- inferType tenvFinal
       emptyTypeEnv { tenvSigs = sigs } term
-  let regeneralized = regeneralize tenvFinal (zonkType tenvFinal t)
+  let regeneralized = regeneralize tenvFinal $ zonkType tenvFinal t
   return (zonkTerm tenvFinal term', regeneralized)
 
 
@@ -1991,7 +1990,7 @@ inferType tenvFinal tenv0 term0
       (true', t1, tenv1) <- {- while ["checking true branch"] $ -}
         inferType' tenv0 true
       (false', t2, tenv2) <- {- while ["checking true branch"] $ -}
-        inferType' tenv1 true
+        inferType' tenv1 false
       tenv3 <- unifyType tenv2 t1 $ (a .-> b) e
       tenv4 <- unifyType tenv3 t2 $ (a .-> b) e
       let type_ = (a .* "bool" .-> b) e
@@ -2005,18 +2004,28 @@ inferType tenvFinal tenv0 term0
 
     Lambda _ name term origin -> do
       a <- freshTv tenv0 Value
+      let oldLocals = tenvVs tenv0
       let localEnv = tenv0 { tenvVs = a : tenvVs tenv0 }
       (term', t1, tenv1) <- inferType tenvFinal localEnv term
-      (b, c, e, tenv2) <- unifyFunction tenv1 t1
+      let tenv2 = tenv1 { tenvVs = oldLocals }
+      (b, c, e, tenv3) <- unifyFunction tenv2 t1
       let type_ = (b .* a .-> c) e
       let type' = zonkType tenvFinal type_
-      return (Lambda (Just type') name term' origin, type_, tenv2)
+      return (Lambda (Just type') name term' origin, type_, tenv3)
 
     Match _ cases mElse origin -> error
       "TODO: infer type of match expression"
 
-    New _ constructor origin -> error
-      "TODO: infer type of constructor expression"
+-- A 'new' expression simply tags some fields on the stack, so the most
+-- straightforward way to type it is as an unsafe cast. For now, we can rely on
+-- the type signature of the desugared data constructor definition to make this
+-- type-safe, since only the compiler can generate 'new' expressions.
+
+    New _ constructor origin -> do
+      [a, b, e] <- fresh [Stack, Stack, Effect]
+      let type_ = (a .-> b) e
+      let type' = zonkType tenvFinal type_
+      return (New (Just type') constructor origin, type_, tenv0)
 
 -- Pushing a value results in a stack with that value on top.
 
@@ -2410,7 +2419,7 @@ typeFromSignature tenv signature0 = do
         let var = Var ex Effect
         modify $ \ env -> env { sigEnvAnonymous = var : sigEnvAnonymous env }
         return $ TypeVar var
-    return $ (stack r as' .-> stack s bs') $ foldl' (.|) e es
+    return $ (stack r as' .-> stack s bs') $ foldr (.|) e es
     where
 
     stack :: Type -> [Type] -> Type
@@ -2459,20 +2468,55 @@ zonkType tenv0 = recur
 -- but this implementation is easier to get right and understand.
 
 zonkTerm :: TypeEnv -> Term -> Term
-zonkTerm _tenv0 = error "TODO: zonkTerm"
-{-
+zonkTerm tenv0 = go
   where
-  recur term = case term of
-    EPush tref val -> EPush (zonkMay tref) val
-    ECall tref name params -> ECall (zonkMay tref) name (map (zonkType tenv0) params)
-    ECat tref e1 e2 -> ECat (zonkMay tref) (recur e1) (recur e2)
-    EId tref -> EId (zonkMay tref)
-    EGo tref name -> EGo (zonkMay tref) name
-    ECome how tref name -> ECome how (zonkMay tref) name
-    EForall{} -> error "cannot zonk generic expression"
-    EIf tref e1 e2 -> EIf (zonkMay tref) (recur e1) (recur e2)
-  zonkMay = fmap (zonkType tenv0)
--}
+  go term = case term of
+    Call tref fixity name params origin
+      -> Call (zonkMay tref) fixity name params origin
+    Compose tref a b
+      -> Compose (zonkMay tref) (go a) (go b)
+    Drop tref origin
+      -> Drop (zonkMay tref) origin
+    Generic x a origin
+      -> Generic x (go a) origin
+    Group a
+      -> go a
+    Identity tref origin
+      -> Identity (zonkMay tref) origin
+    If tref true false origin
+      -> If (zonkMay tref) (go true) (go false) origin
+    Intrinsic tref name origin
+      -> Intrinsic (zonkMay tref) name origin
+    Lambda tref name body origin
+      -> Lambda (zonkMay tref) name (go body) origin
+    Match tref cases mElse origin
+      -> Match (zonkMay tref) (map goCase cases) (fmap goElse mElse) origin
+      where
+      goCase (Case name body caseOrigin)
+        = Case name (go body) caseOrigin
+      goElse (Else body elseOrigin)
+        = Else (go body) elseOrigin
+    New tref index origin
+      -> New (zonkMay tref) index origin
+    Push tref value origin
+      -> Push (zonkMay tref) (zonkValue tenv0 value) origin
+    Swap tref origin
+      -> Swap (zonkMay tref) origin
+  zonkMay = fmap $ zonkType tenv0
+
+zonkValue :: TypeEnv -> Value -> Value
+zonkValue tenv0 = go
+  where
+  go value = case value of
+    Boolean{} -> value
+    Character{} -> value
+    Closed{} -> value
+    Closure names body -> Closure names $ zonkTerm tenv0 body
+    Float{} -> value
+    Integer{} -> value
+    Local{} -> value
+    Quotation body -> Quotation $ zonkTerm tenv0 body
+    Text{} -> value
 
 
 
@@ -2930,7 +2974,7 @@ occurs tenv0 x t = occurrences tenv0 x t > 0
 
 
 instance Pretty Fragment where
-  pPrint fragment = Pretty.vcat (intersperse "" (concat docs))
+  pPrint fragment = prettyVsep $ concat docs
     where
 
     docs :: [[Pretty.Doc]]
@@ -2943,6 +2987,18 @@ instance Pretty Fragment where
 
     pretties :: Pretty a => [a] -> [Pretty.Doc]
     pretties = map pPrint
+
+instance Pretty Program where
+  pPrint (Program definitions) = prettyVsep
+    $ map (\ (name, (type_, term)) -> Pretty.vcat
+      [ Pretty.hcat
+        ["def ", pPrint name, " ", Pretty.parens (pPrint type_), ":"]
+      , Pretty.nest 4 $ pPrint term
+      ])
+    $ Map.toList definitions
+
+prettyVsep :: [Pretty.Doc] -> Pretty.Doc
+prettyVsep = Pretty.vcat . intersperse ""
 
 -- FIXME: Support parameters.
 instance Pretty DataDefinition where
