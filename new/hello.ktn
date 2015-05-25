@@ -60,7 +60,7 @@ def quadratic (int, int, int -> int):
 
 }
 
-def map<r..., a, b, +e> (r..., vector a, <s...> (s..., a -> s..., b +e) -> r..., vector b +e) { /* ... */ }
+def map<R..., A, B, +E> (R..., vector<A>, <S...> (S..., A -> S..., B +E) -> R..., vector<B> +E) { /* ... */ }
 
 /*
 

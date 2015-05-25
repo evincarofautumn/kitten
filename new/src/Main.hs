@@ -889,7 +889,7 @@ typeParser = Parsec.try functionTypeParser <|> basicTypeParser <?> "type"
 functionTypeParser :: Parser Signature
 functionTypeParser = (<?> "function type") $ do
   (stackEffect, origin) <- Parsec.choice
-    [ Parsec.try $ do
+    [ do
       leftVar <- stack
       leftTypes <- Parsec.option [] (parserMatch CommaToken *> left)
       origin <- arrow
@@ -908,7 +908,7 @@ functionTypeParser = (<?> "function type") $ do
   where
 
   stack :: Parser Unqualified
-  stack = wordNameParser <* parserMatch EllipsisToken
+  stack = Parsec.try $ wordNameParser <* parserMatch EllipsisToken
 
   left, right :: Parser [Signature]
   left = basicTypeParser `Parsec.sepEndBy` comma
@@ -922,8 +922,7 @@ functionTypeParser = (<?> "function type") $ do
 
 basicTypeParser :: Parser Signature
 basicTypeParser = (<?> "basic type") $ do
-  let makeSignature a b = ApplicationSignature a b $ signatureOrigin a
-  fmap (foldl1' makeSignature) $ Parsec.many1 $ Parsec.choice
+  prefix <- Parsec.choice
     [ quantifiedParser $ groupedParser typeParser
     , Parsec.try $ do
       origin <- getOrigin
@@ -933,9 +932,15 @@ basicTypeParser = (<?> "basic type") $ do
       return $ SignatureVariable name origin
     , groupedParser typeParser
     ]
+  let apply a b = ApplicationSignature a b $ signatureOrigin prefix
+  mSuffix <- Parsec.optionMaybe $ fmap concat
+    $ Parsec.many1 $ typeListParser basicTypeParser
+  return $ case mSuffix of
+    Just suffix -> foldl' apply prefix suffix
+    Nothing -> prefix
 
 quantifierParser :: Parser [(Unqualified, Kind, Origin)]
-quantifierParser = angledParser $ var `Parsec.sepEndBy1` parserMatch CommaToken
+quantifierParser = typeListParser var
   where
 
   var :: Parser (Unqualified, Kind, Origin)
@@ -949,6 +954,10 @@ quantifierParser = angledParser $ var `Parsec.sepEndBy1` parserMatch CommaToken
         (\ effect -> (name, effect, origin))
           <$> Parsec.option Value (Stack <$ parserMatch EllipsisToken)
       ]
+
+typeListParser :: Parser a -> Parser [a]
+typeListParser element = angledParser
+  $ element `Parsec.sepEndBy1` parserMatch CommaToken
 
 quantifiedParser :: Parser Signature -> Parser Signature
 quantifiedParser thing = do
@@ -3127,7 +3136,8 @@ instance Pretty Synonym where
 
 instance Pretty Signature where
   pPrint signature = case signature of
-    ApplicationSignature a b _ -> Pretty.parens $ pPrint a Pretty.<+> pPrint b
+    ApplicationSignature a b _ -> Pretty.hcat
+      [pPrint a, prettyAngles $ pPrint b]
     FunctionSignature as bs es _ -> Pretty.parens $ Pretty.hsep $
       [ prettyList $ map pPrint as
       , "->"
@@ -3154,14 +3164,22 @@ instance Pretty Signature where
 
 instance Pretty Type where
   pPrint type_ = case type_ of
-    "fun" :@ a :@ b -> Pretty.parens $ Pretty.hsep [pPrint a, "->", pPrint b]
+    "fun" :@ a :@ b :@ e -> Pretty.parens
+      $ Pretty.hsep [pPrint a, "->", pPrint b, pPrint e]
     "prod" :@ a :@ b -> Pretty.hcat [pPrint a, ", ", pPrint b]
-    a :@ b -> Pretty.hsep [Pretty.parens $ pPrint a, Pretty.parens $ pPrint b]
+    "join" :@ (TypeVar var) :@ b -> Pretty.hsep [pPrint var, pPrint b]
+    "join" :@ a :@ b -> Pretty.hcat ["+", pPrint a, " ", pPrint b]
+    a :@ b -> Pretty.hcat [pPrint a, prettyAngles $ pPrint b]
     TypeConstructor constructor -> pPrint constructor
     TypeVar var -> pPrint var
     TypeConstant var -> pPrint var
-    Forall var a -> prettyAngles (pPrint var)
-      Pretty.<+> Pretty.parens (pPrint a)
+    Forall{} -> prettyForall type_ []
+      where
+      prettyForall (Forall x t) vars = prettyForall t (x : vars)
+      prettyForall t vars = Pretty.hcat
+        [ prettyAngles $ prettyList $ map pPrint vars
+        , Pretty.parens $ pPrint t
+        ]
 
 instance Pretty Constructor where
   pPrint (Constructor name) = pPrint name
