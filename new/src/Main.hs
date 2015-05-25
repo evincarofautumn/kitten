@@ -1913,7 +1913,8 @@ inferTypes fragment = do
       (term', scheme') <- infer term
       instanceCheck scheme' scheme
       let term'' = quantifyTerm scheme' term'
-      return (name, (scheme', term''))
+      -- FIXME: Should this be scheme or scheme'?
+      return (name, (scheme, term''))
   definitions' <- mapM (uncurry go) definitions
   return Program { programDefinitions = Map.fromList definitions' }
 
