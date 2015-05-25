@@ -82,6 +82,7 @@ compile paths = do
   -- TODO:
   -- infer types
   inferred <- inferTypes desugared
+  checkpoint
   -- lift closures into top-level definitions
   --   (possibly introducing a new "Flat" term type)
   --   value representation: def a (...) { ... $(local.0, local.1){ q... } ... }
