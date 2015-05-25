@@ -2174,8 +2174,10 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
     case ms of
       Just ("join" :@ _ :@ s', substitution, tenv1) -> case substitution of
         Just (x, t)
-          | occurs tenv0 x (effectTail r)
-          -> fail $ unwords ["cannot unify effects", show t1, "and", show t2]
+          | occurs tenv0 x (effectTail r) -> do
+            report $ Report Anywhere $ Pretty.hsep
+              ["cannot unify effects", pPrint t1, "and", pPrint t2]
+            halt
           | otherwise -> let
             tenv2 = tenv1 { tenvTvs = Map.insert x t $ tenvTvs tenv1 }
             in unifyType tenv2 r s'
@@ -2186,7 +2188,10 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
         (a :@ b, c :@ d) -> do
           tenv1 <- unifyType tenv0 a c
           unifyType tenv1 b d
-        _ -> fail $ unwords ["cannot unify types", show t1, "and", show t2]
+        _ -> do
+          report $ Report Anywhere $ Pretty.hsep
+            ["cannot unify types", pPrint t1, "and", pPrint t2]
+          halt
 
   (_, "join" :@ _ :@ _) -> commute
 
@@ -2198,7 +2203,10 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
     tenv1 <- unifyType tenv0 a c
     unifyType tenv1 b d
 
-  _ -> fail $ unwords ["cannot unify types", show t1, "and", show t2]
+  _ -> do
+    report $ Report Anywhere $ Pretty.hsep
+      ["cannot unify types", pPrint t1, "and", pPrint t2]
+    halt
 
 -- Unification is commutative. If we fail to handle a case, this can result in
 -- an infinite loop.
@@ -2229,9 +2237,18 @@ unifyTv tenv0 v@(Var x _) t = case t of
   _ -> if occurs tenv0 x t
     then let
       t' = zonkType tenv0 t
-      in fail . unwords $ case t' of
-        "prod" :@ _ :@ _ -> ["found mismatched stack depths solving", show v, "~", show t']
-        _ -> [show v, "~", show t', "cannot be solved because", show x, "occurs in", show t']
+      in do
+        report $ Report Anywhere $ Pretty.hsep $ case t' of
+          "prod" :@ _ :@ _ ->
+            [ "found mismatched stack depths solving"
+            , pPrint v, "~", pPrint t'
+            ]
+          _ ->
+            [ pPrint v, "~", pPrint t'
+            , "cannot be solved because"
+            , pPrint x, "occurs in", pPrint t'
+            ]
+        halt
     else declare
   where
   declare = case Map.lookup x $ tenvTvs tenv0 of
@@ -3137,7 +3154,9 @@ instance Pretty Signature where
 
 instance Pretty Type where
   pPrint type_ = case type_ of
-    a :@ b -> Pretty.parens (pPrint a) Pretty.<+> Pretty.parens (pPrint b)
+    "fun" :@ a :@ b -> Pretty.parens $ Pretty.hsep [pPrint a, "->", pPrint b]
+    "prod" :@ a :@ b -> Pretty.hcat [pPrint a, ", ", pPrint b]
+    a :@ b -> Pretty.hsep [Pretty.parens $ pPrint a, Pretty.parens $ pPrint b]
     TypeConstructor constructor -> pPrint constructor
     TypeVar var -> pPrint var
     TypeConstant var -> pPrint var
@@ -3157,12 +3176,15 @@ instance Pretty Kind where
       [pPrint a, "->", pPrint b]
 
 instance Pretty Var where
-  pPrint (Var (TypeId i) kind) = Pretty.parens $ Pretty.hcat
-    [ Pretty.char 'T'
-    , Pretty.int i
-    , Pretty.char ':'
-    , pPrint kind
-    ]
+  pPrint (Var i kind) = Pretty.hcat $ case kind of
+    Effect -> ["+", v]
+    Stack -> [v, "..."]
+    _ -> [v]
+    where
+    v = pPrint i
+
+instance Pretty TypeId where
+  pPrint (TypeId i) = Pretty.hcat [Pretty.char 'T', Pretty.int i]
 
 prettyAngles :: Pretty.Doc -> Pretty.Doc
 prettyAngles doc = Pretty.hcat [Pretty.char '<', doc, Pretty.char '>']
