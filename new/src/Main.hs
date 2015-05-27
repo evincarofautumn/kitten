@@ -2108,7 +2108,7 @@ inferType tenvFinal tenv0 term0
       let type' = zonkType tenvFinal type_
       return (Lambda (Just type') name term' origin, type_, tenv3)
 
-    Match _ cases mElse origin -> error
+    Match _ _cases _mElse _origin -> error
       "TODO: infer type of match expression"
 
 -- A 'new' expression simply tags some fields on the stack, so the most
@@ -2484,10 +2484,10 @@ typeFromSignature tenv signature0 = do
         :: (Unqualified, Kind, Origin)
         -> (Map Unqualified (Var, Origin), [Var])
         -> K (Map Unqualified (Var, Origin), [Var])
-      declare (name, kind, origin) (envVars, vars) = do
+      declare (name, kind, origin) (envVars, freshVars) = do
         x <- freshTypeId tenv
         let var = Var x kind
-        return (Map.insert name (var, origin) envVars, var : vars)
+        return (Map.insert name (var, origin) envVars, var : freshVars)
 
     SignatureVariable name origin -> fromVar origin name
     StackFunctionSignature r as s bs es origin -> do
@@ -2526,7 +2526,7 @@ typeFromSignature tenv signature0 = do
         report $ Report origin $ "unknown or undeclared type variable"
           Pretty.<+> Pretty.quotes (pPrint name)
         halt
-  fromVar origin (QualifiedName name)
+  fromVar _origin (QualifiedName name)
     = return $ TypeConstructor $ Constructor name
   fromVar _ name = error
     $ "incorrectly resolved name in signature: " ++ show name
@@ -2680,7 +2680,7 @@ instantiate tenv0 x k t = do
 -- instantiate the rank-1 quantifiers; all other quantifiers are irrelevant.
 
 instantiatePrenex :: TypeEnv -> Type -> K (Type, [Type], TypeEnv)
-instantiatePrenex tenv0 q@(Forall (Var x k) t)
+instantiatePrenex tenv0 _q@(Forall (Var x k) t)
   = {- while ["instantiating", show q] $ -} do
     (t', a, tenv1) <- instantiate tenv0 x k t
     (t'', as, tenv2) <- instantiatePrenex tenv1 t'
@@ -3018,7 +3018,7 @@ replaceTv tenv0 x a = recur
 
 
 replaceTvExpr :: TypeEnv -> TypeId -> Type -> Term -> K Term
-replaceTvExpr tenv x a = error "TODO: replaceTvExpr"  -- recur
+replaceTvExpr _tenv _x _a = error "TODO: replaceTvExpr"  -- recur
   where
 {-
   recur expr = case expr of
@@ -3264,11 +3264,11 @@ instance Pretty Signature where
 
 instance Pretty Type where
   pPrint type_ = case type_ of
-    "fun" :@ a :@ b :@ e -> Pretty.parens
+    c :@ a :@ b :@ e | c == "fun" -> Pretty.parens
       $ Pretty.hsep [pPrint a, "->", pPrint b, pPrint e]
-    "prod" :@ a :@ b -> Pretty.hcat [pPrint a, ", ", pPrint b]
-    "join" :@ (TypeVar var) :@ b -> Pretty.hsep [pPrint var, pPrint b]
-    "join" :@ a :@ b -> Pretty.hcat ["+", pPrint a, " ", pPrint b]
+    c :@ a :@ b | c == "prod" -> Pretty.hcat [pPrint a, ", ", pPrint b]
+    c :@ (TypeVar var) :@ b | c == "join" -> Pretty.hsep [pPrint var, pPrint b]
+    c :@ a :@ b | c == "join" -> Pretty.hcat ["+", pPrint a, " ", pPrint b]
     a :@ b -> Pretty.hcat [pPrint a, prettyAngles $ pPrint b]
     TypeConstructor constructor -> pPrint constructor
     TypeVar var -> pPrint var
