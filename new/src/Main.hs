@@ -111,7 +111,8 @@ compile paths = do
 --------------------------------------------------------------------------------
 
 data Token
-  = ArrowToken !Origin !Indent                   -- ->
+  = AngleToken !Origin !Indent                   -- > See note [Angle Brackets].
+  | ArrowToken !Origin !Indent                   -- ->
   | BlockBeginToken !Layoutness !Origin !Indent  -- { :
   | BlockEndToken !Origin !Indent                -- }
   | BooleanToken !Bool !Origin !Indent           -- true false
@@ -265,23 +266,30 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
     alphanumeric = (Text.pack .) . (:)
       <$> (letter <|> Parsec.char '_')
       <*> (many . Parsec.choice) [letter, Parsec.char '_', Parsec.digit]
-    symbolic = Unqualified . Text.pack <$> Parsec.many1 symbol
     in Parsec.choice
-      [ flip fmap alphanumeric $ \ name -> case name of
-        "case" -> CaseToken
-        "data" -> DataToken
-        "def" -> DefineToken
-        "elif" -> ElifToken
-        "else" -> ElseToken
-        "false" -> BooleanToken False
-        "if" -> IfToken
-        "infix" -> InfixToken
-        "match" -> MatchToken
-        "synonym" -> SynonymToken
-        "true" -> BooleanToken True
-        "vocab" -> VocabToken
-        _ -> WordToken (Unqualified name)
-      , OperatorToken <$> symbolic
+      [ do
+        name <- alphanumeric
+        return $ case name of
+          "case" -> CaseToken
+          "data" -> DataToken
+          "def" -> DefineToken
+          "elif" -> ElifToken
+          "else" -> ElseToken
+          "false" -> BooleanToken False
+          "if" -> IfToken
+          "infix" -> InfixToken
+          "match" -> MatchToken
+          "synonym" -> SynonymToken
+          "true" -> BooleanToken True
+          "vocab" -> VocabToken
+          _ -> WordToken (Unqualified name)
+
+-- See note [Angle Brackets].
+
+      , OperatorToken ">"
+        <$ Parsec.try (Parsec.char '>' <* Parsec.notFollowedBy symbol)
+      , AngleToken <$ Parsec.char '>'
+      , OperatorToken . Unqualified . Text.pack <$> Parsec.many1 symbol
       ]
   ]
   where
@@ -327,6 +335,7 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
   text = Text.pack . catMaybes <$> many (character '"')
 
 instance Eq Token where
+  AngleToken _ _        == AngleToken _ _        = True
   ArrowToken _ _        == ArrowToken _ _        = True
   BlockBeginToken _ _ _ == BlockBeginToken _ _ _ = True
   BlockEndToken _ _     == BlockEndToken _ _     = True
@@ -361,6 +370,7 @@ instance Eq Token where
 
 tokenOrigin :: Token -> Origin
 tokenOrigin token = case token of
+  AngleToken origin _ -> origin
   ArrowToken origin _ -> origin
   BlockBeginToken _ origin _ -> origin
   BlockEndToken origin _ -> origin
@@ -394,6 +404,7 @@ tokenOrigin token = case token of
 
 tokenIndent :: Token -> Indent
 tokenIndent token = case token of
+  AngleToken _ indent -> indent
   ArrowToken _ indent -> indent
   BlockBeginToken _ _ indent -> indent
   BlockEndToken _ indent -> indent
@@ -427,6 +438,7 @@ tokenIndent token = case token of
 
 instance Show Token where
   show token = show (tokenOrigin token) ++ ": " ++ case token of
+    AngleToken{} -> ">"
     ArrowToken{} -> "->"
     BlockBeginToken _ _ _ -> "{"
     BlockEndToken{} -> "}"
@@ -774,8 +786,11 @@ groupParser = do
   origin <- getOrigin
   groupedParser $ Group . compose origin <$> Parsec.many1 termParser
 
+-- See note [Angle Brackets].
+
 angledParser :: Parser a -> Parser a
-angledParser = Parsec.between (parserMatchOperator "<") (parserMatchOperator ">")
+angledParser = Parsec.between (parserMatchOperator "<")
+  (parserMatchOperator ">" <|> parserMatch AngleToken)
 
 bracketedParser :: Parser a -> Parser a
 bracketedParser = Parsec.between
@@ -811,9 +826,15 @@ wordNameParser = parseOne $ \ token -> case token of
   _ -> Nothing
 
 operatorNameParser :: Parser Unqualified
-operatorNameParser = parseOne $ \ token -> case token of
-  OperatorToken name _ _ -> Just name
-  _ -> Nothing
+operatorNameParser = do
+  -- Rihtlice hi sind Angle gehatene, for ðan ðe hi engla wlite habbað.
+  angles <- many $ parseOne $ \ token -> case token of
+    AngleToken{} -> Just ">"
+    _ -> Nothing
+  rest <- parseOne $ \ token -> case token of
+    OperatorToken (Unqualified name) _ _ -> Just name
+    _ -> Nothing
+  return $ Unqualified $ Text.concat $ angles ++ [rest]
 
 parseOne :: (Token -> Maybe a) -> Parser a
 parseOne = Parsec.tokenPrim show advance
@@ -1194,6 +1215,50 @@ signatureOrigin signature = case signature of
   QuantifiedSignature _ _ origin -> origin
   SignatureVariable _ origin -> origin
   StackFunctionSignature _ _ _ _ _ origin -> origin
+
+
+
+
+-- Note [Angle Brackets]:
+--
+-- Since we separate the passes of tokenization and parsing, we are faced with a
+-- classic ambiguity between angle brackets as used in operator names such as
+-- '>>' and '>=', and as used in nested type argument lists such as
+-- 'vector<vector<T>>'.
+--
+-- Our solution is to parse a greater-than character as an 'angle' token if it
+-- was immediately followed by a symbol character in the input with no
+-- intervening whitespace. This is enough information for the parser to
+-- disambiguate the intent:
+--
+--   • When parsing an expression, it joins a sequence of angle tokens and
+--     an operator token into a single operator token.
+--
+--   • When parsing a signature, it treats them separately.
+--
+-- You may ask why we permit this silly ambiguity in the first place. Why not
+-- merge the passes of tokenization and parsing, or use a different bracketing
+-- character such as '[]' for type argument lists?
+--
+-- We separate tokenization and parsing for the sake of tool support: it's
+-- simply easier to provide token-accurate source locations when we keep track
+-- of source locations at the token level, and it's easier to provide a list of
+-- tokens to external tools (e.g., for syntax highlighting) if we already have
+-- such a list at hand.
+--
+-- The reason for the choice of bracketing character is for the sake of
+-- compatibility with C++ tools. When setting a breakpoint in GDB, for example,
+-- it's nice to be able to type:
+--
+--     break foo::bar<int>
+--
+-- And for this to refer to the Kitten definition 'foo::bar<int>' precisely,
+-- rather than to some syntactic analogue such as 'foo.bar[int]'. The modest
+-- increase in complexity of implementation is justified by fostering a better
+-- experience for people.
+
+
+
 
 --------------------------------------------------------------------------------
 -- Name Resolution

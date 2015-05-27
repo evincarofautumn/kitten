@@ -24,6 +24,13 @@ infix left 7 *
 def / (int, int -> int) { /* ... */ }
 infix left 7 /
 
+def >= (int, int -> int) { /* ... */ }
+def >> (int, int -> int) { /* ... */ }
+def >>= (int, int -> int) { /* ... */ }
+def >>> (int, int -> int) { /* ... */ }
+def foo1 (int, int -> int) { 1 >> 2 }
+def foo2 (int, int -> int) { 1 >>> 2 }
+
 def sqrt (int -> int) { /* ... */ }
 
 def say<a> (a -> +io) { /* ... */ }
@@ -63,6 +70,8 @@ def quadratic (int, int, int -> int):
   (a + (b * b - 4 * a * c) sqrt) / (2 * a)
 
 }
+
+def concat<A> (vector<vector<A>> -> vector<A>) { /* ... */ }
 
 def map<R..., A, B, +E> (R..., vector<A>, <S...> (S..., A -> S..., B +E) -> R..., vector<B> +E) { /* ... */ }
 
