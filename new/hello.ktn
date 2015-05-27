@@ -4,6 +4,10 @@ data int { /* ... */ }
 
 data io { /* ... */ }
 
+def foo (->) {
+  [1, 2, 3]
+}
+
 data maybe<A>:
   case nothing
   case just (A)

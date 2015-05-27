@@ -672,6 +672,7 @@ data Term
   | Lambda !(Maybe Type) !Unqualified !Term !Origin         -- → x; e
   | Match !(Maybe Type) [Case] !(Maybe Else) !Origin        -- match { case C {...}... else {...} }
   | New !(Maybe Type) !ConstructorIndex !Origin             -- new.n
+  | NewVector !(Maybe Type) !Int !Origin                    -- new.vec.n
   | Push !(Maybe Type) !Value !Origin                       -- push v
   | Swap !(Maybe Type) !Origin                              -- swap
   deriving (Show)
@@ -775,6 +776,10 @@ groupParser = do
 
 angledParser :: Parser a -> Parser a
 angledParser = Parsec.between (parserMatchOperator "<") (parserMatchOperator ">")
+
+bracketedParser :: Parser a -> Parser a
+bracketedParser = Parsec.between
+  (parserMatch VectorBeginToken) (parserMatch VectorEndToken)
 
 nameParser :: Parser (GeneralName, Fixity)
 nameParser = do
@@ -1006,6 +1011,7 @@ termParser = do
       return (Call Nothing fixity name [] origin)
     , Parsec.try sectionParser
     , Parsec.try groupParser <?> "parenthesized expression"
+    , vectorParser
     , lambdaParser
     , matchParser
     , ifParser
@@ -1046,6 +1052,14 @@ termParser = do
         , Call Nothing Postfix (UnqualifiedName function) [] origin
         ]
     ]
+
+  vectorParser :: Parser Term
+  vectorParser = do
+    vectorOrigin <- getOrigin
+    elements <- bracketedParser
+      (termParser `Parsec.sepEndBy` parserMatch CommaToken) <?> "vector"
+    return $ compose vectorOrigin $ elements
+      ++ [NewVector Nothing (length elements) vectorOrigin]
 
   lambdaParser :: Parser Term
   lambdaParser = (<?> "variable introduction") $ Parsec.choice
@@ -1168,6 +1182,7 @@ termOrigin term = case term of
   Intrinsic _ _ origin -> origin
   Lambda _ _ _ origin -> origin
   New _ _ origin -> origin
+  NewVector _ _ origin -> origin
   Match _ _ _ origin -> origin
   Push _ _ origin -> origin
   Swap _ origin -> origin
@@ -1280,6 +1295,7 @@ resolveNames fragment = do
           = Else <$> recur term <*> pure elseOrigin
 
       New{} -> return unresolved
+      NewVector{} -> return unresolved
       Push _ value origin -> Push Nothing
         <$> resolveValue vocabulary value <*> pure origin
       Swap{} -> return unresolved
@@ -1471,6 +1487,7 @@ desugarInfix fragment = do
       desugarElse (Else body elseOrigin)
         = Else <$> desugarTerms' body <*> pure elseOrigin
     New{} -> return term
+    NewVector{} -> return term
     Push _ value origin -> Push Nothing <$> desugarValue value <*> pure origin
     Swap{} -> return term
 
@@ -1646,6 +1663,7 @@ scope fragment = fragment
           -> Else (recur a) elseOrigin) mElse)
         origin
       New{} -> term
+      NewVector{} -> term
       Push _ value origin -> Push Nothing (scopeValue stack value) origin
       Swap{} -> term
 
@@ -1718,6 +1736,7 @@ captureTerm term = case term of
       = Else <$> captureTerm a <*> pure elseOrigin
 
   New{} -> return term
+  NewVector{} -> return term
   Push _ value origin -> Push Nothing <$> captureValue value <*> pure origin
   Swap{} -> return term
 
@@ -2037,6 +2056,19 @@ inferType tenvFinal tenv0 term0
       let type_ = (a .-> b) e
       let type' = zonkType tenvFinal type_
       return (New (Just type') constructor origin, type_, tenv0)
+
+-- Unlike with 'new', we cannot simply type a 'new vector' expression as an
+-- unsafe cast because we need to know its effect on the stack within the body
+-- of a definition. So we type a 'new.vec.x' expression as:
+--
+--     ∀ρα. ρ × α₀ × … × αₓ → ρ × vector<α>
+--
+
+    NewVector _ size origin -> do
+      [a, b, e] <- fresh [Stack, Value, Effect]
+      let type_ = (foldl' (.*) a (replicate size b) .-> a .* ("vector" :@ b)) e
+      let type' = zonkType tenvFinal type_
+      return (NewVector (Just type') size origin, type_, tenv0)
 
 -- Pushing a value results in a stack with that value on top.
 
@@ -2526,6 +2558,8 @@ zonkTerm tenv0 = go
         = Else (go body) elseOrigin
     New tref index origin
       -> New (zonkMay tref) index origin
+    NewVector tref size origin
+      -> New (zonkMay tref) size origin
     Push tref value origin
       -> Push (zonkMay tref) (zonkValue tenv0 value) origin
     Swap tref origin
@@ -3082,6 +3116,7 @@ instance Pretty Term where
       Pretty.$+$ pPrint body
     Match{} -> error "TODO: pretty-print match expressions"
     New _ index _ -> "new." Pretty.<> pPrint index
+    NewVector _ size _ -> "new.vec." Pretty.<> pPrint size
     Push _ value _ -> pPrint value
     Swap{} -> "swap"
 
