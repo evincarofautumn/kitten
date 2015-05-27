@@ -143,6 +143,10 @@ data Token
   | VocabLookupToken !Origin !Indent             -- ::
   | WordToken !Unqualified !Origin !Indent       -- word
 
+-- Minor hack because Parsec requires 'Show'.
+instance Show Token where
+  show = Pretty.render . pPrint
+
 -- A token origin.
 data Origin
   = Range
@@ -435,48 +439,6 @@ tokenIndent token = case token of
   VocabToken _ indent -> indent
   VocabLookupToken _ indent -> indent
   WordToken _ _ indent -> indent
-
-instance Show Token where
-  show token = show (tokenOrigin token) ++ ": " ++ case token of
-    AngleToken{} -> ">"
-    ArrowToken{} -> "->"
-    BlockBeginToken _ _ _ -> "{"
-    BlockEndToken{} -> "}"
-    BooleanToken True _ _ -> "true"
-    BooleanToken False _ _ -> "false"
-    CaseToken{} -> "case"
-    CharacterToken c _ _ -> show c
-    CommaToken{} -> ","
-    DataToken{} -> "data"
-    DefineToken{} -> "define"
-    EllipsisToken{} -> "..."
-    ElifToken{} -> "elif"
-    ElseToken{} -> "else"
-    FloatToken f _ _ -> show f
-    GroupBeginToken{} -> "("
-    GroupEndToken{} -> ")"
-    IfToken{} -> "if"
-    IgnoreToken{} -> "_"
-    InfixToken{} -> "infix"
-    IntegerToken value hint _ _ -> if value < 0 then '-' : shown else shown
-      where
-      shown = prefix ++ showIntAtBase base (digits !!) (abs value) ""
-      (base, prefix, digits) = case hint of
-        Binary -> (2, "0b", "01")
-        Octal -> (8, "0o", ['0'..'7'])
-        Decimal -> (10, "", ['0'..'9'])
-        Hexadecimal -> (16, "0x", ['0'..'9'] ++ ['A'..'F'])
-    LayoutToken{} -> ":"
-    MatchToken{} -> "match"
-    OperatorToken name _ _ -> show name
-    ReferenceToken{} -> "\\"
-    SynonymToken{} -> "synonym"
-    TextToken t _ _ -> show t
-    VectorBeginToken{} -> "["
-    VectorEndToken{} -> "]"
-    VocabToken{} -> "vocab"
-    VocabLookupToken{} -> "::"
-    WordToken name _ _ -> show name
 
 
 
@@ -3099,6 +3061,49 @@ occurs tenv0 x t = occurrences tenv0 x t > 0
 
 
 
+
+instance Pretty Token where
+  pPrint token = case token of
+    AngleToken{} -> ">"
+    ArrowToken{} -> "->"
+    BlockBeginToken _ _ _ -> "{"
+    BlockEndToken{} -> "}"
+    BooleanToken True _ _ -> "true"
+    BooleanToken False _ _ -> "false"
+    CaseToken{} -> "case"
+    CharacterToken c _ _ -> Pretty.quotes $ Pretty.char c
+    CommaToken{} -> ","
+    DataToken{} -> "data"
+    DefineToken{} -> "define"
+    EllipsisToken{} -> "..."
+    ElifToken{} -> "elif"
+    ElseToken{} -> "else"
+    FloatToken f _ _ -> Pretty.double f
+    GroupBeginToken{} -> "("
+    GroupEndToken{} -> ")"
+    IfToken{} -> "if"
+    IgnoreToken{} -> "_"
+    InfixToken{} -> "infix"
+    IntegerToken value hint _ _
+      -> Pretty.text $ if value < 0 then '-' : shown else shown
+      where
+      shown = prefix ++ showIntAtBase base (digits !!) (abs value) ""
+      (base, prefix, digits) = case hint of
+        Binary -> (2, "0b", "01")
+        Octal -> (8, "0o", ['0'..'7'])
+        Decimal -> (10, "", ['0'..'9'])
+        Hexadecimal -> (16, "0x", ['0'..'9'] ++ ['A'..'F'])
+    LayoutToken{} -> ":"
+    MatchToken{} -> "match"
+    OperatorToken name _ _ -> pPrint name
+    ReferenceToken{} -> "\\"
+    SynonymToken{} -> "synonym"
+    TextToken t _ _ -> Pretty.doubleQuotes $ Pretty.text $ Text.unpack t
+    VectorBeginToken{} -> "["
+    VectorEndToken{} -> "]"
+    VocabToken{} -> "vocab"
+    VocabLookupToken{} -> "::"
+    WordToken name _ _ -> pPrint name
 
 instance Pretty Fragment where
   pPrint fragment = prettyVsep $ concat docs
