@@ -39,6 +39,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Text.Parsec as Parsec
+import qualified Text.Parsec.Error as Parsec
 import qualified Text.Parsec.Expr as Expression
 import qualified Text.PrettyPrint as Pretty
 
@@ -51,9 +52,7 @@ main = do
   case result of
     Nothing -> do
       paragraphs <- readIORef reports
-      forM_ paragraphs $ \ paragraph -> do
-        forM_ (reverse paragraph) $ hPutStrLn stderr . showReport
-        hPutStrLn stderr ""
+      forM_ paragraphs $ mapM_ (hPutStrLn stderr . showReport) . reverse
       exitFailure
     Just program -> putStrLn $ Pretty.render $ pPrint program
 
@@ -156,6 +155,11 @@ data Origin
   | Anywhere
   deriving (Show)
 
+instance Eq Origin where
+  Range a b == Range c d = (a, b) == (c, d)
+  _ == Anywhere = True
+  Anywhere == _ = True
+
 type Indent = Maybe Column
 
 data Layoutness = Layout | Nonlayout
@@ -168,7 +172,9 @@ data Base = Binary | Octal | Decimal | Hexadecimal
 
 tokenize :: FilePath -> Text -> K [Token]
 tokenize path text = case Parsec.runParser fileTokenizer 1 path text of
-  Left parseError -> fail (show parseError)
+  Left parseError -> do
+    report $ reportParseError parseError
+    halt
   Right result -> return result
 
 type Tokenizer a = ParsecT Text Column Identity a
@@ -462,7 +468,9 @@ type Parser a = ParsecT [Token] Qualifier Identity a
 layout :: FilePath -> [Token] -> K [Token]
 layout path tokens
   = case Parsec.runParser insertBraces (Qualifier []) path tokens of
-    Left parseError -> fail (show parseError)
+    Left parseError -> do
+      report $ reportParseError parseError
+      halt
     Right result -> return result
 
 insertBraces :: Parser [Token]
@@ -691,7 +699,9 @@ parse :: FilePath -> [Token] -> K Fragment
 parse name tokens = let
   parsed = Parsec.runParser fragmentParser globalVocabulary name tokens
   in case parsed of
-    Left parseError -> fail (show parseError)
+    Left parseError -> do
+      report $ reportParseError parseError
+      halt
     Right result -> return result
 
 fragmentParser :: Parser Fragment
@@ -1394,11 +1404,8 @@ resolveNames fragment = do
           if isDefined qualified then return (QualifiedName qualified) else do
             let global = Qualified globalVocabulary unqualified
             if isDefined global then return (QualifiedName global) else do
-              lift $ report $ Report origin $ Pretty.hsep
-                [ "undefined"
-                , thing
-                , Pretty.quotes (pPrint name)
-                ]
+              lift $ report $ Report Error [Item origin
+                ["the", thing, pQuote name, "is not defined"]]
               return name
 
 -- A qualified name must be fully qualified, and may refer to an intrinsic or a
@@ -1408,11 +1415,8 @@ resolveNames fragment = do
       Just intrinsic -> return (IntrinsicName intrinsic)
       Nothing -> do
         if isDefined qualified then return name else do
-          lift $ report $ Report origin $ Pretty.hsep
-            [ "undefined"
-            , thing
-            , Pretty.quotes (pPrint name)
-            ]
+          lift $ report $ Report Error [Item origin
+            ["the", thing, pQuote name, "is not defined"]]
           return name
 
     LocalName{} -> error "local name should not appear before name resolution"
@@ -1472,65 +1476,74 @@ desugarInfix fragment = do
 
   desugarDefinition :: Definition -> K Definition
   desugarDefinition definition = do
-    desugared <- desugarTerms' (definitionBody definition)
+    desugared <- desugarTerms' $ definitionBody definition
     return definition { definitionBody = desugared }
+    where
 
-  desugarTerms :: [Term] -> K Term
-  desugarTerms terms = do
-    terms' <- mapM desugarTerm terms
-    let
-      expression' = infixExpression <* Parsec.eof
-      infixExpression = compose Anywhere  -- FIXME: Use better origin.
-        <$> many (expression <|> lambda)
-    case Parsec.runParser expression' () "" terms' of
-      Left parseError -> do
-        -- FIXME: Use better origin.
-        -- FIXME: Pretty-print parse errors.
-        report $ Report Anywhere $ Pretty.text $ show parseError
-        return $ compose Anywhere terms
-      Right result -> return result
+    desugarTerms :: [Term] -> K Term
+    desugarTerms terms = do
+      terms' <- mapM desugarTerm terms
+      let
+        expression' = infixExpression <* Parsec.eof
+        infixExpression = do
+          desugaredTerms <- many $ expression <|> lambda
+          let
+            origin = case desugaredTerms of
+              term : _ -> termOrigin term
+              _ -> definitionOrigin definition
+          return $ compose origin desugaredTerms
+      case Parsec.runParser expression' () "" terms' of
+        Left parseError -> do
+          report $ reportParseError parseError
+          let
+            origin = case terms of
+              term : _ -> termOrigin term
+              _ -> definitionOrigin definition
+          return $ compose origin terms
+        Right result -> return result
 
-  desugarTerm :: Term -> K Term
-  desugarTerm term = case term of
-    Call{} -> return term
-    Compose _ a b -> desugarTerms (decompose a ++ decompose b)
-    Drop{} -> return term
-    Generic{} -> error
-      "generic expression should not appear before infix desugaring"
-    Group a -> desugarTerms' a
-    Identity{} -> return term
-    If _ a b origin -> If Nothing
-      <$> desugarTerms' a <*> desugarTerms' b <*> pure origin
-    Intrinsic{} -> return term
-    Lambda _ name body origin -> Lambda Nothing name
-      <$> desugarTerms' body <*> pure origin
-    Match _ cases mElse origin -> Match Nothing
-      <$> mapM desugarCase cases <*> traverse desugarElse mElse <*> pure origin
-      where
-      desugarCase :: Case -> K Case
-      desugarCase (Case name body caseOrigin)
-        = Case name <$> desugarTerms' body <*> pure caseOrigin
-      desugarElse :: Else -> K Else
-      desugarElse (Else body elseOrigin)
-        = Else <$> desugarTerms' body <*> pure elseOrigin
-    New{} -> return term
-    NewVector{} -> return term
-    Push _ value origin -> Push Nothing <$> desugarValue value <*> pure origin
-    Swap{} -> return term
+    desugarTerm :: Term -> K Term
+    desugarTerm term = case term of
+      Call{} -> return term
+      Compose _ a b -> desugarTerms (decompose a ++ decompose b)
+      Drop{} -> return term
+      Generic{} -> error
+        "generic expression should not appear before infix desugaring"
+      Group a -> desugarTerms' a
+      Identity{} -> return term
+      If _ a b origin -> If Nothing
+        <$> desugarTerms' a <*> desugarTerms' b <*> pure origin
+      Intrinsic{} -> return term
+      Lambda _ name body origin -> Lambda Nothing name
+        <$> desugarTerms' body <*> pure origin
+      Match _ cases mElse origin -> Match Nothing
+        <$> mapM desugarCase cases <*> traverse desugarElse mElse <*> pure origin
+        where
+        desugarCase :: Case -> K Case
+        desugarCase (Case name body caseOrigin)
+          = Case name <$> desugarTerms' body <*> pure caseOrigin
+        desugarElse :: Else -> K Else
+        desugarElse (Else body elseOrigin)
+          = Else <$> desugarTerms' body <*> pure elseOrigin
+      New{} -> return term
+      NewVector{} -> return term
+      Push _ value origin -> Push Nothing <$> desugarValue value <*> pure origin
+      Swap{} -> return term
 
-  desugarValue :: Value -> K Value
-  desugarValue value = case value of
-    Boolean{} -> return value
-    Character{} -> return value
-    Closed{} -> error "closed name should not appear before infix desugaring"
-    Closure names body -> Closure names <$> desugarTerms' body
-    Float{} -> return value
-    Integer{} -> return value
-    Local{} -> error "local name should not appear before infix desugaring"
-    Quotation body -> Quotation <$> desugarTerms' body
-    Text{} -> return value
+    desugarValue :: Value -> K Value
+    desugarValue value = case value of
+      Boolean{} -> return value
+      Character{} -> return value
+      Closed{} -> error "closed name should not appear before infix desugaring"
+      Closure names body -> Closure names <$> desugarTerms' body
+      Float{} -> return value
+      Integer{} -> return value
+      Local{} -> error "local name should not appear before infix desugaring"
+      Quotation body -> Quotation <$> desugarTerms' body
+      Text{} -> return value
 
-  desugarTerms' = desugarTerms . decompose
+    desugarTerms' :: Term -> K Term
+    desugarTerms' = desugarTerms . decompose
 
   expression :: Rewriter Term
   expression = Expression.buildExpressionParser operatorTable operand
@@ -1847,11 +1860,27 @@ emptyProgram = Program Map.empty
 
 data Type
   = !Type :@ !Type
-  | TypeConstructor !Constructor
-  | TypeVar !Var
-  | TypeConstant !Var
-  | Forall !Var !Type
- deriving (Eq, Show)
+  | TypeConstructor !Origin !Constructor
+  | TypeVar !Origin !Var
+  | TypeConstant !Origin !Var
+  | Forall !Origin !Var !Type
+ deriving (Show)
+
+instance Eq Type where
+  (a :@ b) == (c :@ d) = (a, b) == (c, d)
+  TypeConstructor _ a == TypeConstructor _ b = a == b
+  TypeVar _ a == TypeVar _ b = a == b
+  TypeConstant _ a == TypeConstant _ b = a == b
+  Forall _ a b == Forall _ c d = (a, b) == (c, d)
+  _ == _ = False
+
+typeOrigin :: Type -> Origin
+typeOrigin type_ = case type_ of
+  a :@ _ -> typeOrigin a
+  TypeConstructor origin _ -> origin
+  TypeVar origin _ -> origin
+  TypeConstant origin _ -> origin
+  Forall origin _ _ -> origin
 
 newtype Constructor = Constructor Qualified
   deriving (Eq, Show)
@@ -1863,22 +1892,16 @@ instance IsString Constructor where
   fromString = Constructor
     . Qualified globalVocabulary . Unqualified . Text.pack
 
-instance IsString Type where
-  fromString = TypeConstructor . fromString
-
-(.->) :: Type -> Type -> Type -> Type
-(t1 .-> t2) e = "fun" :@ t1 :@ t2 :@ e
-infixr 4 .->
+funType :: Origin -> Type -> Type -> Type -> Type
+funType origin a b e = TypeConstructor origin "fun" :@ a :@ b :@ e
 
 infixl 1 :@
 
-(.*) :: Type -> Type -> Type
-t1 .* t2 = "prod" :@ t1 :@ t2
-infixl 5 .*
+prodType :: Origin -> Type -> Type -> Type
+prodType origin a b = TypeConstructor origin "prod" :@ a :@ b
 
-(.|) :: Type -> Type -> Type
-t1 .| t2 = "join" :@ t1 :@ t2
-infixr 4 .|
+joinType :: Origin -> Type -> Type -> Type
+joinType origin a b = TypeConstructor origin "join" :@ a :@ b
 
 
 
@@ -1942,8 +1965,8 @@ currentTypeId :: IORef TypeId
 currentTypeId = unsafePerformIO (newIORef (TypeId 0))
 {-# NOINLINE currentTypeId #-}
 
-freshTv :: TypeEnv -> Kind -> K Type
-freshTv tenv k = TypeVar <$> (Var <$> freshTypeId tenv <*> pure k)
+freshTv :: TypeEnv -> Origin -> Kind -> K Type
+freshTv tenv origin k = TypeVar origin <$> (Var <$> freshTypeId tenv <*> pure k)
 
 freshTypeId :: TypeEnv -> K TypeId
 freshTypeId tenv = do
@@ -2014,13 +2037,15 @@ inferType tenvFinal tenv0 term0
       (c, d, e2, tenv4) <- unifyFunction tenv3 t2
       tenv5 <- unifyType tenv4 b c
       tenv6 <- unifyType tenv5 e1 e2
-      let type_ = (a .-> d) e1
+      -- FIXME: Use range origin over whole composition?
+      let origin = termOrigin term1
+      let type_ = funType origin a d e1
       let type' = zonkType tenvFinal type_
       return (Compose (Just type') term1' term2', type_, tenv6)
 
     Drop _ origin -> do
-      [a, b, e] <- fresh [Stack, Value, Effect]
-      let type_ = (a .* b .-> a) e
+      [a, b, e] <- fresh origin [Stack, Value, Effect]
+      let type_ = funType origin (prodType origin a b) a e
       let type' = zonkType tenvFinal type_
       return (Drop (Just type') origin, type_, tenv0)
 
@@ -2032,8 +2057,8 @@ inferType tenvFinal tenv0 term0
 -- The empty program is the identity function on stacks.
 
     Identity _ origin -> do
-      [a, e] <- fresh [Stack, Effect]
-      let type_ = (a .-> a) e
+      [a, e] <- fresh origin [Stack, Effect]
+      let type_ = funType origin a a e
       let type' = zonkType tenvFinal type_
       return (Identity (Just type') origin, type_, tenv0)
 
@@ -2043,15 +2068,17 @@ inferType tenvFinal tenv0 term0
 -- works out neatly in the types.
 
     If _ true false origin -> do
-      [a, b, e] <- fresh [Stack, Stack, Effect]
+      [a, b, e] <- fresh origin [Stack, Stack, Effect]
       (true', t1, tenv1) <- {- while ["checking true branch"] $ -}
         inferType' tenv0 true
       (false', t2, tenv2) <- {- while ["checking true branch"] $ -}
         inferType' tenv1 false
-      tenv3 <- unifyType tenv2 t1 $ (a .-> b) e
-      tenv4 <- unifyType tenv3 t2 $ (a .-> b) e
-      let type_ = (a .* "bool" .-> b) e
-      let type' = zonkType tenvFinal type_
+      tenv3 <- unifyType tenv2 t1 $ funType origin a b e
+      tenv4 <- unifyType tenv3 t2 $ funType origin a b e
+      let
+        type_ = funType origin
+          (prodType origin a $ TypeConstructor origin "bool") b e
+        type' = zonkType tenvFinal type_
       return (If (Just type') true' false' origin, type_, tenv4)
 
     Intrinsic _ name origin -> inferIntrinsic tenvFinal tenv0 name origin
@@ -2060,13 +2087,13 @@ inferType tenvFinal tenv0 term0
 -- lambda-calculus sense. We infer the type of its body in the
 
     Lambda _ name term origin -> do
-      a <- freshTv tenv0 Value
+      a <- freshTv tenv0 origin Value
       let oldLocals = tenvVs tenv0
       let localEnv = tenv0 { tenvVs = a : tenvVs tenv0 }
       (term', t1, tenv1) <- inferType tenvFinal localEnv term
       let tenv2 = tenv1 { tenvVs = oldLocals }
       (b, c, e, tenv3) <- unifyFunction tenv2 t1
-      let type_ = (b .* a .-> c) e
+      let type_ = funType origin (prodType origin b a) c e
       let type' = zonkType tenvFinal type_
       return (Lambda (Just type') name term' origin, type_, tenv3)
 
@@ -2079,8 +2106,8 @@ inferType tenvFinal tenv0 term0
 -- type-safe, since only the compiler can generate 'new' expressions.
 
     New _ constructor origin -> do
-      [a, b, e] <- fresh [Stack, Stack, Effect]
-      let type_ = (a .-> b) e
+      [a, b, e] <- fresh origin [Stack, Stack, Effect]
+      let type_ = funType origin a b e
       let type' = zonkType tenvFinal type_
       return (New (Just type') constructor origin, type_, tenv0)
 
@@ -2092,38 +2119,46 @@ inferType tenvFinal tenv0 term0
 --
 
     NewVector _ size origin -> do
-      [a, b, e] <- fresh [Stack, Value, Effect]
-      let type_ = (foldl' (.*) a (replicate size b) .-> a .* ("vector" :@ b)) e
-      let type' = zonkType tenvFinal type_
+      [a, b, e] <- fresh origin [Stack, Value, Effect]
+      let
+        type_ = funType origin
+          (foldl' (prodType origin) a (replicate size b))
+          (prodType origin a (TypeConstructor origin "vector" :@ b))
+          e
+        type' = zonkType tenvFinal type_
       return (NewVector (Just type') size origin, type_, tenv0)
 
 -- Pushing a value results in a stack with that value on top.
 
     Push _ value origin -> do
-      [a, e] <- fresh [Stack, Effect]
-      (value', t, tenv1) <- inferValue tenvFinal tenv0 value
-      let type_ = (a .-> a .* t) e
+      [a, e] <- fresh origin [Stack, Effect]
+      (value', t, tenv1) <- inferValue tenvFinal tenv0 origin value
+      let type_ = funType origin a (prodType origin a t) e
       let type' = zonkType tenvFinal type_
       return (Push (Just type') value' origin, type_, tenv1)
 
     Swap _ origin -> do
-      [a, b, c, e] <- fresh [Stack, Value, Value, Effect]
-      let type_ = (a .* b .* c .-> a .* c .* b) e
+      [a, b, c, e] <- fresh origin [Stack, Value, Value, Effect]
+      let
+        type_ = funType origin
+          (prodType origin (prodType origin a b) c)
+          (prodType origin (prodType origin a c) b)
+          e
       let type' = zonkType tenvFinal type_
       return (Drop (Just type') origin, type_, tenv0)
 
   where
 
   inferType' = inferType tenvFinal
-  fresh = foldrM (\k ts -> (: ts) <$> freshTv tenv0 k) []
+  fresh origin = foldrM (\k ts -> (: ts) <$> freshTv tenv0 origin k) []
 
 
 
 
-inferValue :: TypeEnv -> TypeEnv -> Value -> K (Value, Type, TypeEnv)
-inferValue tenvFinal tenv0 value = case value of
-  Boolean{} -> return (value, "bool", tenv0)
-  Character{} -> return (value, "char", tenv0)
+inferValue :: TypeEnv -> TypeEnv -> Origin -> Value -> K (Value, Type, TypeEnv)
+inferValue tenvFinal tenv0 origin value = case value of
+  Boolean{} -> return (value, TypeConstructor origin "bool", tenv0)
+  Character{} -> return (value, TypeConstructor origin "char", tenv0)
   Closed index -> return (value, tenvClosure tenv0 !! index, tenv0)
   Closure names term -> do
     let types = map (getClosed tenv0) names
@@ -2132,11 +2167,15 @@ inferValue tenvFinal tenv0 value = case value of
     (term', t1, tenv1) <- inferType tenvFinal localEnv term
     let tenv2 = tenv1 { tenvClosure = oldClosure }
     return (Closure names term', t1, tenv2)
-  Float{} -> return (value, "float", tenv0)
-  Integer{} -> return (value, "int", tenv0)
+  Float{} -> return (value, TypeConstructor origin "float", tenv0)
+  Integer{} -> return (value, TypeConstructor origin "int", tenv0)
   Local index -> return (value, tenvVs tenv0 !! index, tenv0)
   Quotation{} -> error "quotation should not appear during type inference"
-  Text{} -> return (value, "vector" :@ "char", tenv0)
+  Text{} -> return
+    ( value
+    , TypeConstructor origin "vector" :@ TypeConstructor origin "char"
+    , tenv0
+    )
   where
 
   getClosed :: TypeEnv -> Closed -> Type
@@ -2162,8 +2201,8 @@ inferCall tenvFinal tenv0 (QualifiedName name) origin
         )
     Just{} -> error "what is a non-quantified type doing as a type signature?"
     Nothing -> do
-      report $ Report origin
-        $ Pretty.hsep ["cannot infer type of", Pretty.quotes $ pPrint name]
+      report $ Report Error [Item origin
+        ["I can't find a type signature for the word", pQuote name]]
       halt
 inferCall _ _ _ _ = error "cannot infer type of non-qualified name"
 
@@ -2180,7 +2219,7 @@ inferIntrinsic = error "TODO: infer intrinsic"
 typeKind :: Type -> K Kind
 typeKind t = case t of
   -- TODON'T: hard-code these.
-  TypeConstructor constructor -> case constructor of
+  TypeConstructor _origin constructor -> case constructor of
     Constructor (Qualified qualifier unqualified)
       | qualifier == globalVocabulary -> case unqualified of
         "int" -> return $ Value
@@ -2194,18 +2233,23 @@ typeKind t = case t of
         "fail" -> return Label
         "join" -> return $ Label :-> Effect :-> Effect
         _ -> do
-          report $ Report Anywhere
-            $ Pretty.hsep ["cannot infer kind of", pPrint constructor]
+          report $ Report Error [Item (typeOrigin t)
+            ["I can't infer the kind of the constructor", pQuote constructor]]
           halt
     _ -> error "TODO: infer kinds properly"
-  TypeVar (Var _ k) -> return k
-  TypeConstant (Var _ k) -> return k
-  Forall _ t' -> typeKind t'
+  TypeVar _origin (Var _ k) -> return k
+  TypeConstant _origin (Var _ k) -> return k
+  Forall _origin _ t' -> typeKind t'
   a :@ b -> do
     ka <- typeKind a
     case ka of
       _ :-> k -> return k
-      _ -> fail $ unwords ["applying non-constructor", show a, "to type", show b]
+      _ -> do
+        report $ Report Error
+          [ Item (typeOrigin a) [pQuote a, "is not a constructor"]
+          , Item (typeOrigin b) ["so I can't apply it to the type", pQuote b]
+          ]
+        halt
 
 
 
@@ -2223,11 +2267,11 @@ typeKind t = case t of
 unifyType :: TypeEnv -> Type -> Type -> K TypeEnv
 unifyType tenv0 t1 t2 = case (t1, t2) of
   _ | t1 == t2 -> return tenv0
-  (TypeVar x, t) -> unifyTv tenv0 x t
+  (TypeVar origin x, t) -> unifyTv tenv0 origin x t
   (_, TypeVar{}) -> commute
   -- FIXME: Unify the kinds here?
-  (a, Forall (Var x k) t) -> do
-    (b, _, tenv1) <- instantiate tenv0 x k t
+  (a, Forall origin (Var x k) t) -> do
+    (b, _, tenv1) <- instantiate tenv0 origin x k t
     unifyType tenv1 a b
   (Forall{}, _) -> commute
 
@@ -2237,19 +2281,23 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
 --
 -- See: Row Unification
 
-  ("join" :@ l :@ r, s) -> do
+  (TypeConstructor _ "join" :@ l :@ r, s) -> do
     ms <- rowIso tenv0 l s
     case ms of
-      Just ("join" :@ _ :@ s', substitution, tenv1) -> case substitution of
-        Just (x, t)
-          | occurs tenv0 x (effectTail r) -> do
-            report $ Report Anywhere $ Pretty.hsep
-              ["cannot unify effects", pPrint t1, "and", pPrint t2]
-            halt
-          | otherwise -> let
-            tenv2 = tenv1 { tenvTvs = Map.insert x t $ tenvTvs tenv1 }
-            in unifyType tenv2 r s'
-        Nothing -> unifyType tenv1 r s'
+      Just (TypeConstructor _ "join" :@ _ :@ s', substitution, tenv1)
+        -> case substitution of
+          Just (x, t)
+            | occurs tenv0 x (effectTail r) -> do
+              report $ Report Error
+                [ Item (typeOrigin t1)
+                  ["I can't match the effect", pQuote t1]
+                , Item (typeOrigin t2) ["with the effect", pQuote t2]
+                ]
+              halt
+            | otherwise -> let
+              tenv2 = tenv1 { tenvTvs = Map.insert x t $ tenvTvs tenv1 }
+              in unifyType tenv2 r s'
+          Nothing -> unifyType tenv1 r s'
 
       -- HACK: Duplicates the remaining cases.
       _ -> case (t1, t2) of
@@ -2257,11 +2305,13 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
           tenv1 <- unifyType tenv0 a c
           unifyType tenv1 b d
         _ -> do
-          report $ Report Anywhere $ Pretty.hsep
-            ["cannot unify types", pPrint t1, "and", pPrint t2]
+          report $ Report Error
+            [ Item (typeOrigin t1) ["I can't match the type", pPrint t1]
+            , Item (typeOrigin t2) ["with the type", pPrint t2]
+            ]
           halt
 
-  (_, "join" :@ _ :@ _) -> commute
+  (_, TypeConstructor _ "join" :@ _ :@ _) -> commute
 
 -- We fall back to regular unification for value type constructors. This makes
 -- the somewhat iffy assumption that there is no higher-kinded polymorphism
@@ -2272,8 +2322,10 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
     unifyType tenv1 b d
 
   _ -> do
-    report $ Report Anywhere $ Pretty.hsep
-      ["cannot unify types", pPrint t1, "and", pPrint t2]
+    report $ Report Error
+      [ Item (typeOrigin t1) ["I can't match the type", pQuote t1]
+      , Item (typeOrigin t2) ["with the type", pQuote t2]
+      ]
     halt
 
 -- Unification is commutative. If we fail to handle a case, this can result in
@@ -2281,7 +2333,7 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
 
   where
   commute = unifyType tenv0 t2 t1
-  effectTail ("join" :@ _ :@ a) = effectTail a
+  effectTail (TypeConstructor _ "join" :@ _ :@ a) = effectTail a
   effectTail t = t
 
 
@@ -2298,25 +2350,22 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
 --
 -- See: Occurs Checks
 
-unifyTv :: TypeEnv -> Var -> Type -> K TypeEnv
-unifyTv tenv0 v@(Var x _) t = case t of
-  TypeVar (Var y _) | x == y -> return tenv0
+unifyTv :: TypeEnv -> Origin -> Var -> Type -> K TypeEnv
+unifyTv tenv0 origin v@(Var x _) t = case t of
+  TypeVar _origin (Var y _) | x == y -> return tenv0
   TypeVar{} -> declare
   _ -> if occurs tenv0 x t
-    then let
-      t' = zonkType tenv0 t
-      in do
-        report $ Report Anywhere $ Pretty.hsep $ case t' of
-          "prod" :@ _ :@ _ ->
-            [ "found mismatched stack depths solving"
-            , pPrint v, "~", pPrint t'
-            ]
-          _ ->
-            [ pPrint v, "~", pPrint t'
-            , "cannot be solved because"
-            , pPrint x, "occurs in", pPrint t'
-            ]
-        halt
+    then let t' = zonkType tenv0 t in do
+      report $ Report Error $
+        [ Item origin
+          ["I can't match the type", pQuote v, "with the type", pQuote t']
+        , Item (typeOrigin t')
+          ["because", pQuote v, "occurs in", pQuote t']
+        ] ++ case t' of
+          TypeConstructor _ "prod" :@ _ :@ _ -> [Item (typeOrigin t')
+            ["possibly due to a stack depth mismatch"]]
+          _ -> []
+      halt
     else declare
   where
   declare = case Map.lookup x $ tenvTvs tenv0 of
@@ -2330,12 +2379,13 @@ unifyTv tenv0 v@(Var x _) t = case t of
 
 unifyFunction :: TypeEnv -> Type -> K (Type, Type, Type, TypeEnv)
 unifyFunction tenv0 t = case t of
-  "fun" :@ a :@ b :@ e -> return (a, b, e, tenv0)
+  TypeConstructor _ "fun" :@ a :@ b :@ e -> return (a, b, e, tenv0)
   _ -> do
-    a <- freshTv tenv0 Stack
-    b <- freshTv tenv0 Stack
-    e <- freshTv tenv0 Effect
-    tenv1 <- unifyType tenv0 t ((a .-> b) e)
+    let origin = typeOrigin t
+    a <- freshTv tenv0 origin Stack
+    b <- freshTv tenv0 origin Stack
+    e <- freshTv tenv0 origin Effect
+    tenv1 <- unifyType tenv0 t $ funType origin a b e
     return (a, b, e, tenv1)
 
 
@@ -2355,25 +2405,26 @@ rowIso
 -- The "head" rule: a row which already begins with the label is trivially
 -- rewritten by the identity substitution.
 
-rowIso tenv0 lin rin@("join" :@ l :@ _)
+rowIso tenv0 lin rin@(TypeConstructor _ "join" :@ l :@ _)
   | l == lin = return $ Just (rin, Nothing, tenv0)
 
 -- The "swap" rule: a row which contains the label somewhere within, can be
 -- rewritten to place that label at the head.
 
-rowIso tenv0 l ("join" :@ l' :@ r)
+rowIso tenv0 l (TypeConstructor origin "join" :@ l' :@ r)
   | l /= l' = do
   ms <- rowIso tenv0 l r
   return $ case ms of
-    Just (r', substitution, tenv1) -> Just (l .| l' .| r', substitution, tenv1)
+    Just (r', substitution, tenv1) -> Just
+      (joinType origin l $ joinType origin l' r', substitution, tenv1)
     Nothing -> Nothing
 
 -- The "var" rule: no label is present, so we cannot test for equality, and must
 -- return a fresh variable for the row tail.
 
-rowIso tenv0 l (TypeVar (Var a _)) = do
-  b <- freshTv tenv0 Effect
-  let res = l .| b
+rowIso tenv0 l (TypeVar origin (Var a _)) = do
+  b <- freshTv tenv0 origin Effect
+  let res = joinType origin l b
   return $ Just (res, Just (a, res), tenv0)
 
 -- In any other case, the rows are not isomorphic.
@@ -2413,8 +2464,8 @@ typeFromSignature tenv signature0 = do
     , sigEnvVars = Map.empty
     } $ go signature0
   let
-    forallAnonymous = Forall
-    forallVar (var, _origin) = Forall var
+    forallAnonymous = Forall (signatureOrigin signature0)
+    forallVar (var, origin) = Forall origin var
   return
     $ foldr forallAnonymous
       (foldr forallVar type_ $ Map.elems $ sigEnvVars env)
@@ -2427,17 +2478,17 @@ typeFromSignature tenv signature0 = do
     FunctionSignature as bs es origin -> do
       r <- lift $ freshTypeId tenv
       let var = Var r Stack
-      let typeVar = TypeVar var
+      let typeVar = TypeVar origin var
       es' <- mapM (fromVar origin) es
       (me, es'') <- lift $ effectVar origin es'
-      Forall var <$> makeFunction typeVar as typeVar bs es'' me
-    QuantifiedSignature vars a _ -> do
+      Forall origin var <$> makeFunction origin typeVar as typeVar bs es'' me
+    QuantifiedSignature vars a origin -> do
       original <- get
       (envVars, vars') <- foldrM ((lift .) . declare)
         (sigEnvVars original, []) vars
       modify $ \ env -> env { sigEnvVars = envVars }
       a' <- go a
-      let result = foldr Forall a' vars'
+      let result = foldr (Forall origin) a' vars'
       put original
       return result
       where
@@ -2446,10 +2497,10 @@ typeFromSignature tenv signature0 = do
         :: (Unqualified, Kind, Origin)
         -> (Map Unqualified (Var, Origin), [Var])
         -> K (Map Unqualified (Var, Origin), [Var])
-      declare (name, kind, origin) (envVars, freshVars) = do
+      declare (name, kind, varOrigin) (envVars, freshVars) = do
         x <- freshTypeId tenv
         let var = Var x kind
-        return (Map.insert name (var, origin) envVars, var : freshVars)
+        return (Map.insert name (var, varOrigin) envVars, var : freshVars)
 
     SignatureVariable name origin -> fromVar origin name
     StackFunctionSignature r as s bs es origin -> do
@@ -2458,7 +2509,7 @@ typeFromSignature tenv signature0 = do
       s' <- var $ UnqualifiedName s
       es' <- mapM var es
       (me, es'') <- lift $ effectVar origin es'
-      makeFunction r' as s' bs es'' me
+      makeFunction origin r' as s' bs es'' me
 
   effectVar :: Origin -> [Type] -> K (Maybe Type, [Type])
   effectVar origin types = case findIndex isTypeVar types of
@@ -2466,12 +2517,10 @@ typeFromSignature tenv signature0 = do
       (preceding, type_ : following) -> case find isTypeVar following of
         Nothing -> return (Just type_, preceding ++ following)
         Just type' -> do
-          report $ Report origin $ Pretty.hsep
+          report $ Report Error [Item origin
             [ "this signature has multiple effect variables:"
-            , Pretty.quotes $ pPrint type_
-            , "and"
-            , Pretty.quotes $ pPrint type'
-            ]
+            , pQuote type_, "and", pQuote type'
+            ]]
           halt
       _ -> error "splitting effect row"
     Nothing -> return (Nothing, types)
@@ -2483,20 +2532,23 @@ typeFromSignature tenv signature0 = do
   fromVar origin (UnqualifiedName name) = do
     existing <- gets $ Map.lookup name . sigEnvVars
     case existing of
-      Just (var, _) -> return $ TypeVar var
+      Just (var, varOrigin) -> return $ TypeVar varOrigin var
       Nothing -> lift $ do
-        report $ Report origin $ "unknown or undeclared type variable"
-          Pretty.<+> Pretty.quotes (pPrint name)
+        report $ Report Error [Item origin
+          [ "I can't tell which type", pQuote name
+          , "refers to. Did you mean to add it as a type parameter?"
+          ]]
         halt
-  fromVar _origin (QualifiedName name)
-    = return $ TypeConstructor $ Constructor name
+  fromVar origin (QualifiedName name)
+    = return $ TypeConstructor origin $ Constructor name
   fromVar _ name = error
     $ "incorrectly resolved name in signature: " ++ show name
 
   makeFunction
-    :: Type -> [Signature] -> Type -> [Signature] -> [Type] -> Maybe Type
+    :: Origin
+    -> Type -> [Signature] -> Type -> [Signature] -> [Type] -> Maybe Type
     -> StateT SignatureEnv K Type
-  makeFunction r as s bs es me = do
+  makeFunction origin r as s bs es me = do
     as' <- mapM go as
     bs' <- mapM go bs
     e <- case me of
@@ -2505,12 +2557,13 @@ typeFromSignature tenv signature0 = do
         ex <- lift $ freshTypeId tenv
         let var = Var ex Effect
         modify $ \ env -> env { sigEnvAnonymous = var : sigEnvAnonymous env }
-        return $ TypeVar var
-    return $ (stack r as' .-> stack s bs') $ foldr (.|) e es
+        return $ TypeVar origin var
+    return $ funType origin (stack r as') (stack s bs')
+      $ foldr (joinType origin) e es
     where
 
     stack :: Type -> [Type] -> Type
-    stack = foldl' (.*)
+    stack = foldl' $ prodType origin
 
 data SignatureEnv = SignatureEnv
   { sigEnvAnonymous :: [Var]
@@ -2538,12 +2591,12 @@ zonkType tenv0 = recur
   where
   recur t = case t of
     TypeConstructor{} -> t
-    TypeVar (Var x k) -> case Map.lookup x (tenvTvs tenv0) of
-      Just (TypeVar (Var x' _)) | x == x' -> TypeVar (Var x k)
+    TypeVar origin (Var x k) -> case Map.lookup x (tenvTvs tenv0) of
+      Just (TypeVar _origin (Var x' _)) | x == x' -> TypeVar origin (Var x k)
       Just t' -> recur t'
       Nothing -> t
     TypeConstant{} -> t
-    Forall (Var x k) t' -> Forall (Var x k)
+    Forall origin (Var x k) t' -> Forall origin (Var x k)
       $ zonkType tenv0 { tenvTvs = Map.delete x (tenvTvs tenv0) } t'
     a :@ b -> recur a :@ recur b
 
@@ -2628,10 +2681,11 @@ zonkValue tenv0 = go
 -- variables were instantiated, in order. Because type identifiers are globally
 -- unique, we know a fresh type variable will never be erroneously captured.
 
-instantiate :: TypeEnv -> TypeId -> Kind -> Type -> K (Type, Type, TypeEnv)
-instantiate tenv0 x k t = do
+instantiate
+  :: TypeEnv -> Origin -> TypeId -> Kind -> Type -> K (Type, Type, TypeEnv)
+instantiate tenv0 origin x k t = do
   ia <- freshTypeId tenv0
-  let a = TypeVar (Var ia k)
+  let a = TypeVar origin $ Var ia k
   replaced <- replaceTv tenv0 x a t
   return (replaced, a, tenv0)
 
@@ -2642,9 +2696,9 @@ instantiate tenv0 x k t = do
 -- instantiate the rank-1 quantifiers; all other quantifiers are irrelevant.
 
 instantiatePrenex :: TypeEnv -> Type -> K (Type, [Type], TypeEnv)
-instantiatePrenex tenv0 _q@(Forall (Var x k) t)
+instantiatePrenex tenv0 _q@(Forall origin (Var x k) t)
   = {- while ["instantiating", show q] $ -} do
-    (t', a, tenv1) <- instantiate tenv0 x k t
+    (t', a, tenv1) <- instantiate tenv0 origin x k t
     (t'', as, tenv2) <- instantiatePrenex tenv1 t'
     return (t'', a : as, tenv2)
 instantiatePrenex tenv0 t = return (t, [], tenv0)
@@ -2681,25 +2735,25 @@ instantiatePrenex tenv0 t = return (t, [], tenv0)
 regeneralize :: TypeEnv -> Type -> Type
 regeneralize tenv t = let
   (t', vars) = runWriter $ go t
-  in foldr (uncurry ((Forall .) . Var)) t'
+  in foldr (uncurry ((Forall (typeOrigin t) .) . Var)) t'
     $ foldr (deleteBy ((==) `on` fst)) (Map.toList (freeTvks t')) vars
   where
   go :: Type -> Writer [(TypeId, Kind)] Type
   go t' = case t' of
-    TypeConstructor "fun" :@ a :@ b :@ e
-      | TypeVar (Var c k) <- bottommost a
-      , TypeVar (Var d _) <- bottommost b
+    TypeConstructor _ "fun" :@ a :@ b :@ e
+      | TypeVar origin (Var c k) <- bottommost a
+      , TypeVar _ (Var d _) <- bottommost b
       , c == d
       -> do
         when (occurrences tenv c t == 2) $ tell [(c, k)]
         a' <- go a
         b' <- go b
         e' <- go e
-        return $ Forall (Var c k) ((a' .-> b') e')
-    TypeConstructor "prod" :@ a :@ b -> do
+        return $ Forall origin (Var c k) $ funType origin a' b' e'
+    c@(TypeConstructor _ "prod") :@ a :@ b -> do
       a' <- go a
       b' <- go b
-      return $ "prod" :@ a' :@ b'
+      return $ c :@ a' :@ b'
     Forall{} -> error "cannot regeneralize higher-ranked type"
     a :@ b -> (:@) <$> go a <*> go b
     _ -> return t'
@@ -2708,7 +2762,7 @@ regeneralize tenv t = let
 
 
 bottommost :: Type -> Type
-bottommost (TypeConstructor "prod" :@ a :@ _) = bottommost a
+bottommost (TypeConstructor _ "prod" :@ a :@ _) = bottommost a
 bottommost a = a
 
 
@@ -2741,10 +2795,13 @@ instanceCheck inferredScheme declaredScheme = do
   unless (Set.null bad) failure
   return ()
   where
-  failure = report $ Report Anywhere $ Pretty.hsep
-    [ pPrint inferredScheme
-    , "is not an instance of"
-    , pPrint declaredScheme
+  failure = report $ Report Error
+    [ Item (typeOrigin inferredScheme)
+      ["the inferred type", pQuote inferredScheme]
+    , Item (typeOrigin declaredScheme)
+      [ "is not an instance of the declared type signature"
+      , pQuote declaredScheme
+      ]
     ]
 
 
@@ -2754,15 +2811,16 @@ instanceCheck inferredScheme declaredScheme = do
 
 skolemize :: TypeEnv -> Type -> K (Set TypeId, Type)
 skolemize tenv0 t = case t of
-  Forall (Var x k) t' -> do
+  Forall origin (Var x k) t' -> do
     c <- freshTypeId tenv0
-    let tenv1 = tenv0 { tenvTvs = Map.insert x (TypeConstant (Var c k)) (tenvTvs tenv0) }
-    (c', t'') <- skolemize tenv1 (zonkType tenv1 t')
+    let tenv1 = tenv0 { tenvTvs = Map.insert x (TypeConstant origin $ Var c k)
+        $ tenvTvs tenv0 }
+    (c', t'') <- skolemize tenv1 $ zonkType tenv1 t'
     return (Set.insert c c', t'')
   -- TForall _ t' -> skolemize tenv0 t'
-  "fun" :@ a :@ b :@ e -> do
+  TypeConstructor origin "fun" :@ a :@ b :@ e -> do
     (ids, b') <- skolemize tenv0 b
-    return (ids, (a .-> b') e)
+    return (ids, funType origin a b' e)
   _ -> return (Set.empty, t)
 
 
@@ -2772,13 +2830,13 @@ skolemize tenv0 t = case t of
 -- that a function type is contravariant in its input type.
 
 subsumptionCheck :: TypeEnv -> Type -> Type -> K TypeEnv
-subsumptionCheck tenv0 (Forall (Var x k) t) t2 = do
-  (t1, _, tenv1) <- instantiate tenv0 x k t
+subsumptionCheck tenv0 (Forall origin (Var x k) t) t2 = do
+  (t1, _, tenv1) <- instantiate tenv0 origin x k t
   subsumptionCheck tenv1 t1 t2
-subsumptionCheck tenv0 t1 ("fun" :@ a :@ b :@ e) = do
+subsumptionCheck tenv0 t1 (TypeConstructor _ "fun" :@ a :@ b :@ e) = do
   (a', b', e', tenv1) <- unifyFunction tenv0 t1
   subsumptionCheckFun tenv1 a b e a' b' e'
-subsumptionCheck tenv0 ("fun" :@ a' :@ b' :@ e') t2 = do
+subsumptionCheck tenv0 (TypeConstructor _ "fun" :@ a' :@ b' :@ e') t2 = do
   (a, b, e, tenv1) <- unifyFunction tenv0 t2
   subsumptionCheckFun tenv1 a b e a' b' e'
 subsumptionCheck tenv0 t1 t2 = unifyType tenv0 t1 t2
@@ -2944,8 +3002,8 @@ instantiateExpr tenv = foldlM go
 --     Λβ:*. dup
 
 quantifyTerm :: Type -> Term -> Term
-quantifyTerm (Forall (Var x Value) t) e = Generic x (quantifyTerm t e) Anywhere
-quantifyTerm (Forall _ t) e = quantifyTerm t e
+quantifyTerm (Forall origin (Var x Value) t) e = Generic x (quantifyTerm t e) origin
+quantifyTerm (Forall _ _ t) e = quantifyTerm t e
 quantifyTerm _ e = e
 
 
@@ -2965,14 +3023,14 @@ replaceTv :: TypeEnv -> TypeId -> Type -> Type -> K Type
 replaceTv tenv0 x a = recur
   where
   recur t = case t of
-    Forall (Var x' k) t'
+    Forall origin (Var x' k) t'
       | x == x' -> return t
-      | x' `Set.notMember` freeTvs t' -> Forall (Var x' k) <$> recur t'
+      | x' `Set.notMember` freeTvs t' -> Forall origin (Var x' k) <$> recur t'
       | otherwise -> do
         z <- freshTypeId tenv0
-        t'' <- replaceTv tenv0 x' (TypeVar (Var z k)) t'
-        Forall (Var z k) <$> recur t''
-    TypeVar (Var x' _) | x == x' -> return a
+        t'' <- replaceTv tenv0 x' (TypeVar origin $ Var z k) t'
+        Forall origin (Var z k) <$> recur t''
+    TypeVar _ (Var x' _) | x == x' -> return a
     m :@ n -> (:@) <$> recur m <*> recur n
     _ -> return t
 
@@ -3017,9 +3075,9 @@ freeTvs = Set.fromList . Map.keys . freeTvks
 freeTvks :: Type -> Map TypeId Kind
 freeTvks t = case t of
   TypeConstructor{} -> Map.empty
-  TypeVar (Var x k) -> Map.singleton x k
+  TypeVar _ (Var x k) -> Map.singleton x k
   TypeConstant{} -> Map.empty
-  Forall (Var x _) t' -> Map.delete x (freeTvks t')
+  Forall _ (Var x _) t' -> Map.delete x $ freeTvks t'
   a :@ b -> Map.union (freeTvks a) (freeTvks b)
 
 
@@ -3042,11 +3100,11 @@ occurrences tenv0 x = recur
   where
   recur t = case t of
     TypeConstructor{} -> 0
-    TypeVar (Var y _) -> case Map.lookup y (tenvTvs tenv0) of
+    TypeVar _ (Var y _) -> case Map.lookup y (tenvTvs tenv0) of
       Nothing -> if x == y then 1 else 0
       Just t' -> recur t'
     TypeConstant{} -> 0
-    Forall (Var x' _) t' -> if x == x' then 0 else recur t'
+    Forall _ (Var x' _) t' -> if x == x' then 0 else recur t'
     a :@ b -> recur a + recur b
 
 occurs :: TypeEnv -> TypeId -> Type -> Bool
@@ -3269,18 +3327,21 @@ instance Pretty Signature where
 
 instance Pretty Type where
   pPrint type_ = case type_ of
-    c :@ a :@ b :@ e | c == "fun" -> Pretty.parens
+    TypeConstructor _ "fun" :@ a :@ b :@ e -> Pretty.parens
       $ Pretty.hsep [pPrint a, "->", pPrint b, pPrint e]
-    c :@ a :@ b | c == "prod" -> Pretty.hcat [pPrint a, ", ", pPrint b]
-    c :@ (TypeVar var) :@ b | c == "join" -> Pretty.hsep [pPrint var, pPrint b]
-    c :@ a :@ b | c == "join" -> Pretty.hcat ["+", pPrint a, " ", pPrint b]
+    TypeConstructor _ "prod" :@ a :@ b
+      -> Pretty.hcat [pPrint a, ", ", pPrint b]
+    TypeConstructor _ "join" :@ TypeVar _ var :@ b
+      -> Pretty.hsep [pPrint var, pPrint b]
+    TypeConstructor _ "join" :@ a :@ b
+      -> Pretty.hcat ["+", pPrint a, " ", pPrint b]
     a :@ b -> Pretty.hcat [pPrint a, prettyAngles $ pPrint b]
-    TypeConstructor constructor -> pPrint constructor
-    TypeVar var -> pPrint var
-    TypeConstant var -> pPrint var
+    TypeConstructor _ constructor -> pPrint constructor
+    TypeVar _ var -> pPrint var
+    TypeConstant _ var -> pPrint var
     Forall{} -> prettyForall type_ []
       where
-      prettyForall (Forall x t) vars = prettyForall t (x : vars)
+      prettyForall (Forall _ x t) vars = prettyForall t (x : vars)
       prettyForall t vars = Pretty.hcat
         [ prettyAngles $ prettyList $ map pPrint vars
         , Pretty.parens $ pPrint t
@@ -3315,6 +3376,17 @@ prettyAngles doc = Pretty.hcat [Pretty.char '<', doc, Pretty.char '>']
 prettyList :: [Pretty.Doc] -> Pretty.Doc
 prettyList = Pretty.hcat . intersperse ", "
 
+pQuote :: (Pretty a) => a -> Pretty.Doc
+pQuote = Pretty.quotes . pPrint
+
+oxfordOr :: [Pretty.Doc] -> Pretty.Doc
+oxfordOr [] = ""
+oxfordOr [x] = x
+oxfordOr [x, y] = Pretty.hcat [x, "or", y]
+oxfordOr [x, y, z] = Pretty.hcat [x, ", ", y, ", or ", z]
+oxfordOr (x : xs) = Pretty.hcat [x, ", ", oxfordOr xs]
+
+
 
 
 
@@ -3329,7 +3401,14 @@ newtype K a = K { runK :: Env -> IO (Maybe a) }
 
 data Env = Env { envContext :: [Report], envReports :: IORef [[Report]] }
 
-data Report = Report !Origin !Pretty.Doc
+data Report = Report !Category [Item]
+  deriving (Eq)
+
+data Item = Item !Origin [Pretty.Doc]
+  deriving (Eq)
+
+data Category = Note | Warning | Error
+  deriving (Eq)
 
 instance Functor K where
   fmap f (K ax) = K (fmap (fmap f) . ax)
@@ -3351,8 +3430,7 @@ instance Monad K where
     case mx of
       Nothing -> return Nothing
       Just x -> runK (f x) env
-  -- FIXME: Use better origin.
-  fail = (>> halt) . report . Report Anywhere . Pretty.text
+  fail = error "do not use 'fail'"
 
 instance MonadFix K where
   mfix k = K $ \env -> do
@@ -3384,9 +3462,51 @@ while :: Report -> K a -> K a
 while prefix action = K $ \ env
   -> runK action env { envContext = prefix : envContext env }
 
+reportParseError :: Parsec.ParseError -> Report
+reportParseError parseError = Report Error
+  $ unexpecteds ++ if null expected then [] else [Item origin
+    [ "expecting"
+    , oxfordOr $ map (Pretty.quotes . Pretty.text) $ nub $ filter (not . null)
+      $ map Parsec.messageString expected
+    ]]
+  where
+
+  origin :: Origin
+  origin = Range
+    { rangeBegin = Parsec.errorPos parseError
+    , rangeEnd = Parsec.errorPos parseError
+    }
+
+  sysUnexpected, unexpected, expected :: [Parsec.Message]
+  (sysUnexpected, unexpected, expected)
+    = flip evalState (Parsec.errorMessages parseError) $ (,,)
+      <$> state (span (Parsec.SysUnExpect "" ==))
+      <*> state (span (Parsec.UnExpect "" ==))
+      <*> state (span (Parsec.Expect "" ==))
+
+  unexpecteds :: [Item]
+  unexpecteds = ((++) `on` unexpectedMessages) sysUnexpected unexpected
+
+  unexpectedMessages :: [Parsec.Message] -> [Item]
+  unexpectedMessages = nub . map unexpectedMessage
+
+  unexpectedMessage :: Parsec.Message -> Item
+  unexpectedMessage message = let
+    string = Parsec.messageString message
+    in Item origin
+      [ "unexpected"
+      , if null string then "end of input"
+        else Pretty.quotes $ Pretty.text string
+      ]
+
 showReport :: Report -> String
-showReport (Report origin message)
-  = showOriginPrefix origin ++ Pretty.render message
+showReport (Report category messages) = unlines $ map showItem $ prefix messages
+  where
+  prefix (Item origin first : rest)
+    = Item origin (categoryPrefix category : first) : rest
+  prefix [] = []
+  showItem (Item origin message)
+    = showOriginPrefix origin ++ Pretty.render (Pretty.hsep message)
 
 showOriginPrefix :: Origin -> String
 showOriginPrefix (Range a b) = concat
@@ -3397,5 +3517,11 @@ showOriginPrefix (Range a b) = concat
   al = Parsec.sourceLine a
   bl = Parsec.sourceLine b
   ac = Parsec.sourceColumn a
-  bc = Parsec.sourceColumn b - 1
+  bc = Parsec.sourceColumn b
 showOriginPrefix _ = "<unknown location>: "
+
+categoryPrefix :: Category -> Pretty.Doc
+categoryPrefix category = case category of
+  Note -> "note: "
+  Warning -> "warning: "
+  Error -> "error: "
