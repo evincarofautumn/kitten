@@ -723,7 +723,7 @@ partitionElements = foldr go mempty
       { fragmentSynonyms = x : fragmentSynonyms acc }
 
 vocabularyParser :: Parser [Element]
-vocabularyParser = do
+vocabularyParser = (<?> "vocabulary definition") $ do
   parserMatch_ VocabToken
   original@(Qualifier outer) <- Parsec.getState
   (vocabularyName, _) <- nameParser
@@ -768,7 +768,7 @@ bracketedParser = Parsec.between
   (parserMatch VectorBeginToken) (parserMatch VectorEndToken)
 
 nameParser :: Parser (GeneralName, Fixity)
-nameParser = do
+nameParser = (<?> "name") $ do
   global <- isJust <$> Parsec.optionMaybe
     (parserMatch IgnoreToken <* parserMatch VocabLookupToken)
   parts <- ((,) Postfix <$> wordNameParser <|> (,) Infix <$> operatorNameParser)
@@ -789,15 +789,16 @@ nameParser = do
         unqualified), fixity)
 
 unqualifiedNameParser :: Parser Unqualified
-unqualifiedNameParser = wordNameParser <|> operatorNameParser
+unqualifiedNameParser = (<?> "unqualified name")
+  $ wordNameParser <|> operatorNameParser
 
 wordNameParser :: Parser Unqualified
-wordNameParser = parseOne $ \ token -> case token of
+wordNameParser = (<?> "word name") $ parseOne $ \ token -> case token of
   WordToken name _ _ -> Just name
   _ -> Nothing
 
 operatorNameParser :: Parser Unqualified
-operatorNameParser = do
+operatorNameParser = (<?> "operator name") $ do
   -- Rihtlice hi sind Angle gehatene, for ðan ðe hi engla wlite habbað.
   angles <- many $ parseOne $ \ token -> case token of
     AngleToken{} -> Just ">"
@@ -815,7 +816,7 @@ parseOne = Parsec.tokenPrim show advance
   advance sourcePos _ _ = sourcePos
 
 elementParser :: Parser Element
-elementParser = Parsec.choice
+elementParser = (<?> "top-level program element") $ Parsec.choice
   [ DataDefinitionElement <$> dataDefinitionParser
   , DefinitionElement <$> definitionParser
   , OperatorElement <$> operatorParser
@@ -823,7 +824,7 @@ elementParser = Parsec.choice
   ]
 
 synonymParser :: Parser Synonym
-synonymParser = (<?> "synonym") $ do
+synonymParser = (<?> "synonym definition") $ do
   origin <- getOrigin <* parserMatch_ SynonymToken
   from <- Qualified <$> Parsec.getState
     <*> (wordNameParser <|> operatorNameParser)
@@ -831,7 +832,7 @@ synonymParser = (<?> "synonym") $ do
   return $ Synonym from to origin
 
 operatorParser :: Parser Operator
-operatorParser = do
+operatorParser = (<?> "operator definition") $ do
   parserMatch_ InfixToken
   (associativity, precedence) <- Parsec.choice
     [ (,) Nonassociative <$> precedenceParser
@@ -872,7 +873,7 @@ constructorParser :: Parser DataConstructor
 constructorParser = (<?> "data constructor") $ do
   origin <- getOrigin <* parserMatch CaseToken
   name <- wordNameParser <?> "constructor name"
-  fields <- Parsec.option [] $ groupedParser
+  fields <- (<?> "constructor fields") $ Parsec.option [] $ groupedParser
     $ typeParser `Parsec.sepEndBy` parserMatch CommaToken
   return DataConstructor
     { constructorFields = fields
@@ -900,7 +901,8 @@ functionTypeParser = (<?> "function type") $ do
       rightTypes <- right
       return (FunctionSignature leftTypes rightTypes, origin)
     ]
-  sideEffects <- many $ parserMatchOperator "+" *> (fst <$> nameParser)
+  sideEffects <- (<?> "side effect labels")
+    $ many $ parserMatchOperator "+" *> (fst <$> nameParser)
   return (stackEffect sideEffects origin)
   where
 
@@ -994,7 +996,7 @@ blockContentsParser = do
   return $ foldr (Compose Nothing) (Identity Nothing origin') terms
 
 termParser :: Parser Term
-termParser = do
+termParser = (<?> "expression") $ do
   origin <- getOrigin
   Parsec.choice
     [ Parsec.try (uncurry (Push Nothing) <$> parseOne toLiteral <?> "literal")
@@ -1046,10 +1048,10 @@ termParser = do
     ]
 
   vectorParser :: Parser Term
-  vectorParser = do
+  vectorParser = (<?> "vector literal") $ do
     vectorOrigin <- getOrigin
     elements <- bracketedParser
-      (termParser `Parsec.sepEndBy` parserMatch CommaToken) <?> "vector"
+      $ termParser `Parsec.sepEndBy` parserMatch CommaToken
     return $ compose vectorOrigin $ elements
       ++ [NewVector Nothing (length elements) vectorOrigin]
 
@@ -1088,7 +1090,7 @@ termParser = do
       Nothing -> match
 
   ifParser :: Parser Term
-  ifParser = (<?> "if") $ do
+  ifParser = (<?> "if-else expression") $ do
     ifOrigin <- getOrigin <* parserMatch IfToken
     mCondition <- Parsec.optionMaybe groupParser <?> "condition"
     ifBody <- blockParser
@@ -1406,7 +1408,7 @@ resolveNames fragment = do
             let global = Qualified globalVocabulary unqualified
             if isDefined global then return (QualifiedName global) else do
               lift $ report $ Report Error [Item origin
-                ["the", thing, pQuote name, "is not defined"]]
+                ["the unqualified", thing, pQuote name, "is not defined"]]
               return name
 
 -- A qualified name must be fully qualified, and may refer to an intrinsic or a
