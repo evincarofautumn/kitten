@@ -4,13 +4,25 @@ data int { /* ... */ }
 
 data io { /* ... */ }
 
+def call<R..., S..., +E> (R..., (R... -> S... +E) -> S... +E):
+  _::magic
+
+def push_back<A> (vector<A>, A -> vector<A>):
+  _::magic
+
+def pop_back<A> (vector<A> -> optional<pair<vector<A>, A>>):
+  _::magic
+
 def foo (->) {
   [1, 2, 3]
 }
 
-data maybe<A>:
-  case nothing
-  case just (A)
+data pair<A>:
+  case pair (A, A)
+
+data optional<A>:
+  case none
+  case some (A)
 
 def + (int, int -> int) { /* ... */ }
 infix right 6 +
@@ -34,7 +46,6 @@ def foo2 (int, int -> int) { 1 >>> 2 }
 def sqrt (int -> int) { /* ... */ }
 
 def say<a> (a -> +io) { /* ... */ }
-def call<r..., s..., +e> (r..., (r... -> s... +e) -> s... +e) { /* ... */ }
 
 def scope (-> +io) {
   1000 -> x1;
@@ -73,7 +84,14 @@ def quadratic (int, int, int -> int):
 
 def concat<A> (vector<vector<A>> -> vector<A>) { /* ... */ }
 
-def map<R..., A, B, +E> (R..., vector<A>, <S...> (S..., A -> S..., B +E) -> R..., vector<B> +E) { /* ... */ }
+def map<R..., A, B, +E> (R..., vector<A>, <S...> (S..., A -> S..., B +E) -> R..., vector<B> +E):
+  -> xs f;
+  match (xs pop_back):
+    case optional::some -> ys y:
+      ys f map
+      y f call
+      push_back
+    case optional::none: []
 
 /*
 
