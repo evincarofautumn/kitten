@@ -72,15 +72,14 @@ compile paths = do
   checkpoint
   parsed <- mconcat <$> zipWithM parse paths laidout
   checkpoint
-  resolved <- resolveNames parsed
+  desugared <- desugarDataDefinitions parsed
+  resolved <- resolveNames desugared
+  liftIO $ putStrLn $ Pretty.render $ pPrint resolved
   checkpoint
   postfix <- desugarInfix resolved
   checkpoint
   let scoped = scope postfix
-  desugared <- desugarDataDefinitions scoped
-  -- TODO:
-  -- infer types
-  inferred <- inferTypes desugared
+  inferred <- inferTypes scoped
   checkpoint
   -- lift closures into top-level definitions
   --   (possibly introducing a new "Flat" term type)
@@ -1266,7 +1265,9 @@ instance IsString Unqualified where
 
 type LocalIndex = Int
 
-data Intrinsic = AddIntrinsic
+data Intrinsic
+  = AddIntrinsic
+  | MagicIntrinsic
   deriving (Eq, Ord, Show)
 
 type Resolved a = StateT [Unqualified] K a
@@ -1415,9 +1416,15 @@ resolveNames fragment = do
       Just intrinsic -> return (IntrinsicName intrinsic)
       Nothing -> do
         if isDefined qualified then return name else do
-          lift $ report $ Report Error [Item origin
-            ["the", thing, pQuote name, "is not defined"]]
-          return name
+          let
+            qualified' = case (vocabulary, qualifierName qualified) of
+              (Qualifier prefix, Qualifier suffix)
+                -> Qualified (Qualifier (prefix ++ suffix))
+                  $ unqualifiedName qualified
+          if isDefined qualified' then return $ QualifiedName qualified' else do
+            lift $ report $ Report Error [Item origin
+              ["the qualified", thing, pQuote name, "is not defined"]]
+            return name
 
     LocalName{} -> error "local name should not appear before name resolution"
     IntrinsicName{} -> error
@@ -1437,6 +1444,8 @@ intrinsicFromName :: Qualified -> Maybe Intrinsic
 intrinsicFromName name = case name of
   Qualified qualifier (Unqualified "+")
     | qualifier == globalVocabulary -> Just AddIntrinsic
+  Qualified qualifier (Unqualified "magic")
+    | qualifier == globalVocabulary -> Just MagicIntrinsic
   _ -> Nothing
 
 qualifierFromName :: Qualified -> Qualifier
@@ -2204,6 +2213,37 @@ inferCall tenvFinal tenv0 (QualifiedName name) origin
       report $ Report Error [Item origin
         ["I can't find a type signature for the word", pQuote name]]
       halt
+
+inferCall tenvFinal tenv0 name@(IntrinsicName intrinsic) origin
+  = case intrinsic of
+    AddIntrinsic -> do
+      a <- freshTv tenv0 origin Stack
+      e <- freshTv tenv0 origin Effect
+      let
+        type_ = funType origin
+          (prodType origin
+            (prodType origin a (TypeConstructor origin "int"))
+            (TypeConstructor origin "int"))
+          (prodType origin a (TypeConstructor origin "int"))
+          e
+        type' = zonkType tenvFinal type_
+      returnCall type_ type'
+    MagicIntrinsic -> do
+      a <- freshTv tenv0 origin Stack
+      b <- freshTv tenv0 origin Stack
+      e <- freshTv tenv0 origin Effect
+      let
+        type_ = funType origin a b e
+        type' = zonkType tenvFinal type_
+      returnCall type_ type'
+
+  where
+
+  -- FIXME: Generate instantiation.
+  returnCall type_ type' = return
+    (Call (Just type') Postfix name [] origin, type_, tenv0)
+
+
 inferCall _ _ _ _ = error "cannot infer type of non-qualified name"
 
 
@@ -3242,11 +3282,24 @@ instance Pretty Term where
       Pretty.<+> pPrint name
       Pretty.<> ";"
       Pretty.$+$ pPrint body
-    Match{} -> error "TODO: pretty-print match expressions"
+    Match _ cases mElse _ -> Pretty.vcat
+      [ "match:"
+      , Pretty.nest 4 $ Pretty.vcat $ map pPrint cases
+        ++ [pPrint else_ | Just else_ <- [mElse]]
+      ]
     New _ index _ -> "new." Pretty.<> pPrint index
     NewVector _ size _ -> "new.vec." Pretty.<> pPrint size
     Push _ value _ -> pPrint value
     Swap{} -> "swap"
+
+instance Pretty Case where
+  pPrint (Case name body _) = Pretty.vcat
+    [ Pretty.hcat ["case ", pPrint name, ":"]
+    , Pretty.nest 4 $ pPrint body
+    ]
+
+instance Pretty Else where
+  pPrint (Else body _) = Pretty.vcat ["else:", Pretty.nest 4 $ pPrint body]
 
 instance Pretty Value where
   pPrint value = case value of
@@ -3291,7 +3344,9 @@ instance Pretty GeneralName where
     IntrinsicName intrinsic -> pPrint intrinsic
 
 instance Pretty Intrinsic where
-  pPrint _ = error "TODO: pretty-print intrinsic names"
+  pPrint intrinsic = case intrinsic of
+    AddIntrinsic -> "_::+"
+    MagicIntrinsic -> "_::magic"
 
 -- FIXME: Real instance.
 instance Pretty Synonym where
