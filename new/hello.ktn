@@ -1,8 +1,25 @@
-data vector<A> { /* ... */ }
+data vector<A> {}
 
-data int { /* ... */ }
+data int {}
+data bool {}
+data io {}
+data fail {}
 
-data io { /* ... */ }
+def foo (-> vector<int>) {
+  [1, 2]
+}
+
+def dup<A> (A -> A, A):
+  -> x;
+  x x
+
+def drop<A> (A ->):
+  -> _;
+
+def both<A, B, C, D, +E> (A, B, (A -> C +E), (B -> D +E) -> C, D +E):
+  -> x y f g;
+  x f call
+  y g call
 
 def call<R..., S..., +E> (R..., (R... -> S... +E) -> S... +E):
   _::magic
@@ -13,39 +30,44 @@ def push_back<A> (vector<A>, A -> vector<A>):
 def pop_back<A> (vector<A> -> optional<pair<vector<A>, A>>):
   _::magic
 
-def foo (->) {
-  [1, 2, 3]
-}
+data pair<A, B>:
+  case pair (A, B)
 
-data pair<A>:
-  case pair (A, A)
+def from_pair<A, B> (pair<A, B> -> A, B):
+  _::magic
 
 data optional<A>:
   case none
   case some (A)
 
-def + (int, int -> int) { /* ... */ }
+def is_some<A> (optional<A> -> bool):
+  _::magic
+
+def from_some<A> (optional<A> -> A):
+  _::magic
+
+def + (int, int -> int) { _::magic }
 infix right 6 +
 
-def - (int, int -> int) { /* ... */ }
+def - (int, int -> int) { _::magic }
 infix left 6 -
 
-def * (int, int -> int) { /* ... */ }
+def * (int, int -> int) { _::magic }
 infix left 7 *
 
-def / (int, int -> int) { /* ... */ }
+def / (int, int -> int) { _::magic }
 infix left 7 /
 
-def >= (int, int -> int) { /* ... */ }
-def >> (int, int -> int) { /* ... */ }
-def >>= (int, int -> int) { /* ... */ }
-def >>> (int, int -> int) { /* ... */ }
-def foo1 (int, int -> int) { 1 >> 2 }
-def foo2 (int, int -> int) { 1 >>> 2 }
+def >= (int, int -> int) { _::magic }
+def >> (int, int -> int) { _::magic }
+def >>= (int, int -> int) { _::magic }
+def >>> (int, int -> int) { _::magic }
+def foo1 (-> int) { 1 >> 2 }
+def foo2 (-> int) { 1 >>> 2 }
 
-def sqrt (int -> int) { /* ... */ }
+def sqrt (int -> int) { _::magic }
 
-def say<a> (a -> +io) { /* ... */ }
+def say<a> (a -> +io) { _::magic }
 
 def scope (-> +io) {
   1000 -> x1;
@@ -82,45 +104,54 @@ def quadratic (int, int, int -> int):
 
 }
 
-def concat<A> (vector<vector<A>> -> vector<A>) { /* ... */ }
+def concat<A> (vector<vector<A>> -> vector<A>) { _::magic }
 
-def map<R..., A, B, +E> (R..., vector<A>, <S...> (S..., A -> S..., B +E) -> R..., vector<B> +E):
+def test<R..., +E> (R..., (R... -> R... +E) -> R... +E) {
+  if (true) {
+    -> f;
+    f call
+    f test
+  } else {
+    -> _;
+  }
+}
+
+// def map<R..., A, B, +E> (R..., vector<A>, <S...> (S..., A -> S..., B +E) -> R..., vector<B> +E)
+def map<A, B, +E> (vector<A>, (A -> B +E) -> vector<B> +E)
+{
+  -> xs f;
+  xs pop_back
+  dup
+  if (is_some) {
+    from_some from_pair
+    {f map} {f call} both push_back
+  } else {
+    drop []
+  }
+}
+
+/*
+// def map<R..., A, B, +E> (R..., vector<A>, (R..., A -> R..., B +E) -> R..., vector<B> +E):
+def map<A, B, +E> (vector<A>, (A -> B +E) -> vector<B> +E):
   -> xs f;
   match (xs pop_back):
-    case optional::some -> ys y:
+    case optional::some:
+      from_pair -> ys y;
       ys f map
       y f call
       push_back
-    case optional::none: []
-
-/*
-
-def map<a, b, +e> (vector a, (a -> b +e) -> vector b +e):
-  -> $xs $f;
-  $xs init_last { $f map } { $f call } both
-
-def map<a, b, +e> (vector a, (a -> b +e) -> vector b +e):
-  -> xs f;
-  xs init_last { f map } { f call } both
-
-define dup<S...,A,+E> (S..., A -> S..., A, A +E):
-  ->x;
-  x
-  x
-
-
-data maybe<T>:
-  case nothing ()
-  case just (T)
-
-define hello<S...> (S...->S...+io):
-  if (okay):
-    "hello world"
-  else:
-    "goodbye world"
-  say
-
-hello
-  "\
-" 0b1010 blah
+    case optional::none:
+      []
 */
+
+def optional_test (-> int +fail) {
+  1 optional::some
+  match {
+    case optional::some {
+      (+ 1)
+    }
+    case optional::none {
+      0
+    }
+  }
+}

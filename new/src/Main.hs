@@ -1099,17 +1099,14 @@ termParser = (<?> "expression") $ do
       condition <- groupParser <?> "condition"
       body <- blockParser
       return (condition, body, origin)
-    mElse <- Parsec.optionMaybe $ do
-      origin <- getOrigin <* parserMatch ElseToken
-      body <- blockParser
-      return (Push Nothing (Boolean True) origin, body, origin)
+    else_ <- Parsec.option (Identity Nothing ifOrigin)
+      $ parserMatch ElseToken *> blockParser
     let
       desugarCondition (condition, body, origin) acc
         = compose ifOrigin [condition, If Nothing body acc origin]
-    return $ foldr desugarCondition
-      (Identity Nothing ifOrigin)
-      ((fromMaybe (Identity Nothing ifOrigin) mCondition, ifBody, ifOrigin)
-        : elifs ++ maybeToList mElse)
+    return $ foldr desugarCondition else_
+      $ (fromMaybe (Identity Nothing ifOrigin) mCondition, ifBody, ifOrigin)
+      : elifs
 
   blockValue :: Parser Value
   blockValue = (<?> "quotation") $ do
@@ -1893,6 +1890,16 @@ typeOrigin type_ = case type_ of
   TypeConstant origin _ -> origin
   Forall origin _ _ -> origin
 
+setTypeOrigin :: Origin -> Type -> Type
+setTypeOrigin origin = go
+  where
+  go type_ = case type_ of
+    a :@ b -> go a :@ go b
+    TypeConstructor _ constructor -> TypeConstructor origin constructor
+    TypeVar _ var -> TypeVar origin var
+    TypeConstant _ var -> TypeConstant origin var
+    Forall _ var t -> Forall origin var $ go t
+
 newtype Constructor = Constructor Qualified
   deriving (Eq, Show)
 
@@ -1963,6 +1970,11 @@ data TypeEnv = TypeEnv
   , tenvCurrentType :: !(IORef TypeId)
   }
 
+instance Pretty TypeEnv where
+  pPrint tenv = Pretty.vcat
+    $ map (\ (v, t) -> Pretty.hsep [pPrint v, "~", pPrint t])
+    $ Map.toList $ tenvTvs tenv
+
 emptyTypeEnv :: TypeEnv
 emptyTypeEnv = TypeEnv
   { tenvTvs = Map.empty
@@ -2000,6 +2012,7 @@ inferTypes fragment = do
     infer = inferType0 declaredTypes
     go name (scheme, term) = do
       (term', scheme') <- infer term
+      liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["the inferred type of", pPrint name, "is", pPrint scheme']
       instanceCheck scheme' scheme
       let term'' = quantifyTerm scheme' term'
       -- FIXME: Should this be scheme or scheme'?
@@ -2020,7 +2033,8 @@ inferType0 sigs term = {- while ["inferring the type of", show term] $ -} do
   rec
     (term', t, tenvFinal) <- inferType tenvFinal
       emptyTypeEnv { tenvSigs = sigs } term
-  let regeneralized = regeneralize tenvFinal $ zonkType tenvFinal t
+  let zonked = zonkType tenvFinal t
+  let regeneralized = regeneralize tenvFinal zonked
   return (zonkTerm tenvFinal term', regeneralized)
 
 
@@ -2108,8 +2122,26 @@ inferType tenvFinal tenv0 term0
       let type' = zonkType tenvFinal type_
       return (Lambda (Just type') name term' origin, type_, tenv3)
 
-    Match _ _cases _mElse _origin -> error
-      "TODO: infer type of match expression"
+    Match _ cases mElse origin -> do
+      (cases', caseTypes, tenv1) <- foldrM inferCase' ([], [], tenv0) cases
+      (mElse', elseType, tenv2) <- case mElse of
+        Just (Else body elseOrigin) -> do
+          (body', bodyType, tenv') <- inferType' tenv1 body
+          return (Just (Else body' elseOrigin), bodyType, tenv')
+        Nothing -> do
+          [a, b, e] <- fresh origin [Stack, Stack, Effect]
+          let effect = joinType origin (TypeConstructor origin "fail") e
+          return (Nothing, funType origin a b effect, tenv1)
+      tenv3 <- foldrM (\ type_ tenv -> unifyType tenv elseType type_)
+        tenv2 caseTypes
+      let type_ = setTypeOrigin origin elseType
+      let type' = zonkType tenvFinal type_
+      return (Match (Just type') cases' mElse' origin, type_, tenv3)
+
+      where
+      inferCase' case_ (cases', types, tenv) = do
+        (case', type_, tenv') <- inferCase tenvFinal tenv case_
+        return (case' : cases', type_ : types, tenv')
 
 -- A 'new' expression simply tags some fields on the stack, so the most
 -- straightforward way to type it is as an unsafe cast. For now, we can rely on
@@ -2156,12 +2188,38 @@ inferType tenvFinal tenv0 term0
           (prodType origin (prodType origin a c) b)
           e
       let type' = zonkType tenvFinal type_
-      return (Drop (Just type') origin, type_, tenv0)
+      return (Swap (Just type') origin, type_, tenv0)
 
   where
-
   inferType' = inferType tenvFinal
   fresh origin = foldrM (\k ts -> (: ts) <$> freshTv tenv0 origin k) []
+
+
+
+
+-- A case in a 'match' expression is simply the inverse of a constructor:
+-- whereas a constructor takes some fields from the stack and produces
+-- an instance of a data type, a 'case' deconstructs an instance of a data type
+-- and produces the fields on the stack for the body of the case to consume.
+
+inferCase :: TypeEnv -> TypeEnv -> Case -> K (Case, Type, TypeEnv)
+inferCase tenvFinal tenv0 (Case qualified@(QualifiedName name) body origin) = do
+  (body', bodyType, tenv1) <- inferType tenvFinal tenv0 body
+  (a1, b1, e1, tenv2) <- unifyFunction tenv1 bodyType
+  case Map.lookup name $ tenvSigs tenv2 of
+    Just signature -> do
+      (a2, b2, e2, tenv3) <- unifyFunction tenv2 signature
+      -- Note that we swap the consumption and production of the constructor
+      -- to get the type of the deconstructor. The body consumes the fields.
+      tenv4 <- unifyType tenv3 a1 a2
+      tenv5 <- unifyType tenv4 e1 e2
+      let type_ = funType origin b2 b1 e1
+      -- FIXME: Should a case be annotated with a type?
+      -- let type' = zonkType tenvFinal type_
+      return (Case qualified body' origin, type_, tenv5)
+    Nothing -> error
+      "case constructor missing signature after name resolution"
+inferCase _ _ _ = error "case of non-qualified name after name resolution"
 
 
 
@@ -2203,11 +2261,12 @@ inferCall tenvFinal tenv0 (QualifiedName name) origin
   = case Map.lookup name $ tenvSigs tenv0 of
     Just t@Forall{} -> do
       (type_, params, tenv1) <- instantiatePrenex tenv0 t
+      let type' = setTypeOrigin origin type_
       params' <- filterM (fmap (Value ==) . typeKind) params
-      let type' = zonkType tenvFinal type_
+      let type'' = zonkType tenvFinal type'
       return
-        ( Call (Just type') Postfix (QualifiedName name) params' origin
-        , type_
+        ( Call (Just type'') Postfix (QualifiedName name) params' origin
+        , type'
         , tenv1
         )
     Just{} -> error "what is a non-quantified type doing as a type signature?"
@@ -2264,7 +2323,11 @@ typeKind t = case t of
   TypeConstructor _origin constructor -> case constructor of
     Constructor (Qualified qualifier unqualified)
       | qualifier == globalVocabulary -> case unqualified of
-        "int" -> return $ Value
+        "int" -> return Value
+        "bool" -> return Value
+        "char" -> return Value
+        "float" -> return Value
+        "text" -> return Value
         "fun" -> return $ Stack :-> Stack :-> Effect :-> Value
         "prod" -> return $ Stack :-> Value :-> Stack
         "vec" -> return $ Value :-> Value
@@ -2307,8 +2370,8 @@ typeKind t = case t of
 -- for value types, and row unification for effect types.
 
 unifyType :: TypeEnv -> Type -> Type -> K TypeEnv
-unifyType tenv0 t1 t2 = case (t1, t2) of
-  _ | t1 == t2 -> return tenv0
+unifyType tenv0 t1 t2 = case (t1', t2') of
+  _ | t1' == t2' -> return tenv0
   (TypeVar origin x, t) -> unifyTv tenv0 origin x t
   (_, TypeVar{}) -> commute
   -- FIXME: Unify the kinds here?
@@ -2331,9 +2394,9 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
           Just (x, t)
             | occurs tenv0 x (effectTail r) -> do
               report $ Report Error
-                [ Item (typeOrigin t1)
-                  ["I can't match the effect", pQuote t1]
-                , Item (typeOrigin t2) ["with the effect", pQuote t2]
+                [ Item (typeOrigin t1')
+                  ["I can't match the effect", pQuote t1']
+                , Item (typeOrigin t2') ["with the effect", pQuote t2']
                 ]
               halt
             | otherwise -> let
@@ -2342,14 +2405,14 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
           Nothing -> unifyType tenv1 r s'
 
       -- HACK: Duplicates the remaining cases.
-      _ -> case (t1, t2) of
+      _ -> case (t1', t2') of
         (a :@ b, c :@ d) -> do
           tenv1 <- unifyType tenv0 a c
           unifyType tenv1 b d
         _ -> do
           report $ Report Error
-            [ Item (typeOrigin t1) ["I can't match the type", pPrint t1]
-            , Item (typeOrigin t2) ["with the type", pPrint t2]
+            [ Item (typeOrigin t1') ["I can't match the type", pPrint t1']
+            , Item (typeOrigin t2') ["with the type", pPrint t2']
             ]
           halt
 
@@ -2365,8 +2428,8 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
 
   _ -> do
     report $ Report Error
-      [ Item (typeOrigin t1) ["I can't match the type", pQuote t1]
-      , Item (typeOrigin t2) ["with the type", pQuote t2]
+      [ Item (typeOrigin t1') ["I can't match the type", pQuote t1']
+      , Item (typeOrigin t2') ["with the type", pQuote t2']
       ]
     halt
 
@@ -2374,6 +2437,8 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
 -- an infinite loop.
 
   where
+  t1' = zonkType tenv0 t1
+  t2' = zonkType tenv0 t2
   commute = unifyType tenv0 t2 t1
   effectTail (TypeConstructor _ "join" :@ _ :@ a) = effectTail a
   effectTail t = t
@@ -2410,9 +2475,13 @@ unifyTv tenv0 origin v@(Var x _) t = case t of
       halt
     else declare
   where
+  declare = return tenv0 { tenvTvs = Map.insert x t $ tenvTvs tenv0 }
+
+{-
   declare = case Map.lookup x $ tenvTvs tenv0 of
     Just t2 -> unifyType tenv0 t t2
     Nothing -> return tenv0 { tenvTvs = Map.insert x t $ tenvTvs tenv0 }
+-}
 
 
 
@@ -2633,8 +2702,9 @@ zonkType tenv0 = recur
   where
   recur t = case t of
     TypeConstructor{} -> t
-    TypeVar origin (Var x k) -> case Map.lookup x (tenvTvs tenv0) of
-      Just (TypeVar _origin (Var x' _)) | x == x' -> TypeVar origin (Var x k)
+    TypeVar _origin (Var x _k) -> case Map.lookup x (tenvTvs tenv0) of
+      -- FIXME: Is this necessary?
+      -- Just (TypeVar _origin (Var x' _)) | x == x' -> TypeVar origin (Var x k)
       Just t' -> recur t'
       Nothing -> t
     TypeConstant{} -> t
@@ -2681,7 +2751,7 @@ zonkTerm tenv0 = go
     New tref index origin
       -> New (zonkMay tref) index origin
     NewVector tref size origin
-      -> New (zonkMay tref) size origin
+      -> NewVector (zonkMay tref) size origin
     Push tref value origin
       -> Push (zonkMay tref) (zonkValue tenv0 value) origin
     Swap tref origin
@@ -2796,7 +2866,8 @@ regeneralize tenv t = let
       a' <- go a
       b' <- go b
       return $ c :@ a' :@ b'
-    Forall{} -> error "cannot regeneralize higher-ranked type"
+    -- FIXME: This should descend into the quantified type.
+    Forall{} -> return t'
     a :@ b -> (:@) <$> go a <*> go b
     _ -> return t'
 
@@ -3272,7 +3343,8 @@ instance Pretty Term where
     Call _ _ name _params _ -> pPrint name
     Compose _ a b -> pPrint a Pretty.$+$ pPrint b
     Drop _ _ -> "drop"
-    Generic{} -> error "TODO: pretty-print generic expressions"
+    Generic name body _ -> Pretty.hsep
+      [prettyAngles $ pPrint name, pPrint body]
     Group a -> Pretty.parens (pPrint a)
     Identity{} -> Pretty.empty
     If _ a b _ -> "if:"
@@ -3468,11 +3540,11 @@ data Category = Note | Warning | Error
   deriving (Eq)
 
 instance Functor K where
-  fmap f (K ax) = K (fmap (fmap f) . ax)
+  fmap f (K ax) = K $ fmap (fmap f) . ax
 
 instance Applicative K where
   pure = K . const . return . Just
-  K af <*> K ax = K $ \env -> do
+  K af <*> K ax = K $ \ env -> do
     mf <- af env
     mx <- ax env
     return $ case (mf, mx) of
@@ -3482,7 +3554,7 @@ instance Applicative K where
 
 instance Monad K where
   return = K . const . return . Just
-  K ax >>= f = K $ \env -> do
+  K ax >>= f = K $ \ env -> do
     mx <- ax env
     case mx of
       Nothing -> return Nothing
@@ -3490,21 +3562,21 @@ instance Monad K where
   fail = error "do not use 'fail'"
 
 instance MonadFix K where
-  mfix k = K $ \env -> do
+  mfix k = K $ \ env -> do
     m <- newEmptyMVar
-    a <- unsafeInterleaveIO (takeMVar m)
+    a <- unsafeInterleaveIO $ takeMVar m
     mx <- runK (k a) env
     case mx of
       Nothing -> return Nothing
       Just x -> do
         putMVar m x
-        return (Just x)
+        return mx
 
 instance MonadIO K where
   liftIO = K . const . fmap Just
 
 checkpoint :: K ()
-checkpoint = K $ \env -> do
+checkpoint = K $ \ env -> do
   errors <- readIORef (envReports env)
   return (if null errors then Just () else Nothing)
 
@@ -3513,7 +3585,7 @@ report r = K $ \ env -> Just
   <$> modifyIORef (envReports env) ((r : envContext env) :)
 
 halt :: K a
-halt = K (const (return Nothing))
+halt = K $ const $ return Nothing
 
 while :: Report -> K a -> K a
 while prefix action = K $ \ env
