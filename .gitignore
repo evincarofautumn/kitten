@@ -3,6 +3,7 @@
 *~
 .*
 a.out
+**/cabal.sandbox.config
 
 /build
 /dist
