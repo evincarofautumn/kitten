@@ -72,16 +72,16 @@ compile paths = do
   checkpoint
   parsed <- mconcat <$> zipWithM parse paths laidout
   checkpoint
-  desugared <- desugarDataDefinitions parsed
-  resolved <- resolveNames desugared
-  liftIO $ putStrLn $ Pretty.render $ pPrint resolved
+  dataDesugared <- desugarDataDefinitions parsed
+  resolved <- resolveNames dataDesugared
   checkpoint
   postfix <- desugarInfix resolved
   checkpoint
   let scoped = scope postfix
   inferred <- inferTypes scoped
   checkpoint
-  -- lift closures into top-level definitions
+  desugared <- desugarDefinitions inferred
+  let quantified = quantifyTerms desugared
   --   (possibly introducing a new "Flat" term type)
   --   value representation: def a (...) { ... $(local.0, local.1){ q... } ... }
   --                      -> def a (...) { ... local.0 local.1 \a::lambda0 new.act ... }
@@ -95,7 +95,8 @@ compile paths = do
   -- generate instance declarations
   --   (so inference can know what's available in a precompiled module)
   -- generate code
-  return inferred
+  liftIO $ putStrLn $ Pretty.render $ pPrint quantified
+  return quantified
   where
 
   readFileUtf8 :: FilePath -> IO Text
@@ -653,6 +654,7 @@ data Term
   | Lambda !(Maybe Type) !Unqualified !Term !Origin         -- → x; e
   | Match !(Maybe Type) [Case] !(Maybe Else) !Origin        -- match { case C {...}... else {...} }
   | New !(Maybe Type) !ConstructorIndex !Origin             -- new.n
+  | NewClosure !(Maybe Type) !Int !Origin                   -- new.closure.n
   | NewVector !(Maybe Type) !Int !Origin                    -- new.vec.n
   | Push !(Maybe Type) !Value !Origin                       -- push v
   | Swap !(Maybe Type) !Origin                              -- swap
@@ -666,6 +668,7 @@ data Value
   | Float !Double
   | Integer !Integer
   | Local !LocalIndex
+  | Name !Qualified
   | Quotation !Term
   | Text !Text
   deriving (Show)
@@ -1173,6 +1176,7 @@ termOrigin term = case term of
   Intrinsic _ _ origin -> origin
   Lambda _ _ _ origin -> origin
   New _ _ origin -> origin
+  NewClosure _ _ origin -> origin
   NewVector _ _ origin -> origin
   Match _ _ _ origin -> origin
   Push _ _ origin -> origin
@@ -1332,6 +1336,7 @@ resolveNames fragment = do
           = Else <$> recur term <*> pure elseOrigin
 
       New{} -> return unresolved
+      NewClosure{} -> return unresolved
       NewVector{} -> return unresolved
       Push _ value origin -> Push Nothing
         <$> resolveValue vocabulary value <*> pure origin
@@ -1346,6 +1351,8 @@ resolveNames fragment = do
     Float{} -> return value
     Integer{} -> return value
     Local{} -> error "local name should not appear before name resolution"
+    -- FIXME: Maybe should be a GeneralName and require resolution.
+    Name{} -> return value
     Quotation term -> Quotation <$> resolveTerm vocabulary term
     Text{} -> return value
 
@@ -1534,6 +1541,7 @@ desugarInfix fragment = do
         desugarElse (Else body elseOrigin)
           = Else <$> desugarTerms' body <*> pure elseOrigin
       New{} -> return term
+      NewClosure{} -> return term
       NewVector{} -> return term
       Push _ value origin -> Push Nothing <$> desugarValue value <*> pure origin
       Swap{} -> return term
@@ -1547,6 +1555,7 @@ desugarInfix fragment = do
       Float{} -> return value
       Integer{} -> return value
       Local{} -> error "local name should not appear before infix desugaring"
+      Name{} -> return value
       Quotation body -> Quotation <$> desugarTerms' body
       Text{} -> return value
 
@@ -1626,16 +1635,18 @@ desugarInfix fragment = do
 
 
 
+newtype LambdaIndex = LambdaIndex Int
+
 desugarDataDefinitions :: Fragment -> K Fragment
 desugarDataDefinitions fragment = do
-  definitions <- fmap concat $ mapM desugarDefinition
+  definitions <- fmap concat $ mapM desugarDataDefinition
     $ fragmentDataDefinitions fragment
   return fragment { fragmentDefinitions
     = fragmentDefinitions fragment ++ definitions }
   where
 
-  desugarDefinition :: DataDefinition -> K [Definition]
-  desugarDefinition definition = mapM (uncurry desugarConstructor)
+  desugarDataDefinition :: DataDefinition -> K [Definition]
+  desugarDataDefinition definition = mapM (uncurry desugarConstructor)
     $ zip [0..] $ dataConstructors definition
     where
     desugarConstructor :: Int -> DataConstructor -> K Definition
@@ -1662,6 +1673,100 @@ desugarDataDefinitions fragment = do
       where
       origin = constructorOrigin constructor
       qualifier = qualifierFromName $ dataName definition
+
+
+
+
+----------------------------------------
+-- Quotation Desugaring
+----------------------------------------
+
+
+
+
+desugarDefinitions :: Program -> K Program
+desugarDefinitions program = do
+  definitions <- Map.fromList . concat <$> mapM (uncurry desugarDefinition)
+    (Map.toList $ programDefinitions program)
+  return Program { programDefinitions = definitions }
+  where
+
+  desugarDefinition
+    :: Qualified -> (Type, Term) -> K [(Qualified, (Type, Term))]
+  desugarDefinition name (type_, body) = do
+    (body', lifted) <- desugarTerm (qualifierFromName name) body
+    return $ (name, (type_, body')) : lifted
+
+  desugarTerm :: Qualifier -> Term -> K (Term, [(Qualified, (Type, Term))])
+  desugarTerm qualifier = flip evalStateT (LambdaIndex 0) . go
+    where
+    go
+      :: Term -> StateT LambdaIndex K (Term, [(Qualified, (Type, Term))])
+    go term = case term of
+      Call{} -> done
+      Compose _ a b -> do
+        (a', as) <- go a
+        (b', bs) <- go b
+        return (Compose Nothing a' b', as ++ bs)
+      Drop{} -> done
+      Generic{} -> error
+        "generic expression should not appear before desugaring"
+      Group{} -> error "group should not appear after infix desugaring"
+      Identity{} -> done
+      If _ a b origin -> do
+        (a', as) <- go a
+        (b', bs) <- go b
+        return (If Nothing a' b' origin, as ++ bs)
+      Intrinsic{} -> done
+      Lambda _ name a origin -> do
+        (a', as) <- go a
+        return (Lambda Nothing name a' origin, as)
+      Match _ cases mElse origin -> do
+        (cases', as) <- flip mapAndUnzipM cases
+          $ \ (Case name a caseOrigin) -> do
+            (a', xs) <- go a
+            return (Case name a' caseOrigin, xs)
+        (mElse', bs) <- case mElse of
+          Just (Else a elseOrigin) -> do
+            (a', xs) <- go a
+            return (Just (Else a' elseOrigin), xs)
+          Nothing -> return (Nothing, [])
+        return (Match Nothing cases' mElse' origin, concat as ++ bs)
+      New{} -> done
+      NewClosure{} -> done
+      NewVector{} -> done
+      -- FIXME: Should be Closure, not Quotation.
+      Push _ (Closure closed a) origin -> do
+        (a', as) <- go a
+        LambdaIndex index <- get
+        let
+          name = Qualified qualifier
+            $ Unqualified $ Text.pack $ "lambda" ++ show index
+        put $ LambdaIndex $ succ index
+        let
+          deducedType = case termType a of
+            Just t -> t
+            Nothing -> error "cannot lift quotation before type inference"
+          type_ = foldr (uncurry ((Forall origin .) . Var)) deducedType
+            $ Map.toList $ freeTvks deducedType
+        return
+          ( compose origin $ map pushClosed closed ++
+            [ Push Nothing (Name name) origin
+            , NewClosure Nothing (length closed) origin
+            ]
+          , (name, (type_, a')) : as
+          )
+        where
+
+        pushClosed :: Closed -> Term
+        pushClosed name = Push Nothing (case name of
+          ClosedLocal index -> Local index
+          ClosedClosure index -> Closed index) origin
+
+      Push{} -> done
+      Swap{} -> done
+      where
+      done = return (term, [])
 
 
 
@@ -1711,6 +1816,7 @@ scope fragment = fragment
           -> Else (recur a) elseOrigin) mElse)
         origin
       New{} -> term
+      NewClosure{} -> term
       NewVector{} -> term
       Push _ value origin -> Push Nothing (scopeValue stack value) origin
       Swap{} -> term
@@ -1724,6 +1830,7 @@ scope fragment = fragment
     Float{} -> value
     Integer{} -> value
     Local{} -> value
+    Name{} -> value
     Quotation body -> Closure (map ClosedLocal capturedNames) capturedTerm
       where
 
@@ -1784,6 +1891,7 @@ captureTerm term = case term of
       = Else <$> captureTerm a <*> pure elseOrigin
 
   New{} -> return term
+  NewClosure{} -> return term
   NewVector{} -> return term
   Push _ value origin -> Push Nothing <$> captureValue value <*> pure origin
   Swap{} -> return term
@@ -1812,6 +1920,7 @@ captureValue value = case value of
     return $ case closed of
       Nothing -> value
       Just index' -> Closed index'
+  Name{} -> return value
   Quotation term -> let
     inside env = env { scopeStack = 0 : scopeStack env }
     in Quotation <$> local inside (captureTerm term)
@@ -2014,9 +2123,8 @@ inferTypes fragment = do
       (term', scheme') <- infer term
       liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["the inferred type of", pPrint name, "is", pPrint scheme']
       instanceCheck scheme' scheme
-      let term'' = quantifyTerm scheme' term'
       -- FIXME: Should this be scheme or scheme'?
-      return (name, (scheme, term''))
+      return (name, (scheme, term'))
   definitions' <- mapM (uncurry go) definitions
   return Program { programDefinitions = Map.fromList definitions' }
 
@@ -2154,9 +2262,26 @@ inferType tenvFinal tenv0 term0
       let type' = zonkType tenvFinal type_
       return (New (Just type') constructor origin, type_, tenv0)
 
--- Unlike with 'new', we cannot simply type a 'new vector' expression as an
+-- Unlike with 'new', we cannot simply type a 'new closure' expression as an
 -- unsafe cast because we need to know its effect on the stack within the body
--- of a definition. So we type a 'new.vec.x' expression as:
+-- of a definition. So we type a 'new.closure.x' expression as:
+--
+--     ∀ρστα̂. ρ × α₀ × … × αₓ × (σ → τ) → ρ × (σ → τ)
+--
+
+    NewClosure _ size origin -> do
+      [a, b, c, d, e1, e2] <- fresh origin
+        [Stack, Value, Stack, Stack, Effect, Effect]
+      let
+        f = funType origin c d e1
+        type_ = funType origin
+          (foldl' (prodType origin) a (replicate size b ++ [f]))
+          (prodType origin a f)
+          e2
+        type' = zonkType tenvFinal type_
+      return (NewClosure (Just type') size origin, type_, tenv0)
+
+-- This is similar for 'new vector' expressions, which we type as:
 --
 --     ∀ρα. ρ × α₀ × … × αₓ → ρ × vector<α>
 --
@@ -2240,6 +2365,7 @@ inferValue tenvFinal tenv0 origin value = case value of
   Integer{} -> return (value, TypeConstructor origin "int", tenv0)
   Local index -> return (value, tenvVs tenv0 !! index, tenv0)
   Quotation{} -> error "quotation should not appear during type inference"
+  Name{} -> error "raw name should not appear during type inference"
   Text{} -> return
     ( value
     , TypeConstructor origin "vector" :@ TypeConstructor origin "char"
@@ -2355,6 +2481,29 @@ typeKind t = case t of
           , Item (typeOrigin b) ["so I can't apply it to the type", pQuote b]
           ]
         halt
+
+
+
+
+-- Deduces the explicit type of a term.
+
+termType :: Term -> Maybe Type
+termType term = case term of
+  Call t _ _ _ _ -> t
+  Compose t _ _ -> t
+  Drop t _ -> t
+  Generic _ term' _ -> termType term'
+  Group term' -> termType term'
+  Identity t _ -> t
+  If t _ _ _ -> t
+  Intrinsic t _ _ -> t
+  Lambda t _ _ _ -> t
+  Match t _ _ _ -> t
+  New t _ _ -> t
+  NewClosure t _ _ -> t
+  NewVector t _ _ -> t
+  Push t _ _ -> t
+  Swap t _ -> t
 
 
 
@@ -2750,6 +2899,8 @@ zonkTerm tenv0 = go
         = Else (go body) elseOrigin
     New tref index origin
       -> New (zonkMay tref) index origin
+    NewClosure tref index origin
+      -> NewClosure (zonkMay tref) index origin
     NewVector tref size origin
       -> NewVector (zonkMay tref) size origin
     Push tref value origin
@@ -2769,6 +2920,7 @@ zonkValue tenv0 = go
     Float{} -> value
     Integer{} -> value
     Local{} -> value
+    Name{} -> value
     Quotation body -> Quotation $ zonkTerm tenv0 body
     Text{} -> value
 
@@ -3115,9 +3267,16 @@ instantiateExpr tenv = foldlM go
 --     Λβ:*. dup
 
 quantifyTerm :: Type -> Term -> Term
-quantifyTerm (Forall origin (Var x Value) t) e = Generic x (quantifyTerm t e) origin
+quantifyTerm (Forall origin (Var x Value) t) e
+  = Generic x (quantifyTerm t e) origin
 quantifyTerm (Forall _ _ t) e = quantifyTerm t e
 quantifyTerm _ e = e
+
+quantifyTerms :: Program -> Program
+quantifyTerms program = Program
+  { programDefinitions = Map.map
+    (\ (type_, term) -> (type_, quantifyTerm type_ term))
+    $ programDefinitions program }
 
 
 
@@ -3362,6 +3521,7 @@ instance Pretty Term where
         ++ [pPrint else_ | Just else_ <- [mElse]]
       ]
     New _ index _ -> "new." Pretty.<> pPrint index
+    NewClosure _ size _ -> "new.closure." Pretty.<> pPrint size
     NewVector _ size _ -> "new.vec." Pretty.<> pPrint size
     Push _ value _ -> pPrint value
     Swap{} -> "swap"
@@ -3389,6 +3549,7 @@ instance Pretty Value where
     Float f -> Pretty.double f
     Integer i -> Pretty.integer i
     Local index -> "local." Pretty.<> Pretty.int index
+    Name n -> pPrint n
     Quotation body -> Pretty.braces $ pPrint body
     Text t -> Pretty.doubleQuotes $ Pretty.text $ Text.unpack t
 
