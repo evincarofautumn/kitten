@@ -568,8 +568,8 @@ typeKind t = case t of
 -- for value types, and row unification for effect types.
 
 unifyType :: TEnv -> Type -> Type -> Tc TEnv
-unifyType tenv0 t1 t2 = case (t1, t2) of
-  _ | t1 == t2 -> return tenv0
+unifyType tenv0 t1 t2 = case (t1', t2') of
+  _ | t1' == t2' -> return tenv0
   (TVar x, t) -> unifyTv tenv0 x t
   (_, TVar{}) -> commute
   -- FIXME: Unify the kinds here?
@@ -590,18 +590,18 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
       Just ("join" :@ _ :@ s', substitution, tenv1) -> case substitution of
         Just (x, t)
           | occurs tenv0 x (effectTail r)
-          -> fail $ unwords ["cannot unify effects", show t1, "and", show t2]
+          -> fail $ unwords ["cannot unify effects", show t1', "and", show t2']
           | otherwise -> let
             tenv2 = tenv1 { envTvs = Map.insert x t (envTvs tenv1) }
             in unifyType tenv2 r s'
         Nothing -> unifyType tenv1 r s'
 
       -- HACK: Duplicates the remaining cases.
-      _ -> case (t1, t2) of
+      _ -> case (t1', t2') of
         (a :@ b, c :@ d) -> do
           tenv1 <- unifyType tenv0 a c
           unifyType tenv1 b d
-        _ -> fail $ unwords ["cannot unify types", show t1, "and", show t2]
+        _ -> fail $ unwords ["cannot unify types", show t1', "and", show t2']
 
   (_, "join" :@ _ :@ _) -> commute
 
@@ -613,13 +613,15 @@ unifyType tenv0 t1 t2 = case (t1, t2) of
     tenv1 <- unifyType tenv0 a c
     unifyType tenv1 b d
 
-  _ -> fail $ unwords ["cannot unify types", show t1, "and", show t2]
+  _ -> fail $ unwords ["cannot unify types", show t1', "and", show t2']
 
 -- Unification is commutative. If we fail to handle a case, this can result in
 -- an infinite loop.
 
   where
-  commute = unifyType tenv0 t2 t1
+  t1' = zonkType tenv0 t1
+  t2' = zonkType tenv0 t2
+  commute = unifyType tenv0 t2' t1'
   effectTail ("join" :@ _ :@ a) = effectTail a
   effectTail t = t
 
