@@ -11,7 +11,7 @@ build-type: Simple
 cabal-version: >=1.10
 
 executable kitten
-  build-depends: base >=4.8, bytestring, containers, Kitten, parsec, pretty, text, transformers, vector
+  build-depends: base >=4.8, bytestring, containers, hashable, Kitten, parsec, pretty, text, transformers, unordered-containers, vector
   default-language: Haskell2010
   ghc-options: -Wall
   hs-source-dirs: src

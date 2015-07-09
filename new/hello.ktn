@@ -1,75 +1,103 @@
+declare copy<A> (A -> A, A)
+
+// _Z4copyIiEiPiPi
+define copy (int -> int, int) {
+  _::magic
+  // int sizeof _::intrinsic::copy_bytes
+}
+
+// _Z4copyIdEdPdPd
+define copy (float -> float, float) {
+  _::magic
+  // float sizeof _::intrinsic::copy_bytes
+}
+
 data vector<A> {}
 
+data float {}
 data int {}
 data bool {}
 data io {}
 data fail {}
 
-def foo (-> vector<int>) {
+define foo (-> vector<int>) {
   [1, 2]
 }
 
-def dup<A> (A -> A, A):
+define dup<A> (A -> A, A):
   -> x;
   x x
 
-def drop<A> (A ->):
+define ignore<A> (A ->):
   -> _;
 
-def both<A, B, C, D, +E> (A, B, (A -> C +E), (B -> D +E) -> C, D +E):
+define ignore2<A> (A ->):
+  -> x;
+
+define blah (optional<int>, int -> int) {
+  -> test x;
+  match (test) {
+    case optional::some { ignore x }
+    else {
+      ignore x x ignore
+    }
+  }
+}
+
+define both<A, B, C, D, +E> (A, B, (A -> C +E), (B -> D +E) -> C, D +E):
   -> x y f g;
   x f call
   y g call
 
-def call<R..., S..., +E> (R..., (R... -> S... +E) -> S... +E):
+define call<R..., S..., +E> (R..., (R... -> S... +E) -> S... +E):
   _::magic
 
-def push_back<A> (vector<A>, A -> vector<A>):
+define push_back<A> (vector<A>, A -> vector<A>):
   _::magic
 
-def pop_back<A> (vector<A> -> optional<pair<vector<A>, A>>):
+define pop_back<A> (vector<A> -> optional<pair<vector<A>, A>>):
   _::magic
 
 data pair<A, B>:
   case pair (A, B)
 
-def from_pair<A, B> (pair<A, B> -> A, B):
+define from_pair<A, B> (pair<A, B> -> A, B):
   _::magic
 
 data optional<A>:
   case none
   case some (A)
 
-def is_some<A> (optional<A> -> bool):
+define is_some<A> (optional<A> -> bool):
   _::magic
 
-def from_some<A> (optional<A> -> A):
+define from_some<A> (optional<A> -> A):
   _::magic
 
-def + (int, int -> int) { _::magic }
+define + (int, int -> int) { _::magic }
 infix right 6 +
 
-def - (int, int -> int) { _::magic }
+define - (int, int -> int) { _::magic }
 infix left 6 -
 
-def * (int, int -> int) { _::magic }
+define * (int, int -> int) { _::magic }
 infix left 7 *
 
-def / (int, int -> int) { _::magic }
+define / (int, int -> int) { _::magic }
 infix left 7 /
 
-def >= (int, int -> int) { _::magic }
-def >> (int, int -> int) { _::magic }
-def >>= (int, int -> int) { _::magic }
-def >>> (int, int -> int) { _::magic }
-def foo1 (-> int) { 1 >> 2 }
-def foo2 (-> int) { 1 >>> 2 }
+define >= (int, int -> int) { _::magic }
+define >> (int, int -> int) { _::magic }
+define >>= (int, int -> int) { _::magic }
+define >>> (int, int -> int) { _::magic }
+define foo1 (-> int) { 1 >> 2 }
+define foo2 (-> int) { 1 >>> 2 }
 
-def sqrt (int -> int) { _::magic }
+define sqrt (int -> int) { _::magic }
 
-def say<a> (a -> +io) { _::magic }
+define say<a> (a -> +io) { _::magic }
 
-def scope (-> +io) {
+define scope (-> +io) {
   1000 -> x1;
   100 -> y1;
   10
@@ -98,15 +126,15 @@ def scope (-> +io) {
 
 vocab foo::bar {
 
-def quadratic (int, int, int -> int):
+define quadratic (int, int, int -> int):
   -> a b c;
   (a + (b * b - 4 * a * c) sqrt) / (2 * a)
 
 }
 
-def concat<A> (vector<vector<A>> -> vector<A>) { _::magic }
+define concat<A> (vector<vector<A>> -> vector<A>) { _::magic }
 
-def test<R..., +E> (R..., (R... -> R... +E) -> R... +E) {
+define test<R..., +E> (R..., (R... -> R... +E) -> R... +E) {
   if (true) {
     -> f;
     f call
@@ -116,8 +144,8 @@ def test<R..., +E> (R..., (R... -> R... +E) -> R... +E) {
   }
 }
 
-// def map<R..., A, B, +E> (R..., vector<A>, <S...> (S..., A -> S..., B +E) -> R..., vector<B> +E)
-def map<A, B, +E> (vector<A>, (A -> B +E) -> vector<B> +E)
+// define map<R..., A, B, +E> (R..., vector<A>, <S...> (S..., A -> S..., B +E) -> R..., vector<B> +E)
+define map<A, B, +E> (vector<A>, (A -> B +E) -> vector<B> +E)
 {
   -> xs f;
   xs pop_back
@@ -126,13 +154,13 @@ def map<A, B, +E> (vector<A>, (A -> B +E) -> vector<B> +E)
     from_some from_pair
     {f map} {f call} both push_back
   } else {
-    drop []
+    ignore []
   }
 }
 
 /*
-// def map<R..., A, B, +E> (R..., vector<A>, (R..., A -> R..., B +E) -> R..., vector<B> +E):
-def map<A, B, +E> (vector<A>, (A -> B +E) -> vector<B> +E):
+// define map<R..., A, B, +E> (R..., vector<A>, (R..., A -> R..., B +E) -> R..., vector<B> +E):
+define map<A, B, +E> (vector<A>, (A -> B +E) -> vector<B> +E):
   -> xs f;
   match (xs pop_back):
     case optional::some:
@@ -144,7 +172,7 @@ def map<A, B, +E> (vector<A>, (A -> B +E) -> vector<B> +E):
       []
 */
 
-def optional_test (-> int +fail) {
+define optional_test (-> int +fail) {
   1 optional::some
   match {
     case optional::some {

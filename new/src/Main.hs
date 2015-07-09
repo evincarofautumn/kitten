@@ -5,7 +5,7 @@
 module Main where
 
 import Control.Applicative
-import Control.Arrow ((&&&))
+import Control.Arrow ((&&&), first)
 import Control.Concurrent
 import Control.Monad
 import Control.Monad.Fix
@@ -18,13 +18,15 @@ import Data.Char
 import Data.Foldable (foldrM)
 import Data.Function
 import Data.Functor.Identity (Identity)
+import Data.Hashable (Hashable(..))
+import Data.HashMap.Strict (HashMap)
 import Data.IORef
 import Data.List
 import Data.Map (Map)
 import Data.Maybe
 import Data.Set (Set)
 import Data.Text (Text)
-import GHC.Exts (IsString(..))
+import GHC.Exts (IsString(..), groupWith)
 import Numeric
 import System.Environment
 import System.Exit
@@ -34,6 +36,7 @@ import Text.Parsec (Column, ParsecT, SourcePos, (<?>))
 import Text.Parsec.Text ()
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.ByteString as ByteString
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -82,21 +85,13 @@ compile paths = do
   checkpoint
   desugared <- desugarDefinitions inferred
   let quantified = quantifyTerms desugared
-  --   (possibly introducing a new "Flat" term type)
-  --   value representation: def a (...) { ... $(local.0, local.1){ q... } ... }
-  --                      -> def a (...) { ... local.0 local.1 \a::lambda0 new.act ... }
-  --                         def b (...) { q... }
-  -- make dup/drop explicit
-  --   when copying from a local, insert dup
-  --   when ignoring a value with ->_;, insert drop immediately
-  --   when simply ignoring a local, insert drop at end of scope
-  --     (warn about this unless prefixed with _, e.g., ->_ptr;)
+  let linear = linearize quantified
   -- generate instantiations
   -- generate instance declarations
   --   (so inference can know what's available in a precompiled module)
   -- generate code
-  liftIO $ putStrLn $ Pretty.render $ pPrint quantified
-  return quantified
+  liftIO $ putStrLn $ Pretty.render $ pPrint linear
+  return linear
   where
 
   readFileUtf8 :: FilePath -> IO Text
@@ -119,6 +114,7 @@ data Token
   | CharacterToken !Char !Origin !Indent         -- 'x'
   | CommaToken !Origin !Indent                   -- ,
   | DataToken !Origin !Indent                    -- data
+  | DeclareToken !Origin !Indent                 -- declare
   | DefineToken !Origin !Indent                  -- define
   | EllipsisToken !Origin !Indent                -- ...
   | ElifToken !Origin !Indent                    -- elif
@@ -282,7 +278,8 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
         return $ case name of
           "case" -> CaseToken
           "data" -> DataToken
-          "def" -> DefineToken
+          "declare" -> DeclareToken
+          "define" -> DefineToken
           "elif" -> ElifToken
           "else" -> ElseToken
           "false" -> BooleanToken False
@@ -354,6 +351,7 @@ instance Eq Token where
   CharacterToken a _ _  == CharacterToken b _ _  = a == b
   CommaToken _ _        == CommaToken _ _        = True
   DataToken _ _         == DataToken _ _         = True
+  DeclareToken _ _      == DeclareToken _ _      = True
   DefineToken _ _       == DefineToken _ _       = True
   EllipsisToken _ _     == EllipsisToken _ _     = True
   ElifToken _ _         == ElifToken _ _         = True
@@ -389,6 +387,7 @@ tokenOrigin token = case token of
   CharacterToken _ origin _ -> origin
   CommaToken origin _ -> origin
   DataToken origin _ -> origin
+  DeclareToken origin _ -> origin
   DefineToken origin _ -> origin
   EllipsisToken origin _ -> origin
   ElifToken origin _ -> origin
@@ -423,6 +422,7 @@ tokenIndent token = case token of
   CharacterToken _ _ indent -> indent
   CommaToken _ indent -> indent
   DataToken _ indent -> indent
+  DeclareToken _ indent -> indent
   DefineToken _ indent -> indent
   EllipsisToken _ indent -> indent
   ElifToken _ indent -> indent
@@ -526,10 +526,10 @@ insertBraces = (concat <$> many unit) <* Parsec.eof
       validFirst token = let
         column = tokenIndent token
         in column > Just 1 && column >= colonIndent
-    first <- Parsec.lookAhead (tokenSatisfy validFirst)
+    firstToken <- Parsec.lookAhead (tokenSatisfy validFirst)
       <?> "token indented no less than start of layout block"
     let
-      firstOrigin = rangeBegin (tokenOrigin first)
+      firstOrigin = rangeBegin (tokenOrigin firstToken)
       inside token
         = Parsec.sourceColumn (rangeBegin (tokenOrigin token))
         >= Parsec.sourceColumn firstOrigin
@@ -564,6 +564,7 @@ parserMatch_ = void . parserMatch
 
 data Fragment = Fragment
   { fragmentDataDefinitions :: [DataDefinition]
+  , fragmentDeclarations :: [Declaration]
   , fragmentDefinitions :: [Definition]
   , fragmentOperators :: [Operator]
   , fragmentSynonyms :: [Synonym]
@@ -572,6 +573,7 @@ data Fragment = Fragment
 instance Monoid Fragment where
   mempty = Fragment
     { fragmentDataDefinitions = []
+    , fragmentDeclarations = []
     , fragmentDefinitions = []
     , fragmentOperators = []
     , fragmentSynonyms = []
@@ -579,6 +581,8 @@ instance Monoid Fragment where
   mappend a b = Fragment
     { fragmentDataDefinitions
       = fragmentDataDefinitions a ++ fragmentDataDefinitions b
+    , fragmentDeclarations
+      = fragmentDeclarations a ++ fragmentDeclarations b
     , fragmentDefinitions
       = fragmentDefinitions a ++ fragmentDefinitions b
     , fragmentOperators
@@ -589,9 +593,16 @@ instance Monoid Fragment where
 
 data Element
   = DataDefinitionElement !DataDefinition
+  | DeclarationElement !Declaration
   | DefinitionElement !Definition
   | OperatorElement !Operator
   | SynonymElement !Synonym
+
+data Declaration = Declaration
+  { declarationName :: !Qualified
+  , declarationOrigin :: !Origin
+  , declarationSignature :: !Signature
+  } deriving (Show)
 
 data Definition = Definition
   { definitionBody :: !Term
@@ -718,6 +729,8 @@ partitionElements = foldr go mempty
   go element acc = case element of
     DataDefinitionElement x -> acc
       { fragmentDataDefinitions = x : fragmentDataDefinitions acc }
+    DeclarationElement x -> acc
+      { fragmentDeclarations = x : fragmentDeclarations acc }
     DefinitionElement x -> acc
       { fragmentDefinitions = x : fragmentDefinitions acc }
     OperatorElement x -> acc
@@ -821,6 +834,7 @@ parseOne = Parsec.tokenPrim show advance
 elementParser :: Parser Element
 elementParser = (<?> "top-level program element") $ Parsec.choice
   [ DataDefinitionElement <$> dataDefinitionParser
+  , DeclarationElement <$> declarationParser
   , DefinitionElement <$> definitionParser
   , OperatorElement <$> operatorParser
   , SynonymElement <$> synonymParser
@@ -966,8 +980,21 @@ quantifiedParser thing = do
   origin <- getOrigin
   QuantifiedSignature <$> quantifierParser <*> thing <*> pure origin
 
+declarationParser :: Parser Declaration
+declarationParser = (<?> "generic word declaration") $ do
+  origin <- getOrigin <* parserMatch DeclareToken
+  suffix <- Parsec.choice
+    [wordNameParser, operatorNameParser] <?> "declaration name"
+  name <- Qualified <$> Parsec.getState <*> pure suffix
+  signature <- signatureParser
+  return Declaration
+    { declarationName = name
+    , declarationOrigin = origin
+    , declarationSignature = signature
+    }
+
 definitionParser :: Parser Definition
-definitionParser = (<?> "definition") $ do
+definitionParser = (<?> "word definition") $ do
   origin <- getOrigin <* parserMatch DefineToken
   (fixity, suffix) <- Parsec.choice
     [ (,) Postfix <$> wordNameParser
@@ -1257,11 +1284,22 @@ data Qualified = Qualified
   , unqualifiedName :: !Unqualified
   } deriving (Eq, Ord, Show)
 
+instance Hashable Qualified where
+  hashWithSalt s (Qualified qualifier unqualified)
+    = hashWithSalt s (0 :: Int, qualifier, unqualified)
+
 data Qualifier = Qualifier [Text]
   deriving (Eq, Ord, Show)
 
+instance Hashable Qualifier where
+  hashWithSalt s (Qualifier parts)
+    = hashWithSalt s (0 :: Int, Text.concat parts)
+
 data Unqualified = Unqualified Text
   deriving (Eq, Ord, Show)
+
+instance Hashable Unqualified where
+  hashWithSalt s (Unqualified name) = hashWithSalt s (0 :: Int, name)
 
 instance IsString Unqualified where
   fromString = Unqualified . Text.pack
@@ -1284,6 +1322,7 @@ type Resolved a = StateT [Unqualified] K a
 resolveNames :: Fragment -> K Fragment
 resolveNames fragment = do
   reportDuplicateDefinitions
+    (Set.fromList $ map declarationName $ fragmentDeclarations fragment)
     $ map (definitionName &&& definitionOrigin) $ fragmentDefinitions fragment
   flip evalStateT [] $ do
     definitions <- mapM resolveDefinition $ fragmentDefinitions fragment
@@ -1443,8 +1482,22 @@ resolveNames fragment = do
     modify tail
     return result
 
-reportDuplicateDefinitions :: [(Qualified, Origin)] -> K ()
-reportDuplicateDefinitions _ = return ()
+reportDuplicateDefinitions :: Set Qualified -> [(Qualified, Origin)] -> K ()
+reportDuplicateDefinitions generic = mapM_ reportDuplicate . groupWith fst
+  where
+
+  reportDuplicate :: [(Qualified, Origin)] -> K ()
+  reportDuplicate defs = case defs of
+    [] -> return ()
+    [_] -> return ()
+    ((name, origin) : duplicates) -> if name `Set.member` generic
+      then return ()
+      else report $ Report Error
+        $ Item origin ["I found multiple definitions of", pQuote name]
+        : map (\ duplicateOrigin -> Item duplicateOrigin ["here"])
+          (origin : map snd duplicates)
+        ++ [Item origin
+          ["Did you mean to declare it as a generic definition?"]]
 
 intrinsicFromName :: Qualified -> Maybe Intrinsic
 intrinsicFromName name = case name of
@@ -1686,22 +1739,22 @@ desugarDataDefinitions fragment = do
 
 desugarDefinitions :: Program -> K Program
 desugarDefinitions program = do
-  definitions <- Map.fromList . concat <$> mapM (uncurry desugarDefinition)
-    (Map.toList $ programDefinitions program)
+  definitions <- HashMap.fromList . concat <$> mapM (uncurry desugarDefinition)
+    (HashMap.toList $ programDefinitions program)
   return Program { programDefinitions = definitions }
   where
 
   desugarDefinition
-    :: Qualified -> (Type, Term) -> K [(Qualified, (Type, Term))]
-  desugarDefinition name (type_, body) = do
+    :: (Qualified, Type) -> Term -> K [((Qualified, Type), Term)]
+  desugarDefinition (name, type_) body = do
     (body', lifted) <- desugarTerm (qualifierFromName name) body
-    return $ (name, (type_, body')) : lifted
+    return $ ((name, type_), body') : lifted
 
-  desugarTerm :: Qualifier -> Term -> K (Term, [(Qualified, (Type, Term))])
+  desugarTerm :: Qualifier -> Term -> K (Term, [((Qualified, Type), Term)])
   desugarTerm qualifier = flip evalStateT (LambdaIndex 0) . go
     where
     go
-      :: Term -> StateT LambdaIndex K (Term, [(Qualified, (Type, Term))])
+      :: Term -> StateT LambdaIndex K (Term, [((Qualified, Type), Term)])
     go term = case term of
       Call{} -> done
       Compose _ a b -> do
@@ -1754,7 +1807,7 @@ desugarDefinitions program = do
             [ Push Nothing (Name name) origin
             , NewClosure Nothing (length closed) origin
             ]
-          , (name, (type_, a')) : as
+          , ((name, type_), a') : as
           )
         where
 
@@ -1767,6 +1820,142 @@ desugarDefinitions program = do
       Swap{} -> done
       where
       done = return (term, [])
+
+
+
+
+----------------------------------------
+-- Linear Desugaring
+----------------------------------------
+
+
+
+
+-- Linearization replaces all copies and drops with explicit invocations of the
+-- '_::copy' and '_::drop' words. A value is copied if it appears twice or more
+-- in its scope; it's dropped if it doesn't appear at all, or if an explicit
+-- 'drop' is present due to an ignored local (_). If it only appears once, it is
+-- moved, and no special word is invoked.
+
+linearize :: Program -> Program
+linearize program = let
+  definitions' = HashMap.fromList $ map linearizeDefinition
+    $ HashMap.toList $ programDefinitions program
+  in program { programDefinitions = definitions' }
+  where
+
+  linearizeDefinition
+    :: ((Qualified, Type), Term) -> ((Qualified, Type), Term)
+  linearizeDefinition (name, body) = (name, linearizeTerm body)
+
+  linearizeTerm :: Term -> Term
+  linearizeTerm = snd . go []
+    where
+
+    go :: [Int] -> Term -> ([Int], Term)
+    go counts0 term = case term of
+      Call{} -> (counts0, term)
+      Compose type_ a b -> let
+        (counts1, a') = go counts0 a
+        (counts2, b') = go counts1 b
+        in (counts2, Compose type_ a' b')
+      Drop{} -> (counts0, term)
+      Generic x body origin -> let
+        (counts1, body') = go counts0 body
+        in (counts1, Generic x body' origin)
+      Group{} -> error "group should not appear after desugaring"
+      Identity{} -> (counts0, term)
+      If type_ a b origin -> let
+        (counts1, a') = go counts0 a
+        (counts2, b') = go counts0 b
+        in (zipWith max counts1 counts2, If type_ a' b' origin)
+      Intrinsic{} -> (counts0, term)
+      Lambda type_ x body origin -> let
+        (n : counts1, body') = go (0 : counts0) body
+        type' = case type_ of
+          Just (TypeConstructor _ "fun"
+            :@ _ :@ (TypeConstructor _ "prod" :@ _ :@ a) :@ _) -> a
+          _ -> error "lambda does not have function type"
+        body'' = case n of
+          0 -> instrumentDrop origin type' body'
+          1 -> body'
+          _ -> instrumentCopy type' body'
+        in (counts1, Lambda type_ x body'' origin)
+      -- FIXME: count usages for each branch & take maximum
+      Match type_ cases mElse origin -> let
+
+        (counts1, mElse') = goElse counts0 mElse
+        (counts2, cases') = first (map maximum . transpose)
+          $ unzip $ map (goCase counts0) cases
+        in (zipWith max counts1 counts2, Match type_ cases' mElse' origin)
+        where
+
+        goCase :: [Int] -> Case -> ([Int], Case)
+        goCase counts (Case name body caseOrigin) = let
+          (counts1, body') = go counts body
+          in (counts1, Case name body' caseOrigin)
+
+        goElse :: [Int] -> Maybe Else -> ([Int], Maybe Else)
+        goElse counts (Just (Else body elseOrigin)) = let
+          (counts1, body') = go counts body
+          in (counts1, Just (Else body' elseOrigin))
+        goElse counts Nothing = (counts, Nothing)
+
+      New{} -> (counts0, term)
+      NewClosure{} -> (counts0, term)
+      NewVector{} -> (counts0, term)
+      Push _ (Local index) _ -> let
+        (h, t : ts) = splitAt index counts0
+        in (h ++ succ t : ts, term)
+      Push _ Closure{} _ -> error
+        "pushing of closure should not appear after desugaring"
+      Push _ Quotation{} _ -> error
+        "pushing of quotation should not appear after desugaring"
+      Push{} -> (counts0, term)
+      Swap{} -> (counts0, term)
+
+  instrumentDrop :: Origin -> Type -> Term -> Term
+  instrumentDrop origin type_ a = compose origin
+    [ a
+    , Push Nothing (Local 0) origin
+    , Call Nothing Postfix
+      (QualifiedName (Qualified globalVocabulary "drop")) [type_] origin
+    ]
+
+  instrumentCopy :: Type -> Term -> Term
+  instrumentCopy varType = go 0
+    where
+
+    go :: Int -> Term -> Term
+    go n term = case term of
+      Call{} -> term
+      Compose type_ a b -> Compose type_ (go n a) (go n b)
+      Drop{} -> term
+      Generic x body origin -> Generic x (go n body) origin
+      Group{} -> error "group should not appear after desugaring"
+      Identity{} -> term
+      If type_ a b origin -> If type_ (go n a) (go n b) origin
+      Intrinsic{} -> term
+      Lambda type_ name body origin
+        -> Lambda type_ name (go (succ n) body) origin
+      Match type_ cases mElse origin
+        -> Match type_ (map goCase cases) (goElse <$> mElse) origin
+        where
+
+        goCase :: Case -> Case
+        goCase (Case name body caseOrigin) = Case name (go n body) caseOrigin
+
+        goElse :: Else -> Else
+        goElse (Else body elseOrigin) = Else (go n body) elseOrigin
+
+      New{} -> term
+      NewClosure{} -> term
+      NewVector{} -> term
+      Push _ (Local index) origin | index == n
+        -> Compose Nothing term $ Call Nothing Postfix
+          (QualifiedName (Qualified globalVocabulary "copy")) [varType] origin
+      Push{} -> term
+      Swap{} -> term
 
 
 
@@ -1960,10 +2149,11 @@ mapHead f (x : xs) = f x : xs
 
 -- A program consists of a set of definitions.
 
-newtype Program = Program { programDefinitions :: Map Qualified (Type, Term) }
+newtype Program = Program
+  { programDefinitions :: HashMap (Qualified, Type) Term }
 
 emptyProgram :: Program
-emptyProgram = Program Map.empty
+emptyProgram = Program HashMap.empty
 
 
 
@@ -1991,6 +2181,14 @@ instance Eq Type where
   Forall _ a b == Forall _ c d = (a, b) == (c, d)
   _ == _ = False
 
+instance Hashable Type where
+  hashWithSalt s type_ = case type_ of
+    a :@ b -> hashWithSalt s (0 :: Int, a, b)
+    TypeConstructor _ a -> hashWithSalt s (1 :: Int, a)
+    TypeVar _ a -> hashWithSalt s (2 :: Int, a)
+    TypeConstant _ a -> hashWithSalt s (3 :: Int, a)
+    Forall _ a b -> hashWithSalt s (4 :: Int, a, b)
+
 typeOrigin :: Type -> Origin
 typeOrigin type_ = case type_ of
   a :@ _ -> typeOrigin a
@@ -2010,10 +2208,13 @@ setTypeOrigin origin = go
     Forall _ var t -> Forall origin var $ go t
 
 newtype Constructor = Constructor Qualified
-  deriving (Eq, Show)
+  deriving (Eq, Hashable, Show)
 
 data Var = Var !TypeId !Kind
   deriving (Eq, Show)
+
+instance Hashable Var where
+  hashWithSalt s (Var a b) = hashWithSalt s (0 :: Int, a, b)
 
 instance IsString Constructor where
   fromString = Constructor
@@ -2037,7 +2238,7 @@ joinType origin a b = TypeConstructor origin "join" :@ a :@ b
 -- it easier to support capture-avoiding substitution on types.
 
 newtype TypeId = TypeId Int
-  deriving (Enum, Eq, Ord, Show)
+  deriving (Enum, Eq, Hashable, Ord, Show)
 
 
 
@@ -2057,6 +2258,14 @@ newtype TypeId = TypeId Int
 
 data Kind = Value | Stack | Label | Effect | !Kind :-> !Kind
   deriving (Eq, Show)
+
+instance Hashable Kind where
+  hashWithSalt s kind = case kind of
+    Value -> hashWithSalt s (0 :: Int)
+    Stack -> hashWithSalt s (1 :: Int)
+    Label -> hashWithSalt s (2 :: Int)
+    Effect -> hashWithSalt s (3 :: Int)
+    a :-> b -> hashWithSalt s (4 :: Int, a, b)
 
 
 
@@ -2114,19 +2323,25 @@ inferTypes fragment = do
   let tenv0 = emptyTypeEnv
   definitions <- forM (fragmentDefinitions fragment) $ \ definition -> do
     type_ <- typeFromSignature tenv0 $ definitionSignature definition
-    return (definitionName definition, (type_, definitionBody definition))
+    return ((definitionName definition, type_), definitionBody definition)
   let
-    declaredTypes = Map.fromList
-      $ map (\ (name, (type_, _)) -> (name, type_)) definitions
+    declaredTypes = Map.fromList $ map fst definitions
     infer = inferType0 declaredTypes
-    go name (scheme, term) = do
-      (term', scheme') <- infer term
-      liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["the inferred type of", pPrint name, "is", pPrint scheme']
-      instanceCheck scheme' scheme
-      -- FIXME: Should this be scheme or scheme'?
-      return (name, (scheme, term'))
+    go (name, declaredScheme) term = do
+      (term', inferredScheme) <- infer term
+      liftIO $ putStrLn $ Pretty.render $ Pretty.hsep
+        ["the inferred type of", pPrint name, "is", pPrint inferredScheme]
+      instanceCheck "inferred" inferredScheme "declared" declaredScheme
+      case find ((name ==) . declarationName) $ fragmentDeclarations fragment of
+        Just declaration -> do
+          genericScheme <- typeFromSignature tenv0
+            $ declarationSignature declaration
+          instanceCheck "generic" genericScheme "declared" declaredScheme
+        Nothing -> return ()
+      -- FIXME: Should this be the inferred or declared scheme?
+      return ((name, declaredScheme), term')
   definitions' <- mapM (uncurry go) definitions
-  return Program { programDefinitions = Map.fromList definitions' }
+  return Program { programDefinitions = HashMap.fromList definitions' }
 
 
 
@@ -2927,12 +3142,6 @@ zonkValue tenv0 = go
 
 
 
-----------------------------------------
--- Instantiation
-----------------------------------------
-
-
-
 --------------------------------------------------------------------------------
 -- Instantiation and Regeneralization
 --------------------------------------------------------------------------------
@@ -3044,28 +3253,28 @@ bottommost a = a
 -- unifying a skolemized scheme with a type tells you whether one is a generic
 -- instance of the other. This is used to check the signatures of definitions.
 
-instanceCheck :: Type -> Type -> K ()
-instanceCheck inferredScheme declaredScheme = do
+instanceCheck :: Pretty.Doc -> Type -> Pretty.Doc -> Type -> K ()
+instanceCheck aSort aScheme bSort bScheme = do
   let tenv0 = emptyTypeEnv
-  (inferredType, _, tenv1) <- instantiatePrenex tenv0 inferredScheme
-  (ids, declaredType) <- skolemize tenv1 declaredScheme
+  (aType, _, tenv1) <- instantiatePrenex tenv0 aScheme
+  (ids, bType) <- skolemize tenv1 bScheme
   check <- K $ \ env -> do
-    result <- runK (subsumptionCheck tenv1 inferredType declaredType) env
+    result <- runK (subsumptionCheck tenv1 aType bType) env
     return $ Just result
   case check of
     Nothing -> failure
     _ -> return ()
-  let escaped = freeTvs inferredScheme `Set.union` freeTvs declaredScheme
+  let escaped = freeTvs aScheme `Set.union` freeTvs bScheme
   let bad = Set.filter (`Set.member` escaped) ids
   unless (Set.null bad) failure
   return ()
   where
   failure = report $ Report Error
-    [ Item (typeOrigin inferredScheme)
-      ["the inferred type", pQuote inferredScheme]
-    , Item (typeOrigin declaredScheme)
-      [ "is not an instance of the declared type signature"
-      , pQuote declaredScheme
+    [ Item (typeOrigin aScheme)
+      ["I couldn't match this", aSort, "type", pQuote aScheme]
+    , Item (typeOrigin bScheme)
+      [ "with the", bSort, "type signature"
+      , pQuote bScheme
       ]
     ]
 
@@ -3274,8 +3483,8 @@ quantifyTerm _ e = e
 
 quantifyTerms :: Program -> Program
 quantifyTerms program = Program
-  { programDefinitions = Map.map
-    (\ (type_, term) -> (type_, quantifyTerm type_ term))
+  { programDefinitions = HashMap.mapWithKey
+    (\ (_name, type_) term -> quantifyTerm type_ term)
     $ programDefinitions program }
 
 
@@ -3404,6 +3613,7 @@ instance Pretty Token where
     CharacterToken c _ _ -> Pretty.quotes $ Pretty.char c
     CommaToken{} -> ","
     DataToken{} -> "data"
+    DeclareToken{} -> "declare"
     DefineToken{} -> "define"
     EllipsisToken{} -> "..."
     ElifToken{} -> "elif"
@@ -3452,12 +3662,12 @@ instance Pretty Fragment where
 
 instance Pretty Program where
   pPrint (Program definitions) = prettyVsep
-    $ map (\ (name, (type_, term)) -> Pretty.vcat
+    $ map (\ ((name, type_), term) -> Pretty.vcat
       [ Pretty.hcat
         ["def ", pPrint name, " ", Pretty.parens (pPrint type_), ":"]
       , Pretty.nest 4 $ pPrint term
       ])
-    $ Map.toList definitions
+    $ HashMap.toList definitions
 
 prettyVsep :: [Pretty.Doc] -> Pretty.Doc
 prettyVsep = Pretty.vcat . intersperse ""
@@ -3478,7 +3688,7 @@ instance Pretty DataConstructor where
 
 instance Pretty Definition where
   pPrint definition = Pretty.vcat
-    [ "def"
+    [ "define"
       Pretty.<+> pPrint (definitionName definition)
       Pretty.<+> pPrint (definitionSignature definition)
       Pretty.<> ":"
@@ -3792,8 +4002,8 @@ reportParseError parseError = Report Error
 showReport :: Report -> String
 showReport (Report category messages) = unlines $ map showItem $ prefix messages
   where
-  prefix (Item origin first : rest)
-    = Item origin (categoryPrefix category : first) : rest
+  prefix (Item origin firstItem : rest)
+    = Item origin (categoryPrefix category : firstItem) : rest
   prefix [] = []
   showItem (Item origin message)
     = showOriginPrefix origin ++ Pretty.render (Pretty.hsep message)
