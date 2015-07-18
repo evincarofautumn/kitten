@@ -322,6 +322,12 @@ infer finalProgram resolved = case resolved of
     InIntToChar -> forAll $ \r
       -> (r -: tyInt o --> r -: TyOption (tyChar o) o) o
 
+    InIntToFloat -> forAll $ \r
+      -> (r -: tyInt o --> r -: TyOption (tyFloat o) o) o
+
+    InFloatToInt -> forAll $ \r
+      -> (r -: tyFloat o --> r -: TyOption (tyInt o) o) o
+
     InLeFloat -> relational (tyFloat o) o
     InLeInt -> relational (tyInt o) o
 

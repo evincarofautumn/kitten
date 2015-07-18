@@ -253,6 +253,12 @@ interpretIntrinsic intrinsic = case intrinsic of
     pushData a
     proceed
 
+  InFloatToInt -> do
+    Float a <- popData
+    -- TODO: handle corner cases
+    pushData $ Option $ Just $ Int $ truncate a
+    proceed
+
   InFromLeft -> do
     Choice False a <- popData
     pushData a
@@ -311,6 +317,12 @@ interpretIntrinsic intrinsic = case intrinsic of
     pushData . Option $ if a >= 0 && a <= 0x10FFFF
       then Just $ Char (toEnum a)
       else Nothing
+    proceed
+
+  InIntToFloat -> do
+    Int a <- popData
+    -- TODO: handle corner cases
+    pushData $ Option $ Just $ Float $ fromIntegral a
     proceed
 
   InLeFloat -> floatsToBool (<=)
