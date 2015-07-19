@@ -452,6 +452,15 @@ void k_in_first() {
   k_object_release(a);
 }
 
+void k_in_float_to_int() {
+  const KObject a = k_data_pop();
+  assert(a.type == K_FLOAT);
+  k_data_push(k_some_new((KObject) {
+    .data = (KData) { .as_int = a.data.as_float },
+    .type = K_INT
+  }));
+}
+
 void k_in_from_left() {
   const KObject a = k_data_pop();
   assert(a.type == K_CHOICE && a.data.as_choice->which == 0);
@@ -516,6 +525,15 @@ void k_in_int_to_char() {
     .data = (KData) { .as_char = a.data.as_int },
     .type = K_CHAR
   });
+}
+
+void k_in_int_to_float() {
+  const KObject a = k_data_pop();
+  assert(a.type == K_INT);
+  k_data_push(k_some_new((KObject) {
+    .data = (KData) { .as_float = a.data.as_int },
+    .type = K_FLOAT
+  }));
 }
 
 void k_in_left() {
@@ -583,7 +601,7 @@ void k_in_match(const size_t size, ...) {
 void k_in_mod_float() {
   const KObject b = k_data_pop();
   const KObject a = k_data_pop();
-  assert(a.type == b.type);
+  assert(a.type == b.type && a.type == K_FLOAT);
   const k_float_t result = fmod(a.data.as_float, b.data.as_float);
   k_data_push(k_float_new(result));
 }
@@ -592,6 +610,14 @@ void k_in_pair() {
   const KObject b = k_data_pop();
   const KObject a = k_data_pop();
   k_data_push(k_pair_new(a, b));
+}
+
+void k_in_pow_float() {
+  const KObject b = k_data_pop();
+  const KObject a = k_data_pop();
+  assert(a.type == b.type && a.type == K_FLOAT);
+  const k_float_t result = pow(a.data.as_float, b.data.as_float);
+  k_data_push(k_float_new(result));
 }
 
 void k_in_print() {
