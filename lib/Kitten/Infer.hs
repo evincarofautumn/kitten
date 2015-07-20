@@ -376,6 +376,8 @@ infer finalProgram resolved = case resolved of
     InOrBool -> binary (tyBool o) o
     InOrInt -> binary (tyInt o) o
 
+    InPowFloat -> binary (tyFloat o) o
+
     InRest -> forAll $ \r a b
       -> (r -: (a &: b) o --> r -: b) o
 

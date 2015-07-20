@@ -73,6 +73,7 @@ data Intrinsic
   | InOrBool
   | InOrInt
   | InPair
+  | InPowFloat
   | InPrint
   | InRest
   | InRight
@@ -167,6 +168,7 @@ intrinsicFromNameTable = V.fromList
   , entry "orBool"      InOrBool
   , entry "orInt"       InOrInt
   , entry "pair"        InPair
+  , entry "powFloat"    InPowFloat
   , entry "print"       InPrint
   , entry "rest"        InRest
   , entry "right"       InRight

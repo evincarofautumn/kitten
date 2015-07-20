@@ -385,6 +385,8 @@ interpretIntrinsic intrinsic = case intrinsic of
     pushData $ Pair a b
     proceed
 
+  InPowFloat -> floatsToFloat (**)
+
   InPrint -> do
     Handle b <- popData
     Vector a <- popData
