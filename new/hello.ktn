@@ -1,24 +1,32 @@
-declare copy<A> (A -> A, A)
-
-// _Z4copyIiEiPiPi
-define copy (int -> int, int) {
-  _::magic
-  // int sizeof _::intrinsic::copy_bytes
-}
-
-// _Z4copyIdEdPdPd
-define copy (float -> float, float) {
-  _::magic
-  // float sizeof _::intrinsic::copy_bytes
-}
-
-data vector<A> {}
-
 data float {}
 data int {}
 data bool {}
 data io {}
 data fail {}
+
+// 1 ignore
+
+trait copy<A> (A -> A, A)
+
+// _Z4copyIiEiPiPi
+instance copy (int -> int, int) {
+  _::magic
+  // int sizeof _::intrinsic::copy_bytes
+}
+
+// _Z4copyIdEdPdPd
+instance copy (float -> float, float) {
+  _::magic
+  // float sizeof _::intrinsic::copy_bytes
+}
+
+define blopy (int -> int, int) {
+  -> x;
+  x x  // Implicitly invoke copy trait.
+}
+
+
+data vector<A> {}
 
 define foo (-> vector<int>) {
   [1, 2]
