@@ -15,7 +15,7 @@ import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Writer
 import Data.Char
-import Data.Foldable (foldrM)
+import Data.Foldable (foldlM, foldrM)
 import Data.Function
 import Data.Functor.Identity (Identity)
 import Data.Hashable (Hashable(..))
@@ -86,12 +86,12 @@ compile paths = do
   desugared <- desugarDefinitions inferred
   let quantified = quantifyTerms desugared
   let linear = linearize quantified
-  -- generate instantiations
+  instantiated <- collectInstantiations emptyTypeEnv linear
   -- generate instance declarations
   --   (so inference can know what's available in a precompiled module)
   -- generate code
-  liftIO $ putStrLn $ Pretty.render $ pPrint linear
-  return linear
+  liftIO $ putStrLn $ Pretty.render $ pPrint instantiated
+  return instantiated
   where
 
   readFileUtf8 :: FilePath -> IO Text
@@ -114,7 +114,6 @@ data Token
   | CharacterToken !Char !Origin !Indent         -- 'x'
   | CommaToken !Origin !Indent                   -- ,
   | DataToken !Origin !Indent                    -- data
-  | DeclareToken !Origin !Indent                 -- declare
   | DefineToken !Origin !Indent                  -- define
   | EllipsisToken !Origin !Indent                -- ...
   | ElifToken !Origin !Indent                    -- elif
@@ -125,6 +124,7 @@ data Token
   | IfToken !Origin !Indent                      -- if
   | IgnoreToken !Origin !Indent                  -- _
   | InfixToken !Origin !Indent                   -- infix
+  | InstanceToken !Origin !Indent                -- instance
   | IntegerToken !Integer !Base !Origin !Indent  -- 1 0b1 0o1 0x1
   | LayoutToken !Origin !Indent                  -- :
   | MatchToken !Origin !Indent                   -- match
@@ -132,6 +132,7 @@ data Token
   | ReferenceToken !Origin !Indent               -- \
   | SynonymToken !Origin !Indent                 -- synonym
   | TextToken !Text !Origin !Indent              -- "..."
+  | TraitToken !Origin !Indent                   -- trait
   | VectorBeginToken !Origin !Indent             -- [
   | VectorEndToken !Origin !Indent               -- ]
   | VocabToken !Origin !Indent                   -- vocab
@@ -278,15 +279,16 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
         return $ case name of
           "case" -> CaseToken
           "data" -> DataToken
-          "declare" -> DeclareToken
           "define" -> DefineToken
           "elif" -> ElifToken
           "else" -> ElseToken
           "false" -> BooleanToken False
           "if" -> IfToken
           "infix" -> InfixToken
+          "instance" -> InstanceToken
           "match" -> MatchToken
           "synonym" -> SynonymToken
+          "trait" -> TraitToken
           "true" -> BooleanToken True
           "vocab" -> VocabToken
           _ -> WordToken (Unqualified name)
@@ -351,7 +353,6 @@ instance Eq Token where
   CharacterToken a _ _  == CharacterToken b _ _  = a == b
   CommaToken _ _        == CommaToken _ _        = True
   DataToken _ _         == DataToken _ _         = True
-  DeclareToken _ _      == DeclareToken _ _      = True
   DefineToken _ _       == DefineToken _ _       = True
   EllipsisToken _ _     == EllipsisToken _ _     = True
   ElifToken _ _         == ElifToken _ _         = True
@@ -362,6 +363,7 @@ instance Eq Token where
   IfToken _ _           == IfToken _ _           = True
   IgnoreToken _ _       == IgnoreToken _ _       = True
   InfixToken _ _        == InfixToken _ _        = True
+  InstanceToken _ _     == InstanceToken _ _     = True
   IntegerToken a _ _ _  == IntegerToken b _ _ _  = a == b
   LayoutToken _ _       == LayoutToken _ _       = True
   MatchToken _ _        == MatchToken _ _        = True
@@ -369,6 +371,7 @@ instance Eq Token where
   ReferenceToken _ _    == ReferenceToken _ _    = True
   SynonymToken _ _      == SynonymToken _ _      = True
   TextToken a _ _       == TextToken b _ _       = a == b
+  TraitToken _ _        == TraitToken _ _        = True
   VectorBeginToken _ _  == VectorBeginToken _ _  = True
   VectorEndToken _ _    == VectorEndToken _ _    = True
   VocabToken _ _        == VocabToken _ _        = True
@@ -387,7 +390,6 @@ tokenOrigin token = case token of
   CharacterToken _ origin _ -> origin
   CommaToken origin _ -> origin
   DataToken origin _ -> origin
-  DeclareToken origin _ -> origin
   DefineToken origin _ -> origin
   EllipsisToken origin _ -> origin
   ElifToken origin _ -> origin
@@ -398,6 +400,7 @@ tokenOrigin token = case token of
   IfToken origin _ -> origin
   IgnoreToken origin _ -> origin
   InfixToken origin _ -> origin
+  InstanceToken origin _ -> origin
   IntegerToken _ _ origin _ -> origin
   LayoutToken origin _ -> origin
   MatchToken origin _ -> origin
@@ -405,6 +408,7 @@ tokenOrigin token = case token of
   ReferenceToken origin _ -> origin
   SynonymToken origin _ -> origin
   TextToken _ origin _ -> origin
+  TraitToken origin _ -> origin
   VectorBeginToken origin _ -> origin
   VectorEndToken origin _ -> origin
   VocabToken origin _ -> origin
@@ -422,7 +426,6 @@ tokenIndent token = case token of
   CharacterToken _ _ indent -> indent
   CommaToken _ indent -> indent
   DataToken _ indent -> indent
-  DeclareToken _ indent -> indent
   DefineToken _ indent -> indent
   EllipsisToken _ indent -> indent
   ElifToken _ indent -> indent
@@ -433,6 +436,7 @@ tokenIndent token = case token of
   IfToken _ indent -> indent
   IgnoreToken _ indent -> indent
   InfixToken _ indent -> indent
+  InstanceToken _ indent -> indent
   IntegerToken _ _ _ indent -> indent
   LayoutToken _ indent -> indent
   MatchToken _ indent -> indent
@@ -440,6 +444,7 @@ tokenIndent token = case token of
   ReferenceToken _ indent -> indent
   SynonymToken _ indent -> indent
   TextToken _ _ indent -> indent
+  TraitToken _ indent -> indent
   VectorBeginToken _ indent -> indent
   VectorEndToken _ indent -> indent
   VocabToken _ indent -> indent
@@ -564,53 +569,58 @@ parserMatch_ = void . parserMatch
 
 data Fragment = Fragment
   { fragmentDataDefinitions :: [DataDefinition]
-  , fragmentDeclarations :: [Declaration]
   , fragmentDefinitions :: [Definition]
   , fragmentOperators :: [Operator]
   , fragmentSynonyms :: [Synonym]
+  , fragmentTraits :: [Trait]
   } deriving (Show)
 
 instance Monoid Fragment where
   mempty = Fragment
     { fragmentDataDefinitions = []
-    , fragmentDeclarations = []
     , fragmentDefinitions = []
     , fragmentOperators = []
     , fragmentSynonyms = []
+    , fragmentTraits = []
     }
   mappend a b = Fragment
     { fragmentDataDefinitions
       = fragmentDataDefinitions a ++ fragmentDataDefinitions b
-    , fragmentDeclarations
-      = fragmentDeclarations a ++ fragmentDeclarations b
     , fragmentDefinitions
       = fragmentDefinitions a ++ fragmentDefinitions b
     , fragmentOperators
       = fragmentOperators a ++ fragmentOperators b
     , fragmentSynonyms
       = fragmentSynonyms a ++ fragmentSynonyms b
+    , fragmentTraits
+      = fragmentTraits a ++ fragmentTraits b
     }
 
 data Element
   = DataDefinitionElement !DataDefinition
-  | DeclarationElement !Declaration
   | DefinitionElement !Definition
   | OperatorElement !Operator
   | SynonymElement !Synonym
+  | TermElement !Term
+  | TraitElement !Trait
 
-data Declaration = Declaration
-  { declarationName :: !Qualified
-  , declarationOrigin :: !Origin
-  , declarationSignature :: !Signature
+data Trait = Trait
+  { traitName :: !Qualified
+  , traitOrigin :: !Origin
+  , traitSignature :: !Signature
   } deriving (Show)
 
 data Definition = Definition
   { definitionBody :: !Term
   , definitionFixity :: !Fixity
+  , definitionInstance :: !DefinitionInstance
   , definitionName :: !Qualified
   , definitionOrigin :: !Origin
   , definitionSignature :: !Signature
   } deriving (Show)
+
+data DefinitionInstance = WordDefinition | InstanceDefinition
+  deriving (Show)
 
 data DataDefinition = DataDefinition
   { dataConstructors :: [DataConstructor]
@@ -654,21 +664,21 @@ type Precedence = Int
 -- there is a homomorphism from the syntactic monoid onto the semantic monoid.
 
 data Term
-  = Call !(Maybe Type) !Fixity !GeneralName [Type] !Origin  -- f
-  | Compose !(Maybe Type) !Term !Term                       -- e1 e2
-  | Drop !(Maybe Type) !Origin                              -- drop
-  | Generic !TypeId !Term !Origin                           -- Λx. e
-  | Group !Term                                             -- (e)
-  | Identity !(Maybe Type) !Origin                          --
-  | If !(Maybe Type) !Term !Term !Origin                    -- if { e1 } else { e2 }
-  | Intrinsic !(Maybe Type) !Intrinsic !Origin              -- _::+
-  | Lambda !(Maybe Type) !Unqualified !Term !Origin         -- → x; e
-  | Match !(Maybe Type) [Case] !(Maybe Else) !Origin        -- match { case C {...}... else {...} }
-  | New !(Maybe Type) !ConstructorIndex !Origin             -- new.n
-  | NewClosure !(Maybe Type) !Int !Origin                   -- new.closure.n
-  | NewVector !(Maybe Type) !Int !Origin                    -- new.vec.n
-  | Push !(Maybe Type) !Value !Origin                       -- push v
-  | Swap !(Maybe Type) !Origin                              -- swap
+  = Call !(Maybe Type) !Fixity !GeneralName [Type] !Origin         -- f
+  | Compose !(Maybe Type) !Term !Term                              -- e1 e2
+  | Drop !(Maybe Type) !Origin                                     -- drop
+  | Generic !TypeId !Term !Origin                                  -- Λx. e
+  | Group !Term                                                    -- (e)
+  | Identity !(Maybe Type) !Origin                                 --
+  | If !(Maybe Type) !Term !Term !Origin                           -- if { e1 } else { e2 }
+  | Intrinsic !(Maybe Type) !Intrinsic !Origin                     -- .add.int
+  | Lambda !(Maybe Type) !Unqualified !(Maybe Type) !Term !Origin  -- → x; e
+  | Match !(Maybe Type) [Case] !(Maybe Else) !Origin               -- match { case C {...}... else {...} }
+  | New !(Maybe Type) !ConstructorIndex !Origin                    -- new.n
+  | NewClosure !(Maybe Type) !Int !Origin                          -- new.closure.n
+  | NewVector !(Maybe Type) !Int !Origin                           -- new.vec.n
+  | Push !(Maybe Type) !Value !Origin                              -- push v
+  | Swap !(Maybe Type) !Origin                                     -- swap
   deriving (Show)
 
 data Value
@@ -729,14 +739,48 @@ partitionElements = foldr go mempty
   go element acc = case element of
     DataDefinitionElement x -> acc
       { fragmentDataDefinitions = x : fragmentDataDefinitions acc }
-    DeclarationElement x -> acc
-      { fragmentDeclarations = x : fragmentDeclarations acc }
     DefinitionElement x -> acc
       { fragmentDefinitions = x : fragmentDefinitions acc }
     OperatorElement x -> acc
       { fragmentOperators = x : fragmentOperators acc }
     SynonymElement x -> acc
       { fragmentSynonyms = x : fragmentSynonyms acc }
+    TraitElement x -> acc
+      { fragmentTraits = x : fragmentTraits acc }
+    TermElement x -> acc
+      { fragmentDefinitions
+        = case findIndex matching $ fragmentDefinitions acc of
+          Just index -> case splitAt index $ fragmentDefinitions acc of
+            (a, existing : b) -> a ++ existing { definitionBody
+              = composeUnderLambda (definitionBody existing) x } : b
+            _ -> error "cannot find main definition"
+          Nothing -> Definition
+            { definitionBody = x
+            , definitionFixity = Postfix
+            , definitionInstance = WordDefinition
+            , definitionName = Qualified globalVocabulary "main"
+            , definitionOrigin = termOrigin x
+            , definitionSignature = FunctionSignature [] []
+              [QualifiedName (Qualified globalVocabulary "io")] $ termOrigin x
+            } : fragmentDefinitions acc
+      }
+      where
+      matching = (== Qualified globalVocabulary "main") . definitionName
+
+-- In top-level code, we want local variable bindings to remain in scope even
+-- when separated by other top-level program elements, e.g.:
+--
+--     1 -> x;
+--     define f (int -> int) { (+ 1) }
+--     x say  // should work
+--
+-- As such, when composing top-level code, we extend the scope of lambdas to
+-- include subsequent expressions.
+
+      composeUnderLambda :: Term -> Term -> Term
+      composeUnderLambda (Lambda type_ name varType body origin) term
+        = Lambda type_ name varType (composeUnderLambda body term) origin
+      composeUnderLambda a b = Compose Nothing a b
 
 vocabularyParser :: Parser [Element]
 vocabularyParser = (<?> "vocabulary definition") $ do
@@ -834,10 +878,13 @@ parseOne = Parsec.tokenPrim show advance
 elementParser :: Parser Element
 elementParser = (<?> "top-level program element") $ Parsec.choice
   [ DataDefinitionElement <$> dataDefinitionParser
-  , DeclarationElement <$> declarationParser
-  , DefinitionElement <$> definitionParser
+  , DefinitionElement <$> (basicDefinitionParser <|> instanceParser)
   , OperatorElement <$> operatorParser
   , SynonymElement <$> synonymParser
+  , TraitElement <$> traitParser
+  , do
+    origin <- getOrigin
+    TermElement . compose origin <$> Parsec.many1 termParser
   ]
 
 synonymParser :: Parser Synonym
@@ -980,22 +1027,31 @@ quantifiedParser thing = do
   origin <- getOrigin
   QuantifiedSignature <$> quantifierParser <*> thing <*> pure origin
 
-declarationParser :: Parser Declaration
-declarationParser = (<?> "generic word declaration") $ do
-  origin <- getOrigin <* parserMatch DeclareToken
+traitParser :: Parser Trait
+traitParser = (<?> "trait declaration") $ do
+  origin <- getOrigin <* parserMatch TraitToken
   suffix <- Parsec.choice
-    [wordNameParser, operatorNameParser] <?> "declaration name"
+    [wordNameParser, operatorNameParser] <?> "trait name"
   name <- Qualified <$> Parsec.getState <*> pure suffix
   signature <- signatureParser
-  return Declaration
-    { declarationName = name
-    , declarationOrigin = origin
-    , declarationSignature = signature
+  return Trait
+    { traitName = name
+    , traitOrigin = origin
+    , traitSignature = signature
     }
 
-definitionParser :: Parser Definition
-definitionParser = (<?> "word definition") $ do
-  origin <- getOrigin <* parserMatch DefineToken
+basicDefinitionParser :: Parser Definition
+basicDefinitionParser = (<?> "word definition")
+  $ definitionParser DefineToken WordDefinition
+
+instanceParser :: Parser Definition
+instanceParser = (<?> "instance definition")
+  $ definitionParser InstanceToken InstanceDefinition
+
+definitionParser
+  :: (Origin -> Indent -> Token) -> DefinitionInstance -> Parser Definition
+definitionParser keyword instance_ = do
+  origin <- getOrigin <* parserMatch keyword
   (fixity, suffix) <- Parsec.choice
     [ (,) Postfix <$> wordNameParser
     , (,) Infix <$> operatorNameParser
@@ -1006,6 +1062,7 @@ definitionParser = (<?> "word definition") $ do
   return Definition
     { definitionBody = body
     , definitionFixity = fixity
+    , definitionInstance = instance_
     , definitionName = name
     , definitionOrigin = origin
     , definitionSignature = signature
@@ -1173,7 +1230,7 @@ makeLambda :: [(Maybe Unqualified, Origin)] -> Term -> Origin -> Term
 makeLambda parsed body origin = foldr
   (\ (nameMaybe, nameOrigin) acc -> maybe
     (Compose Nothing (Drop Nothing origin) acc)
-    (\ name -> Lambda Nothing name acc nameOrigin)
+    (\ name -> Lambda Nothing name Nothing acc nameOrigin)
     nameMaybe)
   body
   (reverse parsed)
@@ -1201,7 +1258,7 @@ termOrigin term = case term of
   Identity _ origin -> origin
   If _ _ _ origin -> origin
   Intrinsic _ _ origin -> origin
-  Lambda _ _ _ origin -> origin
+  Lambda _ _ _ _ origin -> origin
   New _ _ origin -> origin
   NewClosure _ _ origin -> origin
   NewVector _ _ origin -> origin
@@ -1322,7 +1379,7 @@ type Resolved a = StateT [Unqualified] K a
 resolveNames :: Fragment -> K Fragment
 resolveNames fragment = do
   reportDuplicateDefinitions
-    (Set.fromList $ map declarationName $ fragmentDeclarations fragment)
+    (Set.fromList $ map traitName $ fragmentTraits fragment)
     $ map (definitionName &&& definitionOrigin) $ fragmentDefinitions fragment
   flip evalStateT [] $ do
     definitions <- mapM resolveDefinition $ fragmentDefinitions fragment
@@ -1358,8 +1415,8 @@ resolveNames fragment = do
         "intrinsic name should not appear before name resolution"
       If _ a b origin -> If Nothing
         <$> recur a <*> recur b <*> pure origin
-      Lambda _ name term origin -> withLocal name
-        $ Lambda Nothing name <$> recur term <*> pure origin
+      Lambda _ name _ term origin -> withLocal name
+        $ Lambda Nothing name Nothing <$> recur term <*> pure origin
       Match _ cases mElse origin -> Match Nothing
         <$> mapM resolveCase cases <*> traverse resolveElse mElse
         <*> pure origin
@@ -1497,7 +1554,7 @@ reportDuplicateDefinitions generic = mapM_ reportDuplicate . groupWith fst
         : map (\ duplicateOrigin -> Item duplicateOrigin ["here"])
           (origin : map snd duplicates)
         ++ [Item origin
-          ["Did you mean to declare it as a generic definition?"]]
+          ["Did you mean to declare it as a trait?"]]
 
 intrinsicFromName :: Qualified -> Maybe Intrinsic
 intrinsicFromName name = case name of
@@ -1582,7 +1639,7 @@ desugarInfix fragment = do
       If _ a b origin -> If Nothing
         <$> desugarTerms' a <*> desugarTerms' b <*> pure origin
       Intrinsic{} -> return term
-      Lambda _ name body origin -> Lambda Nothing name
+      Lambda _ name _ body origin -> Lambda Nothing name Nothing
         <$> desugarTerms' body <*> pure origin
       Match _ cases mElse origin -> Match Nothing
         <$> mapM desugarCase cases <*> traverse desugarElse mElse <*> pure origin
@@ -1719,6 +1776,7 @@ desugarDataDefinitions fragment = do
       return Definition
         { definitionBody = New Nothing index $ constructorOrigin constructor
         , definitionFixity = Postfix
+        , definitionInstance = WordDefinition
         , definitionName = Qualified qualifier $ constructorName constructor
         , definitionOrigin = origin
         , definitionSignature = constructorSignature
@@ -1741,7 +1799,7 @@ desugarDefinitions :: Program -> K Program
 desugarDefinitions program = do
   definitions <- HashMap.fromList . concat <$> mapM (uncurry desugarDefinition)
     (HashMap.toList $ programDefinitions program)
-  return Program { programDefinitions = definitions }
+  return program { programDefinitions = definitions }
   where
 
   desugarDefinition
@@ -1753,28 +1811,28 @@ desugarDefinitions program = do
   desugarTerm :: Qualifier -> Term -> K (Term, [((Qualified, Type), Term)])
   desugarTerm qualifier = flip evalStateT (LambdaIndex 0) . go
     where
-    go
-      :: Term -> StateT LambdaIndex K (Term, [((Qualified, Type), Term)])
+
+    go :: Term -> StateT LambdaIndex K (Term, [((Qualified, Type), Term)])
     go term = case term of
       Call{} -> done
-      Compose _ a b -> do
+      Compose type_ a b -> do
         (a', as) <- go a
         (b', bs) <- go b
-        return (Compose Nothing a' b', as ++ bs)
+        return (Compose type_ a' b', as ++ bs)
       Drop{} -> done
       Generic{} -> error
         "generic expression should not appear before desugaring"
       Group{} -> error "group should not appear after infix desugaring"
       Identity{} -> done
-      If _ a b origin -> do
+      If type_ a b origin -> do
         (a', as) <- go a
         (b', bs) <- go b
-        return (If Nothing a' b' origin, as ++ bs)
+        return (If type_ a' b' origin, as ++ bs)
       Intrinsic{} -> done
-      Lambda _ name a origin -> do
+      Lambda type_ name varType a origin -> do
         (a', as) <- go a
-        return (Lambda Nothing name a' origin, as)
-      Match _ cases mElse origin -> do
+        return (Lambda type_ name varType a' origin, as)
+      Match type_ cases mElse origin -> do
         (cases', as) <- flip mapAndUnzipM cases
           $ \ (Case name a caseOrigin) -> do
             (a', xs) <- go a
@@ -1784,12 +1842,12 @@ desugarDefinitions program = do
             (a', xs) <- go a
             return (Just (Else a' elseOrigin), xs)
           Nothing -> return (Nothing, [])
-        return (Match Nothing cases' mElse' origin, concat as ++ bs)
+        return (Match type_ cases' mElse' origin, concat as ++ bs)
       New{} -> done
       NewClosure{} -> done
       NewVector{} -> done
       -- FIXME: Should be Closure, not Quotation.
-      Push _ (Closure closed a) origin -> do
+      Push _type (Closure closed a) origin -> do
         (a', as) <- go a
         LambdaIndex index <- get
         let
@@ -1804,6 +1862,7 @@ desugarDefinitions program = do
             $ Map.toList $ freeTvks deducedType
         return
           ( compose origin $ map pushClosed closed ++
+            -- FIXME: What type should be used here?
             [ Push Nothing (Name name) origin
             , NewClosure Nothing (length closed) origin
             ]
@@ -1846,7 +1905,8 @@ linearize program = let
 
   linearizeDefinition
     :: ((Qualified, Type), Term) -> ((Qualified, Type), Term)
-  linearizeDefinition (name, body) = (name, linearizeTerm body)
+  linearizeDefinition ((name, type_), body)
+    = ((name, type_), linearizeTerm body)
 
   linearizeTerm :: Term -> Term
   linearizeTerm = snd . go []
@@ -1870,17 +1930,14 @@ linearize program = let
         (counts2, b') = go counts0 b
         in (zipWith max counts1 counts2, If type_ a' b' origin)
       Intrinsic{} -> (counts0, term)
-      Lambda type_ x body origin -> let
+      Lambda type_ x varType body origin -> let
         (n : counts1, body') = go (0 : counts0) body
-        type' = case type_ of
-          Just (TypeConstructor _ "fun"
-            :@ _ :@ (TypeConstructor _ "prod" :@ _ :@ a) :@ _) -> a
-          _ -> error "lambda does not have function type"
+        varType' = maybe (error "lambda missing variable type") id varType
         body'' = case n of
-          0 -> instrumentDrop origin type' body'
+          0 -> instrumentDrop origin varType' body'
           1 -> body'
-          _ -> instrumentCopy type' body'
-        in (counts1, Lambda type_ x body'' origin)
+          _ -> instrumentCopy varType' body'
+        in (counts1, Lambda type_ x varType body'' origin)
       -- FIXME: count usages for each branch & take maximum
       Match type_ cases mElse origin -> let
 
@@ -1936,8 +1993,8 @@ linearize program = let
       Identity{} -> term
       If type_ a b origin -> If type_ (go n a) (go n b) origin
       Intrinsic{} -> term
-      Lambda type_ name body origin
-        -> Lambda type_ name (go (succ n) body) origin
+      Lambda type_ name varType' body origin
+        -> Lambda type_ name varType' (go (succ n) body) origin
       Match type_ cases mElse origin
         -> Match type_ (map goCase cases) (goElse <$> mElse) origin
         where
@@ -1996,7 +2053,7 @@ scope fragment = fragment
       Identity{} -> term
       If _ a b origin -> If Nothing (recur a) (recur b) origin
       Intrinsic{} -> term
-      Lambda _ name a origin -> Lambda Nothing name
+      Lambda _ name _ a origin -> Lambda Nothing name Nothing
         (scopeTerm (mapHead succ stack) a) origin
       Match _ cases mElse origin -> Match Nothing
         (map (\ (Case name a caseOrigin)
@@ -2061,12 +2118,13 @@ captureTerm term = case term of
   If _ a b origin -> If Nothing
     <$> captureTerm a <*> captureTerm b <*> pure origin
   Intrinsic{} -> return term
-  Lambda _ name a origin -> let
+  Lambda _ name _ a origin -> let
     inside env = env
       { scopeStack = mapHead succ (scopeStack env)
       , scopeDepth = succ (scopeDepth env)
       }
-    in Lambda Nothing name <$> local inside (captureTerm a) <*> pure origin
+    in Lambda Nothing name Nothing
+      <$> local inside (captureTerm a) <*> pure origin
   Match _ cases mElse origin -> Match Nothing
     <$> mapM captureCase cases <*> traverse captureElse mElse <*> pure origin
     where
@@ -2149,11 +2207,16 @@ mapHead f (x : xs) = f x : xs
 
 -- A program consists of a set of definitions.
 
-newtype Program = Program
-  { programDefinitions :: HashMap (Qualified, Type) Term }
+data Program = Program
+  { programDefinitions :: HashMap (Qualified, Type) Term
+  , programTraits :: HashMap Qualified Type
+  }
 
 emptyProgram :: Program
-emptyProgram = Program HashMap.empty
+emptyProgram = Program
+  { programDefinitions = HashMap.empty
+  , programTraits = HashMap.empty
+  }
 
 
 
@@ -2321,27 +2384,56 @@ freshTypeId tenv = do
 inferTypes :: Fragment -> K Program
 inferTypes fragment = do
   let tenv0 = emptyTypeEnv
+
+-- We begin by converting instance definitions into ordinary word definitions.
+-- With their mangled names already in the global vocabulary, they will be found
+-- first when checking for instantiations during instance collection.
+
   definitions <- forM (fragmentDefinitions fragment) $ \ definition -> do
     type_ <- typeFromSignature tenv0 $ definitionSignature definition
-    return ((definitionName definition, type_), definitionBody definition)
+    let name = definitionName definition
+    name' <- case definitionInstance definition of
+      InstanceDefinition -> let
+        mTrait = find ((name ==) . traitName) $ fragmentTraits fragment
+        in case mTrait of
+          Nothing -> error "instance refers to a nonexistent trait"
+          Just trait -> do
+            instanceType <- typeFromSignature tenv0
+              $ definitionSignature definition
+            traitType <- typeFromSignature tenv0 $ traitSignature trait
+            instanceCheck "trait" traitType "instance" instanceType
+            (traitType', args, tenv1) <- instantiatePrenex tenv0 traitType
+            tenv2 <- unifyType tenv1 instanceType traitType'
+            args' <- valueKinded $ map (zonkType tenv2) args
+            let mangled = mangleName name args'
+            liftIO $ putStrLn $ "mangled name: " ++ Text.unpack mangled
+            return $ Qualified globalVocabulary $ Unqualified mangled
+      WordDefinition -> return name
+    return ((name', type_), definitionBody definition)
+  traits <- forM (fragmentTraits fragment) $ \ trait -> do
+    type_ <- typeFromSignature tenv0 $ traitSignature trait
+    return (traitName trait, type_)
   let
-    declaredTypes = Map.fromList $ map fst definitions
+    declaredTypes = Map.union
+      (Map.fromList (map fst definitions))
+      (Map.fromList traits)
     infer = inferType0 declaredTypes
+
+    go :: (Qualified, Type) -> Term -> K ((Qualified, Type), Term)
     go (name, declaredScheme) term = do
-      (term', inferredScheme) <- infer term
-      liftIO $ putStrLn $ Pretty.render $ Pretty.hsep
-        ["the inferred type of", pPrint name, "is", pPrint inferredScheme]
-      instanceCheck "inferred" inferredScheme "declared" declaredScheme
-      case find ((name ==) . declarationName) $ fragmentDeclarations fragment of
-        Just declaration -> do
-          genericScheme <- typeFromSignature tenv0
-            $ declarationSignature declaration
-          instanceCheck "generic" genericScheme "declared" declaredScheme
+      (term', inferredScheme) <- infer name declaredScheme term
+      case find ((name ==) . traitName) $ fragmentTraits fragment of
+        Just trait -> do
+          traitScheme <- typeFromSignature tenv0 $ traitSignature trait
+          instanceCheck "generic" traitScheme "declared" declaredScheme
         Nothing -> return ()
       -- FIXME: Should this be the inferred or declared scheme?
-      return ((name, declaredScheme), term')
+      return ((name, inferredScheme), term')
   definitions' <- mapM (uncurry go) definitions
-  return Program { programDefinitions = HashMap.fromList definitions' }
+  return Program
+    { programTraits = HashMap.fromList traits
+    , programDefinitions = HashMap.fromList definitions'
+    }
 
 
 
@@ -2351,14 +2443,18 @@ inferTypes fragment = do
 -- in an empty environment so that it can be trivially generalized. It is then
 -- regeneralized to increase stack polymorphism.
 
-inferType0 :: Map Qualified Type -> Term -> K (Term, Type)
-inferType0 sigs term = {- while ["inferring the type of", show term] $ -} do
+inferType0 :: Map Qualified Type -> Qualified -> Type -> Term -> K (Term, Type)
+inferType0 sigs name declared term = {- while ["inferring the type of", show term] $ -} do
   rec
-    (term', t, tenvFinal) <- inferType tenvFinal
+    (term', t, tenvFinal) <- inferType tenvFinal'
       emptyTypeEnv { tenvSigs = sigs } term
-  let zonked = zonkType tenvFinal t
-  let regeneralized = regeneralize tenvFinal zonked
-  return (zonkTerm tenvFinal term', regeneralized)
+    tenvFinal' <- unifyType tenvFinal t declared
+  let zonked = zonkType tenvFinal' t
+  let regeneralized = regeneralize tenvFinal' zonked
+  instanceCheck "inferred" regeneralized "declared" declared
+  liftIO $ putStrLn $ Pretty.render $ Pretty.hsep
+    ["the inferred type of", pPrint name, "is", pPrint regeneralized]
+  return (zonkTerm tenvFinal' term', regeneralized)
 
 
 
@@ -2434,16 +2530,22 @@ inferType tenvFinal tenv0 term0
 -- A local variable binding in Kitten is in fact a lambda term in the ordinary
 -- lambda-calculus sense. We infer the type of its body in the
 
-    Lambda _ name term origin -> do
+    Lambda _ name _ term origin -> do
       a <- freshTv tenv0 origin Value
       let oldLocals = tenvVs tenv0
       let localEnv = tenv0 { tenvVs = a : tenvVs tenv0 }
       (term', t1, tenv1) <- inferType tenvFinal localEnv term
       let tenv2 = tenv1 { tenvVs = oldLocals }
       (b, c, e, tenv3) <- unifyFunction tenv2 t1
-      let type_ = funType origin (prodType origin b a) c e
-      let type' = zonkType tenvFinal type_
-      return (Lambda (Just type') name term' origin, type_, tenv3)
+      let
+        type_ = funType origin (prodType origin b a) c e
+        type' = zonkType tenvFinal type_
+        varType' = zonkType tenvFinal a
+      return
+        ( Lambda (Just type') name (Just varType') term' origin
+        , type_
+        , tenv3
+        )
 
     Match _ cases mElse origin -> do
       (cases', caseTypes, tenv1) <- foldrM inferCase' ([], [], tenv0) cases
@@ -2603,10 +2705,12 @@ inferCall tenvFinal tenv0 (QualifiedName name) origin
     Just t@Forall{} -> do
       (type_, params, tenv1) <- instantiatePrenex tenv0 t
       let type' = setTypeOrigin origin type_
-      params' <- filterM (fmap (Value ==) . typeKind) params
-      let type'' = zonkType tenvFinal type'
+      params' <- valueKinded params
+      let
+        type'' = zonkType tenvFinal type'
+        params'' = map (zonkType tenvFinal) params'
       return
-        ( Call (Just type'') Postfix (QualifiedName name) params' origin
+        ( Call (Just type'') Postfix (QualifiedName name) params'' origin
         , type'
         , tenv1
         )
@@ -2653,7 +2757,7 @@ inferCall _ _ _ _ = error "cannot infer type of non-qualified name"
 
 inferIntrinsic
   :: TypeEnv -> TypeEnv -> Intrinsic -> Origin -> K (Term, Type, TypeEnv)
-inferIntrinsic = error "TODO: infer intrinsic"
+inferIntrinsic _ _ _ _ = return $ error "TODO: infer intrinsic"
 
 
 
@@ -2712,13 +2816,19 @@ termType term = case term of
   Identity t _ -> t
   If t _ _ _ -> t
   Intrinsic t _ _ -> t
-  Lambda t _ _ _ -> t
+  Lambda t _ _ _ _ -> t
   Match t _ _ _ -> t
   New t _ _ -> t
   NewClosure t _ _ -> t
   NewVector t _ _ -> t
   Push t _ _ -> t
   Swap t _ -> t
+
+
+
+
+valueKinded :: [Type] -> K [Type]
+valueKinded = filterM $ fmap (Value ==) . typeKind
 
 
 
@@ -3103,8 +3213,8 @@ zonkTerm tenv0 = go
       -> If (zonkMay tref) (go true) (go false) origin
     Intrinsic tref name origin
       -> Intrinsic (zonkMay tref) name origin
-    Lambda tref name body origin
-      -> Lambda (zonkMay tref) name (go body) origin
+    Lambda tref name varType body origin
+      -> Lambda (zonkMay tref) name (zonkMay varType) (go body) origin
     Match tref cases mElse origin
       -> Match (zonkMay tref) (map goCase cases) (fmap goElse mElse) origin
       where
@@ -3347,64 +3457,111 @@ subsumptionCheckFun tenv0 a b e a' b' e' = do
 -- definition with one of its own generic type parameters as a type argument,
 -- then an instantiation must also be generated of the called definition.
 
-{-
-
 collectInstantiations :: TypeEnv -> Program -> K Program
-collectInstantiations tenv (Program defs0) = do
+collectInstantiations tenv0 program0 = do
 
--- We first enqueue all the instantiation sites reachable from the top level of
--- the program, and any non-generic definitions.
+-- We enqueue all the instantiation sites reachable from the top level of the
+-- program, and any non-generic definitions.
 
-  (expr1, q0) <- go emptyQueue expr0
-  (defs1, q1) <- foldrM
-    (\ (name, (type_, expr)) (acc, q) -> do
+  (definitions, q0) <- foldrM
+    (\ ((name, type_), expr) (acc, q) -> do
       (expr', q') <- go q expr
-      return ((name, (type_, expr')) : acc, q'))
-    ([], q0)
-    (Map.toList defs0)
+      return (((name, type_), expr') : acc, q'))
+    ([], emptyQueue)
+    $ HashMap.toList $ programDefinitions program0
 
 -- Next, we process the queue. Doing so may enqueue new instantiation sites for
 -- processing; however, this is guaranteed to halt because the number of actual
 -- instantiations is finite.
 
-  defs2 <- processQueue q1 $ Map.fromList defs1
-  return (defs2, expr1)
+  definitions' <- processQueue q0 $ HashMap.fromList definitions
+  return program0 { programDefinitions = definitions' }
+
   where
 
-  go :: Queue (Name, [Type]) -> Expr -> K (Expr, Queue (Name, [Type]))
-  go q0 expr = case expr of
-    EId{} -> return (expr, q0)
-    ECat tref a b -> do
+-- We process a definition in a single pass, mangling all its call sites and
+-- enqueueing them for instantiation. We perform the actual instantiation while
+-- processing the queue, so as to avoid redundant instantiations.
+
+  go :: InstantiationQueue -> Term -> K (Term, InstantiationQueue)
+  go q0 term = case term of
+    Call type_ fixity (QualifiedName name) args origin -> return
+      ( Call type_ fixity
+        (UnqualifiedName (Unqualified (mangleName name args))) [] origin
+      , enqueue (name, args) q0
+      )
+    -- FIXME: Should calls to non-qualified names even be around at this point?
+    Call{} -> proceed
+    Compose type_ a b -> do
       (a', q1) <- go q0 a
       (b', q2) <- go q1 b
-      return (ECat tref a' b', q2)
-    ECall tref name args -> return (ECall tref (mangleName name args) [], enqueue (name, args) q0)
-    EPush{} -> return (expr, q0)
-    EGo{} -> return (expr, q0)
-    ECome{} -> return (expr, q0)
-    -- If the definition is generic, we simply ignore it; we won't find any
-    -- instantiations in it, because it's not instantiated, itself!
-    EForall{} -> return (expr, q0)
-    EIf tref a b -> do
-      (a', q1) <- go q0 a
-      (b', q2) <- go q1 b
-      return (EIf tref a' b', q2)
+      return (Compose type_ a' b', q2)
+    Drop{} -> proceed
+
+-- If the definition is generic, we simply ignore it; we won't find any
+-- instantiations in it, because it's not instantiated itself!
+
+    Generic{} -> proceed
+    Group{} -> error "group should not appear after linearization"
+    Identity{} -> proceed
+    If type_ true false origin -> do
+      (true', q1) <- go q0 true
+      (false', q2) <- go q1 false
+      return (If type_ true' false' origin, q2)
+    Intrinsic{} -> proceed
+    Lambda type_ name varType body origin -> do
+      (body', q1) <- go q0 body
+      return (Lambda type_ name varType body' origin, q1)
+    Match type_ cases mElse origin -> do
+      (cases', q1) <- foldrM (\ (Case name body caseOrigin) (bodies, q) -> do
+        (body', q') <- go q body
+        return (Case name body' caseOrigin : bodies, q'))
+        ([], q0) cases
+      (mElse', q2) <- case mElse of
+        Just (Else body elseOrigin) -> do
+          (body', q') <- go q1 body
+          return (Just (Else body' elseOrigin), q')
+        Nothing -> return (Nothing, q1)
+      return (Match type_ cases' mElse' origin, q2)
+    New{} -> proceed
+    NewClosure{} -> proceed
+    NewVector{} -> proceed
+    Push _ Quotation{} _ -> error
+      "quotation should not appear after quotation desugaring"
+    Push{} -> proceed
+    Swap{} -> proceed
+    where
+    proceed = return (term, q0)
+
+-- Processing the queue operates by dequeueing and instantiating each definition
+-- in turn. If the definition has already been instantiated, we simply proceed.
 
   processQueue
-    :: Queue (Name, [Type]) -> Program -> K Program
-  processQueue q (Program defs) = case dequeue q of
-    Nothing -> return $ Program defs
+    :: InstantiationQueue
+    -> HashMap (Qualified, Type) Term
+    -> K (HashMap (Qualified, Type) Term)
+  processQueue q defs = case dequeue q of
+    Nothing -> return defs
     Just ((name, args), q') -> let
       mangled = mangleName name args
-      in case Map.lookup mangled defs of
+      name' = Qualified globalVocabulary $ Unqualified mangled
+      in case lookupWith ((name' ==) . fst) defs of
         Just{} -> processQueue q' defs
-        Nothing -> case Map.lookup name defs of
+        Nothing -> case lookupWith ((name ==) . fst) defs of
           -- The name is not user-defined, so it doesn't need to be mangled.
           Nothing -> processQueue q' defs
-          Just (type_, expr) -> do
-            expr' <- instantiateExpr tenv expr args
-            (expr'', q'') <- go q' expr'
-            processQueue q'' $ Map.insert mangled (type_, expr'') defs
+          Just ((_, type_), term) -> do
+            term' <- instantiateExpr tenv0 term args
+            (term'', q'') <- go q' term'
+            processQueue q'' $ HashMap.insert
+              (Qualified globalVocabulary (Unqualified mangled), type_)
+              term'' defs
+
+type InstantiationQueue = Queue (Qualified, [Type])
+
+-- FIXME: This should be made more efficient.
+lookupWith :: (k -> Bool) -> HashMap k v -> Maybe (k, v)
+lookupWith f = find (f . fst) . HashMap.toList
 
 
 
@@ -3412,24 +3569,33 @@ collectInstantiations tenv (Program defs0) = do
 -- Names are mangled according to the local C++ mangling convention. This is a
 -- silly approximation of the IA-64 convention for testing purposes.
 
-mangleName :: Name -> [Type] -> Name
-mangleName name args = case args of
-  [] -> prefix <> lengthEncode name
-  _ -> prefix <> lengthEncode name <> "I" <> Text.concat (map mangleType args) <> "E"
-  where
-  prefix = "_Z"
+mangleName :: Qualified -> [Type] -> Text
+mangleName name args = mconcat . (["_Z", lengthEncode name] ++)
+  $ if null args then [] else ["I", Text.concat $ map mangleType args, "E"]
 
-mangleType :: Type -> Name
-mangleType ("fun" :@ _ :@ _) = "PFvv"
-mangleType ("ptr" :@ a) = Text.concat ["P", mangleType a]
-mangleType (TCon (Con con)) = case con of
-  "int" -> "i"
+mangleType :: Type -> Text
+mangleType (TypeConstructor _ "fun" :@ _ :@ _) = "PFvv"
+mangleType (TypeConstructor _ "ptr" :@ a) = Text.concat ["P", mangleType a]
+mangleType (TypeConstructor _origin (Constructor con)) = case con of
+  Qualified qualifier name | qualifier == globalVocabulary -> case name of
+    "int" -> "i"
+    "bool" -> "b"
+    "char" -> "c"
+    "float" -> "f"
+    "text" -> "PKc"
+    _ -> lengthEncode con
   _ -> lengthEncode con
-mangleType ("prod" :@ a :@ b) = Text.concat $ map mangleType [a, b]
-mangleType _ = "?"
+mangleType (TypeConstructor _ "prod" :@ a :@ b)
+  = Text.concat $ map mangleType [a, b]
+mangleType t = Text.concat ["(", Text.pack (Pretty.render (pPrint t)), ")"]
 
-lengthEncode :: Name -> Name
-lengthEncode name = Text.pack (show (Text.length name)) <> name
+lengthEncode :: Qualified -> Text
+lengthEncode (Qualified (Qualifier parts) (Unqualified name)) = case parts of
+  [] -> lengthEncode' name
+  [""] -> lengthEncode' name
+  _ -> mconcat $ "N" : map lengthEncode' (parts ++ [name]) ++ ["E"]
+  where
+  lengthEncode' part = mconcat [Text.pack $ show $ Text.length part, part]
 
 
 
@@ -3458,12 +3624,15 @@ queueFromList = Queue [] . reverse
 -- Instantiates a generic expression with the given type arguments.
 
 instantiateExpr :: TypeEnv -> Term -> [Type] -> K Term
-instantiateExpr tenv = foldlM go
+instantiateExpr tenv term args = foldlM go term args
   where
-  go (Generic x expr) arg = replaceTvExpr tenv x arg expr
-  go _ _ = error "instantiateExpr: wrong number of type parameters"
-
--}
+  go (Generic x expr _origin) arg = replaceTvExpr tenv x arg expr
+  go _ _ = do
+    report $ Report Error $ Item (termOrigin term)
+      [ "wrong number of type arguments instantiating"
+      , pPrint term Pretty.<> ":"
+      ] : map (\ arg -> Item (typeOrigin arg) [pPrint (zonkType tenv arg)]) args
+    halt
 
 
 
@@ -3482,9 +3651,9 @@ quantifyTerm (Forall _ _ t) e = quantifyTerm t e
 quantifyTerm _ e = e
 
 quantifyTerms :: Program -> Program
-quantifyTerms program = Program
+quantifyTerms program = program
   { programDefinitions = HashMap.mapWithKey
-    (\ (_name, type_) term -> quantifyTerm type_ term)
+    (\ (_, type_) term -> quantifyTerm type_ term)
     $ programDefinitions program }
 
 
@@ -3519,24 +3688,46 @@ replaceTv tenv0 x a = recur
 
 
 replaceTvExpr :: TypeEnv -> TypeId -> Type -> Term -> K Term
-replaceTvExpr _tenv _x _a = error "TODO: replaceTvExpr"  -- recur
+replaceTvExpr tenv x a = recur
   where
-{-
-  recur expr = case expr of
-    EId tref -> EId <$> go' tref
-    ECat tref e1 e2 -> ECat <$> go' tref <*> recur e1 <*> recur e2
-    ECall tref name args -> ECall <$> go' tref <*> pure name <*> mapM go args
-    EPush tref val -> EPush <$> go' tref <*> pure val
-    EGo tref name -> EGo <$> go' tref <*> pure name
-    ECome how tref name -> ECome how <$> go' tref <*> pure name
-    EForall x' _
-      | x == x' -> return expr
-      | otherwise -> error "substituting in a generic expression should not require capture-avoidance"
-    EIf tref e1 e2 -> EIf <$> go' tref <*> recur e1 <*> recur e2
+  recur term = case term of
+    Call tref fixity name args origin -> Call <$> go' tref
+      <*> pure fixity <*> pure name <*> mapM go args <*> pure origin
+    Compose tref t1 t2 -> Compose <$> go' tref <*> recur t1 <*> recur t2
+    Drop tref origin -> Drop <$> go' tref <*> pure origin
+    Generic x' _ _ -> if x == x' then return term
+      else error
+        "substituting in a generic term should not require capture-avoidance"
+    Group t -> recur t
+    Identity tref origin -> Identity <$> go' tref <*> pure origin
+    If tref true false origin -> If <$> go' tref
+      <*> recur true <*> recur false <*> pure origin
+    Intrinsic tref name origin -> Intrinsic <$> go' tref
+      <*> pure name <*> pure origin
+    Lambda tref name varType body origin -> Lambda <$> go' tref
+      <*> pure name <*> go' varType <*> recur body <*> pure origin
+    Match tref cases mElse origin -> Match <$> go' tref
+      <*> mapM goCase cases <*> traverse goElse mElse <*> pure origin
+      where
+
+      goCase :: Case -> K Case
+      goCase (Case name body caseOrigin)
+        = Case name <$> recur body <*> pure caseOrigin
+
+      goElse :: Else -> K Else
+      goElse (Else body elseOrigin) = Else <$> recur body <*> pure elseOrigin
+
+    New tref index origin -> New <$> go' tref <*> pure index <*> pure origin
+    NewClosure tref size origin -> NewClosure <$> go' tref
+      <*> pure size <*> pure origin
+    NewVector tref size origin -> NewVector <$> go' tref
+      <*> pure size <*> pure origin
+    Push tref value origin -> Push <$> go' tref <*> pure value <*> pure origin
+    Swap tref origin -> Swap <$> go' tref <*> pure origin
+
+  go t = replaceTv tenv x a t
   go' (Just t) = Just <$> go t
   go' Nothing = return Nothing
-  go t = replaceTv tenv x a t
--}
 
 
 
@@ -3613,7 +3804,6 @@ instance Pretty Token where
     CharacterToken c _ _ -> Pretty.quotes $ Pretty.char c
     CommaToken{} -> ","
     DataToken{} -> "data"
-    DeclareToken{} -> "declare"
     DefineToken{} -> "define"
     EllipsisToken{} -> "..."
     ElifToken{} -> "elif"
@@ -3624,6 +3814,7 @@ instance Pretty Token where
     IfToken{} -> "if"
     IgnoreToken{} -> "_"
     InfixToken{} -> "infix"
+    InstanceToken{} -> "instance"
     IntegerToken value hint _ _
       -> Pretty.text $ if value < 0 then '-' : shown else shown
       where
@@ -3639,6 +3830,7 @@ instance Pretty Token where
     ReferenceToken{} -> "\\"
     SynonymToken{} -> "synonym"
     TextToken t _ _ -> Pretty.doubleQuotes $ Pretty.text $ Text.unpack t
+    TraitToken{} -> "trait"
     VectorBeginToken{} -> "["
     VectorEndToken{} -> "]"
     VocabToken{} -> "vocab"
@@ -3661,12 +3853,10 @@ instance Pretty Fragment where
     pretties = map pPrint
 
 instance Pretty Program where
-  pPrint (Program definitions) = prettyVsep
-    $ map (\ ((name, type_), term) -> Pretty.vcat
-      [ Pretty.hcat
-        ["def ", pPrint name, " ", Pretty.parens (pPrint type_), ":"]
-      , Pretty.nest 4 $ pPrint term
-      ])
+  pPrint Program { programDefinitions = definitions } = prettyVsep
+    $ map (\ ((name, type_), term) -> pPrintAsDefinition
+      (pPrint name) (pPrint type_) (pPrint term)
+      (pPrint (DefineToken Anywhere Nothing)))
     $ HashMap.toList definitions
 
 prettyVsep :: [Pretty.Doc] -> Pretty.Doc
@@ -3687,13 +3877,19 @@ instance Pretty DataConstructor where
     Pretty.<+> pPrint (constructorName constructor)
 
 instance Pretty Definition where
-  pPrint definition = Pretty.vcat
-    [ "define"
-      Pretty.<+> pPrint (definitionName definition)
-      Pretty.<+> pPrint (definitionSignature definition)
-      Pretty.<> ":"
-    , Pretty.nest 4 $ pPrint $ definitionBody definition
-    ]
+  pPrint definition = pPrintAsDefinition
+    (pPrint $ definitionName definition)
+    (pPrint $ definitionSignature definition)
+    (pPrint $ definitionBody definition)
+    $ pPrint $ DefineToken Anywhere Nothing
+
+pPrintAsDefinition
+  :: Pretty.Doc -> Pretty.Doc -> Pretty.Doc-> Pretty.Doc -> Pretty.Doc
+pPrintAsDefinition name signature body keyword = Pretty.vcat
+  [ Pretty.hcat
+    [Pretty.hsep [keyword, name, signature], ":"]
+  , Pretty.nest 4 body
+  ]
 
 instance Pretty Operator where
   pPrint operator = Pretty.hsep
@@ -3708,8 +3904,9 @@ instance Pretty Operator where
 
 instance Pretty Term where
   pPrint term = case term of
-    -- TODO: Pretty-print generic parameters.
-    Call _ _ name _params _ -> pPrint name
+    Call _ _ name [] _ -> pPrint name
+    Call _ _ name args _ -> Pretty.hcat
+      $ pPrint name : "<" : intersperse ", " (map pPrint args) ++ [">"]
     Compose _ a b -> pPrint a Pretty.$+$ pPrint b
     Drop _ _ -> "drop"
     Generic name body _ -> Pretty.hsep
@@ -3721,7 +3918,7 @@ instance Pretty Term where
       Pretty.$$ "else:"
       Pretty.$$ Pretty.nest 4 (pPrint b)
     Intrinsic _ name _ -> pPrint name
-    Lambda _ name body _ -> "->"
+    Lambda _ name _ body _ -> "->"
       Pretty.<+> pPrint name
       Pretty.<> ";"
       Pretty.$+$ pPrint body
@@ -3790,8 +3987,8 @@ instance Pretty GeneralName where
 
 instance Pretty Intrinsic where
   pPrint intrinsic = case intrinsic of
-    AddIntrinsic -> "_::+"
-    MagicIntrinsic -> "_::magic"
+    AddIntrinsic -> ".add.int"
+    MagicIntrinsic -> ".magic"
 
 -- FIXME: Real instance.
 instance Pretty Synonym where
