@@ -28,7 +28,6 @@ import Kitten.Util.Text (showText, toText)
 import Kitten.Util.Tuple
 
 import qualified Kitten.IdMap as Id
-import qualified Kitten.Util.Vector as V
 
 data Env = Env
   { envIdGen :: !(IdGen 'LabelSpace)
