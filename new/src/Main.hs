@@ -145,7 +145,6 @@ compile paths = do
   -- generate instance declarations
   --   (so inference can know what's available in a precompiled module)
   -- generate code
-  liftIO $ putStrLn $ Pretty.render $ pPrint instantiated
   return instantiated
   where
 
@@ -2463,7 +2462,6 @@ inferTypes fragment = do
             tenv2 <- unifyType tenv1 instanceType traitType'
             args' <- valueKinded $ map (zonkType tenv2) args
             let mangled = mangleName name args'
-            liftIO $ putStrLn $ "mangled name: " ++ Text.unpack mangled
             return $ Qualified globalVocabulary $ Unqualified mangled
       WordDefinition -> return name
     return ((name', type_), definitionBody definition)
@@ -2501,7 +2499,7 @@ inferTypes fragment = do
 -- regeneralized to increase stack polymorphism.
 
 inferType0 :: Map Qualified Type -> Qualified -> Type -> Term -> K (Term, Type)
-inferType0 sigs name declared term = {- while ["inferring the type of", show term] $ -} do
+inferType0 sigs _name declared term = {- while ["inferring the type of", show term] $ -} do
   rec
     (term', t, tenvFinal) <- inferType tenvFinal'
       emptyTypeEnv { tenvSigs = sigs } term
@@ -2509,8 +2507,6 @@ inferType0 sigs name declared term = {- while ["inferring the type of", show ter
   let zonked = zonkType tenvFinal' t
   let regeneralized = regeneralize tenvFinal' zonked
   instanceCheck "inferred" regeneralized "declared" declared
-  liftIO $ putStrLn $ Pretty.render $ Pretty.hsep
-    ["the inferred type of", pPrint name, "is", pPrint regeneralized]
   return (zonkTerm tenvFinal' term', regeneralized)
 
 
