@@ -43,7 +43,7 @@ define ignore2<A> (A ->):
   -> x;
 
 define blah (optional<int>, int -> int) {
-  -> test x;
+  -> test, x;
   match (test) {
     case optional::some { ignore x }
     else {
@@ -53,7 +53,7 @@ define blah (optional<int>, int -> int) {
 }
 
 define both<A, B, C, D, +E> (A, B, (A -> C +E), (B -> D +E) -> C, D +E):
-  -> x y f g;
+  -> x, y, f, g;
   x f call
   y g call
 
@@ -135,7 +135,7 @@ define scope (-> +io) {
 vocab foo::bar {
 
 define quadratic (int, int, int -> int):
-  -> a b c;
+  -> a, b, c;
   (a + (b * b - 4 * a * c) sqrt) / (2 * a)
 
 }
@@ -155,7 +155,7 @@ define test<R..., +E> (R..., (R... -> R... +E) -> R... +E) {
 // define map<R..., A, B, +E> (R..., vector<A>, <S...> (S..., A -> S..., B +E) -> R..., vector<B> +E)
 define map<A, B, +E> (vector<A>, (A -> B +E) -> vector<B> +E)
 {
-  -> xs f;
+  -> xs, f;
   xs pop_back
   dup
   if (is_some) {
@@ -169,10 +169,10 @@ define map<A, B, +E> (vector<A>, (A -> B +E) -> vector<B> +E)
 /*
 // define map<R..., A, B, +E> (R..., vector<A>, (R..., A -> R..., B +E) -> R..., vector<B> +E):
 define map<A, B, +E> (vector<A>, (A -> B +E) -> vector<B> +E):
-  -> xs f;
+  -> xs, f;
   match (xs pop_back):
     case optional::some:
-      from_pair -> ys y;
+      from_pair -> ys, y;
       ys f map
       y f call
       push_back
