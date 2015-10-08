@@ -1271,10 +1271,12 @@ lambdaBlockParser = parserMatch ArrowToken *> do
   return (names, body, origin)
 
 lambdaNamesParser :: Parser [(Maybe Unqualified, Origin)]
-lambdaNamesParser = Parsec.many1 $ do
-  origin <- getOrigin
-  name <- Just <$> wordNameParser <|> Nothing <$ parserMatch IgnoreToken
-  return (name, origin)
+lambdaNamesParser = lambdaName `Parsec.sepEndBy1` parserMatch CommaToken
+  where
+  lambdaName = do
+    origin <- getOrigin
+    name <- Just <$> wordNameParser <|> Nothing <$ parserMatch IgnoreToken
+    return (name, origin)
 
 blockLambdaParser :: Parser Term
 blockLambdaParser = do
