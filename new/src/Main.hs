@@ -2460,8 +2460,9 @@ inferTypes fragment = do
             instanceCheck "trait" traitType "instance" instanceType
             (traitType', args, tenv1) <- instantiatePrenex tenv0 traitType
             tenv2 <- unifyType tenv1 instanceType traitType'
-            args' <- valueKinded $ map (zonkType tenv2) args
-            let mangled = mangleName name args'
+            let
+              args' = valueKinded $ map (zonkType tenv2) args
+              mangled = mangleName name args'
             return $ Qualified globalVocabulary $ Unqualified mangled
       WordDefinition -> return name
     return ((name', type_), definitionBody definition)
@@ -2757,9 +2758,9 @@ inferCall tenvFinal tenv0 (QualifiedName name) origin
   = case Map.lookup name $ tenvSigs tenv0 of
     Just t@Forall{} -> do
       (type_, params, tenv1) <- instantiatePrenex tenv0 t
-      let type' = setTypeOrigin origin type_
-      params' <- valueKinded params
       let
+        type' = setTypeOrigin origin type_
+        params' = valueKinded params
         type'' = zonkType tenvFinal type'
         params'' = map (zonkType tenvFinal) params'
       return
@@ -2815,44 +2816,36 @@ inferIntrinsic _ _ _ _ = return $ error "TODO: infer intrinsic"
 
 
 
-typeKind :: Type -> K Kind
+typeKind :: Type -> Kind
 typeKind t = case t of
   -- TODON'T: hard-code these.
   TypeConstructor _origin constructor -> case constructor of
     Constructor (Qualified qualifier unqualified)
       | qualifier == globalVocabulary -> case unqualified of
-        "int" -> return Value
-        "bool" -> return Value
-        "char" -> return Value
-        "float" -> return Value
-        "text" -> return Value
-        "fun" -> return $ Stack :-> Stack :-> Effect :-> Value
-        "prod" -> return $ Stack :-> Value :-> Stack
-        "vec" -> return $ Value :-> Value
-        "ptr" -> return $ Value :-> Value
-        "unsafe" -> return Label
-        "pure" -> return Label
-        "io" -> return Label
-        "fail" -> return Label
-        "join" -> return $ Label :-> Effect :-> Effect
-        _ -> do
-          report $ Report Error [Item (typeOrigin t)
-            ["I can't infer the kind of the constructor", pQuote constructor]]
-          halt
+        "int" -> Value
+        "bool" -> Value
+        "char" -> Value
+        "float" -> Value
+        "text" -> Value
+        "fun" -> Stack :-> Stack :-> Effect :-> Value
+        "prod" -> Stack :-> Value :-> Stack
+        "vec" -> Value :-> Value
+        "ptr" -> Value :-> Value
+        "unsafe" -> Label
+        "pure" -> Label
+        "io" -> Label
+        "fail" -> Label
+        "join" -> Label :-> Effect :-> Effect
+        _ -> error "can't infer kind of constructor"
     _ -> error "TODO: infer kinds properly"
-  TypeVar _origin (Var _ k) -> return k
-  TypeConstant _origin (Var _ k) -> return k
+  TypeVar _origin (Var _ k) -> k
+  TypeConstant _origin (Var _ k) -> k
   Forall _origin _ t' -> typeKind t'
-  a :@ b -> do
-    ka <- typeKind a
-    case ka of
-      _ :-> k -> return k
-      _ -> do
-        report $ Report Error
-          [ Item (typeOrigin a) [pQuote a, "is not a constructor"]
-          , Item (typeOrigin b) ["so I can't apply it to the type", pQuote b]
-          ]
-        halt
+  a :@ _b -> let
+    ka = typeKind a
+    in case ka of
+      _ :-> k -> k
+      _ -> error "applying non-constructor to type"
 
 
 
@@ -2880,8 +2873,8 @@ termType term = case term of
 
 
 
-valueKinded :: [Type] -> K [Type]
-valueKinded = filterM $ fmap (Value ==) . typeKind
+valueKinded :: [Type] -> [Type]
+valueKinded = filter $ (Value ==) . typeKind
 
 
 
@@ -2907,41 +2900,22 @@ unifyType tenv0 t1 t2 = case (t1', t2') of
     unifyType tenv1 a b
   (Forall{}, _) -> commute
 
--- The occurs check here prevents us from unifying rows with a common tail and a
--- distinct prefix, which could fail to terminate because the algorithm
--- generates fresh type variables.
---
--- See: Row Unification
-
   (TypeConstructor _ "join" :@ l :@ r, s) -> do
-    ms <- rowIso tenv0 l s
+    ms <- rowIso tenv0 l s (effectTail r)
     case ms of
-      Just (TypeConstructor _ "join" :@ _ :@ s', substitution, tenv1)
+      Just (s', substitution, tenv1)
         -> case substitution of
-          Just (x, t)
-            | occurs tenv0 x (effectTail r) -> do
-              report $ Report Error
-                [ Item (typeOrigin t1')
-                  ["I can't match the effect", pQuote t1']
-                , Item (typeOrigin t2') ["with the effect", pQuote t2']
-                ]
-              halt
-            | otherwise -> let
-              tenv2 = tenv1 { tenvTvs = Map.insert x t $ tenvTvs tenv1 }
-              in unifyType tenv2 r s'
+          Just (x, t) -> let
+            tenv2 = tenv1 { tenvTvs = Map.insert x t $ tenvTvs tenv1 }
+            in unifyType tenv2 r s'
           Nothing -> unifyType tenv1 r s'
 
-      -- HACK: Duplicates the remaining cases.
-      _ -> case (t1', t2') of
-        (a :@ b, c :@ d) -> do
-          tenv1 <- unifyType tenv0 a c
-          unifyType tenv1 b d
-        _ -> do
-          report $ Report Error
-            [ Item (typeOrigin t1') ["I can't match the type", pPrint t1']
-            , Item (typeOrigin t2') ["with the type", pPrint t2']
-            ]
-          halt
+      Nothing -> do
+        report $ Report Error
+          [ Item (typeOrigin t1') ["I can't match the effect type", pQuote t1']
+          , Item (typeOrigin t2') ["with the effect type", pQuote t2']
+          ]
+        halt
 
   (_, TypeConstructor _ "join" :@ _ :@ _) -> commute
 
@@ -3037,37 +3011,39 @@ unifyFunction tenv0 t = case t of
 -- (x ↦ τ).
 
 rowIso
-  :: TypeEnv -> Type -> Type
+  :: TypeEnv -> Type -> Type -> Type
   -> K (Maybe (Type, Maybe (TypeId, Type), TypeEnv))
 
 -- The "head" rule: a row which already begins with the label is trivially
 -- rewritten by the identity substitution.
 
-rowIso tenv0 lin rin@(TypeConstructor _ "join" :@ l :@ _)
-  | l == lin = return $ Just (rin, Nothing, tenv0)
+rowIso tenv0 l (TypeConstructor _ "join" :@ l' :@ r') _
+  | l == l' = return $ Just (r', Nothing :: Maybe (TypeId, Type), tenv0)
 
 -- The "swap" rule: a row which contains the label somewhere within, can be
 -- rewritten to place that label at the head.
 
-rowIso tenv0 l (TypeConstructor origin "join" :@ l' :@ r)
+rowIso tenv0 l (TypeConstructor origin "join" :@ l' :@ r') rt
   | l /= l' = do
-  ms <- rowIso tenv0 l r
+  ms <- rowIso tenv0 l r' rt
   return $ case ms of
-    Just (r', substitution, tenv1) -> Just
-      (joinType origin l $ joinType origin l' r', substitution, tenv1)
+    Just (r'', substitution, tenv1) -> Just
+      (joinType origin l' r'', substitution, tenv1)
     Nothing -> Nothing
 
 -- The "var" rule: no label is present, so we cannot test for equality, and must
--- return a fresh variable for the row tail.
+-- return a fresh variable for the row tail. Here we enforce a side condition
+-- that ensures termination by preventing unification of rows with a common tail
+-- but distinct prefixes.
 
-rowIso tenv0 l (TypeVar origin (Var a _)) = do
+rowIso tenv0 l r@(TypeVar origin (Var a _)) rt
+  | r /= rt = do
   b <- freshTv tenv0 origin Effect
-  let res = joinType origin l b
-  return $ Just (res, Just (a, res), tenv0)
+  return $ Just (b, Just (a, joinType origin l b), tenv0)
 
 -- In any other case, the rows are not isomorphic.
 
-rowIso _ _ _ = return Nothing
+rowIso _ _ _ _ = return Nothing
 
 
 
@@ -3470,11 +3446,11 @@ subsumptionCheck :: TypeEnv -> Type -> Type -> K TypeEnv
 subsumptionCheck tenv0 (Forall origin (Var x k) t) t2 = do
   (t1, _, tenv1) <- instantiate tenv0 origin x k t
   subsumptionCheck tenv1 t1 t2
-subsumptionCheck tenv0 t1 (TypeConstructor _ "fun" :@ a :@ b :@ e) = do
-  (a', b', e', tenv1) <- unifyFunction tenv0 t1
+subsumptionCheck tenv0 t1 (TypeConstructor _ "fun" :@ a' :@ b' :@ e') = do
+  (a, b, e, tenv1) <- unifyFunction tenv0 t1
   subsumptionCheckFun tenv1 a b e a' b' e'
-subsumptionCheck tenv0 (TypeConstructor _ "fun" :@ a' :@ b' :@ e') t2 = do
-  (a, b, e, tenv1) <- unifyFunction tenv0 t2
+subsumptionCheck tenv0 (TypeConstructor _ "fun" :@ a :@ b :@ e) t2 = do
+  (a', b', e', tenv1) <- unifyFunction tenv0 t2
   subsumptionCheckFun tenv1 a b e a' b' e'
 subsumptionCheck tenv0 t1 t2 = unifyType tenv0 t1 t2
 
@@ -3483,7 +3459,26 @@ subsumptionCheckFun
 subsumptionCheckFun tenv0 a b e a' b' e' = do
   tenv1 <- subsumptionCheck tenv0 a' a
   tenv2 <- subsumptionCheck tenv1 b b'
-  subsumptionCheck tenv2 e e'
+  let
+    labels = effectList $ zonkType tenv2 e
+    labels' = effectList $ zonkType tenv2 e'
+  forM_ labels $ \ (origin, label) -> case find ((label ==) . snd) labels' of
+    Just{} -> return ()
+    Nothing -> report $ Report Error
+      [ Item (typeOrigin e)
+        ["I can't match the effect type", pQuote e]
+      , Item (typeOrigin e')
+        $ ["with the effect type", pQuote e']
+      , Item origin
+        ["because the effect label", pQuote label, "is missing"]
+      ]
+  return tenv2
+  where
+
+  effectList :: Type -> [(Origin, Constructor)]
+  effectList (TypeConstructor _ "join" :@ TypeConstructor origin label :@ es)
+    = (origin, label) : effectList es
+  effectList _ = []
 
 
 
@@ -4081,8 +4076,6 @@ instance Pretty Type where
       $ Pretty.hsep [pPrint a, "->", pPrint b, pPrint e]
     TypeConstructor _ "prod" :@ a :@ b
       -> Pretty.hcat [pPrint a, ", ", pPrint b]
-    TypeConstructor _ "join" :@ TypeVar _ var :@ b
-      -> Pretty.hsep [pPrint var, pPrint b]
     TypeConstructor _ "join" :@ a :@ b
       -> Pretty.hcat ["+", pPrint a, " ", pPrint b]
     a :@ b -> Pretty.hcat [pPrint a, prettyAngles $ pPrint b]
