@@ -76,11 +76,21 @@ data optional<A>:
   case none
   case some (A)
 
-define is_some<A> (optional<A> -> bool):
+define is_some<A> (optional<A> -> bool +fail):
+  match:
+    case optional::some -> _:
+      true
+    case optional::none:
+      false
+
+define abort<R..., S..., +E> (R... -> S... +fail +E):
   _::magic
 
-define from_some<A> (optional<A> -> A):
-  _::magic
+define from_some<A> (optional<A> -> A +fail):
+  match:
+    case optional::some {}
+    else:
+      _::abort
 
 define + (int, int -> int) { _::magic }
 infix right 6 +
@@ -153,7 +163,7 @@ define test<R..., +E> (R..., (R... -> R... +E) -> R... +E) {
 }
 
 // define map<R..., A, B, +E> (R..., vector<A>, <S...> (S..., A -> S..., B +E) -> R..., vector<B> +E)
-define map<A, B, +E> (vector<A>, (A -> B +E) -> vector<B> +E)
+define map<A, B, +E> (vector<A>, (A -> B +fail +E) -> vector<B> +fail +E)
 {
   -> xs, f;
   xs pop_back
