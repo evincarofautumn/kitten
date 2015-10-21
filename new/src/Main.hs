@@ -3410,7 +3410,7 @@ instanceCheck aSort aScheme bSort bScheme = do
   where
   failure = report $ Report Error
     [ Item (typeOrigin aScheme)
-      ["I couldn't match this", aSort, "type", pQuote aScheme]
+      ["I can't match this", aSort, "type", pQuote aScheme]
     , Item (typeOrigin bScheme)
       [ "with the", bSort, "type signature"
       , pQuote bScheme
