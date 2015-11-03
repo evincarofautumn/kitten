@@ -170,6 +170,7 @@ data Token
   | CommaToken !Origin !Indent                   -- ,
   | DataToken !Origin !Indent                    -- data
   | DefineToken !Origin !Indent                  -- define
+  | DoToken !Origin !Indent                      -- do
   | EllipsisToken !Origin !Indent                -- ...
   | ElifToken !Origin !Indent                    -- elif
   | ElseToken !Origin !Indent                    -- else
@@ -335,6 +336,7 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
           "case" -> CaseToken
           "data" -> DataToken
           "define" -> DefineToken
+          "do" -> DoToken
           "elif" -> ElifToken
           "else" -> ElseToken
           "false" -> BooleanToken False
@@ -415,6 +417,7 @@ instance Eq Token where
   CommaToken _ _        == CommaToken _ _        = True
   DataToken _ _         == DataToken _ _         = True
   DefineToken _ _       == DefineToken _ _       = True
+  DoToken _ _           == DoToken _ _           = True
   EllipsisToken _ _     == EllipsisToken _ _     = True
   ElifToken _ _         == ElifToken _ _         = True
   ElseToken _ _         == ElseToken _ _         = True
@@ -453,6 +456,7 @@ tokenOrigin token = case token of
   CommaToken origin _ -> origin
   DataToken origin _ -> origin
   DefineToken origin _ -> origin
+  DoToken origin _ -> origin
   EllipsisToken origin _ -> origin
   ElifToken origin _ -> origin
   ElseToken origin _ -> origin
@@ -490,6 +494,7 @@ tokenIndent token = case token of
   CommaToken _ indent -> indent
   DataToken _ indent -> indent
   DefineToken _ indent -> indent
+  DoToken _ indent -> indent
   EllipsisToken _ indent -> indent
   ElifToken _ indent -> indent
   ElseToken _ indent -> indent
@@ -1123,7 +1128,7 @@ definitionParser keyword instance_ = do
     ] <?> "definition name"
   name <- Qualified <$> Parsec.getState <*> pure suffix
   signature <- signatureParser
-  body <- blockParser <|> blockLambdaParser <?> "definition body"
+  body <- blockLikeParser <?> "definition body"
   return Definition
     { definitionBody = body
     , definitionFixity = fixity
@@ -1161,6 +1166,7 @@ termParser = (<?> "expression") $ do
     , lambdaParser
     , matchParser
     , ifParser
+    , doParser
     , Push Nothing <$> blockValue <*> pure origin
     ]
   where
@@ -1229,7 +1235,7 @@ termParser = (<?> "expression") $ do
       cases' <- many $ (<?> "case") $ parserMatch CaseToken *> do
         origin <- getOrigin
         (name, _) <- nameParser
-        body <- blockParser <|> blockLambdaParser
+        body <- blockLikeParser
         return $ Case name body origin
       mElse' <- Parsec.optionMaybe $ do
         origin <- getOrigin <* parserMatch ElseToken
@@ -1259,6 +1265,14 @@ termParser = (<?> "expression") $ do
     return $ foldr desugarCondition else_
       $ (fromMaybe (Identity Nothing ifOrigin) mCondition, ifBody, ifOrigin)
       : elifs
+
+  doParser :: Parser Term
+  doParser = (<?> "do expression") $ do
+    doOrigin <- getOrigin <* parserMatch DoToken
+    term <- groupParser <?> "parenthesized expression"
+    body <- blockLikeParser
+    return $ compose doOrigin
+      [Push Nothing (Quotation body) (termOrigin body), term]
 
   blockValue :: Parser Value
   blockValue = (<?> "quotation") $ do
@@ -1292,6 +1306,9 @@ blockLambdaParser :: Parser Term
 blockLambdaParser = do
   (names, body, origin) <- lambdaBlockParser
   return (makeLambda names body origin)
+
+blockLikeParser :: Parser Term
+blockLikeParser = blockParser <|> blockLambdaParser
 
 makeLambda :: [(Maybe Unqualified, Origin)] -> Term -> Origin -> Term
 makeLambda parsed body origin = foldr
@@ -3870,6 +3887,7 @@ instance Pretty Token where
     CommaToken{} -> ","
     DataToken{} -> "data"
     DefineToken{} -> "define"
+    DoToken{} -> "do"
     EllipsisToken{} -> "..."
     ElifToken{} -> "elif"
     ElseToken{} -> "else"

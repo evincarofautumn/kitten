@@ -1,0 +1,19 @@
+data int {}
+data vector<T> {}
+
+define map<A, B, +E> (vector<A>, (A -> B +E) -> vector<B> +E) { _::magic }
+
+define test1 (-> vector<int>):
+  [1, 2, 3]
+  do (map) {}
+
+define test2 (-> vector<int>):
+  [1, 2, 3]
+  do (map):
+    -> x;
+    x
+
+define test3 (-> vector<int>):
+  [1, 2, 3]
+  do (map) -> x:
+    x
