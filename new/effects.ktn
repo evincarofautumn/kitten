@@ -1,0 +1,32 @@
+data bool {}
+data e1 {}
+data e2 {}
+
+define do_nothing<+E> (-> +E) {}
+
+define call<R..., S..., +E> (
+	R...,
+	(R... -> S... +E)
+	->
+	S... +E
+)
+{
+	_::magic
+}
+
+define combine<R..., S...> (
+	R...,
+	bool,
+	(R... -> S... +e1),
+	(R... -> S... +e2)
+	->
+	S... +e1 +e2
+)
+{
+	-> x, f, g;
+	if (true) {
+		f call
+	} else {
+		g call
+	}
+}

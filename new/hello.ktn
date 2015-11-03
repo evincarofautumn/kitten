@@ -108,6 +108,10 @@ define >= (int, int -> int) { _::magic }
 define >> (int, int -> int) { _::magic }
 define >>= (int, int -> int) { _::magic }
 define >>> (int, int -> int) { _::magic }
+define <= (int, int -> int) { _::magic }
+define << (int, int -> int) { _::magic }
+define <<= (int, int -> int) { _::magic }
+define <<< (int, int -> int) { _::magic }
 define foo1 (-> int) { 1 >> 2 }
 define foo2 (-> int) { 1 >>> 2 }
 

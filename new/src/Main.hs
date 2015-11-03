@@ -159,7 +159,8 @@ compile paths = do
 --------------------------------------------------------------------------------
 
 data Token
-  = AngleToken !Origin !Indent                   -- > See note [Angle Brackets].
+  = AngleBeginToken !Origin !Indent              -- > See note [Angle Brackets].
+  | AngleEndToken !Origin !Indent                -- > See note [Angle Brackets].
   | ArrowToken !Origin !Indent                   -- ->
   | BlockBeginToken !Layoutness !Origin !Indent  -- { :
   | BlockEndToken !Origin !Indent                -- }
@@ -349,13 +350,18 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
 
 -- See note [Angle Brackets].
 
-      , OperatorToken ">"
-        <$ Parsec.try (Parsec.char '>' <* Parsec.notFollowedBy symbol)
-      , AngleToken <$ Parsec.char '>'
+      , bracketOperator '<'
+      , AngleBeginToken <$ Parsec.char '<'
+      , bracketOperator '>'
+      , AngleEndToken <$ Parsec.char '>'
       , OperatorToken . Unqualified . Text.pack <$> Parsec.many1 symbol
       ]
   ]
   where
+
+  bracketOperator :: Char -> Tokenizer (Origin -> Indent -> Token)
+  bracketOperator char = OperatorToken (Unqualified (Text.singleton char))
+    <$ Parsec.try (Parsec.char char <* Parsec.notFollowedBy symbol)
 
   character :: Char -> Tokenizer (Maybe Char)
   character quote = Just <$> Parsec.noneOf ('\\' : [quote]) <|> escape
@@ -398,7 +404,8 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
   text = Text.pack . catMaybes <$> many (character '"')
 
 instance Eq Token where
-  AngleToken _ _        == AngleToken _ _        = True
+  AngleBeginToken _ _   == AngleBeginToken _ _   = True
+  AngleEndToken _ _     == AngleEndToken _ _     = True
   ArrowToken _ _        == ArrowToken _ _        = True
   BlockBeginToken _ _ _ == BlockBeginToken _ _ _ = True
   BlockEndToken _ _     == BlockEndToken _ _     = True
@@ -435,7 +442,8 @@ instance Eq Token where
 
 tokenOrigin :: Token -> Origin
 tokenOrigin token = case token of
-  AngleToken origin _ -> origin
+  AngleBeginToken origin _ -> origin
+  AngleEndToken origin _ -> origin
   ArrowToken origin _ -> origin
   BlockBeginToken _ origin _ -> origin
   BlockEndToken origin _ -> origin
@@ -471,7 +479,8 @@ tokenOrigin token = case token of
 
 tokenIndent :: Token -> Indent
 tokenIndent token = case token of
-  AngleToken _ indent -> indent
+  AngleBeginToken _ indent -> indent
+  AngleEndToken _ indent -> indent
   ArrowToken _ indent -> indent
   BlockBeginToken _ _ indent -> indent
   BlockEndToken _ indent -> indent
@@ -874,8 +883,9 @@ groupParser = do
 -- See note [Angle Brackets].
 
 angledParser :: Parser a -> Parser a
-angledParser = Parsec.between (parserMatchOperator "<")
-  (parserMatchOperator ">" <|> parserMatch AngleToken)
+angledParser = Parsec.between
+  (parserMatchOperator "<" <|> parserMatch AngleBeginToken)
+  (parserMatchOperator ">" <|> parserMatch AngleEndToken)
 
 bracketedParser :: Parser a -> Parser a
 bracketedParser = Parsec.between
@@ -915,7 +925,8 @@ operatorNameParser :: Parser Unqualified
 operatorNameParser = (<?> "operator name") $ do
   -- Rihtlice hi sind Angle gehatene, for ðan ðe hi engla wlite habbað.
   angles <- many $ parseOne $ \ token -> case token of
-    AngleToken{} -> Just ">"
+    AngleBeginToken{} -> Just "<"
+    AngleEndToken{} -> Just ">"
     _ -> Nothing
   rest <- parseOne $ \ token -> case token of
     OperatorToken (Unqualified name) _ _ -> Just name
@@ -1337,12 +1348,12 @@ signatureOrigin signature = case signature of
 --
 -- Since we separate the passes of tokenization and parsing, we are faced with a
 -- classic ambiguity between angle brackets as used in operator names such as
--- '>>' and '>=', and as used in nested type argument lists such as
--- 'vector<vector<T>>'.
+-- '>>' and '<+', and as used in type argument and parameter lists such as
+-- 'vector<vector<T>>' and '<+E>'.
 --
--- Our solution is to parse a greater-than character as an 'angle' token if it
--- was immediately followed by a symbol character in the input with no
--- intervening whitespace. This is enough information for the parser to
+-- Our solution is to parse a less-than or greater-than character as an 'angle'
+-- token if it was immediately followed by a symbol character in the input, with
+-- no intervening whitespace. This is enough information for the parser to
 -- disambiguate the intent:
 --
 --   • When parsing an expression, it joins a sequence of angle tokens and
@@ -3842,7 +3853,8 @@ occurs tenv0 x t = occurrences tenv0 x t > 0
 
 instance Pretty Token where
   pPrint token = case token of
-    AngleToken{} -> ">"
+    AngleBeginToken{} -> "<"
+    AngleEndToken{} -> ">"
     ArrowToken{} -> "->"
     BlockBeginToken _ _ _ -> "{"
     BlockEndToken{} -> "}"
