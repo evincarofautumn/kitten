@@ -2511,15 +2511,16 @@ inferTypes fragment = do
 -- regeneralized to increase stack polymorphism.
 
 inferType0 :: Map Qualified Type -> Qualified -> Type -> Term -> K (Term, Type)
-inferType0 sigs _name declared term = {- while ["inferring the type of", show term] $ -} do
-  rec
-    (term', t, tenvFinal) <- inferType tenvFinal'
-      emptyTypeEnv { tenvSigs = sigs } term
-    tenvFinal' <- unifyType tenvFinal t declared
-  let zonked = zonkType tenvFinal' t
-  let regeneralized = regeneralize tenvFinal' zonked
-  instanceCheck "inferred" regeneralized "declared" declared
-  return (zonkTerm tenvFinal' term', regeneralized)
+inferType0 sigs _name declared term
+  = while ["inferring the type of", pQuote term] (termOrigin term) $ do
+    rec
+      (term', t, tenvFinal) <- inferType tenvFinal'
+        emptyTypeEnv { tenvSigs = sigs } term
+      tenvFinal' <- unifyType tenvFinal t declared
+    let zonked = zonkType tenvFinal' t
+    let regeneralized = regeneralize tenvFinal' zonked
+    instanceCheck "inferred" regeneralized "declared" declared
+    return (zonkTerm tenvFinal' term', regeneralized)
 
 
 
@@ -2531,7 +2532,7 @@ inferType0 sigs _name declared term = {- while ["inferring the type of", show te
 
 inferType :: TypeEnv -> TypeEnv -> Term -> K (Term, Type, TypeEnv)
 inferType tenvFinal tenv0 term0
-  = {- while ["inferring the type of", show term] $ -} case term0 of
+  = while ["inferring the type of", pQuote term0] (termOrigin term0) $ case term0 of
 
     -- FIXME: Should generic parameters be restricted to none?
     Call _ _fixity name _ origin -> inferCall tenvFinal tenv0 name origin
@@ -2578,10 +2579,10 @@ inferType tenvFinal tenv0 term0
 
     If _ true false origin -> do
       [a, b, e] <- fresh origin [Stack, Stack, Effect]
-      (true', t1, tenv1) <- {- while ["checking true branch"] $ -}
-        inferType' tenv0 true
-      (false', t2, tenv2) <- {- while ["checking true branch"] $ -}
-        inferType' tenv1 false
+      (true', t1, tenv1) <- while ["checking true branch"] origin
+        $ inferType' tenv0 true
+      (false', t2, tenv2) <- while ["checking false branch"] origin
+        $ inferType' tenv1 false
       tenv3 <- unifyType tenv2 t1 $ funType origin a b e
       tenv4 <- unifyType tenv3 t2 $ funType origin a b e
       let
@@ -3319,8 +3320,8 @@ instantiate tenv0 origin x k t = do
 -- instantiate the rank-1 quantifiers; all other quantifiers are irrelevant.
 
 instantiatePrenex :: TypeEnv -> Type -> K (Type, [Type], TypeEnv)
-instantiatePrenex tenv0 _q@(Forall origin (Var x k) t)
-  = {- while ["instantiating", show q] $ -} do
+instantiatePrenex tenv0 q@(Forall origin (Var x k) t)
+  = while ["instantiating", pQuote q] origin $ do
     (t', a, tenv1) <- instantiate tenv0 origin x k t
     (t'', as, tenv2) <- instantiatePrenex tenv1 t'
     return (t'', a : as, tenv2)
@@ -3610,7 +3611,8 @@ collectInstantiations tenv0 program0 = do
           -- The name is not user-defined, so it doesn't need to be mangled.
           Nothing -> processQueue q' defs
           Just ((_, type_), term) -> do
-            term' <- instantiateExpr tenv0 term args
+            term' <- while ["instantiating", pQuote name] (termOrigin term)
+              $ instantiateExpr tenv0 term args
             (term'', q'') <- go q' term'
             processQueue q'' $ HashMap.insert
               (Qualified globalVocabulary (Unqualified mangled), type_)
@@ -4162,7 +4164,7 @@ data Report = Report !Category [Item]
 data Item = Item !Origin [Pretty.Doc]
   deriving (Eq)
 
-data Category = Note | Warning | Error
+data Category = Note | Warning | Error | InternalError
   deriving (Eq)
 
 instance Functor K where
@@ -4213,9 +4215,9 @@ report r = K $ \ env -> Just
 halt :: K a
 halt = K $ const $ return Nothing
 
-while :: Report -> K a -> K a
-while prefix action = K $ \ env
-  -> runK action env { envContext = prefix : envContext env }
+while :: [Pretty.Doc] -> Origin -> K a -> K a
+while message origin action = K $ \ env -> runK action env
+  { envContext = Report Note [Item origin message] : envContext env }
 
 reportParseError :: Parsec.ParseError -> Report
 reportParseError parseError = Report Error
@@ -4280,3 +4282,4 @@ categoryPrefix category = case category of
   Note -> "note: "
   Warning -> "warning: "
   Error -> "error: "
+  InternalError -> "internal error: "
