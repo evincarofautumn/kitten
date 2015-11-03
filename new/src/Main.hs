@@ -3756,9 +3756,12 @@ replaceTvExpr tenv x a = recur
       <*> pure fixity <*> pure name <*> mapM go args <*> pure origin
     Compose tref t1 t2 -> Compose <$> go' tref <*> recur t1 <*> recur t2
     Drop tref origin -> Drop <$> go' tref <*> pure origin
-    Generic x' _ _ -> if x == x' then return term
-      else error
-        "substituting in a generic term should not require capture-avoidance"
+    Generic x' body origin -> do
+      -- FIXME: Generics could eventually quantify over non-value kinds.
+      let k = Value
+      z <- freshTypeId tenv
+      body' <- replaceTvExpr tenv x' (TypeVar origin $ Var z k) body
+      Generic z <$> recur body' <*> pure origin
     Group t -> recur t
     Identity tref origin -> Identity <$> go' tref <*> pure origin
     If tref true false origin -> If <$> go' tref
