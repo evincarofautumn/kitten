@@ -166,22 +166,19 @@ define test<R..., +E> (R..., (R... -> R... +E) -> R... +E) {
   }
 }
 
-// define map<R..., A, B, +E> (R..., vector<A>, <S...> (S..., A -> S..., B +E) -> R..., vector<B> +E)
-define map<A, B, +E> (vector<A>, (A -> B +fail +E) -> vector<B> +fail +E)
+define map_fail<A, B, +E> (vector<A>, (A -> B +fail +E) -> vector<B> +fail +E)
 {
   -> xs, f;
   xs pop_back
   dup
   if (is_some) {
     from_some from_pair
-    {f map} {f call} both push_back
+    {f map_fail} {f call} both push_back
   } else {
     ignore []
   }
 }
 
-/*
-// define map<R..., A, B, +E> (R..., vector<A>, (R..., A -> R..., B +E) -> R..., vector<B> +E):
 define map<A, B, +E> (vector<A>, (A -> B +E) -> vector<B> +E):
   -> xs, f;
   match (xs pop_back):
@@ -190,9 +187,8 @@ define map<A, B, +E> (vector<A>, (A -> B +E) -> vector<B> +E):
       ys f map
       y f call
       push_back
-    case optional::none:
-      []
-*/
+    else:
+      ignore []
 
 define optional_test (-> int +fail) {
   1 optional::some
