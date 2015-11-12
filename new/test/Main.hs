@@ -1,4 +1,13 @@
-module Main where
+module Main
+  ( main
+  ) where
+
+import Test.Hspec (Spec, describe, hspec)
+import qualified Test.Tokenize
 
 main :: IO ()
-main = return ()
+main = hspec spec
+
+spec :: Spec
+spec = do
+  describe "tokenization" Test.Tokenize.spec
