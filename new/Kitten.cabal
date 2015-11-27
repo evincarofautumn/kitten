@@ -24,7 +24,7 @@ library
   hs-source-dirs: lib
 
 test-suite test
-  build-depends: base >=4.8, Kitten, hspec, HUnit
+  build-depends: base >=4.8, Kitten, hspec, HUnit, text
   default-language: Haskell2010
   ghc-options: -Wall
   hs-source-dirs: test

@@ -4,6 +4,9 @@
 
 module Kitten
   ( Informer(..)
+  , Origin(..)
+  , Report(..)
+  , Token(..)
   , compile
   , runKitten
   , tokenize
