@@ -37,6 +37,17 @@ spec = do
   describe "with single tokens" $ do
     it "produces single token for arrow" $ do
       testTokenize "->" `shouldBe` Right [Arrow]
+  describe "with text literals" $ do
+    it "produces empty text from empty text literal" $ do
+      testTokenize "\"\"" `shouldBe` Right [Text ""]
+    it "produces empty text from empty escape" $ do
+      testTokenize "\"\\&\"" `shouldBe` Right [Text ""]
+    it "collapses whitespace in text gaps" $ do
+      testTokenize "\"\\    \"" `shouldBe` Right [Text " "]
+      testTokenize "\"\\\n    \"" `shouldBe` Right [Text "\n"]
+      testTokenize "\"\\\n\t x\"" `shouldBe` Right [Text "\nx"]
+    it "parses correct text escapes" $ do
+      testTokenize "\"\\a\\b\\f\\n\\r\\t\\v\"" `shouldBe` Right [Text "\a\b\f\n\r\t\v"]
 
 testTokenize :: Text -> Either [[Report]] [Token]
 testTokenize = fmap (map Located.item) . runIdentity . runKitten . tokenize ""
