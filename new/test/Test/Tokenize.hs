@@ -6,8 +6,12 @@ module Test.Tokenize
 
 import Data.Functor.Identity (runIdentity)
 import Data.Text (Text)
-import Kitten (Origin(..), Report, Token(..), runKitten, tokenize)
+import Kitten.Monad (runKitten)
+import Kitten.Report (Report)
+import Kitten.Token (Token(..))
+import Kitten.Tokenize (tokenize)
 import Test.Hspec (Spec, describe, it, shouldBe)
+import qualified Kitten.Located as Located
 
 spec :: Spec
 spec = do
@@ -32,7 +36,7 @@ spec = do
       testTokenize "/* /**/ */" `shouldBe` Right []
   describe "with single tokens" $ do
     it "produces single token for arrow" $ do
-      testTokenize "->" `shouldBe` Right [ArrowToken Anywhere Nothing]
+      testTokenize "->" `shouldBe` Right [Arrow]
 
 testTokenize :: Text -> Either [[Report]] [Token]
-testTokenize = runIdentity . runKitten . tokenize ""
+testTokenize = fmap (map Located.item) . runIdentity . runKitten . tokenize ""
