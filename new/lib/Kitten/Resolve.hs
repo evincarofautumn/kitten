@@ -17,7 +17,6 @@ import Kitten.Intrinsic (Intrinsic)
 import Kitten.Monad (K)
 import Kitten.Name (GeneralName(..), LocalIndex(..), Qualified(..), Qualifier(..), Unqualified(..))
 import Kitten.Origin (Origin)
-import Kitten.Report (Category(..), Item(..), Report(..))
 import Kitten.Signature (Signature)
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Kitten.Vocabulary (globalVocabulary)
@@ -26,10 +25,9 @@ import qualified Kitten.DataDefinition as DataDefinition
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Intrinsic as Intrinsic
-import qualified Kitten.Pretty as Pretty
+import qualified Kitten.Report as Report
 import qualified Kitten.Signature as Signature
 import qualified Kitten.Trait as Trait
-import qualified Text.PrettyPrint as Pretty
 
 type Resolved a = StateT [Unqualified] K a
 
@@ -137,60 +135,63 @@ resolveNames fragment = do
   resolveDefinitionName, resolveTypeName
     :: Qualifier -> GeneralName -> Origin -> Resolved GeneralName
 
-  resolveDefinitionName = resolveName "word" resolveLocal isDefined
+  resolveDefinitionName = resolveName Report.WordName resolveLocal isDefined
     where
     isDefined = flip Set.member defined
     defined = Set.fromList $ map Definition.name $ Fragment.definitions fragment
     resolveLocal _ index = return $ LocalName index
 
-  resolveTypeName = resolveName "type" resolveLocal isDefined
+  resolveTypeName = resolveName Report.TypeName resolveLocal isDefined
     where
     isDefined = flip Set.member defined
-    defined = Set.fromList $ map DataDefinition.name $ Fragment.dataDefinitions fragment
+    defined = Set.fromList $ map DataDefinition.name
+      $ Fragment.dataDefinitions fragment
     resolveLocal name _ = return $ UnqualifiedName name
 
   resolveName
-    :: Pretty.Doc -> (Unqualified -> LocalIndex -> Resolved GeneralName)
+    :: Report.NameCategory
+    -> (Unqualified -> LocalIndex -> Resolved GeneralName)
     -> (Qualified -> Bool) -> Qualifier -> GeneralName -> Origin
     -> Resolved GeneralName
-  resolveName thing resolveLocal isDefined vocabulary name origin = case name of
+  resolveName category resolveLocal isDefined vocabulary name origin
+    = case name of
 
 -- An unqualified name may refer to a local, a name in the current vocabulary,
 -- or a name in the global scope, respectively.
 
-    UnqualifiedName unqualified -> do
-      mLocalIndex <- gets (elemIndex unqualified)
-      case mLocalIndex of
-        Just index -> resolveLocal unqualified (LocalIndex index)
-        Nothing -> do
-          let qualified = Qualified vocabulary unqualified
-          if isDefined qualified then return (QualifiedName qualified) else do
-            let global = Qualified globalVocabulary unqualified
-            if isDefined global then return (QualifiedName global) else do
-              lift $ report $ Report Error [Item origin
-                ["the unqualified", thing, Pretty.quote name, "is not defined"]]
-              return name
+      UnqualifiedName unqualified -> do
+        mLocalIndex <- gets (elemIndex unqualified)
+        case mLocalIndex of
+          Just index -> resolveLocal unqualified (LocalIndex index)
+          Nothing -> do
+            let qualified = Qualified vocabulary unqualified
+            if isDefined qualified then return (QualifiedName qualified) else do
+              let global = Qualified globalVocabulary unqualified
+              if isDefined global then return (QualifiedName global) else do
+                lift $ report $ Report.CannotResolveName origin category name
+                return name
 
 -- A qualified name must be fully qualified, and may refer to an intrinsic or a
 -- definition, respectively.
 
-    QualifiedName qualified -> case intrinsicFromName qualified of
-      Just intrinsic -> return (IntrinsicName intrinsic)
-      Nothing -> do
-        if isDefined qualified then return name else do
-          let
-            qualified' = case (vocabulary, qualifierName qualified) of
-              (Qualifier prefix, Qualifier suffix)
-                -> Qualified (Qualifier (prefix ++ suffix))
-                  $ unqualifiedName qualified
-          if isDefined qualified' then return $ QualifiedName qualified' else do
-            lift $ report $ Report Error [Item origin
-              ["the qualified", thing, Pretty.quote name, "is not defined"]]
-            return name
+      QualifiedName qualified -> case intrinsicFromName qualified of
+        Just intrinsic -> return (IntrinsicName intrinsic)
+        Nothing -> do
+          if isDefined qualified then return name else do
+            let
+              qualified' = case (vocabulary, qualifierName qualified) of
+                (Qualifier prefix, Qualifier suffix)
+                  -> Qualified (Qualifier (prefix ++ suffix))
+                    $ unqualifiedName qualified
+            if isDefined qualified'
+              then return $ QualifiedName qualified'
+              else do
+                lift $ report $ Report.CannotResolveName origin category name
+                return name
 
-    LocalName{} -> error "local name should not appear before name resolution"
-    IntrinsicName{} -> error
-      "intrinsic name should not appear before name resolution"
+      LocalName{} -> error "local name should not appear before name resolution"
+      IntrinsicName{} -> error
+        "intrinsic name should not appear before name resolution"
 
   withLocal :: Unqualified -> Resolved a -> Resolved a
   withLocal name action = do
@@ -209,12 +210,7 @@ reportDuplicateDefinitions generic = mapM_ reportDuplicate . groupWith fst
     [_] -> return ()
     ((name, origin) : duplicates) -> if name `Set.member` generic
       then return ()
-      else report $ Report Error
-        $ Item origin ["I found multiple definitions of", Pretty.quote name]
-        : map (\ duplicateOrigin -> Item duplicateOrigin ["here"])
-          (origin : map snd duplicates)
-        ++ [Item origin
-          ["Did you mean to declare it as a trait?"]]
+      else report $ Report.MultipleDefinitions origin name $ map snd duplicates
 
 intrinsicFromName :: Qualified -> Maybe Intrinsic
 intrinsicFromName name = case name of

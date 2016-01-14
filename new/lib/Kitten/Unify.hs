@@ -10,12 +10,11 @@ import Kitten.Kind (Kind(..))
 import Kitten.Monad (K)
 import Kitten.Occurrences (occurs)
 import Kitten.Origin (Origin)
-import Kitten.Report (Category(..), Item(..), Report(..))
 import Kitten.Type (Type(..), TypeId, Var(..), funType, joinType)
 import Kitten.TypeEnv (TypeEnv, freshTv)
 import qualified Data.Map as Map
 import qualified Kitten.Instantiate as Instantiate
-import qualified Kitten.Pretty as Pretty
+import qualified Kitten.Report as Report
 import qualified Kitten.Type as Type
 import qualified Kitten.TypeEnv as TypeEnv
 import qualified Kitten.Zonk as Zonk
@@ -45,10 +44,7 @@ type_ tenv0 t1 t2 = case (t1', t2') of
           Nothing -> type_ tenv1 r s'
 
       Nothing -> do
-        report $ Report Error
-          [ Item (Type.origin t1') ["I can't match the effect type", Pretty.quote t1']
-          , Item (Type.origin t2') ["with the effect type", Pretty.quote t2']
-          ]
+        report $ Report.TypeMismatch t1' t2'
         halt
 
   (_, TypeConstructor _ "join" :@ _ :@ _) -> commute
@@ -62,10 +58,7 @@ type_ tenv0 t1 t2 = case (t1', t2') of
     type_ tenv1 b d
 
   _ -> do
-    report $ Report Error
-      [ Item (Type.origin t1') ["I can't match the type", Pretty.quote t1']
-      , Item (Type.origin t2') ["with the type", Pretty.quote t2']
-      ]
+    report $ Report.TypeMismatch t1' t2'
     halt
 
 -- Unification is commutative. If we fail to handle a case, this can result in
@@ -95,18 +88,11 @@ unifyTv tenv0 origin v@(Var x _) t = case t of
   TypeVar{} -> declare
   _ -> if occurs tenv0 x t
     then let t' = Zonk.type_ tenv0 t in do
-      report $ Report Error $
-        [ Item origin
-          [ "I can't match the type", Pretty.quote v
-          , "with the type", Pretty.quote t'
-          ]
-        , Item (Type.origin t')
-          [ "because", Pretty.quote v
-          , "occurs in", Pretty.quote t'
-          ]
+      report $ Report.Chain $
+        [ Report.TypeMismatch (TypeVar origin v) t'
+        , Report.OccursCheckFailure (TypeVar origin v) t'
         ] ++ case t' of
-          TypeConstructor _ "prod" :@ _ :@ _ -> [Item (Type.origin t')
-            ["possibly due to a stack depth mismatch"]]
+          TypeConstructor _ "prod" :@ _ :@ _ -> [Report.StackDepthMismatch (Type.origin t')]
           _ -> []
       halt
     else declare

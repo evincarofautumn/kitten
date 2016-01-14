@@ -23,6 +23,7 @@ import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Program as Program
 import qualified Kitten.Queue as Queue
 import qualified Kitten.Term as Term
+import qualified Text.PrettyPrint as Pretty
 
 -- In order to support unboxed generics, for every call site of a generic
 -- definition in a program, we produce a specialized instantiation of the
@@ -125,8 +126,8 @@ collectInstantiations tenv0 program0 = do
           -- The name is not user-defined, so it doesn't need to be mangled.
           Nothing -> processQueue q' defs
           Just ((_, type_), term) -> do
-            term' <- while ["instantiating", Pretty.quote name] (Term.origin term)
-              $ Instantiate.term tenv0 term args
+            term' <- while (Pretty.hsep ["instantiating", Pretty.quote name])
+              (Term.origin term) $ Instantiate.term tenv0 term args
             (term'', q'') <- go q' term'
             processQueue q'' $ HashMap.insert
               (Qualified globalVocabulary (Unqualified mangled), type_)

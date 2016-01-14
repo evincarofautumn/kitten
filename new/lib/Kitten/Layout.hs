@@ -9,19 +9,19 @@ import Kitten.Located (Located(..))
 import Kitten.Monad (K)
 import Kitten.Name (Qualifier(..))
 import Kitten.Parser (Parser, parserMatch, tokenSatisfy)
-import Kitten.Report (reportParseError)
 import Kitten.Token (Token(..))
 import Text.Parsec ((<?>))
 import qualified Kitten.Layoutness as Layoutness
 import qualified Kitten.Located as Located
 import qualified Kitten.Origin as Origin
+import qualified Kitten.Report as Report
 import qualified Text.Parsec as Parsec
 
 layout :: FilePath -> [Located Token] -> K [Located Token]
 layout path tokens
   = case Parsec.runParser insertBraces (Qualifier []) path tokens of
     Left parseError -> do
-      report $ reportParseError parseError
+      report $ Report.parseError parseError
       halt
     Right result -> return result
 

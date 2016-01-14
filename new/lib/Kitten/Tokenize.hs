@@ -16,18 +16,18 @@ import Kitten.Informer (Informer(..))
 import Kitten.Located (Located(..))
 import Kitten.Name (Unqualified(..))
 import Kitten.Origin (Origin(Origin))
-import Kitten.Report (reportParseError)
 import Kitten.Token (Token(..))
 import Numeric
 import Text.Parsec ((<?>), Column, ParsecT)
 import qualified Data.Text as Text
 import qualified Kitten.Layoutness as Layoutness
+import qualified Kitten.Report as Report
 import qualified Text.Parsec as Parsec
 
 tokenize :: (Informer m) => FilePath -> Text -> m [Located Token]
 tokenize path text = case Parsec.runParser fileTokenizer 1 path text of
   Left parseError -> do
-    report $ reportParseError parseError
+    report $ Report.parseError parseError
     halt
   Right result -> return result
 

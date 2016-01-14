@@ -21,7 +21,6 @@ import Kitten.Name (Closed(..), ClosureIndex(..), GeneralName(..), LocalIndex(..
 import Kitten.Origin (Origin)
 import Kitten.Program (Program(Program))
 import Kitten.Regeneralize (regeneralize)
-import Kitten.Report (Category(..), Item(..), Report(..))
 import Kitten.Signature (Signature)
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Kitten.Type (Constructor(..), Type(..), Var(..), funType, joinType, prodType)
@@ -37,6 +36,7 @@ import qualified Kitten.Mangle as Mangle
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Program as Program
+import qualified Kitten.Report as Report
 import qualified Kitten.Signature as Signature
 import qualified Kitten.Term as Term
 import qualified Kitten.Trait as Trait
@@ -44,6 +44,7 @@ import qualified Kitten.Type as Type
 import qualified Kitten.TypeEnv as TypeEnv
 import qualified Kitten.Unify as Unify
 import qualified Kitten.Zonk as Zonk
+import qualified Text.PrettyPrint as Pretty
 
 inferTypes :: Fragment -> K Program
 inferTypes fragment = do
@@ -105,18 +106,19 @@ inferTypes fragment = do
 -- regeneralized to increase stack polymorphism.
 
 inferType0 :: Map Qualified Type -> Qualified -> Type -> Term -> K (Term, Type)
-inferType0 sigs _name declared term
-  = while ["inferring the type of", Pretty.quote term] (Term.origin term) $ do
-    rec
-      (term', t, tenvFinal) <- inferType tenvFinal'
-        TypeEnv.empty { TypeEnv.sigs = sigs } term
-      tenvFinal' <- Unify.type_ tenvFinal t declared
-    let zonked = Zonk.type_ tenvFinal' t
-    let regeneralized = regeneralize tenvFinal' zonked
-    instanceCheck "inferred" regeneralized "declared" declared
-    return (Zonk.term tenvFinal' term', regeneralized)
+inferType0 sigs _name declared term = while context (Term.origin term) $ do
+  rec
+    (term', t, tenvFinal) <- inferType tenvFinal'
+      TypeEnv.empty { TypeEnv.sigs = sigs } term
+    tenvFinal' <- Unify.type_ tenvFinal t declared
+  let zonked = Zonk.type_ tenvFinal' t
+  let regeneralized = regeneralize tenvFinal' zonked
+  instanceCheck "inferred" regeneralized "declared" declared
+  return (Zonk.term tenvFinal' term', regeneralized)
+  where
 
-
+  context :: Pretty.Doc
+  context = Pretty.hsep ["inferring the type of", Pretty.quote term]
 
 
 -- We infer the type of a term and annotate each terminal with the inferred type
@@ -126,7 +128,7 @@ inferType0 sigs _name declared term
 
 inferType :: TypeEnv -> TypeEnv -> Term -> K (Term, Type, TypeEnv)
 inferType tenvFinal tenv0 term0
-  = while ["inferring the type of", Pretty.quote term0] (Term.origin term0) $ case term0 of
+  = while context (Term.origin term0) $ case term0 of
 
     -- FIXME: Should generic parameters be restricted to none?
     Call _ _fixity name _ origin -> inferCall tenvFinal tenv0 name origin
@@ -173,9 +175,9 @@ inferType tenvFinal tenv0 term0
 
     If _ true false origin -> do
       [a, b, e] <- fresh origin [Stack, Stack, Effect]
-      (true', t1, tenv1) <- while ["checking true branch"] origin
+      (true', t1, tenv1) <- while "checking true branch" origin
         $ inferType' tenv0 true
-      (false', t2, tenv2) <- while ["checking false branch"] origin
+      (false', t2, tenv2) <- while "checking false branch" origin
         $ inferType' tenv1 false
       tenv3 <- Unify.type_ tenv2 t1 $ funType origin a b e
       tenv4 <- Unify.type_ tenv3 t2 $ funType origin a b e
@@ -296,6 +298,9 @@ inferType tenvFinal tenv0 term0
   inferType' = inferType tenvFinal
   fresh origin = foldrM (\k ts -> (: ts) <$> TypeEnv.freshTv tenv0 origin k) []
 
+  context :: Pretty.Doc
+  context = Pretty.hsep ["inferring the type of", Pretty.quote term0]
+
 -- A case in a 'match' expression is simply the inverse of a constructor:
 -- whereas a constructor takes some fields from the stack and produces
 -- an instance of a data type, a 'case' deconstructs an instance of a data type
@@ -367,8 +372,7 @@ inferCall tenvFinal tenv0 (QualifiedName name) origin
         )
     Just{} -> error "what is a non-quantified type doing as a type signature?"
     Nothing -> do
-      report $ Report Error [Item origin
-        ["I can't find a type signature for the word", Pretty.quote name]]
+      report $ Report.MissingTypeSignature origin name
       halt
 
 inferCall tenvFinal tenv0 name@(IntrinsicName intrinsic) origin
@@ -471,10 +475,7 @@ typeFromSignature tenv signature0 = do
       (preceding, type_ : following) -> case find isTypeVar following of
         Nothing -> return (Just type_, preceding ++ following)
         Just type' -> do
-          report $ Report Error [Item origin
-            [ "this signature has multiple effect variables:"
-            , Pretty.quote type_, "and", Pretty.quote type'
-            ]]
+          report $ Report.MultipleEffectVariables origin type_ type'
           halt
       _ -> error "splitting effect row"
     Nothing -> return (Nothing, types)
@@ -488,10 +489,7 @@ typeFromSignature tenv signature0 = do
     case existing of
       Just (var, varOrigin) -> return $ TypeVar varOrigin var
       Nothing -> lift $ do
-        report $ Report Error [Item origin
-          [ "I can't tell which type", Pretty.quote name
-          , "refers to. Did you mean to add it as a type parameter?"
-          ]]
+        report $ Report.CannotResolveType origin $ UnqualifiedName name
         halt
   fromVar origin (QualifiedName name)
     = return $ TypeConstructor origin $ Constructor name
