@@ -4,15 +4,14 @@
 
 module Main where
 
-import Control.Monad
+import Kitten (compile, runKitten)
 import System.Environment
 import System.Exit
 import System.IO
 import Text.Parsec.Text ()
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
+import qualified Kitten.Report as Report
 import qualified Text.PrettyPrint as Pretty
-
-import Kitten (compile, runKitten)
 
 main :: IO ()
 main = do
@@ -21,6 +20,6 @@ main = do
   result <- runKitten $ compile paths
   case result of
     Left reports -> do
-      forM_ reports $ mapM_ (hPutStrLn stderr . show) . reverse
+      mapM_ (hPutStrLn stderr . Pretty.render . Report.human) reports
       exitFailure
     Right program -> putStrLn $ Pretty.render $ pPrint program

@@ -4,6 +4,7 @@ module Kitten.Pretty
   ( angles
   , asDefinition
   , list
+  , oxford
   , quote
   , vsep
   ) where
@@ -17,6 +18,16 @@ angles doc = hcat [char '<', doc, char '>']
 
 list :: [Doc] -> Doc
 list = hcat . intersperse ", "
+
+oxford :: Doc -> [Doc] -> Doc
+oxford conjunction = go
+  where
+  go :: [Doc] -> Doc
+  go [] = ""
+  go [x] = x
+  go [x, y] = hsep [x, conjunction, y]
+  go [x, y, z] = hcat [x, ", ", y, ", ", conjunction, " ", z]
+  go (x : xs) = hcat [x, ", ", go xs]
 
 quote :: (Pretty a) => a -> Doc
 quote = quotes . pPrint

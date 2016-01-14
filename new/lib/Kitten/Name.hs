@@ -44,7 +44,7 @@ data Unqualified = Unqualified Text
   deriving (Eq, Ord, Show)
 
 data Closed = ClosedLocal !LocalIndex | ClosedClosure !ClosureIndex
-  deriving (Show)
+  deriving (Eq, Show)
 
 newtype ClosureIndex = ClosureIndex Int
   deriving (Eq, Ord, Show)

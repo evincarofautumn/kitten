@@ -14,7 +14,6 @@ import Kitten.Name (GeneralName(..), Qualified)
 import Kitten.Operator (Operator(Operator))
 import Kitten.Origin (Origin)
 import Kitten.Parser (getOrigin)
-import Kitten.Report (reportParseError)
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Text.Parsec ((<?>), ParsecT, SourcePos)
 import qualified Data.Map as Map
@@ -22,6 +21,7 @@ import qualified Kitten.Definition as Definition
 import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Origin as Origin
+import qualified Kitten.Report as Report
 import qualified Kitten.Term as Term
 import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Expr as Expr
@@ -54,7 +54,7 @@ desugar fragment = do
           return $ Term.compose origin desugaredTerms
       case Parsec.runParser expression' () "" terms' of
         Left parseError -> do
-          report $ reportParseError parseError
+          report $ Report.parseError parseError
           let
             origin = case terms of
               term : _ -> Term.origin term

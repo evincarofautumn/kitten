@@ -11,15 +11,12 @@ import Kitten.Informer (Informer(..))
 import Kitten.Kind (Kind)
 import Kitten.Monad (K)
 import Kitten.Origin (Origin)
-import Kitten.Report (Category(..), Item(..), Report(..))
 import Kitten.Term (Term(..))
 import Kitten.Type (Type(..), TypeId, Var(..))
 import Kitten.TypeEnv (TypeEnv, freshTypeId)
-import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Kitten.Pretty as Pretty
+import qualified Kitten.Report as Report
 import qualified Kitten.Substitute as Substitute
-import qualified Kitten.Term as Term
-import qualified Kitten.Type as Type
 import qualified Kitten.Zonk as Zonk
 import qualified Text.PrettyPrint as Pretty
 
@@ -40,7 +37,7 @@ type_ tenv0 origin x k t = do
 
 prenex :: TypeEnv -> Type -> K (Type, [Type], TypeEnv)
 prenex tenv0 q@(Forall origin (Var x k) t)
-  = while ["instantiating", Pretty.quote q] origin $ do
+  = while (Pretty.hsep ["instantiating", Pretty.quote q]) origin $ do
     (t', a, tenv1) <- type_ tenv0 origin x k t
     (t'', as, tenv2) <- prenex tenv1 t'
     return (t'', a : as, tenv2)
@@ -53,8 +50,5 @@ term tenv t args = foldlM go t args
   where
   go (Generic x expr _origin) arg = Substitute.term tenv x arg expr
   go _ _ = do
-    report $ Report Error $ Item (Term.origin t)
-      [ "wrong number of type arguments instantiating"
-      , pPrint t Pretty.<> ":"
-      ] : map (\ arg -> Item (Type.origin arg) [pPrint (Zonk.type_ tenv arg)]) args
+    report $ Report.TypeArgumentCountMismatch t $ map (Zonk.type_ tenv) args
     halt

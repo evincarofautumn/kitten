@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Term
@@ -8,6 +9,7 @@ module Kitten.Term
   , compose
   , decompose
   , origin
+  , quantifierCount
   , type_
   ) where
 
@@ -47,13 +49,13 @@ data Term
   | NewVector !(Maybe Type) !Int !Origin                           -- new.vec.n
   | Push !(Maybe Type) !Value !Origin                              -- push v
   | Swap !(Maybe Type) !Origin                                     -- swap
-  deriving (Show)
+  deriving (Eq, Show)
 
 data Case = Case !GeneralName !Term !Origin
-  deriving (Show)
+  deriving (Eq, Show)
 
 data Else = Else !Term !Origin
-  deriving (Show)
+  deriving (Eq, Show)
 
 data Value
   = Boolean !Bool
@@ -66,7 +68,7 @@ data Value
   | Name !Qualified
   | Quotation !Term
   | Text !Text
-  deriving (Show)
+  deriving (Eq, Show)
 
 compose :: Origin -> [Term] -> Term
 compose o = foldr (Compose Nothing) (Identity Nothing o)
@@ -93,6 +95,12 @@ origin term = case term of
   Match _ _ _ o -> o
   Push _ _ o -> o
   Swap _ o -> o
+
+quantifierCount :: Term -> Int
+quantifierCount = countFrom 0
+  where
+  countFrom !count (Generic _ body _) = countFrom (count + 1) body
+  countFrom count _ = count
 
 -- Deduces the explicit type of a term.
 

@@ -9,15 +9,16 @@ import Control.Concurrent (newEmptyMVar, putMVar, takeMVar)
 import Control.Monad.Fix (MonadFix(..))
 import Control.Monad.IO.Class
 import Kitten.Informer (Informer(..))
-import Kitten.Report (Category(..), Item(..), Report(..))
+import Kitten.Report (Report(..))
 import System.IO.Unsafe (unsafeInterleaveIO)
+import qualified Text.PrettyPrint as Pretty
 
 newtype KT m a = KT
   { unKT :: Context -> Reports -> m (Either Reports (a, Reports)) }
 
-type Context = [Report]
+type Context = [Pretty.Doc]
 
-type Reports = [[Report]]
+type Reports = [Report]
 
 type K = KT IO
 
@@ -28,7 +29,7 @@ attempt action = KT $ \ context reports -> do
     Left reports' -> (False, reports')
     Right (_, reports') -> (True, reports')
 
-runKitten :: (Monad m) => KT m a -> m (Either [[Report]] a)
+runKitten :: (Monad m) => KT m a -> m (Either [Report] a)
 runKitten (KT m) = do
   mr <- m [] []
   return $ case mr of
@@ -83,7 +84,8 @@ instance (Monad m) => Informer (KT m) where
   checkpoint = KT $ \ _context reports -> return
     $ if null reports then Right ((), reports) else Left reports
   halt = KT $ \ _context reports -> return $ Left reports
-  report r = KT $ \ context reports -> return
-    $ Right ((), (r : context) : reports)
-  while message origin action = KT $ \ context reports -> unKT action
-    (Report Note [Item origin message] : context) reports
+  report r = KT $ \ context reports -> return . Right . (,) () $ case context of
+    [] -> r : reports
+    _ -> Context context r : reports
+  while message origin action = KT $ \ context reports
+    -> unKT action (message : context) reports

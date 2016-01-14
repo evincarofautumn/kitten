@@ -10,15 +10,13 @@ import Data.Set (Set)
 import Kitten.Informer (Informer(..))
 import Kitten.Monad (K, attempt)
 import Kitten.Origin (Origin)
-import Kitten.Report (Category(..), Item(..), Report(..))
 import Kitten.Type (Constructor(..), Type(..), TypeId, Var(..), funType)
 import Kitten.TypeEnv (TypeEnv, freshTypeId)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Kitten.Free as Free
 import qualified Kitten.Instantiate as Instantiate
-import qualified Kitten.Pretty as Pretty
-import qualified Kitten.Type as Type
+import qualified Kitten.Report as Report
 import qualified Kitten.TypeEnv as TypeEnv
 import qualified Kitten.Unify as Unify
 import qualified Kitten.Zonk as Zonk
@@ -40,14 +38,7 @@ instanceCheck aSort aScheme bSort bScheme = do
   unless (Set.null bad) failure
   return ()
   where
-  failure = report $ Report Error
-    [ Item (Type.origin aScheme)
-      ["I can't match this", aSort, "type", Pretty.quote aScheme]
-    , Item (Type.origin bScheme)
-      [ "with the", bSort, "type signature"
-      , Pretty.quote bScheme
-      ]
-    ]
+  failure = report $ Report.FailedInstanceCheck aScheme bScheme
 
 -- Skolemization replaces quantified type variables with type constants.
 
@@ -90,14 +81,7 @@ subsumptionCheckFun tenv0 a b e a' b' e' = do
     labels' = effectList $ Zonk.type_ tenv2 e'
   forM_ labels $ \ (origin, label) -> case find ((label ==) . snd) labels' of
     Just{} -> return ()
-    Nothing -> report $ Report Error
-      [ Item (Type.origin e)
-        ["I can't match the effect type", Pretty.quote e]
-      , Item (Type.origin e')
-        $ ["with the effect type", Pretty.quote e']
-      , Item origin
-        ["because the effect label", Pretty.quote label, "is missing"]
-      ]
+    Nothing -> report $ Report.MissingEffectLabel e e' origin label
   return tenv2
   where
 

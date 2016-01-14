@@ -12,6 +12,8 @@ import Kitten.Token (Token(..))
 import Kitten.Tokenize (tokenize)
 import Test.Hspec (Spec, describe, it, shouldBe)
 import qualified Kitten.Located as Located
+import qualified Kitten.Origin as Origin
+import qualified Kitten.Report as Report
 
 spec :: Spec
 spec = do
@@ -34,6 +36,13 @@ spec = do
       testTokenize "/*/**/*/" `shouldBe` Right []
     it "produces no tokens on nested spaced empty block comment" $ do
       testTokenize "/* /**/ */" `shouldBe` Right []
+    it "fails on unterminated block comment" $ do
+      let origin = Origin.point "" 1 3
+      testTokenize "/*" `shouldBe` Left
+        [ Report.ParseError origin
+          ["unexpected end of input"]
+          "expected \"/*\" or \"*/\""
+        ]
   describe "with single tokens" $ do
     it "produces single token for arrow" $ do
       testTokenize "->" `shouldBe` Right [Arrow]
@@ -49,5 +58,5 @@ spec = do
     it "parses correct text escapes" $ do
       testTokenize "\"\\a\\b\\f\\n\\r\\t\\v\"" `shouldBe` Right [Text "\a\b\f\n\r\t\v"]
 
-testTokenize :: Text -> Either [[Report]] [Token]
+testTokenize :: Text -> Either [Report] [Token]
 testTokenize = fmap (map Located.item) . runIdentity . runKitten . tokenize ""

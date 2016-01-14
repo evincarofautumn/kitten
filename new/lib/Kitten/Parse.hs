@@ -16,14 +16,13 @@ import Kitten.Element (Element)
 import Kitten.Fragment (Fragment)
 import Kitten.Informer (Informer(..))
 import Kitten.Kind (Kind(..))
-import Kitten.Located (Located(..))
+import Kitten.Located (Located)
 import Kitten.Monad (K)
 import Kitten.Name (GeneralName(..), Qualified(..), Qualifier(..), Unqualified(..))
 import Kitten.Operator (Operator(Operator))
 import Kitten.Origin (Origin)
 import Kitten.Parser (Parser, getOrigin)
 import Kitten.Parser (parserMatch, parserMatch_)
-import Kitten.Report (reportParseError)
 import Kitten.Signature (Signature)
 import Kitten.Synonym (Synonym(Synonym))
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..), compose)
@@ -43,6 +42,7 @@ import qualified Kitten.Layoutness as Layoutness
 import qualified Kitten.Located as Located
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Origin as Origin
+import qualified Kitten.Report as Report
 import qualified Kitten.Signature as Signature
 import qualified Kitten.Term as Term
 import qualified Kitten.Token as Token
@@ -54,7 +54,7 @@ parse name tokens = let
   parsed = Parsec.runParser fragmentParser globalVocabulary name tokens
   in case parsed of
     Left parseError -> do
-      report $ reportParseError parseError
+      report $ Report.parseError parseError
       halt
     Right result -> return result
 
