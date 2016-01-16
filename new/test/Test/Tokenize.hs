@@ -59,6 +59,16 @@ spec = do
       testTokenize "\"\\\n\t x\"" `shouldBe` Right [Text "\nx"]
     it "parses correct text escapes" $ do
       testTokenize "\"\\a\\b\\f\\n\\r\\t\\v\"" `shouldBe` Right [Text "\a\b\f\n\r\t\v"]
+  describe "with floating-point literals" $ do
+    it "parses normal float literals" $ do
+      testTokenize "1.0" `shouldBe` Right [Float 10 1 0]
+      testTokenize "1." `shouldBe` Right [Float 1 0 0]
+    it "parses float literals in scientific notation" $ do
+      testTokenize "1.0e1" `shouldBe` Right [Float 10 1 1]
+      testTokenize "1.e1" `shouldBe` Right [Float 1 0 1]
+      testTokenize "1e1" `shouldBe` Right [Float 1 0 1]
+      testTokenize "1e+1" `shouldBe` Right [Float 1 0 1]
+      testTokenize "1e-1" `shouldBe` Right [Float 1 0 (-1)]
 
 testTokenize :: Text -> Either [Report] [Token]
 testTokenize = fmap (map Located.item) . runIdentity . runKitten . tokenize ""

@@ -443,7 +443,7 @@ termParser = (<?> "expression") $ do
   toLiteral token = case Located.item token of
     Token.Boolean x -> Just (Boolean x, origin)
     Token.Character x -> Just (Character x, origin)
-    Token.Float x -> Just (Float x, origin)
+    Token.Float a b c -> Just (Float $ Token.float a b c, origin)
     Token.Integer x _ -> Just (Integer x, origin)
     Token.Text x -> Just (Text x, origin)
     _ -> Nothing
