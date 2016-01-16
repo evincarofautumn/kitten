@@ -6,6 +6,7 @@ module Test.Tokenize
 
 import Data.Functor.Identity (runIdentity)
 import Data.Text (Text)
+import Kitten.Base (Base(..))
 import Kitten.Monad (runKitten)
 import Kitten.Report (Report)
 import Kitten.Token (Token(..))
@@ -59,6 +60,18 @@ spec = do
       testTokenize "\"\\\n\t x\"" `shouldBe` Right [Text "\nx"]
     it "parses correct text escapes" $ do
       testTokenize "\"\\a\\b\\f\\n\\r\\t\\v\"" `shouldBe` Right [Text "\a\b\f\n\r\t\v"]
+  -- FIXME: Base hints are ignored in token comparisons.
+  describe "with integer literals" $ do
+    it "parses decimal integer literals" $ do
+      testTokenize "0" `shouldBe` Right [Integer 0 Decimal]
+      testTokenize "1" `shouldBe` Right [Integer 1 Decimal]
+      testTokenize "10" `shouldBe` Right [Integer 10 Decimal]
+      testTokenize "123456789" `shouldBe` Right [Integer 123456789 Decimal]
+      testTokenize "01" `shouldBe` Right [Integer 1 Decimal]
+    it "parses non-decimal integer literals" $ do
+      testTokenize "0xFF" `shouldBe` Right [Integer 0xFF Hexadecimal]
+      testTokenize "0o777" `shouldBe` Right [Integer 0o777 Octal]
+      testTokenize "0b1010" `shouldBe` Right [Integer 10 Binary]
   describe "with floating-point literals" $ do
     it "parses normal float literals" $ do
       testTokenize "1.0" `shouldBe` Right [Float 10 1 0]
