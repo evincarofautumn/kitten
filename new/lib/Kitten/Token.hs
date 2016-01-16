@@ -14,7 +14,7 @@ import qualified Data.Text as Text
 import qualified Text.PrettyPrint as Pretty
 
 data Token
-  = AngleBegin              -- > See note [Angle Brackets].
+  = AngleBegin              -- < See note [Angle Brackets].
   | AngleEnd                -- > See note [Angle Brackets].
   | Arrow                   -- ->
   | BlockBegin !Layoutness  -- { :
