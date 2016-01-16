@@ -88,7 +88,7 @@ instance Eq Token where
   Vocab                   == Vocab                   = True
   VocabLookup             == VocabLookup             = True
   Word a                  == Word b                  = a == b
-  _                       == _                            = False
+  _                       == _                       = False
 
 instance Pretty Token where
   pPrint token = case token of
