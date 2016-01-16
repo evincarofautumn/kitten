@@ -21,6 +21,7 @@ library
   default-language: Haskell2010
   exposed-modules:
     Kitten
+    Kitten.Base
     Kitten.Located
     Kitten.Monad
     Kitten.Origin
@@ -28,7 +29,6 @@ library
     Kitten.Token
     Kitten.Tokenize
   other-modules:
-    Kitten.Base
     Kitten.CollectInstantiations
     Kitten.DataConstructor
     Kitten.DataDefinition
