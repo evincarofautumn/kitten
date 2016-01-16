@@ -8,7 +8,7 @@ import Control.Applicative
 import Control.Monad (void)
 import Data.Char (isLetter, isPunctuation, isSymbol)
 import Data.Functor.Identity (Identity)
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, fromMaybe)
 import Data.Text (Text)
 import Kitten.Base (Base(..))
 import Kitten.Indent (Indent(..))
@@ -99,8 +99,8 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
   , Parsec.try $ do
     sign <- Parsec.optionMaybe (Parsec.oneOf "+-")
     let
-      applySign :: (Num a) => a -> a
-      applySign = if sign == Just '-' then negate else id
+      applySign :: (Num a) => Maybe Char -> a -> a
+      applySign s = if s == Just '-' then negate else id
       base
         :: (Num a)
         => Char -> String -> (String -> a) -> Base -> String
@@ -110,7 +110,7 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
           *> Parsec.many1 (Parsec.oneOf digits <?> (desc ++ " digit")))
     Parsec.choice
       [ Parsec.try
-        $ fmap (\ (hint, value) -> Integer (applySign value) hint)
+        $ fmap (\ (hint, value) -> Integer (applySign sign value) hint)
         $ Parsec.char '0' *> Parsec.choice
         [ base 'b' "01" readBin Binary "binary"
         , base 'o' ['0'..'7'] (fst . head . readOct) Octal "octal"
@@ -120,10 +120,16 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
       , do
         integer <- Parsec.many1 Parsec.digit
         mFraction <- Parsec.optionMaybe
-          $ (:) <$> Parsec.char '.' <*> Parsec.many1 Parsec.digit
-        return $ case mFraction of
-          Just fraction -> Float (applySign (read (integer ++ fraction)))
-          Nothing -> Integer (applySign (read integer)) Decimal
+          $ Parsec.char '.' *> Parsec.many Parsec.digit
+        mPower <- Parsec.optionMaybe $ Parsec.oneOf "Ee" *> ((,)
+          <$> Parsec.optionMaybe (Parsec.oneOf "+-")
+          <*> Parsec.many1 Parsec.digit)
+        return $ case (mFraction, mPower) of
+          (Nothing, Nothing) -> Integer (applySign sign (read integer)) Decimal
+          _ -> Float
+            (applySign sign (read (integer ++ fromMaybe "" mFraction)))
+            (fromMaybe 0 (fmap length mFraction))
+            (fromMaybe 0 (fmap (\ (s, p) -> applySign s $ read p) mPower))
       ] <* Parsec.notFollowedBy Parsec.digit
   , Parsec.try (Arrow <$ Parsec.string "->" <* Parsec.notFollowedBy symbol)
   , let

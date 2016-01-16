@@ -2,8 +2,10 @@
 
 module Kitten.Token
   ( Token(..)
+  , float
   ) where
 
+import Data.Ratio ((%))
 import Data.Text (Text)
 import Kitten.Base (Base(..))
 import Kitten.Layoutness (Layoutness)
@@ -14,41 +16,41 @@ import qualified Data.Text as Text
 import qualified Text.PrettyPrint as Pretty
 
 data Token
-  = AngleBegin              -- < See note [Angle Brackets].
-  | AngleEnd                -- > See note [Angle Brackets].
-  | Arrow                   -- ->
-  | BlockBegin !Layoutness  -- { :
-  | BlockEnd                -- }
-  | Boolean !Bool           -- true false
-  | Case                    -- case
-  | Character !Char         -- 'x'
-  | Comma                   -- ,
-  | Data                    -- data
-  | Define                  -- define
-  | Do                      -- do
-  | Ellipsis                -- ...
-  | Elif                    -- elif
-  | Else                    -- else
-  | Float !Double           -- 1.0
-  | GroupBegin              -- (
-  | GroupEnd                -- )
-  | If                      -- if
-  | Ignore                  -- _
-  | Infix                   -- infix
-  | Instance                -- instance
-  | Integer !Integer !Base  -- 1 0b1 0o1 0x1
-  | Layout                  -- :
-  | Match                   -- match
-  | Operator !Unqualified   -- +
-  | Reference               -- \
-  | Synonym                 -- synonym
-  | Text !Text              -- "..."
-  | Trait                   -- trait
-  | VectorBegin             -- [
-  | VectorEnd               -- ]
-  | Vocab                   -- vocab
-  | VocabLookup             -- ::
-  | Word !Unqualified       -- word
+  = AngleBegin                -- < See note [Angle Brackets].
+  | AngleEnd                  -- > See note [Angle Brackets].
+  | Arrow                     -- ->
+  | BlockBegin !Layoutness    -- { :
+  | BlockEnd                  -- }
+  | Boolean !Bool             -- true false
+  | Case                      -- case
+  | Character !Char           -- 'x'
+  | Comma                     -- ,
+  | Data                      -- data
+  | Define                    -- define
+  | Do                        -- do
+  | Ellipsis                  -- ...
+  | Elif                      -- elif
+  | Else                      -- else
+  | Float !Integer !Int !Int  -- See note [Float Literals].
+  | GroupBegin                -- (
+  | GroupEnd                  -- )
+  | If                        -- if
+  | Ignore                    -- _
+  | Infix                     -- infix
+  | Instance                  -- instance
+  | Integer !Integer !Base    -- 1 0b1 0o1 0x1
+  | Layout                    -- :
+  | Match                     -- match
+  | Operator !Unqualified     -- +
+  | Reference                 -- \
+  | Synonym                   -- synonym
+  | Text !Text                -- "..."
+  | Trait                     -- trait
+  | VectorBegin               -- [
+  | VectorEnd                 -- ]
+  | Vocab                     -- vocab
+  | VocabLookup               -- ::
+  | Word !Unqualified         -- word
 
 instance Eq Token where
   AngleBegin              == AngleBegin              = True
@@ -67,7 +69,8 @@ instance Eq Token where
   Ellipsis                == Ellipsis                = True
   Elif                    == Elif                    = True
   Else                    == Else                    = True
-  Float a                 == Float b                 = a == b
+  -- See note [Float Literals].
+  Float a b c             == Float d e f             = (a, c - b) == (d, f - e)
   GroupBegin              == GroupBegin              = True
   GroupEnd                == GroupEnd                = True
   If                      == If                      = True
@@ -108,7 +111,7 @@ instance Pretty Token where
     Ellipsis -> "..."
     Elif -> "elif"
     Else -> "else"
-    Float f -> Pretty.double f
+    Float a b c -> Pretty.double $ float a b c
     GroupBegin -> "("
     GroupEnd -> ")"
     If -> "if"
@@ -178,3 +181,23 @@ instance Show Token where
 -- rather than to some syntactic analogue such as 'foo.bar[int]'. The modest
 -- increase in complexity of implementation is justified by fostering a better
 -- experience for people.
+
+-- Note [Float Literals]:
+--
+-- Floating-point literals are represented as a pair of an arbitrary-precision
+-- integer significand and exponent, so that:
+--
+--     Float a b c
+--
+-- Denotes the floating point number (a × 10^(c - b)). This representation was
+-- chosen to avoid loss of precision until the token is converted into a machine
+-- floating-point format. The exponent is split into two parts to indicate which
+-- part of the literal that exponent came from: the fractional part, or the
+-- exponent in scientific notation.
+
+float :: Fractional a => Integer -> Int -> Int -> a
+float a b c = let
+  e = c - b
+  -- The intermediate rational step is necessary to preserve precision.
+  shift = if e < 0 then 1 % 10 ^ negate e else 10 ^ e
+  in fromRational $ (fromIntegral a :: Rational) * shift
