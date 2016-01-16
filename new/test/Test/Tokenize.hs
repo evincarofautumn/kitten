@@ -46,6 +46,8 @@ spec = do
   describe "with single tokens" $ do
     it "produces single token for arrow" $ do
       testTokenize "->" `shouldBe` Right [Arrow]
+    it "produces single tokens for adjacent single-char tokens" $ do
+      testTokenize ",," `shouldBe` Right [Comma, Comma]
   describe "with text literals" $ do
     it "produces empty text from empty text literal" $ do
       testTokenize "\"\"" `shouldBe` Right [Text ""]
