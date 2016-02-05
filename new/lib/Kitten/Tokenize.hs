@@ -15,12 +15,12 @@ import Kitten.Indent (Indent(..))
 import Kitten.Informer (Informer(..))
 import Kitten.Located (Located(..))
 import Kitten.Name (Unqualified(..))
-import Kitten.Origin (Origin(Origin))
 import Kitten.Token (Token(..))
 import Numeric
 import Text.Parsec ((<?>), Column, ParsecT)
 import qualified Data.Text as Text
 import qualified Kitten.Layoutness as Layoutness
+import qualified Kitten.Origin as Origin
 import qualified Kitten.Report as Report
 import qualified Text.Parsec as Parsec
 
@@ -73,7 +73,7 @@ rangedTokenizer parser = do
   begin <- Parsec.getPosition
   result <- parser
   end <- Parsec.getPosition
-  return $ At (Origin begin end) (Indent (Just column)) result
+  return $ At (Origin.range begin end) (Indent (Just column)) result
 
 tokenTokenizer :: Tokenizer (Located Token)
 tokenTokenizer = rangedTokenizer $ Parsec.choice

@@ -21,9 +21,7 @@ import qualified Text.Parsec as Parsec
 type Parser a = ParsecT [Located Token] Qualifier Identity a
 
 getOrigin :: (Monad m, Parsec.Stream s m c) => ParsecT s u m Origin
-getOrigin = do
-  start <- Parsec.getPosition
-  return (Origin start start)
+getOrigin = Origin.pos <$> Parsec.getPosition
 
 tokenSatisfy :: (Located Token -> Bool) -> Parser (Located Token)
 tokenSatisfy predicate = Parsec.tokenPrim show advance

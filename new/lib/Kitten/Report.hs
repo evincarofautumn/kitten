@@ -12,10 +12,11 @@ import Control.Monad.Trans.State (evalState, state)
 import Data.Function (on)
 import Data.List (intersperse, nub)
 import Kitten.Name (GeneralName, Qualified)
-import Kitten.Origin (Origin(Origin))
+import Kitten.Origin (Origin)
 import Kitten.Term (Term)
 import Kitten.Type (Constructor, Type)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
+import qualified Data.Text as Text
 import qualified Kitten.Origin as Origin
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Term as Term
@@ -128,10 +129,7 @@ parseError parsecError = ParseError origin unexpected' expected'
   where
 
   origin :: Origin
-  origin = Origin
-    { Origin.begin = Parsec.errorPos parsecError
-    , Origin.end = Parsec.errorPos parsecError
-    }
+  origin = Origin.pos $ Parsec.errorPos parsecError
 
   sysUnexpected, unexpected, expected :: [Parsec.Message]
   (sysUnexpected, unexpected, expected)
@@ -164,15 +162,15 @@ parseError parsecError = ParseError origin unexpected' expected'
       ]
 
 showOriginPrefix :: Origin -> String
-showOriginPrefix (Origin a b) = concat
-  $ [Parsec.sourceName a, ":", show al, ".", show ac, "-"]
+showOriginPrefix origin = concat
+  $ [Text.unpack $ Origin.name origin, ":", show al, ".", show ac, "-"]
   ++ (if al == bl then [show bc] else [show bl, ".", show bc])
   ++ [": "]
   where
-  al = Parsec.sourceLine a
-  bl = Parsec.sourceLine b
-  ac = Parsec.sourceColumn a
-  bc = Parsec.sourceColumn b
+  al = Origin.beginLine origin
+  bl = Origin.endLine origin
+  ac = Origin.beginColumn origin
+  bc = Origin.endColumn origin
 
 categoryPrefix :: Category -> Pretty.Doc
 categoryPrefix category = case category of
