@@ -32,7 +32,7 @@ import qualified Text.PrettyPrint as Pretty
 -- definition with one of its own generic type parameters as a type argument,
 -- then an instantiation must also be generated of the called definition.
 
-collectInstantiations :: TypeEnv -> Program -> K Program
+collectInstantiations :: TypeEnv -> Program Type -> K (Program Type)
 collectInstantiations tenv0 program0 = do
 
 -- We enqueue all the instantiation sites reachable from the top level of the
@@ -58,7 +58,7 @@ collectInstantiations tenv0 program0 = do
 -- enqueueing them for instantiation. We perform the actual instantiation while
 -- processing the queue, so as to avoid redundant instantiations.
 
-  go :: InstantiationQueue -> Term -> K (Term, InstantiationQueue)
+  go :: InstantiationQueue -> Term Type -> K (Term Type, InstantiationQueue)
   go q0 term = case term of
     Call type_ fixity (QualifiedName name) args origin -> return
       ( Call type_ fixity
@@ -113,8 +113,8 @@ collectInstantiations tenv0 program0 = do
 
   processQueue
     :: InstantiationQueue
-    -> HashMap (Qualified, Type) Term
-    -> K (HashMap (Qualified, Type) Term)
+    -> HashMap (Qualified, Type) (Term Type)
+    -> K (HashMap (Qualified, Type) (Term Type))
   processQueue q defs = case Queue.dequeue q of
     Nothing -> return defs
     Just ((name, args), q') -> let

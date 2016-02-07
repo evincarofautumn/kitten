@@ -1,3 +1,5 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Kitten.Scope
   ( scope
   ) where
@@ -17,34 +19,36 @@ import qualified Kitten.Fragment as Fragment
 -- definitions, scope resolution resolves local names to relative (De Bruijn)
 -- indices, and converts quotations to use explicit closures.
 
-scope :: Fragment -> Fragment
+scope :: Fragment () -> Fragment ()
 scope fragment = fragment
   { Fragment.definitions = map scopeDefinition (Fragment.definitions fragment) }
   where
 
-  scopeDefinition :: Definition -> Definition
+  scopeDefinition :: Definition () -> Definition ()
   scopeDefinition definition = definition
     { Definition.body = scopeTerm [0] (Definition.body definition) }
 
-  scopeTerm :: [Int] -> Term -> Term
+  scopeTerm :: [Int] -> Term () -> Term ()
   scopeTerm stack = recur
     where
+
+    recur :: Term () -> Term ()
     recur term = case term of
       Call _ _ (LocalName index) _ origin
-        -> Push Nothing (scopeValue stack (Local index)) origin
+        -> Push () (scopeValue stack (Local index)) origin
       Call{} -> term
-      Compose _ a b -> Compose Nothing (recur a) (recur b)
+      Compose _ a b -> Compose () (recur a) (recur b)
       Drop{} -> term
       Generic{} -> error
         "generic expression should not appear before scope resolution"
       Group{} -> error
         "group expression should not appear after infix desugaring"
       Identity{} -> term
-      If _ a b origin -> If Nothing (recur a) (recur b) origin
+      If _ a b origin -> If () (recur a) (recur b) origin
       Intrinsic{} -> term
-      Lambda _ name _ a origin -> Lambda Nothing name Nothing
+      Lambda _ name _ a origin -> Lambda () name ()
         (scopeTerm (mapHead succ stack) a) origin
-      Match _ cases mElse origin -> Match Nothing
+      Match _ cases mElse origin -> Match ()
         (map (\ (Case name a caseOrigin)
           -> Case name (recur a) caseOrigin) cases)
         (fmap (\ (Else a elseOrigin)
@@ -53,10 +57,10 @@ scope fragment = fragment
       New{} -> term
       NewClosure{} -> term
       NewVector{} -> term
-      Push _ value origin -> Push Nothing (scopeValue stack value) origin
+      Push _ value origin -> Push () (scopeValue stack value) origin
       Swap{} -> term
 
-  scopeValue :: [Int] -> Value -> Value
+  scopeValue :: [Int] -> Value () -> Value ()
   scopeValue stack value = case value of
     Boolean{} -> value
     Character{} -> value
@@ -69,11 +73,11 @@ scope fragment = fragment
     Quotation body -> Closure (map ClosedLocal capturedNames) capturedTerm
       where
 
-      capturedTerm :: Term
+      capturedTerm :: Term ()
       capturedNames :: [LocalIndex]
       (capturedTerm, capturedNames) = runCapture stack' $ captureTerm scoped
 
-      scoped :: Term
+      scoped :: Term ()
       scoped = scopeTerm stack' body
 
       stack' :: [Int]
@@ -94,17 +98,17 @@ runCapture :: [Int] -> Captured a -> (a, [LocalIndex])
 runCapture stack = flip runState []
   . flip runReaderT ScopeEnv { scopeStack = stack, scopeDepth = 0 }
 
-captureTerm :: Term -> Captured Term
+captureTerm :: Term () -> Captured (Term ())
 captureTerm term = case term of
   Call{} -> return term
-  Compose _ a b -> Compose Nothing <$> captureTerm a <*> captureTerm b
+  Compose _ a b -> Compose () <$> captureTerm a <*> captureTerm b
   Drop{} -> return term
   Generic{} -> error
     "generic expression should not appear before scope resolution"
   Group{} -> error
     "group expression should not appear after infix desugaring"
   Identity{} -> return term
-  If _ a b origin -> If Nothing
+  If _ a b origin -> If ()
     <$> captureTerm a <*> captureTerm b <*> pure origin
   Intrinsic{} -> return term
   Lambda _ name _ a origin -> let
@@ -112,27 +116,27 @@ captureTerm term = case term of
       { scopeStack = mapHead succ (scopeStack env)
       , scopeDepth = succ (scopeDepth env)
       }
-    in Lambda Nothing name Nothing
+    in Lambda () name ()
       <$> local inside (captureTerm a) <*> pure origin
-  Match _ cases mElse origin -> Match Nothing
+  Match _ cases mElse origin -> Match ()
     <$> mapM captureCase cases <*> traverse captureElse mElse <*> pure origin
     where
 
-    captureCase :: Case -> Captured Case
+    captureCase :: Case () -> Captured (Case ())
     captureCase (Case name a caseOrigin)
       = Case name <$> captureTerm a <*> pure caseOrigin
 
-    captureElse :: Else -> Captured Else
+    captureElse :: Else () -> Captured (Else ())
     captureElse (Else a elseOrigin)
       = Else <$> captureTerm a <*> pure elseOrigin
 
   New{} -> return term
   NewClosure{} -> return term
   NewVector{} -> return term
-  Push _ value origin -> Push Nothing <$> captureValue value <*> pure origin
+  Push _ value origin -> Push () <$> captureValue value <*> pure origin
   Swap{} -> return term
 
-captureValue :: Value -> Captured Value
+captureValue :: Value () -> Captured (Value ())
 captureValue value = case value of
   Boolean{} -> return value
   Character{} -> return value

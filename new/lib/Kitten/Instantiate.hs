@@ -45,7 +45,7 @@ prenex tenv0 t = return (t, [], tenv0)
 
 -- Instantiates a generic expression with the given type arguments.
 
-term :: TypeEnv -> Term -> [Type] -> K Term
+term :: TypeEnv -> Term Type -> [Type] -> K (Term Type)
 term tenv t args = foldlM go t args
   where
   go (Generic x expr _origin) arg = Substitute.term tenv x arg expr

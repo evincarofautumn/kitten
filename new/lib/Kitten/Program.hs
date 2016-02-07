@@ -14,18 +14,18 @@ import qualified Kitten.Pretty as Pretty
 
 -- A program consists of a set of definitions.
 
-data Program = Program
-  { definitions :: HashMap (Qualified, Type) Term
+data Program a = Program
+  { definitions :: HashMap (Qualified, Type) (Term a)
   , traits :: HashMap Qualified Type
   }
 
-empty :: Program
+empty :: Program a
 empty = Program
   { definitions = HashMap.empty
   , traits = HashMap.empty
   }
 
-instance Pretty Program where
+instance Pretty (Program a) where
   pPrint program = Pretty.vsep
     $ map (\ ((name, type_), term) -> Pretty.asDefinition
       (pPrint name) (pPrint type_) (pPrint term)

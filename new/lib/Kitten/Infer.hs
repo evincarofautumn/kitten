@@ -46,7 +46,11 @@ import qualified Kitten.Unify as Unify
 import qualified Kitten.Zonk as Zonk
 import qualified Text.PrettyPrint as Pretty
 
-inferTypes :: Fragment -> K Program
+-- Type inference takes a program fragment and produces a program with every
+-- term annotated with its inferred type. It's polymorphic in the annotation
+-- type of its input so that it can't depend on those annotations.
+
+inferTypes :: Fragment a -> K (Program Type)
 inferTypes fragment = do
   let tenv0 = TypeEnv.empty
 
@@ -84,7 +88,7 @@ inferTypes fragment = do
       (Map.fromList traits)
     infer = inferType0 declaredTypes
 
-    go :: (Qualified, Type) -> Term -> K ((Qualified, Type), Term)
+    go :: (Qualified, Type) -> Term a -> K ((Qualified, Type), Term Type)
     go (name, declaredScheme) term = do
       (term', inferredScheme) <- infer name declaredScheme term
       case find ((name ==) . Trait.name) $ Fragment.traits fragment of
@@ -105,7 +109,8 @@ inferTypes fragment = do
 -- in an empty environment so that it can be trivially generalized. It is then
 -- regeneralized to increase stack polymorphism.
 
-inferType0 :: Map Qualified Type -> Qualified -> Type -> Term -> K (Term, Type)
+inferType0
+  :: Map Qualified Type -> Qualified -> Type -> Term a -> K (Term Type, Type)
 inferType0 sigs _name declared term = while context (Term.origin term) $ do
   rec
     (term', t, tenvFinal) <- inferType tenvFinal'
@@ -126,7 +131,7 @@ inferType0 sigs _name declared term = while context (Term.origin term) $ do
 -- be re-inferred and re-annotated if a program is updated with a new
 -- implementation of an existing definition.
 
-inferType :: TypeEnv -> TypeEnv -> Term -> K (Term, Type, TypeEnv)
+inferType :: TypeEnv -> TypeEnv -> Term a -> K (Term Type, Type, TypeEnv)
 inferType tenvFinal tenv0 term0
   = while context (Term.origin term0) $ case term0 of
 
@@ -147,13 +152,13 @@ inferType tenvFinal tenv0 term0
       let origin = Term.origin term1
       let type_ = funType origin a d e1
       let type' = Zonk.type_ tenvFinal type_
-      return (Compose (Just type') term1' term2', type_, tenv6)
+      return (Compose type' term1' term2', type_, tenv6)
 
     Drop _ origin -> do
       [a, b, e] <- fresh origin [Stack, Value, Effect]
       let type_ = funType origin (prodType origin a b) a e
       let type' = Zonk.type_ tenvFinal type_
-      return (Drop (Just type') origin, type_, tenv0)
+      return (Drop type' origin, type_, tenv0)
 
     Generic{} -> error
       "generic expresison should not appear during type inference"
@@ -166,7 +171,7 @@ inferType tenvFinal tenv0 term0
       [a, e] <- fresh origin [Stack, Effect]
       let type_ = funType origin a a e
       let type' = Zonk.type_ tenvFinal type_
-      return (Identity (Just type') origin, type_, tenv0)
+      return (Identity type' origin, type_, tenv0)
 
 -- A conditional expression consumes a Boolean and applies one of its two
 -- branches to the remainder of the stack. Note that an 'if' without an 'else'
@@ -185,7 +190,7 @@ inferType tenvFinal tenv0 term0
         type_ = funType origin
           (prodType origin a $ TypeConstructor origin "bool") b e
         type' = Zonk.type_ tenvFinal type_
-      return (If (Just type') true' false' origin, type_, tenv4)
+      return (If type' true' false' origin, type_, tenv4)
 
     Intrinsic _ name origin -> inferIntrinsic tenvFinal tenv0 name origin
 
@@ -204,7 +209,7 @@ inferType tenvFinal tenv0 term0
         type' = Zonk.type_ tenvFinal type_
         varType' = Zonk.type_ tenvFinal a
       return
-        ( Lambda (Just type') name (Just varType') term' origin
+        ( Lambda type' name varType' term' origin
         , type_
         , tenv3
         )
@@ -223,7 +228,7 @@ inferType tenvFinal tenv0 term0
         tenv2 caseTypes
       let type_ = Type.setOrigin origin elseType
       let type' = Zonk.type_ tenvFinal type_
-      return (Match (Just type') cases' mElse' origin, type_, tenv3)
+      return (Match type' cases' mElse' origin, type_, tenv3)
 
       where
       inferCase' case_ (cases', types, tenv) = do
@@ -239,7 +244,7 @@ inferType tenvFinal tenv0 term0
       [a, b, e] <- fresh origin [Stack, Stack, Effect]
       let type_ = funType origin a b e
       let type' = Zonk.type_ tenvFinal type_
-      return (New (Just type') constructor origin, type_, tenv0)
+      return (New type' constructor origin, type_, tenv0)
 
 -- Unlike with 'new', we cannot simply type a 'new closure' expression as an
 -- unsafe cast because we need to know its effect on the stack within the body
@@ -258,7 +263,7 @@ inferType tenvFinal tenv0 term0
           (prodType origin a f)
           e2
         type' = Zonk.type_ tenvFinal type_
-      return (NewClosure (Just type') size origin, type_, tenv0)
+      return (NewClosure type' size origin, type_, tenv0)
 
 -- This is similar for 'new vector' expressions, which we type as:
 --
@@ -273,7 +278,7 @@ inferType tenvFinal tenv0 term0
           (prodType origin a (TypeConstructor origin "vector" :@ b))
           e
         type' = Zonk.type_ tenvFinal type_
-      return (NewVector (Just type') size origin, type_, tenv0)
+      return (NewVector type' size origin, type_, tenv0)
 
 -- Pushing a value results in a stack with that value on top.
 
@@ -282,7 +287,7 @@ inferType tenvFinal tenv0 term0
       (value', t, tenv1) <- inferValue tenvFinal tenv0 origin value
       let type_ = funType origin a (prodType origin a t) e
       let type' = Zonk.type_ tenvFinal type_
-      return (Push (Just type') value' origin, type_, tenv1)
+      return (Push type' value' origin, type_, tenv1)
 
     Swap _ origin -> do
       [a, b, c, e] <- fresh origin [Stack, Value, Value, Effect]
@@ -292,7 +297,7 @@ inferType tenvFinal tenv0 term0
           (prodType origin (prodType origin a c) b)
           e
       let type' = Zonk.type_ tenvFinal type_
-      return (Swap (Just type') origin, type_, tenv0)
+      return (Swap type' origin, type_, tenv0)
 
   where
   inferType' = inferType tenvFinal
@@ -306,7 +311,7 @@ inferType tenvFinal tenv0 term0
 -- an instance of a data type, a 'case' deconstructs an instance of a data type
 -- and produces the fields on the stack for the body of the case to consume.
 
-inferCase :: TypeEnv -> TypeEnv -> Case -> K (Case, Type, TypeEnv)
+inferCase :: TypeEnv -> TypeEnv -> Case a -> K (Case Type, Type, TypeEnv)
 inferCase tenvFinal tenv0 (Case qualified@(QualifiedName name) body origin) = do
   (body', bodyType, tenv1) <- inferType tenvFinal tenv0 body
   (a1, b1, e1, tenv2) <- Unify.function tenv1 bodyType
@@ -325,11 +330,12 @@ inferCase tenvFinal tenv0 (Case qualified@(QualifiedName name) body origin) = do
       "case constructor missing signature after name resolution"
 inferCase _ _ _ = error "case of non-qualified name after name resolution"
 
-inferValue :: TypeEnv -> TypeEnv -> Origin -> Value -> K (Value, Type, TypeEnv)
+inferValue :: TypeEnv -> TypeEnv -> Origin -> Value a -> K (Value Type, Type, TypeEnv)
 inferValue tenvFinal tenv0 origin value = case value of
-  Boolean{} -> return (value, TypeConstructor origin "bool", tenv0)
-  Character{} -> return (value, TypeConstructor origin "char", tenv0)
-  Closed (ClosureIndex index) -> return (value, TypeEnv.closure tenv0 !! index, tenv0)
+  Boolean x -> return (Boolean x, TypeConstructor origin "bool", tenv0)
+  Character x -> return (Character x, TypeConstructor origin "char", tenv0)
+  Closed (ClosureIndex index) -> return
+    (Closed $ ClosureIndex index, TypeEnv.closure tenv0 !! index, tenv0)
   Closure names term -> do
     let types = map (getClosed tenv0) names
     let oldClosure = TypeEnv.closure tenv0
@@ -337,13 +343,14 @@ inferValue tenvFinal tenv0 origin value = case value of
     (term', t1, tenv1) <- inferType tenvFinal localEnv term
     let tenv2 = tenv1 { TypeEnv.closure = oldClosure }
     return (Closure names term', t1, tenv2)
-  Float{} -> return (value, TypeConstructor origin "float", tenv0)
-  Integer{} -> return (value, TypeConstructor origin "int", tenv0)
-  Local (LocalIndex index) -> return (value, TypeEnv.vs tenv0 !! index, tenv0)
+  Float x -> return (Float x, TypeConstructor origin "float", tenv0)
+  Integer x -> return (Integer x, TypeConstructor origin "int", tenv0)
+  Local (LocalIndex index) -> return
+    (Local $ LocalIndex index, TypeEnv.vs tenv0 !! index, tenv0)
   Quotation{} -> error "quotation should not appear during type inference"
   Name{} -> error "raw name should not appear during type inference"
-  Text{} -> return
-    ( value
+  Text x -> return
+    ( Text x
     , TypeConstructor origin "vector" :@ TypeConstructor origin "char"
     , tenv0
     )
@@ -355,7 +362,7 @@ inferValue tenvFinal tenv0 origin value = case value of
     ClosedClosure (ClosureIndex index) -> TypeEnv.closure tenv !! index
 
 inferCall
-  :: TypeEnv -> TypeEnv -> GeneralName -> Origin -> K (Term, Type, TypeEnv)
+  :: TypeEnv -> TypeEnv -> GeneralName -> Origin -> K (Term Type, Type, TypeEnv)
 inferCall tenvFinal tenv0 (QualifiedName name) origin
   = case Map.lookup name $ TypeEnv.sigs tenv0 of
     Just t@Forall{} -> do
@@ -366,7 +373,7 @@ inferCall tenvFinal tenv0 (QualifiedName name) origin
         type'' = Zonk.type_ tenvFinal type'
         params'' = map (Zonk.type_ tenvFinal) params'
       return
-        ( Call (Just type'') Operator.Postfix (QualifiedName name) params'' origin
+        ( Call type'' Operator.Postfix (QualifiedName name) params'' origin
         , type'
         , tenv1
         )
@@ -402,13 +409,13 @@ inferCall tenvFinal tenv0 name@(IntrinsicName intrinsic) origin
 
   -- FIXME: Generate instantiation.
   returnCall type_ type' = return
-    (Call (Just type') Operator.Postfix name [] origin, type_, tenv0)
+    (Call type' Operator.Postfix name [] origin, type_, tenv0)
 
 
 inferCall _ _ _ _ = error "cannot infer type of non-qualified name"
 
 inferIntrinsic
-  :: TypeEnv -> TypeEnv -> Intrinsic -> Origin -> K (Term, Type, TypeEnv)
+  :: TypeEnv -> TypeEnv -> Intrinsic -> Origin -> K (Term a, Type, TypeEnv)
 inferIntrinsic _ _ _ _ = return $ error "TODO: infer intrinsic"
 
 -- Here we desugar a parsed signature into an actual type. We resolve whether

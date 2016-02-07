@@ -17,12 +17,12 @@ import qualified Kitten.Program as Program
 --
 --     Λβ:*. dup
 
-term :: Type -> Term -> Term
+term :: Type -> Term a -> Term a
 term (Forall origin (Var x Value) t) e = Generic x (term t e) origin
 term (Forall _ _ t) e = term t e
 term _ e = e
 
-program :: Program -> Program
+program :: Program a -> Program a
 program p = p
   { Program.definitions = HashMap.mapWithKey go $ Program.definitions p }
   where

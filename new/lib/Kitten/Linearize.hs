@@ -23,7 +23,7 @@ import qualified Kitten.Term as Term
 -- 'drop' is present due to an ignored local (_). If it only appears once, it is
 -- moved, and no special word is invoked.
 
-linearize :: Program -> Program
+linearize :: Program Type -> Program Type
 linearize program = let
   definitions' = HashMap.fromList $ map linearizeDefinition
     $ HashMap.toList $ Program.definitions program
@@ -31,15 +31,15 @@ linearize program = let
   where
 
   linearizeDefinition
-    :: ((Qualified, Type), Term) -> ((Qualified, Type), Term)
+    :: ((Qualified, Type), Term Type) -> ((Qualified, Type), Term Type)
   linearizeDefinition ((name, type_), body)
     = ((name, type_), linearizeTerm body)
 
-  linearizeTerm :: Term -> Term
+  linearizeTerm :: Term Type -> Term Type
   linearizeTerm = snd . go []
     where
 
-    go :: [Int] -> Term -> ([Int], Term)
+    go :: [Int] -> Term Type -> ([Int], Term Type)
     go counts0 term = case term of
       Call{} -> (counts0, term)
       Compose type_ a b -> let
@@ -59,11 +59,10 @@ linearize program = let
       Intrinsic{} -> (counts0, term)
       Lambda type_ x varType body origin -> let
         (n : counts1, body') = go (0 : counts0) body
-        varType' = maybe (error "lambda missing variable type") id varType
         body'' = case n of
-          0 -> instrumentDrop origin varType' body'
+          0 -> instrumentDrop origin varType body'
           1 -> body'
-          _ -> instrumentCopy varType' body'
+          _ -> instrumentCopy varType body'
         in (counts1, Lambda type_ x varType body'' origin)
       -- FIXME: count usages for each branch & take maximum
       Match type_ cases mElse origin -> let
@@ -74,12 +73,12 @@ linearize program = let
         in (zipWith max counts1 counts2, Match type_ cases' mElse' origin)
         where
 
-        goCase :: [Int] -> Case -> ([Int], Case)
+        goCase :: [Int] -> Case Type -> ([Int], Case Type)
         goCase counts (Case name body caseOrigin) = let
           (counts1, body') = go counts body
           in (counts1, Case name body' caseOrigin)
 
-        goElse :: [Int] -> Maybe Else -> ([Int], Maybe Else)
+        goElse :: [Int] -> Maybe (Else Type) -> ([Int], Maybe (Else Type))
         goElse counts (Just (Else body elseOrigin)) = let
           (counts1, body') = go counts body
           in (counts1, Just (Else body' elseOrigin))
@@ -98,19 +97,19 @@ linearize program = let
       Push{} -> (counts0, term)
       Swap{} -> (counts0, term)
 
-  instrumentDrop :: Origin -> Type -> Term -> Term
-  instrumentDrop origin type_ a = Term.compose origin
+  instrumentDrop :: Origin -> Type -> Term Type -> Term Type
+  instrumentDrop origin type_ a = Term.compose todoTyped origin
     [ a
-    , Push Nothing (Local (LocalIndex 0)) origin
-    , Call Nothing Operator.Postfix
+    , Push todoTyped (Local (LocalIndex 0)) origin
+    , Call todoTyped Operator.Postfix
       (QualifiedName (Qualified globalVocabulary "drop")) [type_] origin
     ]
 
-  instrumentCopy :: Type -> Term -> Term
+  instrumentCopy :: Type -> Term Type -> Term Type
   instrumentCopy varType = go 0
     where
 
-    go :: Int -> Term -> Term
+    go :: Int -> Term Type -> Term Type
     go n term = case term of
       Call{} -> term
       Compose type_ a b -> Compose type_ (go n a) (go n b)
@@ -126,10 +125,10 @@ linearize program = let
         -> Match type_ (map goCase cases) (goElse <$> mElse) origin
         where
 
-        goCase :: Case -> Case
+        goCase :: Case Type -> Case Type
         goCase (Case name body caseOrigin) = Case name (go n body) caseOrigin
 
-        goElse :: Else -> Else
+        goElse :: Else Type -> Else Type
         goElse (Else body elseOrigin) = Else (go n body) elseOrigin
 
       New{} -> term
@@ -137,7 +136,10 @@ linearize program = let
       NewVector{} -> term
       Push _ (Local (LocalIndex index)) origin
         | index == n
-        -> Compose Nothing term $ Call Nothing Operator.Postfix
+        -> Compose todoTyped term $ Call todoTyped Operator.Postfix
           (QualifiedName (Qualified globalVocabulary "copy")) [varType] origin
       Push{} -> term
       Swap{} -> term
+
+todoTyped :: a
+todoTyped = error "TODO: generate typed terms"

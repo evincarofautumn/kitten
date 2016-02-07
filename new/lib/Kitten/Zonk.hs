@@ -35,48 +35,48 @@ type_ tenv0 = recur
 -- done more efficiently by sharing type references and updating them impurely,
 -- but this implementation is easier to get right and understand.
 
-term :: TypeEnv -> Term -> Term
+term :: TypeEnv -> Term Type -> Term Type
 term tenv0 = go
   where
+  zonk = type_ tenv0
   go t = case t of
     Call tref fixity name params origin
-      -> Call (zonkMay tref) fixity name params origin
+      -> Call (zonk tref) fixity name params origin
     Compose tref a b
-      -> Compose (zonkMay tref) (go a) (go b)
+      -> Compose (zonk tref) (go a) (go b)
     Drop tref origin
-      -> Drop (zonkMay tref) origin
+      -> Drop (zonk tref) origin
     Generic x a origin
       -> Generic x (go a) origin
     Group a
       -> go a
     Identity tref origin
-      -> Identity (zonkMay tref) origin
+      -> Identity (zonk tref) origin
     If tref true false origin
-      -> If (zonkMay tref) (go true) (go false) origin
+      -> If (zonk tref) (go true) (go false) origin
     Intrinsic tref name origin
-      -> Intrinsic (zonkMay tref) name origin
+      -> Intrinsic (zonk tref) name origin
     Lambda tref name varType body origin
-      -> Lambda (zonkMay tref) name (zonkMay varType) (go body) origin
+      -> Lambda (zonk tref) name (zonk varType) (go body) origin
     Match tref cases mElse origin
-      -> Match (zonkMay tref) (map goCase cases) (fmap goElse mElse) origin
+      -> Match (zonk tref) (map goCase cases) (fmap goElse mElse) origin
       where
       goCase (Case name body caseOrigin)
         = Case name (go body) caseOrigin
       goElse (Else body elseOrigin)
         = Else (go body) elseOrigin
     New tref index origin
-      -> New (zonkMay tref) index origin
+      -> New (zonk tref) index origin
     NewClosure tref index origin
-      -> NewClosure (zonkMay tref) index origin
+      -> NewClosure (zonk tref) index origin
     NewVector tref size origin
-      -> NewVector (zonkMay tref) size origin
+      -> NewVector (zonk tref) size origin
     Push tref value' origin
-      -> Push (zonkMay tref) (value tenv0 value') origin
+      -> Push (zonk tref) (value tenv0 value') origin
     Swap tref origin
-      -> Swap (zonkMay tref) origin
-  zonkMay = fmap $ type_ tenv0
+      -> Swap (zonk tref) origin
 
-value :: TypeEnv -> Value -> Value
+value :: TypeEnv -> Value Type -> Value Type
 value tenv0 = go
   where
   go v = case v of

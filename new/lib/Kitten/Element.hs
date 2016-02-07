@@ -9,10 +9,10 @@ import Kitten.Synonym (Synonym)
 import Kitten.Term (Term)
 import Kitten.Trait (Trait)
 
-data Element
+data Element a
   = DataDefinition !DataDefinition
-  | Definition !Definition
+  | Definition !(Definition a)
   | Operator !Operator
   | Synonym !Synonym
-  | Term !Term
+  | Term !(Term a)
   | Trait !Trait

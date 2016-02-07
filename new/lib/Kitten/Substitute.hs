@@ -29,14 +29,14 @@ type_ tenv0 x a = recur
     m :@ n -> (:@) <$> recur m <*> recur n
     _ -> return t
 
-term :: TypeEnv -> TypeId -> Type -> Term -> K Term
+term :: TypeEnv -> TypeId -> Type -> Term Type -> K (Term Type)
 term tenv x a = recur
   where
   recur t = case t of
-    Call tref fixity name args origin -> Call <$> go' tref
+    Call tref fixity name args origin -> Call <$> go tref
       <*> pure fixity <*> pure name <*> mapM go args <*> pure origin
-    Compose tref t1 t2 -> Compose <$> go' tref <*> recur t1 <*> recur t2
-    Drop tref origin -> Drop <$> go' tref <*> pure origin
+    Compose tref t1 t2 -> Compose <$> go tref <*> recur t1 <*> recur t2
+    Drop tref origin -> Drop <$> go tref <*> pure origin
     Generic x' body origin -> do
       -- FIXME: Generics could eventually quantify over non-value kinds.
       let k = Value
@@ -44,32 +44,30 @@ term tenv x a = recur
       body' <- term tenv x' (TypeVar origin $ Var z k) body
       Generic z <$> recur body' <*> pure origin
     Group body -> recur body
-    Identity tref origin -> Identity <$> go' tref <*> pure origin
-    If tref true false origin -> If <$> go' tref
+    Identity tref origin -> Identity <$> go tref <*> pure origin
+    If tref true false origin -> If <$> go tref
       <*> recur true <*> recur false <*> pure origin
-    Intrinsic tref name origin -> Intrinsic <$> go' tref
+    Intrinsic tref name origin -> Intrinsic <$> go tref
       <*> pure name <*> pure origin
-    Lambda tref name varType body origin -> Lambda <$> go' tref
-      <*> pure name <*> go' varType <*> recur body <*> pure origin
-    Match tref cases mElse origin -> Match <$> go' tref
+    Lambda tref name varType body origin -> Lambda <$> go tref
+      <*> pure name <*> go varType <*> recur body <*> pure origin
+    Match tref cases mElse origin -> Match <$> go tref
       <*> mapM goCase cases <*> traverse goElse mElse <*> pure origin
       where
 
-      goCase :: Case -> K Case
+      goCase :: Case Type -> K (Case Type)
       goCase (Case name body caseOrigin)
         = Case name <$> recur body <*> pure caseOrigin
 
-      goElse :: Else -> K Else
+      goElse :: Else Type -> K (Else Type)
       goElse (Else body elseOrigin) = Else <$> recur body <*> pure elseOrigin
 
-    New tref index origin -> New <$> go' tref <*> pure index <*> pure origin
-    NewClosure tref size origin -> NewClosure <$> go' tref
+    New tref index origin -> New <$> go tref <*> pure index <*> pure origin
+    NewClosure tref size origin -> NewClosure <$> go tref
       <*> pure size <*> pure origin
-    NewVector tref size origin -> NewVector <$> go' tref
+    NewVector tref size origin -> NewVector <$> go tref
       <*> pure size <*> pure origin
-    Push tref value origin -> Push <$> go' tref <*> pure value <*> pure origin
-    Swap tref origin -> Swap <$> go' tref <*> pure origin
+    Push tref value origin -> Push <$> go tref <*> pure value <*> pure origin
+    Swap tref origin -> Swap <$> go tref <*> pure origin
 
   go t = type_ tenv x a t
-  go' (Just t) = Just <$> go t
-  go' Nothing = return Nothing
