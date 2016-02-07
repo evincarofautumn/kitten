@@ -18,7 +18,7 @@ import qualified Kitten.Term as Term
 
 newtype LambdaIndex = LambdaIndex Int
 
-desugar :: Program -> K Program
+desugar :: Program Type -> K (Program Type)
 desugar program = do
   definitions <- HashMap.fromList . concat <$> mapM (uncurry desugarDefinition)
     (HashMap.toList $ Program.definitions program)
@@ -26,16 +26,16 @@ desugar program = do
   where
 
   desugarDefinition
-    :: (Qualified, Type) -> Term -> K [((Qualified, Type), Term)]
+    :: (Qualified, Type) -> Term Type -> K [((Qualified, Type), Term Type)]
   desugarDefinition (name, type_) body = do
     (body', lifted) <- desugarTerm (qualifierFromName name) body
     return $ ((name, type_), body') : lifted
 
-  desugarTerm :: Qualifier -> Term -> K (Term, [((Qualified, Type), Term)])
+  desugarTerm :: Qualifier -> Term Type -> K (Term Type, [((Qualified, Type), Term Type)])
   desugarTerm qualifier = flip evalStateT (LambdaIndex 0) . go
     where
 
-    go :: Term -> StateT LambdaIndex K (Term, [((Qualified, Type), Term)])
+    go :: Term Type -> StateT LambdaIndex K (Term Type, [((Qualified, Type), Term Type)])
     go term = case term of
       Call{} -> done
       Compose type_ a b -> do
@@ -78,23 +78,21 @@ desugar program = do
             $ Unqualified $ Text.pack $ "lambda" ++ show index
         put $ LambdaIndex $ succ index
         let
-          deducedType = case Term.type_ a of
-            Just t -> t
-            Nothing -> error "cannot lift quotation before type inference"
+          deducedType = Term.type_ a
           type_ = foldr (uncurry ((Forall origin .) . Var)) deducedType
             $ Map.toList $ Free.tvks deducedType
         return
-          ( Term.compose origin $ map pushClosed closed ++
+          ( Term.compose todoTyped origin $ map pushClosed closed ++
             -- FIXME: What type should be used here?
-            [ Push Nothing (Name name) origin
-            , NewClosure Nothing (length closed) origin
+            [ Push todoTyped (Name name) origin
+            , NewClosure todoTyped (length closed) origin
             ]
           , ((name, type_), a') : as
           )
         where
 
-        pushClosed :: Closed -> Term
-        pushClosed name = Push Nothing (case name of
+        pushClosed :: Closed -> Term Type
+        pushClosed name = Push todoTyped (case name of
           ClosedLocal index -> Local index
           ClosedClosure index -> Closed index) origin
 
@@ -102,3 +100,6 @@ desugar program = do
       Swap{} -> done
       where
       done = return (term, [])
+
+todoTyped :: a
+todoTyped = error "TODO: generate typed terms"

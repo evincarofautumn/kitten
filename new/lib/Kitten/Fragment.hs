@@ -10,15 +10,15 @@ import Kitten.Trait (Trait)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Kitten.Pretty as Pretty
 
-data Fragment = Fragment
+data Fragment a = Fragment
   { dataDefinitions :: [DataDefinition]
-  , definitions :: [Definition]
+  , definitions :: [Definition a]
   , operators :: [Operator]
   , synonyms :: [Synonym]
   , traits :: [Trait]
   } deriving (Show)
 
-instance Monoid Fragment where
+instance Monoid (Fragment a) where
   mempty = Fragment
     { dataDefinitions = []
     , definitions = []
@@ -34,7 +34,7 @@ instance Monoid Fragment where
     , traits = traits a ++ traits b
     }
 
-instance Pretty Fragment where
+instance Pretty (Fragment a) where
   pPrint fragment = Pretty.vsep $ concat
     [ map pPrint $ dataDefinitions fragment
     , map pPrint $ definitions fragment

@@ -41,7 +41,7 @@ data Report
   | CannotResolveType !Origin !GeneralName
   | FailedInstanceCheck !Type !Type
   | MissingEffectLabel !Type !Type !Origin !Constructor
-  | TypeArgumentCountMismatch !Term [Type]
+  | TypeArgumentCountMismatch !(Term Type) [Type]
   | CannotResolveName !Origin !NameCategory !GeneralName
   | MultipleDefinitions !Origin !Qualified [Origin]
   | TypeMismatch !Type !Type

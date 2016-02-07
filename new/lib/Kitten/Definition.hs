@@ -12,8 +12,8 @@ import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Token as Token
 
-data Definition = Definition
-  { body :: !Term
+data Definition a = Definition
+  { body :: !(Term a)
   , fixity :: !Fixity
   , mangling :: !Mangling
   , name :: !Qualified
@@ -24,7 +24,7 @@ data Definition = Definition
 data Mangling = Word | Instance
   deriving (Show)
 
-instance Pretty Definition where
+instance Pretty (Definition a) where
   pPrint definition = Pretty.asDefinition
     (pPrint $ name definition)
     (pPrint $ signature definition)

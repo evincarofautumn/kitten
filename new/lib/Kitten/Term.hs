@@ -32,53 +32,58 @@ import qualified Text.PrettyPrint as Pretty
 -- a monoid over programs. The denotation of the concatenation of two programs
 -- is the composition of the denotations of those two programs. In other words,
 -- there is a homomorphism from the syntactic monoid onto the semantic monoid.
+--
+-- A value of type 'Term a' is a term annotated with a value of type 'a'. A
+-- parsed term may have a type like 'Term ()', while a type-inferred term may
+-- have a type like 'Term Type'.
 
-data Term
-  = Call !(Maybe Type) !Fixity !GeneralName [Type] !Origin         -- f
-  | Compose !(Maybe Type) !Term !Term                              -- e1 e2
-  | Drop !(Maybe Type) !Origin                                     -- drop
-  | Generic !TypeId !Term !Origin                                  -- Λx. e
-  | Group !Term                                                    -- (e)
-  | Identity !(Maybe Type) !Origin                                 --
-  | If !(Maybe Type) !Term !Term !Origin                           -- if { e1 } else { e2 }
-  | Intrinsic !(Maybe Type) !Intrinsic !Origin                     -- .add.int
-  | Lambda !(Maybe Type) !Unqualified !(Maybe Type) !Term !Origin  -- → x; e
-  | Match !(Maybe Type) [Case] !(Maybe Else) !Origin               -- match { case C {...}... else {...} }
-  | New !(Maybe Type) !ConstructorIndex !Origin                    -- new.n
-  | NewClosure !(Maybe Type) !Int !Origin                          -- new.closure.n
-  | NewVector !(Maybe Type) !Int !Origin                           -- new.vec.n
-  | Push !(Maybe Type) !Value !Origin                              -- push v
-  | Swap !(Maybe Type) !Origin                                     -- swap
+data Term a
+  = Call a !Fixity !GeneralName [Type] !Origin  -- f
+  | Compose a !(Term a) !(Term a)               -- e1 e2
+  | Drop a !Origin                              -- drop
+  | Generic !TypeId !(Term a) !Origin           -- Λx. e
+  | Group !(Term a)                             -- (e)
+  | Identity a !Origin                          --
+  | If a !(Term a) !(Term a) !Origin            -- if { e1 } else { e2 }
+  | Intrinsic a !Intrinsic !Origin              -- .add.int
+  | Lambda a !Unqualified a !(Term a) !Origin   -- → x; e
+  | Match a [Case a] !(Maybe (Else a)) !Origin  -- match { case C {...}... else {...} }
+  | New a !ConstructorIndex !Origin             -- new.n
+  | NewClosure a !Int !Origin                   -- new.closure.n
+  | NewVector a !Int !Origin                    -- new.vec.n
+  | Push a !(Value a) !Origin                   -- push v
+  | Swap a !Origin                              -- swap
   deriving (Eq, Show)
 
-data Case = Case !GeneralName !Term !Origin
+data Case a = Case !GeneralName !(Term a) !Origin
   deriving (Eq, Show)
 
-data Else = Else !Term !Origin
+data Else a = Else !(Term a) !Origin
   deriving (Eq, Show)
 
-data Value
+data Value a
   = Boolean !Bool
   | Character !Char
   | Closed !ClosureIndex
-  | Closure [Closed] !Term
+  | Closure [Closed] !(Term a)
   | Float !Double
   | Integer !Integer
   | Local !LocalIndex
   | Name !Qualified
-  | Quotation !Term
+  | Quotation !(Term a)
   | Text !Text
   deriving (Eq, Show)
 
-compose :: Origin -> [Term] -> Term
-compose o = foldr (Compose Nothing) (Identity Nothing o)
+-- FIXME: 'compose' should work on 'Term ()'.
+compose :: a -> Origin -> [Term a] -> Term a
+compose x o = foldr (Compose x) (Identity x o)
 
-decompose :: Term -> [Term]
+decompose :: Term a -> [Term a]
 decompose (Compose _ a b) = decompose a ++ decompose b
 decompose Identity{} = []
 decompose term = [term]
 
-origin :: Term -> Origin
+origin :: Term a -> Origin
 origin term = case term of
   Call _ _ _ _ o -> o
   Compose _ a _ -> origin a
@@ -96,7 +101,7 @@ origin term = case term of
   Push _ _ o -> o
   Swap _ o -> o
 
-quantifierCount :: Term -> Int
+quantifierCount :: Term a -> Int
 quantifierCount = countFrom 0
   where
   countFrom !count (Generic _ body _) = countFrom (count + 1) body
@@ -104,7 +109,7 @@ quantifierCount = countFrom 0
 
 -- Deduces the explicit type of a term.
 
-type_ :: Term -> Maybe Type
+type_ :: Term Type -> Type
 type_ term = case term of
   Call t _ _ _ _ -> t
   Compose t _ _ -> t
@@ -122,7 +127,7 @@ type_ term = case term of
   Push t _ _ -> t
   Swap t _ -> t
 
-instance Pretty Term where
+instance Pretty (Term a) where
   pPrint term = case term of
     Call _ _ name [] _ -> pPrint name
     Call _ _ name args _ -> Pretty.hcat
@@ -153,16 +158,16 @@ instance Pretty Term where
     Push _ value _ -> pPrint value
     Swap{} -> "swap"
 
-instance Pretty Case where
+instance Pretty (Case a) where
   pPrint (Case name body _) = Pretty.vcat
     [ Pretty.hcat ["case ", pPrint name, ":"]
     , Pretty.nest 4 $ pPrint body
     ]
 
-instance Pretty Else where
+instance Pretty (Else a) where
   pPrint (Else body _) = Pretty.vcat ["else:", Pretty.nest 4 $ pPrint body]
 
-instance Pretty Value where
+instance Pretty (Value a) where
   pPrint value = case value of
     Boolean True -> "true"
     Boolean False -> "false"

@@ -17,7 +17,7 @@ import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Signature as Signature
 
-desugar :: Fragment -> K Fragment
+desugar :: Fragment () -> K (Fragment ())
 desugar fragment = do
   definitions <- fmap concat $ mapM desugarDataDefinition
     $ Fragment.dataDefinitions fragment
@@ -25,11 +25,11 @@ desugar fragment = do
     = Fragment.definitions fragment ++ definitions }
   where
 
-  desugarDataDefinition :: DataDefinition -> K [Definition]
+  desugarDataDefinition :: DataDefinition -> K [Definition ()]
   desugarDataDefinition definition = mapM (uncurry desugarConstructor)
     $ zip [0..] $ DataDefinition.constructors definition
     where
-    desugarConstructor :: Int -> DataConstructor -> K Definition
+    desugarConstructor :: Int -> DataConstructor -> K (Definition ())
     desugarConstructor index constructor = do
       let
         resultSignature = foldl'
@@ -45,7 +45,7 @@ desugar fragment = do
             (DataConstructor.fields constructor) [resultSignature] [] origin)
           origin
       return Definition
-        { Definition.body = New Nothing (ConstructorIndex index)
+        { Definition.body = New () (ConstructorIndex index)
           $ DataConstructor.origin constructor
         , Definition.fixity = Operator.Postfix
         , Definition.mangling = Definition.Word

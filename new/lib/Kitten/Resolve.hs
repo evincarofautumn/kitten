@@ -34,7 +34,7 @@ type Resolved a = StateT [Unqualified] K a
 -- Name resolution is responsible for rewriting unqualified calls to definitions
 -- into fully qualified calls.
 
-resolveNames :: Fragment -> K Fragment
+resolveNames :: Fragment () -> K (Fragment ())
 resolveNames fragment = do
   reportDuplicateDefinitions
     (Set.fromList $ map Trait.name $ Fragment.traits fragment)
@@ -44,7 +44,7 @@ resolveNames fragment = do
     return fragment { Fragment.definitions = definitions }
   where
 
-  resolveDefinition :: Definition -> Resolved Definition
+  resolveDefinition :: Definition () -> Resolved (Definition ())
   resolveDefinition definition = do
     let vocabulary = qualifierName $ Definition.name definition
     body <- resolveTerm vocabulary $ Definition.body definition
@@ -54,16 +54,16 @@ resolveNames fragment = do
       , Definition.signature = signature
       }
 
-  resolveTerm :: Qualifier -> Term -> Resolved Term
+  resolveTerm :: Qualifier -> Term () -> Resolved (Term ())
   resolveTerm vocabulary = recur
     where
 
-    recur :: Term -> Resolved Term
+    recur :: Term () -> Resolved (Term ())
     recur unresolved = case unresolved of
-      Call _ fixity name params origin -> Call Nothing fixity
+      Call _ fixity name params origin -> Call () fixity
         <$> resolveDefinitionName vocabulary name origin
         <*> pure params <*> pure origin
-      Compose _ a b -> Compose Nothing <$> recur a <*> recur b
+      Compose _ a b -> Compose () <$> recur a <*> recur b
       Drop{} -> return unresolved
       Generic{} -> error
         "generic expression should not appear before name resolution"
@@ -71,32 +71,32 @@ resolveNames fragment = do
       Identity{} -> return unresolved
       Intrinsic{} -> error
         "intrinsic name should not appear before name resolution"
-      If _ a b origin -> If Nothing
+      If _ a b origin -> If ()
         <$> recur a <*> recur b <*> pure origin
       Lambda _ name _ term origin -> withLocal name
-        $ Lambda Nothing name Nothing <$> recur term <*> pure origin
-      Match _ cases mElse origin -> Match Nothing
+        $ Lambda () name () <$> recur term <*> pure origin
+      Match _ cases mElse origin -> Match ()
         <$> mapM resolveCase cases <*> traverse resolveElse mElse
         <*> pure origin
         where
 
-        resolveCase :: Case -> Resolved Case
+        resolveCase :: Case () -> Resolved (Case ())
         resolveCase (Case name term caseOrigin) = do
           resolved <- resolveDefinitionName vocabulary name caseOrigin
           Case resolved <$> recur term <*> pure caseOrigin
 
-        resolveElse :: Else -> Resolved Else
+        resolveElse :: Else () -> Resolved (Else ())
         resolveElse (Else term elseOrigin)
           = Else <$> recur term <*> pure elseOrigin
 
       New{} -> return unresolved
       NewClosure{} -> return unresolved
       NewVector{} -> return unresolved
-      Push _ value origin -> Push Nothing
+      Push _ value origin -> Push ()
         <$> resolveValue vocabulary value <*> pure origin
       Swap{} -> return unresolved
 
-  resolveValue :: Qualifier -> Value -> Resolved Value
+  resolveValue :: Qualifier -> Value () -> Resolved (Value ())
   resolveValue vocabulary value = case value of
     Boolean{} -> return value
     Character{} -> return value

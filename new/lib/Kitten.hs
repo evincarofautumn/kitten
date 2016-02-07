@@ -22,6 +22,7 @@ import Kitten.Program (Program)
 import Kitten.Resolve (resolveNames)
 import Kitten.Scope (scope)
 import Kitten.Tokenize (tokenize)
+import Kitten.Type (Type)
 import Text.Parsec.Text ()
 import qualified Data.ByteString as ByteString
 import qualified Data.Text.Encoding as Text
@@ -35,7 +36,7 @@ import qualified Kitten.TypeEnv as TypeEnv
 -- warnings ("reports") are accumulated, and reported to the programmer at the
 -- next checkpoint.
 
-compile :: [FilePath] -> K Program
+compile :: [FilePath] -> K (Program Type)
 compile paths = do
 
 -- Source files must be encoded in UTF-8.
