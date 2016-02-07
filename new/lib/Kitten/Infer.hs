@@ -9,7 +9,7 @@ import Control.Monad (forM)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State (StateT, get, gets, modify, put, runStateT)
 import Data.Foldable (foldrM)
-import Data.List (find, findIndex, foldl')
+import Data.List (find, foldl')
 import Data.Map (Map)
 import Kitten.Fragment (Fragment)
 import Kitten.Informer (Informer(..))
@@ -470,14 +470,12 @@ typeFromSignature tenv signature0 = do
       makeFunction origin r' as s' bs es'' me
 
   effectVar :: Origin -> [Type] -> K (Maybe Type, [Type])
-  effectVar origin types = case findIndex isTypeVar types of
-    Just index -> case splitAt index types of
-      (preceding, type_ : following) -> case find isTypeVar following of
-        Nothing -> return (Just type_, preceding ++ following)
-        Just type' -> do
-          report $ Report.MultipleEffectVariables origin type_ type'
-          halt
-      _ -> error "splitting effect row"
+  effectVar origin types = case splitFind isTypeVar types of
+    Just (preceding, type_, following) -> case find isTypeVar following of
+      Nothing -> return (Just type_, preceding ++ following)
+      Just type' -> do
+        report $ Report.MultipleEffectVariables origin type_ type'
+        halt
     Nothing -> return (Nothing, types)
     where
     isTypeVar TypeVar{} = True
@@ -516,6 +514,14 @@ typeFromSignature tenv signature0 = do
 
     stack :: Type -> [Type] -> Type
     stack = foldl' $ prodType origin
+
+splitFind :: (Eq a) => (a -> Bool) -> [a] -> Maybe ([a], a, [a])
+splitFind f = go []
+  where
+  go acc (x : xs)
+    | f x = Just (reverse acc, x, xs)
+    | otherwise = go (x : acc) xs
+  go _ [] = Nothing
 
 data SignatureEnv = SignatureEnv
   { sigEnvAnonymous :: [Var]
