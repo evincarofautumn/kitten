@@ -110,12 +110,15 @@ quantifierCount = countFrom 0
 -- Deduces the explicit type of a term.
 
 type_ :: Term Type -> Type
-type_ term = case term of
+type_ = metadata
+
+metadata :: Term a -> a
+metadata term = case term of
   Call t _ _ _ _ -> t
   Compose t _ _ -> t
   Drop t _ -> t
-  Generic _ term' _ -> type_ term'
-  Group term' -> type_ term'
+  Generic _ term' _ -> metadata term'
+  Group term' -> metadata term'
   Identity t _ -> t
   If t _ _ _ -> t
   Intrinsic t _ _ -> t
