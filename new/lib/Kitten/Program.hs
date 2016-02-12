@@ -17,7 +17,7 @@ import qualified Kitten.Pretty as Pretty
 data Program a = Program
   { definitions :: HashMap (Qualified, Type) (Term a)
   , traits :: HashMap Qualified Type
-  }
+  } deriving (Eq, Show)
 
 empty :: Program a
 empty = Program

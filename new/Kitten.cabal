@@ -22,61 +22,61 @@ library
   exposed-modules:
     Kitten
     Kitten.Base
+    Kitten.Desugar.Data
+    Kitten.Desugar.Infix
+    Kitten.Infer
+    Kitten.InstanceCheck
+    Kitten.Kind
+    Kitten.Layout
     Kitten.Located
     Kitten.Monad
+    Kitten.Name
     Kitten.Origin
+    Kitten.Parse
+    Kitten.Program
     Kitten.Report
+    Kitten.Resolve
+    Kitten.Scope
+    Kitten.Term
     Kitten.Token
     Kitten.Tokenize
+    Kitten.Type
+    Kitten.Vocabulary
   other-modules:
     Kitten.CollectInstantiations
     Kitten.DataConstructor
     Kitten.DataDefinition
     Kitten.Definition
-    Kitten.Desugar.Data
-    Kitten.Desugar.Infix
     Kitten.Desugar.Quotations
     Kitten.Element
     Kitten.Fragment
     Kitten.Free
     Kitten.Indent
-    Kitten.Infer
     Kitten.Informer
-    Kitten.InstanceCheck
     Kitten.Instantiate
     Kitten.Intrinsic
-    Kitten.Kind
-    Kitten.Layout
     Kitten.Layoutness
     Kitten.Linearize
     Kitten.Mangle
-    Kitten.Name
     Kitten.Occurrences
     Kitten.Operator
-    Kitten.Parse
     Kitten.Parser
     Kitten.Pretty
-    Kitten.Program
     Kitten.Quantify
     Kitten.Queue
     Kitten.Regeneralize
-    Kitten.Resolve
-    Kitten.Scope
     Kitten.Signature
     Kitten.Substitute
     Kitten.Synonym
-    Kitten.Term
     Kitten.Trait
-    Kitten.Type
     Kitten.TypeEnv
     Kitten.Unify
-    Kitten.Vocabulary
     Kitten.Zonk
   ghc-options: -Wall
   hs-source-dirs: lib
 
 test-suite test
-  build-depends: base >=4.8, Kitten, hspec, HUnit, parsec, text
+  build-depends: base >=4.8, Kitten, hspec, HUnit, parsec, pretty, text, unordered-containers
   default-language: Haskell2010
   ghc-options: -Wall
   hs-source-dirs: test

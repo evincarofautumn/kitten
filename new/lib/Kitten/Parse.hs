@@ -6,7 +6,7 @@ module Kitten.Parse
 
 import Control.Applicative
 import Control.Monad (guard, void)
-import Data.List (findIndex, foldl')
+import Data.List (find, findIndex, foldl')
 import Data.Maybe (fromMaybe, isJust)
 import Data.Text (Text)
 import Kitten.DataConstructor (DataConstructor(DataConstructor))
@@ -56,7 +56,14 @@ parse name tokens = let
     Left parseError -> do
       report $ Report.parseError parseError
       halt
-    Right result -> return result
+    Right result -> return
+      $ case find isMainDefinition $ Fragment.definitions result of
+        Just{} -> result
+        Nothing -> result
+          { Fragment.definitions = mainDefinition
+            (Identity () (Origin.point "<implicit>" 1 1))
+            : Fragment.definitions result
+          }
 
 fragmentParser :: Parser (Fragment ())
 fragmentParser = partitionElements <$> elementsParser <* Parsec.eof
@@ -80,23 +87,14 @@ partitionElements = foldr go mempty
       { Fragment.traits = x : Fragment.traits acc }
     Element.Term x -> acc
       { Fragment.definitions
-        = case findIndex matching $ Fragment.definitions acc of
+        = case findIndex isMainDefinition $ Fragment.definitions acc of
           Just index -> case splitAt index $ Fragment.definitions acc of
             (a, existing : b) -> a ++ existing { Definition.body
               = composeUnderLambda (Definition.body existing) x } : b
             _ -> error "cannot find main definition"
-          Nothing -> Definition
-            { Definition.body = x
-            , Definition.fixity = Operator.Postfix
-            , Definition.mangling = Definition.Word
-            , Definition.name = Qualified globalVocabulary "main"
-            , Definition.origin = Term.origin x
-            , Definition.signature = Signature.Function [] []
-              [QualifiedName (Qualified globalVocabulary "io")] $ Term.origin x
-            } : Fragment.definitions acc
+          Nothing -> mainDefinition x : Fragment.definitions acc
       }
       where
-      matching = (== Qualified globalVocabulary "main") . Definition.name
 
 -- In top-level code, we want local variable bindings to remain in scope even
 -- when separated by other top-level program elements, e.g.:
@@ -112,6 +110,23 @@ partitionElements = foldr go mempty
       composeUnderLambda (Lambda type_ name varType body origin) term
         = Lambda type_ name varType (composeUnderLambda body term) origin
       composeUnderLambda a b = Compose () a b
+
+mainDefinition :: Term a -> Definition a
+mainDefinition body = Definition
+  { Definition.body = body
+  , Definition.fixity = Operator.Postfix
+  , Definition.mangling = Definition.Word
+  , Definition.name = Qualified globalVocabulary "main"
+  , Definition.origin = origin
+  , Definition.signature = Signature.Quantified
+    [("R", Stack, origin), ("S", Stack, origin)]
+    (Signature.StackFunction "R" [] "S" []
+      [QualifiedName (Qualified globalVocabulary "io")] origin) origin
+  }
+  where origin = Term.origin body
+
+isMainDefinition :: Definition a -> Bool
+isMainDefinition = (== Qualified globalVocabulary "main") . Definition.name
 
 vocabularyParser :: Parser [Element ()]
 vocabularyParser = (<?> "vocabulary definition") $ do

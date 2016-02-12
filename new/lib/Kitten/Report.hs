@@ -124,6 +124,9 @@ human report = case report of
 
   ParseError{} -> error "TODO: show parse error"
 
+  -- TODO: Show context.
+  Context context message -> human message
+
 parseError :: Parsec.ParseError -> Report
 parseError parsecError = ParseError origin unexpected' expected'
   where

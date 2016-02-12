@@ -8,6 +8,7 @@ module Kitten.Vocabulary
 import Data.Text (Text)
 import Kitten.Name (Qualifier(..))
 
+-- FIXME: Remove Hungarian.
 globalVocabulary :: Qualifier
 globalVocabulary = Qualifier [globalVocabularyName]
 
