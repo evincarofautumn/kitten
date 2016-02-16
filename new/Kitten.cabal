@@ -25,6 +25,7 @@ library
     Kitten.Desugar.Data
     Kitten.Desugar.Infix
     Kitten.Infer
+    Kitten.Informer
     Kitten.InstanceCheck
     Kitten.Kind
     Kitten.Layout
@@ -52,7 +53,6 @@ library
     Kitten.Fragment
     Kitten.Free
     Kitten.Indent
-    Kitten.Informer
     Kitten.Instantiate
     Kitten.Intrinsic
     Kitten.Layoutness
