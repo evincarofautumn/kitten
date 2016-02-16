@@ -9,4 +9,7 @@ data Located a = At
   { origin :: !Origin
   , indent :: !Indent
   , item :: a
-  } deriving (Show)
+  }
+
+instance (Show a) => Show (Located a) where
+  show = show . item

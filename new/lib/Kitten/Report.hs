@@ -122,7 +122,8 @@ human report = case report of
   StackDepthMismatch origin
     -> "there may be a stack depth mismatch"
 
-  ParseError{} -> error "TODO: show parse error"
+  ParseError origin unexpected expected -> Pretty.hcat
+    $ intersperse "; " $ unexpected ++ [expected]
 
   -- TODO: Show context.
   Context context message -> human message
