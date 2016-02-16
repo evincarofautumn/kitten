@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Kitten.DataDefinition
-  ( DataDefinition(..)
-  ) where
+module Kitten.TypeDefinition
+  ( TypeDefinition(..)
+) where
 
 import Kitten.DataConstructor (DataConstructor)
 import Kitten.Kind (Kind)
@@ -11,7 +11,7 @@ import Kitten.Origin (Origin)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Text.PrettyPrint as Pretty
 
-data DataDefinition = DataDefinition
+data TypeDefinition = TypeDefinition
   { constructors :: [DataConstructor]
   , name :: !Qualified
   , origin :: !Origin
@@ -19,9 +19,9 @@ data DataDefinition = DataDefinition
   } deriving (Show)
 
 -- FIXME: Support parameters.
-instance Pretty DataDefinition where
+instance Pretty TypeDefinition where
   pPrint definition = Pretty.vcat
-    [ "data"
+    [ "type"
       Pretty.<+> pPrint (name definition)
       Pretty.<> ":"
     , Pretty.nest 4 $ Pretty.vcat $ map pPrint $ constructors definition

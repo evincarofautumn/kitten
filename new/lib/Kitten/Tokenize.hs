@@ -141,7 +141,6 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
         name <- alphanumeric
         return $ case name of
           "case" -> Case
-          "data" -> Data
           "define" -> Define
           "do" -> Do
           "elif" -> Elif
@@ -154,6 +153,7 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
           "synonym" -> Synonym
           "trait" -> Trait
           "true" -> Boolean True
+          "type" -> Type
           "vocab" -> Vocab
           _ -> Word (Unqualified name)
 

@@ -21,13 +21,13 @@ import Kitten.Signature (Signature)
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Kitten.Vocabulary (globalVocabulary)
 import qualified Data.Set as Set
-import qualified Kitten.DataDefinition as DataDefinition
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Intrinsic as Intrinsic
 import qualified Kitten.Report as Report
 import qualified Kitten.Signature as Signature
 import qualified Kitten.Trait as Trait
+import qualified Kitten.TypeDefinition as TypeDefinition
 
 type Resolved a = StateT [Unqualified] K a
 
@@ -144,8 +144,8 @@ resolveNames fragment = do
   resolveTypeName = resolveName Report.TypeName resolveLocal isDefined
     where
     isDefined = flip Set.member defined
-    defined = Set.fromList $ map DataDefinition.name
-      $ Fragment.dataDefinitions fragment
+    defined = Set.fromList $ map TypeDefinition.name
+      $ Fragment.types fragment
     resolveLocal name _ = return $ UnqualifiedName name
 
   resolveName

@@ -2,42 +2,42 @@ module Kitten.Fragment
   ( Fragment(..)
   ) where
 
-import Kitten.DataDefinition (DataDefinition)
 import Kitten.Definition (Definition)
 import Kitten.Operator (Operator)
 import Kitten.Synonym (Synonym)
 import Kitten.Trait (Trait)
+import Kitten.TypeDefinition (TypeDefinition)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Kitten.Pretty as Pretty
 
 data Fragment a = Fragment
-  { dataDefinitions :: [DataDefinition]
-  , definitions :: [Definition a]
+  { definitions :: [Definition a]
   , operators :: [Operator]
   , synonyms :: [Synonym]
   , traits :: [Trait]
+  , types :: [TypeDefinition]
   } deriving (Show)
 
 instance Monoid (Fragment a) where
   mempty = Fragment
-    { dataDefinitions = []
-    , definitions = []
+    { definitions = []
     , operators = []
     , synonyms = []
     , traits = []
+    , types = []
     }
   mappend a b = Fragment
-    { dataDefinitions = dataDefinitions a ++ dataDefinitions b
-    , definitions = definitions a ++ definitions b
+    { definitions = definitions a ++ definitions b
     , operators = operators a ++ operators b
     , synonyms = synonyms a ++ synonyms b
     , traits = traits a ++ traits b
+    , types = types a ++ types b
     }
 
 instance Pretty (Fragment a) where
   pPrint fragment = Pretty.vsep $ concat
-    [ map pPrint $ dataDefinitions fragment
-    , map pPrint $ definitions fragment
+    [ map pPrint $ definitions fragment
     , map pPrint $ operators fragment
     , map pPrint $ synonyms fragment
+    , map pPrint $ types fragment
     ]
