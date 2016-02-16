@@ -25,7 +25,6 @@ data Token
   | Case                      -- case
   | Character !Char           -- 'x'
   | Comma                     -- ,
-  | Data                      -- data
   | Define                    -- define
   | Do                        -- do
   | Ellipsis                  -- ...
@@ -46,6 +45,7 @@ data Token
   | Synonym                   -- synonym
   | Text !Text                -- "..."
   | Trait                     -- trait
+  | Type                      -- type
   | VectorBegin               -- [
   | VectorEnd                 -- ]
   | Vocab                     -- vocab
@@ -63,7 +63,6 @@ instance Eq Token where
   Case                    == Case                    = True
   Character a             == Character b             = a == b
   Comma                   == Comma                   = True
-  Data                    == Data                    = True
   Define                  == Define                  = True
   Do                      == Do                      = True
   Ellipsis                == Ellipsis                = True
@@ -86,6 +85,7 @@ instance Eq Token where
   Synonym                 == Synonym                 = True
   Text a                  == Text b                  = a == b
   Trait                   == Trait                   = True
+  Type                    == Type                    = True
   VectorBegin             == VectorBegin             = True
   VectorEnd               == VectorEnd               = True
   Vocab                   == Vocab                   = True
@@ -105,7 +105,6 @@ instance Pretty Token where
     Case -> "case"
     Character c -> Pretty.quotes $ Pretty.char c
     Comma -> ","
-    Data -> "data"
     Define -> "define"
     Do -> "do"
     Ellipsis -> "..."
@@ -134,6 +133,7 @@ instance Pretty Token where
     Synonym -> "synonym"
     Text t -> Pretty.doubleQuotes $ Pretty.text $ Text.unpack t
     Trait -> "trait"
+    Type -> "type"
     VectorBegin -> "["
     VectorEnd -> "]"
     Vocab -> "vocab"

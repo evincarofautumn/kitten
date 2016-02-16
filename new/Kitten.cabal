@@ -46,7 +46,6 @@ library
   other-modules:
     Kitten.CollectInstantiations
     Kitten.DataConstructor
-    Kitten.DataDefinition
     Kitten.Definition
     Kitten.Desugar.Quotations
     Kitten.Element
@@ -69,6 +68,7 @@ library
     Kitten.Substitute
     Kitten.Synonym
     Kitten.Trait
+    Kitten.TypeDefinition
     Kitten.TypeEnv
     Kitten.Unify
     Kitten.Zonk

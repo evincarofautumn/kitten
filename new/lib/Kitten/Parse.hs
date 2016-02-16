@@ -10,7 +10,6 @@ import Data.List (find, findIndex, foldl')
 import Data.Maybe (fromMaybe, isJust)
 import Data.Text (Text)
 import Kitten.DataConstructor (DataConstructor(DataConstructor))
-import Kitten.DataDefinition (DataDefinition(DataDefinition))
 import Kitten.Definition (Definition(Definition))
 import Kitten.Element (Element)
 import Kitten.Fragment (Fragment)
@@ -28,13 +27,13 @@ import Kitten.Synonym (Synonym(Synonym))
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..), compose)
 import Kitten.Token (Token)
 import Kitten.Trait (Trait(Trait))
+import Kitten.TypeDefinition (TypeDefinition(TypeDefinition))
 import Kitten.Vocabulary (globalVocabulary, globalVocabularyName)
 import Text.Parsec ((<?>))
 import Text.Parsec.Pos (SourcePos)
 import qualified Data.Text as Text
 import qualified Kitten.Base as Base
 import qualified Kitten.DataConstructor as DataConstructor
-import qualified Kitten.DataDefinition as DataDefinition
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Element as Element
 import qualified Kitten.Fragment as Fragment
@@ -47,6 +46,7 @@ import qualified Kitten.Signature as Signature
 import qualified Kitten.Term as Term
 import qualified Kitten.Token as Token
 import qualified Kitten.Trait as Trait
+import qualified Kitten.TypeDefinition as TypeDefinition
 import qualified Text.Parsec as Parsec
 
 parse :: FilePath -> [Located Token] -> K (Fragment ())
@@ -75,8 +75,6 @@ partitionElements :: [Element ()] -> Fragment ()
 partitionElements = foldr go mempty
   where
   go element acc = case element of
-    Element.DataDefinition x -> acc
-      { Fragment.dataDefinitions = x : Fragment.dataDefinitions acc }
     Element.Definition x -> acc
       { Fragment.definitions = x : Fragment.definitions acc }
     Element.Operator x -> acc
@@ -85,6 +83,8 @@ partitionElements = foldr go mempty
       { Fragment.synonyms = x : Fragment.synonyms acc }
     Element.Trait x -> acc
       { Fragment.traits = x : Fragment.traits acc }
+    Element.TypeDefinition x -> acc
+      { Fragment.types = x : Fragment.types acc }
     Element.Term x -> acc
       { Fragment.definitions
         = case findIndex isMainDefinition $ Fragment.definitions acc of
@@ -229,11 +229,11 @@ parseOne = Parsec.tokenPrim show advance
 
 elementParser :: Parser (Element ())
 elementParser = (<?> "top-level program element") $ Parsec.choice
-  [ Element.DataDefinition <$> dataDefinitionParser
-  , Element.Definition <$> (basicDefinitionParser <|> instanceParser)
+  [ Element.Definition <$> (basicDefinitionParser <|> instanceParser)
   , Element.Operator <$> operatorParser
   , Element.Synonym <$> synonymParser
   , Element.Trait <$> traitParser
+  , Element.TypeDefinition <$> typeDefinitionParser
   , do
     origin <- getOrigin
     Element.Term . compose () origin <$> Parsec.many1 termParser
@@ -273,22 +273,22 @@ operatorParser = (<?> "operator definition") $ do
         -> Just $ Operator.Precedence $ fromInteger value
       _ -> Nothing
 
-dataDefinitionParser :: Parser DataDefinition
-dataDefinitionParser = (<?> "data definition") $ do
-  origin <- getOrigin <* parserMatch Token.Data
+typeDefinitionParser :: Parser TypeDefinition
+typeDefinitionParser = (<?> "type definition") $ do
+  origin <- getOrigin <* parserMatch Token.Type
   name <- Qualified <$> Parsec.getState
-    <*> (wordNameParser <?> "data definition name")
+    <*> (wordNameParser <?> "type definition name")
   parameters <- Parsec.option [] quantifierParser
   constructors <- blockedParser $ many constructorParser
-  return DataDefinition
-    { DataDefinition.constructors = constructors
-    , DataDefinition.name = name
-    , DataDefinition.origin = origin
-    , DataDefinition.parameters = parameters
+  return TypeDefinition
+    { TypeDefinition.constructors = constructors
+    , TypeDefinition.name = name
+    , TypeDefinition.origin = origin
+    , TypeDefinition.parameters = parameters
     }
 
 constructorParser :: Parser DataConstructor
-constructorParser = (<?> "data constructor") $ do
+constructorParser = (<?> "constructor definition") $ do
   origin <- getOrigin <* parserMatch Token.Case
   name <- wordNameParser <?> "constructor name"
   fields <- (<?> "constructor fields") $ Parsec.option [] $ groupedParser

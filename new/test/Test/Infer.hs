@@ -88,6 +88,6 @@ typecheck input = runKitten $ do
   where
   -- FIXME: Avoid redundantly re-parsing common vocabulary.
   common = "\
-\data float {}\n\
-\data int {}\n\
-\data io {}\n"
+\type float {}\n\
+\type int {}\n\
+\type io {}\n"
