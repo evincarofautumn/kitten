@@ -6,6 +6,7 @@ module Test.Infer
 
 import Data.Text (Text)
 import Kitten.Infer (inferTypes)
+import Kitten.Informer (checkpoint)
 import Kitten.InstanceCheck (instanceCheck)
 import Kitten.Kind (Kind(..))
 import Kitten.Layout (layout)
@@ -23,6 +24,7 @@ import Test.HUnit (assertBool, assertFailure)
 import Test.Hspec (Spec, describe, it)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Text as Text
 import qualified Kitten.Desugar.Data as Data
 import qualified Kitten.Desugar.Infix as Infix
 import qualified Kitten.Origin as Origin
@@ -39,6 +41,7 @@ spec = do
       testTypecheck "" $ Type.funType o r r e
     it "typechecks single literals" $ do
       testTypecheck "0" $ Type.funType o r (Type.prodType o r int) e
+      testTypecheck "1.0" $ Type.funType o r (Type.prodType o r float) e
   where
   o = Origin.point "" 0 0
   r = TypeVar o $ Var (TypeId 0) Stack
@@ -46,6 +49,8 @@ spec = do
   e = TypeVar o $ Var (TypeId 2) Effect
   int = TypeConstructor o $ Type.Constructor
     $ Qualified globalVocabulary "int"
+  float = TypeConstructor o $ Type.Constructor
+    $ Qualified globalVocabulary "float"
 
 testTypecheck :: Text -> Type -> IO ()
 testTypecheck input expected = do
@@ -67,11 +72,22 @@ testTypecheck input expected = do
 -- FIXME: Avoid redundancy with 'Kitten.compile'.
 typecheck :: Text -> IO (Either [Report] (Program Type))
 typecheck input = runKitten $ do
-  tokenized <- tokenize "" input
+  tokenized <- tokenize "" $ Text.concat [common, input]
+  checkpoint
   laidout <- layout "" tokenized
+  checkpoint
   parsed <- parse "" laidout
+  checkpoint
   dataDesugared <- Data.desugar parsed
   resolved <- resolveNames dataDesugared
-  infixDesugared <- Infix.desugar resolved
-  let scoped = scope infixDesugared
+  checkpoint
+  postfix <- Infix.desugar resolved
+  checkpoint
+  let scoped = scope postfix
   inferTypes scoped
+  where
+  -- FIXME: Avoid redundantly re-parsing common vocabulary.
+  common = "\
+\data float {}\n\
+\data int {}\n\
+\data io {}\n"
