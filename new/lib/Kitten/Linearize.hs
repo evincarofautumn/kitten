@@ -41,7 +41,6 @@ linearize program = let
 
     go :: [Int] -> Term Type -> ([Int], Term Type)
     go counts0 term = case term of
-      Call{} -> (counts0, term)
       Compose type_ a b -> let
         (counts1, a') = go counts0 a
         (counts2, b') = go counts1 b
@@ -96,12 +95,13 @@ linearize program = let
         "pushing of quotation should not appear after desugaring"
       Push{} -> (counts0, term)
       Swap{} -> (counts0, term)
+      Word{} -> (counts0, term)
 
   instrumentDrop :: Origin -> Type -> Term Type -> Term Type
   instrumentDrop origin type_ a = Term.compose todoTyped origin
     [ a
     , Push todoTyped (Local (LocalIndex 0)) origin
-    , Call todoTyped Operator.Postfix
+    , Word todoTyped Operator.Postfix
       (QualifiedName (Qualified globalVocabulary "drop")) [type_] origin
     ]
 
@@ -111,7 +111,6 @@ linearize program = let
 
     go :: Int -> Term Type -> Term Type
     go n term = case term of
-      Call{} -> term
       Compose type_ a b -> Compose type_ (go n a) (go n b)
       Drop{} -> term
       Generic x body origin -> Generic x (go n body) origin
@@ -136,10 +135,11 @@ linearize program = let
       NewVector{} -> term
       Push _ (Local (LocalIndex index)) origin
         | index == n
-        -> Compose todoTyped term $ Call todoTyped Operator.Postfix
+        -> Compose todoTyped term $ Word todoTyped Operator.Postfix
           (QualifiedName (Qualified globalVocabulary "copy")) [varType] origin
       Push{} -> term
       Swap{} -> term
+      Word{} -> term
 
 todoTyped :: a
 todoTyped = error "TODO: generate typed terms"

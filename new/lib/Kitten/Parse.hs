@@ -489,7 +489,7 @@ termParser = (<?> "expression") $ do
     [ Parsec.try (uncurry (Push ()) <$> parseOne toLiteral <?> "literal")
     , do
       (name, fixity) <- nameParser
-      return (Call () fixity name [] origin)
+      return (Word () fixity name [] origin)
     , Parsec.try sectionParser
     , Parsec.try groupParser <?> "parenthesized expression"
     , vectorParser
@@ -519,7 +519,7 @@ termParser = (<?> "expression") $ do
       origin <- getOrigin
       function <- operatorNameParser
       let
-        call = Call () Operator.Postfix
+        call = Word () Operator.Postfix
           (UnqualifiedName function) [] origin
       Parsec.choice
         [ do
@@ -536,7 +536,7 @@ termParser = (<?> "expression") $ do
       function <- operatorNameParser
       return $ compose () operandOrigin $ operand ++
         [ Swap () origin
-        , Call () Operator.Postfix (UnqualifiedName function) [] origin
+        , Word () Operator.Postfix (UnqualifiedName function) [] origin
         ]
     ]
 
@@ -613,7 +613,7 @@ termParser = (<?> "expression") $ do
   blockValue = (<?> "quotation") $ do
     origin <- getOrigin
     let
-      reference = Call () Operator.Postfix
+      reference = Word () Operator.Postfix
         <$> (parserMatch Token.Reference *> (fst <$> nameParser))
         <*> pure []
         <*> pure origin

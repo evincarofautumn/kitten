@@ -33,8 +33,6 @@ term :: TypeEnv -> TypeId -> Type -> Term Type -> K (Term Type)
 term tenv x a = recur
   where
   recur t = case t of
-    Call tref fixity name args origin -> Call <$> go tref
-      <*> pure fixity <*> pure name <*> mapM go args <*> pure origin
     Compose tref t1 t2 -> Compose <$> go tref <*> recur t1 <*> recur t2
     Drop tref origin -> Drop <$> go tref <*> pure origin
     Generic x' body origin -> do
@@ -69,5 +67,7 @@ term tenv x a = recur
       <*> pure size <*> pure origin
     Push tref value origin -> Push <$> go tref <*> pure value <*> pure origin
     Swap tref origin -> Swap <$> go tref <*> pure origin
+    Word tref fixity name args origin -> Word <$> go tref
+      <*> pure fixity <*> pure name <*> mapM go args <*> pure origin
 
   go t = type_ tenv x a t

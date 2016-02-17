@@ -60,13 +60,6 @@ collectInstantiations tenv0 program0 = do
 
   go :: InstantiationQueue -> Term Type -> K (Term Type, InstantiationQueue)
   go q0 term = case term of
-    Call type_ fixity (QualifiedName name) args origin -> return
-      ( Call type_ fixity
-        (UnqualifiedName (Unqualified (Mangle.name name args))) [] origin
-      , Queue.enqueue (name, args) q0
-      )
-    -- FIXME: Should calls to non-qualified names even be around at this point?
-    Call{} -> proceed
     Compose type_ a b -> do
       (a', q1) <- go q0 a
       (b', q2) <- go q1 b
@@ -105,6 +98,13 @@ collectInstantiations tenv0 program0 = do
       "quotation should not appear after quotation desugaring"
     Push{} -> proceed
     Swap{} -> proceed
+    Word type_ fixity (QualifiedName name) args origin -> return
+      ( Word type_ fixity
+        (UnqualifiedName (Unqualified (Mangle.name name args))) [] origin
+      , Queue.enqueue (name, args) q0
+      )
+    -- FIXME: Should calls to non-qualified names even be around at this point?
+    Word{} -> proceed
     where
     proceed = return (term, q0)
 
