@@ -16,6 +16,7 @@ import Kitten.Fragment (Fragment)
 import Kitten.Informer (Informer(..))
 import Kitten.Kind (Kind(..))
 import Kitten.Located (Located)
+import Kitten.Metadata (Metadata(Metadata))
 import Kitten.Monad (K)
 import Kitten.Name (GeneralName(..), Qualified(..), Qualifier(..), Unqualified(..))
 import Kitten.Operator (Operator(Operator))
@@ -31,6 +32,7 @@ import Kitten.TypeDefinition (TypeDefinition(TypeDefinition))
 import Kitten.Vocabulary (globalVocabulary, globalVocabularyName)
 import Text.Parsec ((<?>))
 import Text.Parsec.Pos (SourcePos)
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 import qualified Kitten.Base as Base
 import qualified Kitten.DataConstructor as DataConstructor
@@ -39,6 +41,7 @@ import qualified Kitten.Element as Element
 import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Layoutness as Layoutness
 import qualified Kitten.Located as Located
+import qualified Kitten.Metadata as Metadata
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Origin as Origin
 import qualified Kitten.Report as Report
@@ -77,6 +80,8 @@ partitionElements = foldr go mempty
   go element acc = case element of
     Element.Definition x -> acc
       { Fragment.definitions = x : Fragment.definitions acc }
+    Element.Metadata x -> acc
+      { Fragment.metadata = x : Fragment.metadata acc }
     Element.Operator x -> acc
       { Fragment.operators = x : Fragment.operators acc }
     Element.Synonym x -> acc
@@ -230,6 +235,7 @@ parseOne = Parsec.tokenPrim show advance
 elementParser :: Parser (Element ())
 elementParser = (<?> "top-level program element") $ Parsec.choice
   [ Element.Definition <$> (basicDefinitionParser <|> instanceParser)
+  , Element.Metadata <$> metadataParser
   , Element.Operator <$> operatorParser
   , Element.Synonym <$> synonymParser
   , Element.Trait <$> traitParser
@@ -246,6 +252,26 @@ synonymParser = (<?> "synonym definition") $ do
     <*> (wordNameParser <|> operatorNameParser)
   (to, _) <- nameParser
   return $ Synonym from to origin
+
+metadataParser :: Parser Metadata
+metadataParser = (<?> "metadata block") $ do
+  origin <- getOrigin <* parserMatch Token.About
+  -- FIXME: This only allows metadata to be defined for elements within the
+  -- current vocabulary.
+  name <- Qualified <$> Parsec.getState
+    <*> Parsec.choice
+      [ wordNameParser <?> "word identifier"
+      , (parserMatch Token.Type *> wordNameParser)
+        <?> "'type' and type identifier"
+      ]
+  fields <- blockedParser $ many $ (,)
+    <$> (wordNameParser <?> "metadata key identifier")
+    <*> (blockParser <?> "metadata value block")
+  return Metadata
+    { Metadata.fields = HashMap.fromList fields
+    , Metadata.name = QualifiedName name
+    , Metadata.origin = origin
+    }
 
 operatorParser :: Parser Operator
 operatorParser = (<?> "operator definition") $ do

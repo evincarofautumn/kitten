@@ -3,6 +3,7 @@ module Kitten.Fragment
   ) where
 
 import Kitten.Definition (Definition)
+import Kitten.Metadata (Metadata)
 import Kitten.Operator (Operator)
 import Kitten.Synonym (Synonym)
 import Kitten.Trait (Trait)
@@ -12,6 +13,7 @@ import qualified Kitten.Pretty as Pretty
 
 data Fragment a = Fragment
   { definitions :: [Definition a]
+  , metadata :: [Metadata]
   , operators :: [Operator]
   , synonyms :: [Synonym]
   , traits :: [Trait]
@@ -21,6 +23,7 @@ data Fragment a = Fragment
 instance Monoid (Fragment a) where
   mempty = Fragment
     { definitions = []
+    , metadata = []
     , operators = []
     , synonyms = []
     , traits = []
@@ -28,6 +31,7 @@ instance Monoid (Fragment a) where
     }
   mappend a b = Fragment
     { definitions = definitions a ++ definitions b
+    , metadata = metadata a ++ metadata b
     , operators = operators a ++ operators b
     , synonyms = synonyms a ++ synonyms b
     , traits = traits a ++ traits b
@@ -37,6 +41,7 @@ instance Monoid (Fragment a) where
 instance Pretty (Fragment a) where
   pPrint fragment = Pretty.vsep $ concat
     [ map pPrint $ definitions fragment
+    , map pPrint $ metadata fragment
     , map pPrint $ operators fragment
     , map pPrint $ synonyms fragment
     , map pPrint $ types fragment

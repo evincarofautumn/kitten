@@ -16,7 +16,8 @@ import qualified Data.Text as Text
 import qualified Text.PrettyPrint as Pretty
 
 data Token
-  = AngleBegin                -- < See note [Angle Brackets].
+  = About                     -- about
+  | AngleBegin                -- < See note [Angle Brackets].
   | AngleEnd                  -- > See note [Angle Brackets].
   | Arrow                     -- ->
   | BlockBegin !Layoutness    -- { :
@@ -53,6 +54,7 @@ data Token
   | Word !Unqualified         -- word
 
 instance Eq Token where
+  About                   == About                   = True
   AngleBegin              == AngleBegin              = True
   AngleEnd                == AngleEnd                = True
   Arrow                   == Arrow                   = True
@@ -95,6 +97,7 @@ instance Eq Token where
 
 instance Pretty Token where
   pPrint token = case token of
+    About -> "about"
     AngleBegin -> "<"
     AngleEnd -> ">"
     Arrow -> "->"
