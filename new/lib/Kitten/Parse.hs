@@ -305,7 +305,17 @@ typeDefinitionParser = (<?> "type definition") $ do
   name <- Qualified <$> Parsec.getState
     <*> (wordNameParser <?> "type definition name")
   parameters <- Parsec.option [] quantifierParser
-  constructors <- blockedParser $ many constructorParser
+  constructors <- Parsec.choice
+    [ blockedParser $ many constructorParser
+    , do
+      constructorOrigin <- getOrigin
+      fields <- groupedParser $ constructorFieldsParser
+      return $ (:[]) $ DataConstructor
+        { DataConstructor.fields = fields
+        , DataConstructor.name = unqualifiedName name
+        , DataConstructor.origin = constructorOrigin
+        }
+    ]
   return TypeDefinition
     { TypeDefinition.constructors = constructors
     , TypeDefinition.name = name
@@ -317,13 +327,16 @@ constructorParser :: Parser DataConstructor
 constructorParser = (<?> "constructor definition") $ do
   origin <- getOrigin <* parserMatch Token.Case
   name <- wordNameParser <?> "constructor name"
-  fields <- (<?> "constructor fields") $ Parsec.option [] $ groupedParser
-    $ typeParser `Parsec.sepEndBy` parserMatch Token.Comma
+  fields <- (<?> "constructor fields") $ Parsec.option []
+    $ groupedParser $ constructorFieldsParser
   return DataConstructor
     { DataConstructor.fields = fields
     , DataConstructor.name = name
     , DataConstructor.origin = origin
     }
+
+constructorFieldsParser :: Parser [Signature]
+constructorFieldsParser = typeParser `Parsec.sepEndBy` parserMatch Token.Comma
 
 typeParser :: Parser Signature
 typeParser = Parsec.try functionTypeParser <|> basicTypeParser <?> "type"
