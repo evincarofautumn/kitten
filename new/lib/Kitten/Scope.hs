@@ -34,6 +34,7 @@ scope fragment = fragment
 
     recur :: Term () -> Term ()
     recur term = case term of
+      Call{} -> term
       Compose _ a b -> Compose () (recur a) (recur b)
       Drop{} -> term
       Generic{} -> error
@@ -99,6 +100,7 @@ runCapture stack = flip runState []
 
 captureTerm :: Term () -> Captured (Term ())
 captureTerm term = case term of
+  Call{} -> return term
   Compose _ a b -> Compose () <$> captureTerm a <*> captureTerm b
   Drop{} -> return term
   Generic{} -> error

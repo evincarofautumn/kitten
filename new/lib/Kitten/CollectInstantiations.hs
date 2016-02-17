@@ -60,6 +60,7 @@ collectInstantiations tenv0 program0 = do
 
   go :: InstantiationQueue -> Term Type -> K (Term Type, InstantiationQueue)
   go q0 term = case term of
+    Call{} -> proceed
     Compose type_ a b -> do
       (a', q1) <- go q0 a
       (b', q2) <- go q1 b

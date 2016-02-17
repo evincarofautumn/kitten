@@ -96,4 +96,6 @@ typecheck input = runKitten $ do
   common = "\
 \type float {}\n\
 \type int {}\n\
-\permission io<R..., S..., +E> (R..., (R... -> S... +io +E) -> S... +E) { _::magic }\n"
+\permission io<R..., S..., +E> (R..., (R... -> S... +io +E) -> S... +E) {\n\
+\  _::magic call\n\
+\}\n"

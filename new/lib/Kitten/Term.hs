@@ -38,7 +38,8 @@ import qualified Text.PrettyPrint as Pretty
 -- have a type like 'Term Type'.
 
 data Term a
-  = Compose a !(Term a) !(Term a)               -- e1 e2
+  = Call a !Origin                              -- call
+  | Compose a !(Term a) !(Term a)               -- e1 e2
   | Drop a !Origin                              -- drop
   | Generic !TypeId !(Term a) !Origin           -- Λx. e
   | Group !(Term a)                             -- (e)
@@ -84,6 +85,7 @@ decompose term = [term]
 
 origin :: Term a -> Origin
 origin term = case term of
+  Call _ o -> o
   Compose _ a _ -> origin a
   Drop _ o -> o
   Generic _ _ o -> o
@@ -113,6 +115,7 @@ type_ = metadata
 
 metadata :: Term a -> a
 metadata term = case term of
+  Call t _ -> t
   Compose t _ _ -> t
   Drop t _ -> t
   Generic _ term' _ -> metadata term'
@@ -131,6 +134,7 @@ metadata term = case term of
 
 instance Pretty (Term a) where
   pPrint term = case term of
+    Call{} -> "call"
     Compose _ a b -> pPrint a Pretty.$+$ pPrint b
     Drop _ _ -> "drop"
     Generic name body _ -> Pretty.hsep

@@ -40,6 +40,7 @@ term tenv0 = go
   where
   zonk = type_ tenv0
   go t = case t of
+    Call tref origin -> Call (zonk tref) origin
     Compose tref a b
       -> Compose (zonk tref) (go a) (go b)
     Drop tref origin

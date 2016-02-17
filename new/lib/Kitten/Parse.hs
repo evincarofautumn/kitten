@@ -490,6 +490,7 @@ termParser = (<?> "expression") $ do
     , do
       (name, fixity) <- nameParser
       return (Word () fixity name [] origin)
+    , Call () origin <$ parserMatch Token.Call
     , Parsec.try sectionParser
     , Parsec.try groupParser <?> "parenthesized expression"
     , vectorParser
