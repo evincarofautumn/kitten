@@ -117,7 +117,7 @@ function tenv0 t = case t of
 -- row, and asserts that the row can be rewritten to begin with that label under
 -- some substitution. It returns the substitution and the tail of the rewritten
 -- row. The substitution is always either empty (∅) or a singleton substitution
--- (x ↦ τ).
+-- (x ↦ τ), so we represent this as a 'Maybe'.
 
 rowIso
   :: TypeEnv -> Type -> Type -> Type
