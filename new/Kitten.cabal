@@ -57,6 +57,7 @@ library
     Kitten.Layoutness
     Kitten.Linearize
     Kitten.Mangle
+    Kitten.Metadata
     Kitten.Occurrences
     Kitten.Operator
     Kitten.Parser

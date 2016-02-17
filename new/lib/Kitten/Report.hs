@@ -123,7 +123,7 @@ human report = case report of
     -> "there may be a stack depth mismatch"
 
   ParseError origin unexpected expected -> Pretty.hcat
-    $ intersperse "; " $ unexpected ++ [expected]
+    $ (showOriginPrefix origin :) $ intersperse "; " $ unexpected ++ [expected]
 
   -- TODO: Show context.
   Context context message -> human message
@@ -165,10 +165,12 @@ parseError parsecError = ParseError origin unexpected' expected'
         else Pretty.quotes $ Pretty.text string
       ]
 
-showOriginPrefix :: Origin -> String
-showOriginPrefix origin = concat
-  $ [Text.unpack $ Origin.name origin, ":", show al, ".", show ac, "-"]
-  ++ (if al == bl then [show bc] else [show bl, ".", show bc])
+showOriginPrefix :: Origin -> Pretty.Doc
+showOriginPrefix origin = Pretty.hcat $
+  [ Pretty.text $ Text.unpack $ Origin.name origin
+  , ":", pPrint al, ".", pPrint ac, "-"
+  ]
+  ++ (if al == bl then [pPrint bc] else [pPrint bl, ".", pPrint bc])
   ++ [": "]
   where
   al = Origin.beginLine origin
