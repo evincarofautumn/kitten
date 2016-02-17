@@ -37,10 +37,10 @@ data Category = Note | Warning | Error | InternalError
 
 data Report
   = MissingTypeSignature !Origin !Qualified
-  | MultipleEffectVariables !Origin !Type !Type
+  | MultiplePermissionVariables !Origin !Type !Type
   | CannotResolveType !Origin !GeneralName
   | FailedInstanceCheck !Type !Type
-  | MissingEffectLabel !Type !Type !Origin !Constructor
+  | MissingPermissionLabel !Type !Type !Origin !Constructor
   | TypeArgumentCountMismatch !(Term Type) [Type]
   | CannotResolveName !Origin !NameCategory !GeneralName
   | MultipleDefinitions !Origin !Qualified [Origin]
@@ -58,8 +58,8 @@ human report = case report of
   MissingTypeSignature origin name -> Pretty.hsep
     ["I can't find a type signature for the word", Pretty.quote name]
 
-  MultipleEffectVariables origin a b -> Pretty.hcat
-    ["I found multiple effect variables: "
+  MultiplePermissionVariables origin a b -> Pretty.hcat
+    ["I found multiple permission variables: "
     , Pretty.quote a, " and ", Pretty.quote b
     , "but only one is allowed per function"
     ]
@@ -75,10 +75,10 @@ human report = case report of
     , "is not an instance of the type", Pretty.quote b
     ]
 
-  MissingEffectLabel a b origin name -> Pretty.hsep
-    [ "the effect label", Pretty.quote name
-    , "was missing when I tried to match the effect type", Pretty.quote a
-    , "with the effect type", Pretty.quote b
+  MissingPermissionLabel a b origin name -> Pretty.hsep
+    [ "the permission label", Pretty.quote name
+    , "was missing when I tried to match the permission type", Pretty.quote a
+    , "with the permission type", Pretty.quote b
     ]
 
   TypeArgumentCountMismatch term args -> Pretty.hsep

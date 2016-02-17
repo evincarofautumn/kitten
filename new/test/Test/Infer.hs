@@ -46,7 +46,7 @@ spec = do
   o = Origin.point "" 0 0
   r = TypeVar o $ Var (TypeId 0) Stack
   _s = TypeVar o $ Var (TypeId 1) Stack
-  e = TypeVar o $ Var (TypeId 2) Effect
+  e = TypeVar o $ Var (TypeId 2) Permission
   int = TypeConstructor o $ Type.Constructor
     $ Qualified globalVocabulary "int"
   float = TypeConstructor o $ Type.Constructor
