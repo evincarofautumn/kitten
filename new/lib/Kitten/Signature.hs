@@ -47,7 +47,7 @@ instance Pretty Signature where
       prettyVar (name, kind, _) = case kind of
         Value -> pPrint name
         Stack -> pPrint name Pretty.<> "..."
-        Effect -> Pretty.char '+' Pretty.<> pPrint name
+        Permission -> Pretty.char '+' Pretty.<> pPrint name
         _ -> error "quantified signature contains variable of invalid kind"
 
     Variable name _ -> pPrint name

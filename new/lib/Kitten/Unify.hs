@@ -20,7 +20,7 @@ import qualified Kitten.TypeEnv as TypeEnv
 import qualified Kitten.Zonk as Zonk
 
 -- There are two kinds of unification going on here: basic logical unification
--- for value types, and row unification for effect types.
+-- for value types, and row unification for permission types.
 
 type_ :: TypeEnv -> Type -> Type -> K TypeEnv
 type_ tenv0 t1 t2 = case (t1', t2') of
@@ -34,7 +34,7 @@ type_ tenv0 t1 t2 = case (t1', t2') of
   (Forall{}, _) -> commute
 
   (TypeConstructor _ "join" :@ l :@ r, s) -> do
-    ms <- rowIso tenv0 l s (effectTail r)
+    ms <- rowIso tenv0 l s (permissionTail r)
     case ms of
       Just (s', substitution, tenv1)
         -> case substitution of
@@ -51,7 +51,7 @@ type_ tenv0 t1 t2 = case (t1', t2') of
 
 -- We fall back to regular unification for value type constructors. This makes
 -- the somewhat iffy assumption that there is no higher-kinded polymorphism
--- going on between value type constructors and effect type constructors.
+-- going on between value type constructors and permission type constructors.
 
   (a :@ b, c :@ d) -> do
     tenv1 <- type_ tenv0 a c
@@ -68,8 +68,8 @@ type_ tenv0 t1 t2 = case (t1', t2') of
   t1' = Zonk.type_ tenv0 t1
   t2' = Zonk.type_ tenv0 t2
   commute = type_ tenv0 t2 t1
-  effectTail (TypeConstructor _ "join" :@ _ :@ a) = effectTail a
-  effectTail t = t
+  permissionTail (TypeConstructor _ "join" :@ _ :@ a) = permissionTail a
+  permissionTail t = t
 
 -- Unification of a type variable with a type simply looks up the current value
 -- of the variable and unifies it with the type; if the variable does not exist,
@@ -108,14 +108,14 @@ function tenv0 t = case t of
     let origin = Type.origin t
     a <- freshTv tenv0 origin Stack
     b <- freshTv tenv0 origin Stack
-    e <- freshTv tenv0 origin Effect
+    e <- freshTv tenv0 origin Permission
     tenv1 <- type_ tenv0 t $ funType origin a b e
     return (a, b, e, tenv1)
 
 -- Row unification is essentially unification of sets. The row-isomorphism
--- operation (as described in [1]) takes an effect label and an effect row, and
--- asserts that the row can be rewritten to begin with that label under some
--- substitution. It returns the substitution and the tail of the rewritten
+-- operation (as described in [1]) takes a permission label and a permission
+-- row, and asserts that the row can be rewritten to begin with that label under
+-- some substitution. It returns the substitution and the tail of the rewritten
 -- row. The substitution is always either empty (∅) or a singleton substitution
 -- (x ↦ τ).
 
@@ -147,7 +147,7 @@ rowIso tenv0 l (TypeConstructor origin "join" :@ l' :@ r') rt
 
 rowIso tenv0 l r@(TypeVar origin (Var a _)) rt
   | r /= rt = do
-  b <- freshTv tenv0 origin Effect
+  b <- freshTv tenv0 origin Permission
   return $ Just (b, Just (a, joinType origin l b), tenv0)
 
 -- In any other case, the rows are not isomorphic.

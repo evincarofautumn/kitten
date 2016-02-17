@@ -155,7 +155,7 @@ inferType tenvFinal tenv0 term0
       return (Compose type' term1' term2', type_, tenv6)
 
     Drop _ origin -> do
-      [a, b, e] <- fresh origin [Stack, Value, Effect]
+      [a, b, e] <- fresh origin [Stack, Value, Permission]
       let type_ = funType origin (prodType origin a b) a e
       let type' = Zonk.type_ tenvFinal type_
       return (Drop type' origin, type_, tenv0)
@@ -168,7 +168,7 @@ inferType tenvFinal tenv0 term0
 -- The empty program is the identity function on stacks.
 
     Identity _ origin -> do
-      [a, e] <- fresh origin [Stack, Effect]
+      [a, e] <- fresh origin [Stack, Permission]
       let type_ = funType origin a a e
       let type' = Zonk.type_ tenvFinal type_
       return (Identity type' origin, type_, tenv0)
@@ -179,7 +179,7 @@ inferType tenvFinal tenv0 term0
 -- works out neatly in the types.
 
     If _ true false origin -> do
-      [a, b, e] <- fresh origin [Stack, Stack, Effect]
+      [a, b, e] <- fresh origin [Stack, Stack, Permission]
       (true', t1, tenv1) <- while "checking true branch" origin
         $ inferType' tenv0 true
       (false', t2, tenv2) <- while "checking false branch" origin
@@ -221,9 +221,9 @@ inferType tenvFinal tenv0 term0
           (body', bodyType, tenv') <- inferType' tenv1 body
           return (Just (Else body' elseOrigin), bodyType, tenv')
         Nothing -> do
-          [a, b, e] <- fresh origin [Stack, Stack, Effect]
-          let effect = joinType origin (TypeConstructor origin "fail") e
-          return (Nothing, funType origin a b effect, tenv1)
+          [a, b, e] <- fresh origin [Stack, Stack, Permission]
+          let permission = joinType origin (TypeConstructor origin "fail") e
+          return (Nothing, funType origin a b permission, tenv1)
       tenv3 <- foldrM (\ type_ tenv -> Unify.type_ tenv elseType type_)
         tenv2 caseTypes
       let type_ = Type.setOrigin origin elseType
@@ -241,7 +241,7 @@ inferType tenvFinal tenv0 term0
 -- type-safe, since only the compiler can generate 'new' expressions.
 
     New _ constructor origin -> do
-      [a, b, e] <- fresh origin [Stack, Stack, Effect]
+      [a, b, e] <- fresh origin [Stack, Stack, Permission]
       let type_ = funType origin a b e
       let type' = Zonk.type_ tenvFinal type_
       return (New type' constructor origin, type_, tenv0)
@@ -255,7 +255,7 @@ inferType tenvFinal tenv0 term0
 
     NewClosure _ size origin -> do
       [a, b, c, d, e1, e2] <- fresh origin
-        [Stack, Value, Stack, Stack, Effect, Effect]
+        [Stack, Value, Stack, Stack, Permission, Permission]
       let
         f = funType origin c d e1
         type_ = funType origin
@@ -271,7 +271,7 @@ inferType tenvFinal tenv0 term0
 --
 
     NewVector _ size origin -> do
-      [a, b, e] <- fresh origin [Stack, Value, Effect]
+      [a, b, e] <- fresh origin [Stack, Value, Permission]
       let
         type_ = funType origin
           (foldl' (prodType origin) a (replicate size b))
@@ -283,14 +283,14 @@ inferType tenvFinal tenv0 term0
 -- Pushing a value results in a stack with that value on top.
 
     Push _ value origin -> do
-      [a, e] <- fresh origin [Stack, Effect]
+      [a, e] <- fresh origin [Stack, Permission]
       (value', t, tenv1) <- inferValue tenvFinal tenv0 origin value
       let type_ = funType origin a (prodType origin a t) e
       let type' = Zonk.type_ tenvFinal type_
       return (Push type' value' origin, type_, tenv1)
 
     Swap _ origin -> do
-      [a, b, c, e] <- fresh origin [Stack, Value, Value, Effect]
+      [a, b, c, e] <- fresh origin [Stack, Value, Value, Permission]
       let
         type_ = funType origin
           (prodType origin (prodType origin a b) c)
@@ -385,7 +385,7 @@ inferCall tenvFinal tenv0 name@(IntrinsicName intrinsic) origin
   = case intrinsic of
     Intrinsic.Add -> do
       a <- TypeEnv.freshTv tenv0 origin Stack
-      e <- TypeEnv.freshTv tenv0 origin Effect
+      e <- TypeEnv.freshTv tenv0 origin Permission
       let
         type_ = funType origin
           (prodType origin
@@ -398,7 +398,7 @@ inferCall tenvFinal tenv0 name@(IntrinsicName intrinsic) origin
     Intrinsic.Magic -> do
       a <- TypeEnv.freshTv tenv0 origin Stack
       b <- TypeEnv.freshTv tenv0 origin Stack
-      e <- TypeEnv.freshTv tenv0 origin Effect
+      e <- TypeEnv.freshTv tenv0 origin Permission
       let
         type_ = funType origin a b e
         type' = Zonk.type_ tenvFinal type_
@@ -444,7 +444,7 @@ typeFromSignature tenv signature0 = do
       let var = Var r Stack
       let typeVar = TypeVar origin var
       es' <- mapM (fromVar origin) es
-      (me, es'') <- lift $ effectVar origin es'
+      (me, es'') <- lift $ permissionVar origin es'
       Forall origin var <$> makeFunction origin typeVar as typeVar bs es'' me
     Signature.Quantified vars a origin -> do
       original <- get
@@ -472,15 +472,15 @@ typeFromSignature tenv signature0 = do
       r' <- var $ UnqualifiedName r
       s' <- var $ UnqualifiedName s
       es' <- mapM var es
-      (me, es'') <- lift $ effectVar origin es'
+      (me, es'') <- lift $ permissionVar origin es'
       makeFunction origin r' as s' bs es'' me
 
-  effectVar :: Origin -> [Type] -> K (Maybe Type, [Type])
-  effectVar origin types = case splitFind isTypeVar types of
+  permissionVar :: Origin -> [Type] -> K (Maybe Type, [Type])
+  permissionVar origin types = case splitFind isTypeVar types of
     Just (preceding, type_, following) -> case find isTypeVar following of
       Nothing -> return (Just type_, preceding ++ following)
       Just type' -> do
-        report $ Report.MultipleEffectVariables origin type_ type'
+        report $ Report.MultiplePermissionVariables origin type_ type'
         halt
     Nothing -> return (Nothing, types)
     where
@@ -511,7 +511,7 @@ typeFromSignature tenv signature0 = do
       Just e -> return e
       Nothing -> do
         ex <- lift $ freshTypeId tenv
-        let var = Var ex Effect
+        let var = Var ex Permission
         modify $ \ env -> env { sigEnvAnonymous = var : sigEnvAnonymous env }
         return $ TypeVar origin var
     return $ funType origin (stack r as') (stack s bs')
@@ -548,7 +548,7 @@ typeKind t = case t of
         "char" -> Value
         "float" -> Value
         "text" -> Value
-        "fun" -> Stack :-> Stack :-> Effect :-> Value
+        "fun" -> Stack :-> Stack :-> Permission :-> Value
         "prod" -> Stack :-> Value :-> Stack
         "vec" -> Value :-> Value
         "ptr" -> Value :-> Value
@@ -556,7 +556,7 @@ typeKind t = case t of
         "pure" -> Label
         "io" -> Label
         "fail" -> Label
-        "join" -> Label :-> Effect :-> Effect
+        "join" -> Label :-> Permission :-> Permission
         _ -> error "can't infer kind of constructor"
     _ -> error "TODO: infer kinds properly"
   TypeVar _origin (Var _ k) -> k

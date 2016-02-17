@@ -131,7 +131,7 @@ instance Pretty TypeId where
 
 instance Pretty Var where
   pPrint (Var i kind) = Pretty.hcat $ case kind of
-    Effect -> ["+", v]
+    Permission -> ["+", v]
     Stack -> [v, "..."]
     _ -> [v]
     where

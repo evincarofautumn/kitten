@@ -77,15 +77,15 @@ subsumptionCheckFun tenv0 a b e a' b' e' = do
   tenv1 <- subsumptionCheck tenv0 a' a
   tenv2 <- subsumptionCheck tenv1 b b'
   let
-    labels = effectList $ Zonk.type_ tenv2 e
-    labels' = effectList $ Zonk.type_ tenv2 e'
+    labels = permissionList $ Zonk.type_ tenv2 e
+    labels' = permissionList $ Zonk.type_ tenv2 e'
   forM_ labels $ \ (origin, label) -> case find ((label ==) . snd) labels' of
     Just{} -> return ()
-    Nothing -> report $ Report.MissingEffectLabel e e' origin label
+    Nothing -> report $ Report.MissingPermissionLabel e e' origin label
   return tenv2
   where
 
-  effectList :: Type -> [(Origin, Constructor)]
-  effectList (TypeConstructor _ "join" :@ TypeConstructor origin label :@ es)
-    = (origin, label) : effectList es
-  effectList _ = []
+  permissionList :: Type -> [(Origin, Constructor)]
+  permissionList (TypeConstructor _ "join" :@ TypeConstructor origin label :@ es)
+    = (origin, label) : permissionList es
+  permissionList _ = []

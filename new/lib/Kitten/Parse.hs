@@ -343,7 +343,7 @@ typeParser = Parsec.try functionTypeParser <|> basicTypeParser <?> "type"
 
 functionTypeParser :: Parser Signature
 functionTypeParser = (<?> "function type") $ do
-  (stackEffect, origin) <- Parsec.choice
+  (effect, origin) <- Parsec.choice
     [ do
       leftVar <- stack
       leftTypes <- Parsec.option [] (parserMatch Token.Comma *> left)
@@ -358,9 +358,9 @@ functionTypeParser = (<?> "function type") $ do
       rightTypes <- right
       return (Signature.Function leftTypes rightTypes, origin)
     ]
-  sideEffects <- (<?> "side effect labels")
+  permissions <- (<?> "permission labels")
     $ many $ parserMatchOperator "+" *> (fst <$> nameParser)
-  return (stackEffect sideEffects origin)
+  return (effect permissions origin)
   where
 
   stack :: Parser Unqualified
@@ -403,11 +403,11 @@ quantifierParser = typeListParser var
   var = do
     origin <- getOrigin
     Parsec.choice
-      [ (\ unqualified -> (unqualified, Effect, origin))
+      [ (\ unqualified -> (unqualified, Permission, origin))
         <$> (parserMatchOperator "+" *> wordNameParser)
       , do
         name <- wordNameParser
-        (\ effect -> (name, effect, origin))
+        (\ permission -> (name, permission, origin))
           <$> Parsec.option Value (Stack <$ parserMatch Token.Ellipsis)
       ]
 

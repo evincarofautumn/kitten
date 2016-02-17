@@ -15,13 +15,13 @@ import qualified Text.PrettyPrint as Pretty
 --  • The "stack" kind (ρ), used to enforce that the stack cannot contain
 --    other stacks.
 --
---  • The "effect label" kind (λ), used to identify a side effect.
+--  • The "permission label" kind (λ), used to identify a permission.
 --
---  • The "effect" kind (ε), denoting a set of side effects.
+--  • The "permission" kind (ε), denoting a set of permissions.
 --
 --  • The "function" kind (κ → κ), used to describe type constructors.
 
-data Kind = Value | Stack | Label | Effect | !Kind :-> !Kind
+data Kind = Value | Stack | Label | Permission | !Kind :-> !Kind
   deriving (Eq, Show)
 
 instance Hashable Kind where
@@ -29,7 +29,7 @@ instance Hashable Kind where
     Value -> hashWithSalt s (0 :: Int)
     Stack -> hashWithSalt s (1 :: Int)
     Label -> hashWithSalt s (2 :: Int)
-    Effect -> hashWithSalt s (3 :: Int)
+    Permission -> hashWithSalt s (3 :: Int)
     a :-> b -> hashWithSalt s (4 :: Int, a, b)
 
 instance Pretty Kind where
@@ -37,6 +37,6 @@ instance Pretty Kind where
     Value -> "value"
     Stack -> "stack"
     Label -> "label"
-    Effect -> "effect"
+    Permission -> "permission"
     a :-> b -> Pretty.parens $ Pretty.hsep
       [pPrint a, "->", pPrint b]
