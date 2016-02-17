@@ -80,7 +80,6 @@ value :: TypeEnv -> Value Type -> Value Type
 value tenv0 = go
   where
   go v = case v of
-    Boolean{} -> v
     Character{} -> v
     Closed{} -> v
     Closure names body -> Closure names $ term tenv0 body

@@ -62,7 +62,6 @@ scope fragment = fragment
 
   scopeValue :: [Int] -> Value () -> Value ()
   scopeValue stack value = case value of
-    Boolean{} -> value
     Character{} -> value
     Closed{} -> error "closed name should not appear before scope resolution"
     Closure{} -> error "closure should not appear before scope resolution"
@@ -138,7 +137,6 @@ captureTerm term = case term of
 
 captureValue :: Value () -> Captured (Value ())
 captureValue value = case value of
-  Boolean{} -> return value
   Character{} -> return value
   Closed{} -> return value
   Closure names term -> Closure <$> mapM close names <*> pure term

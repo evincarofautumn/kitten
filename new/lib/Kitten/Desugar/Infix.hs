@@ -96,7 +96,6 @@ desugar fragment = do
 
     desugarValue :: Value () -> K (Value ())
     desugarValue value = case value of
-      Boolean{} -> return value
       Character{} -> return value
       Closed{} -> error "closed name should not appear before infix desugaring"
       Closure names body -> Closure names <$> desugarTerms' body
