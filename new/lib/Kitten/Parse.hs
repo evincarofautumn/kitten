@@ -119,8 +119,8 @@ partitionElements = foldr go mempty
 mainDefinition :: Term a -> Definition a
 mainDefinition body = Definition
   { Definition.body = body
+  , Definition.category = Definition.Word
   , Definition.fixity = Operator.Postfix
-  , Definition.mangling = Definition.Word
   , Definition.name = Qualified globalVocabulary "main"
   , Definition.origin = origin
   , Definition.signature = Signature.Quantified
@@ -234,7 +234,11 @@ parseOne = Parsec.tokenPrim show advance
 
 elementParser :: Parser (Element ())
 elementParser = (<?> "top-level program element") $ Parsec.choice
-  [ Element.Definition <$> (basicDefinitionParser <|> instanceParser)
+  [ Element.Definition <$> Parsec.choice
+    [ basicDefinitionParser
+    , instanceParser
+    , permissionParser
+    ]
   , Element.Metadata <$> metadataParser
   , Element.Operator <$> operatorParser
   , Element.Synonym <$> synonymParser
@@ -441,8 +445,12 @@ instanceParser :: Parser (Definition ())
 instanceParser = (<?> "instance definition")
   $ definitionParser Token.Instance Definition.Instance
 
-definitionParser :: Token -> Definition.Mangling -> Parser (Definition ())
-definitionParser keyword mangling = do
+permissionParser :: Parser (Definition ())
+permissionParser = (<?> "permission definition")
+  $ definitionParser Token.Permission Definition.Permission
+
+definitionParser :: Token -> Definition.Category -> Parser (Definition ())
+definitionParser keyword category = do
   origin <- getOrigin <* parserMatch keyword
   (fixity, suffix) <- Parsec.choice
     [ (,) Operator.Postfix <$> wordNameParser
@@ -453,8 +461,8 @@ definitionParser keyword mangling = do
   body <- blockLikeParser <?> "definition body"
   return Definition
     { Definition.body = body
+    , Definition.category = category
     , Definition.fixity = fixity
-    , Definition.mangling = mangling
     , Definition.name = name
     , Definition.origin = origin
     , Definition.signature = signature

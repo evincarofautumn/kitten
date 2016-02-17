@@ -47,8 +47,8 @@ desugar fragment = do
       return Definition
         { Definition.body = New () (ConstructorIndex index)
           $ DataConstructor.origin constructor
+        , Definition.category = Definition.Word
         , Definition.fixity = Operator.Postfix
-        , Definition.mangling = Definition.Word
         , Definition.name = Qualified qualifier
           $ DataConstructor.name constructor
         , Definition.origin = origin

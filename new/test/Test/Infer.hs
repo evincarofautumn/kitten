@@ -4,6 +4,7 @@ module Test.Infer
   ( spec
   ) where
 
+import Data.List (find)
 import Data.Text (Text)
 import Kitten.Infer (inferTypes)
 import Kitten.Informer (checkpoint)
@@ -56,18 +57,23 @@ testTypecheck :: Text -> Type -> IO ()
 testTypecheck input expected = do
   result <- typecheck input
   case HashMap.toList . Program.definitions <$> result of
-    Right [((Qualified v "main", _), term)] | v == globalVocabulary -> do
-      let
-        actual = Term.type_ term
-      check <- runKitten
-        $ instanceCheck "inferred" actual "declared" expected
-      assertBool
-        (Pretty.render
-          $ Pretty.hsep [pPrint actual, "unifies with", pPrint expected])
-        $ either (const False) (const True) check
+    Right definitions -> case find matching definitions of
+      Just (_, term) -> do
+        let
+          actual = Term.type_ term
+        check <- runKitten
+          $ instanceCheck "inferred" actual "declared" expected
+        assertBool
+          (Pretty.render
+            $ Pretty.hsep [pPrint actual, "unifies with", pPrint expected])
+          $ either (const False) (const True) check
+      Nothing -> assertFailure $ Pretty.render $ Pretty.hsep
+        ["missing main definition:", pPrint definitions]
+      where
+      matching ((Qualified v "main", _), _) | v == globalVocabulary = True
+      matching _ = False
     Left reports -> assertFailure $ unlines
       $ map (Pretty.render . Report.human) reports
-    x -> assertFailure $ "not a trivial program: " ++ show x
 
 -- FIXME: Avoid redundancy with 'Kitten.compile'.
 typecheck :: Text -> IO (Either [Report] (Program Type))
@@ -90,4 +96,4 @@ typecheck input = runKitten $ do
   common = "\
 \type float {}\n\
 \type int {}\n\
-\type io {}\n"
+\permission io<R..., S..., +E> (R..., (R... -> S... +io +E) -> S... +E) { _::magic }\n"

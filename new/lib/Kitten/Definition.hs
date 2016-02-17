@@ -1,6 +1,6 @@
 module Kitten.Definition
   ( Definition(..)
-  , Mangling(..)
+  , Category(..)
   ) where
 
 import Kitten.Name (Qualified)
@@ -14,15 +14,18 @@ import qualified Kitten.Token as Token
 
 data Definition a = Definition
   { body :: !(Term a)
+  , category :: !Category
   , fixity :: !Fixity
-  , mangling :: !Mangling
   , name :: !Qualified
   , origin :: !Origin
   , signature :: !Signature
   } deriving (Show)
 
-data Mangling = Word | Instance
-  deriving (Show)
+data Category
+  = Instance
+  | Permission
+  | Word
+  deriving (Eq, Show)
 
 instance Pretty (Definition a) where
   pPrint definition = Pretty.asDefinition
