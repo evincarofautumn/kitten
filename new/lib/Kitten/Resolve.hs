@@ -98,7 +98,6 @@ resolveNames fragment = do
 
   resolveValue :: Qualifier -> Value () -> Resolved (Value ())
   resolveValue vocabulary value = case value of
-    Boolean{} -> return value
     Character{} -> return value
     Closed{} -> error "closed name should not appear before name resolution"
     Closure{} -> error "closure should not appear before name resolution"

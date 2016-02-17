@@ -22,7 +22,6 @@ data Token
   | Arrow                     -- ->
   | BlockBegin !Layoutness    -- { :
   | BlockEnd                  -- }
-  | Boolean !Bool             -- true false
   | Case                      -- case
   | Character !Char           -- 'x'
   | Comma                     -- ,
@@ -61,7 +60,6 @@ instance Eq Token where
   -- Block begin tokens are equal regardless of layoutness.
   BlockBegin _layoutnessA == BlockBegin _layoutnessB = True
   BlockEnd                == BlockEnd                = True
-  Boolean a               == Boolean b               = a == b
   Case                    == Case                    = True
   Character a             == Character b             = a == b
   Comma                   == Comma                   = True
@@ -103,8 +101,6 @@ instance Pretty Token where
     Arrow -> "->"
     BlockBegin{} -> "{"
     BlockEnd -> "}"
-    Boolean True -> "true"
-    Boolean False -> "false"
     Case -> "case"
     Character c -> Pretty.quotes $ Pretty.char c
     Comma -> ","

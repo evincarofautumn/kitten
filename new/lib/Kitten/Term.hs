@@ -62,8 +62,7 @@ data Else a = Else !(Term a) !Origin
   deriving (Eq, Show)
 
 data Value a
-  = Boolean !Bool
-  | Character !Char
+  = Character !Char
   | Closed !ClosureIndex
   | Closure [Closed] !(Term a)
   | Float !Double
@@ -172,8 +171,6 @@ instance Pretty (Else a) where
 
 instance Pretty (Value a) where
   pPrint value = case value of
-    Boolean True -> "true"
-    Boolean False -> "false"
     Character c -> Pretty.quotes $ Pretty.char c
     Closed (ClosureIndex index) -> "closure." Pretty.<> Pretty.int index
     Closure names term -> Pretty.hcat

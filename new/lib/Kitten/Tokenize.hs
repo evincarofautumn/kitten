@@ -146,14 +146,12 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
           "do" -> Do
           "elif" -> Elif
           "else" -> Else
-          "false" -> Boolean False
           "if" -> If
           "infix" -> Infix
           "instance" -> Instance
           "match" -> Match
           "synonym" -> Synonym
           "trait" -> Trait
-          "true" -> Boolean True
           "type" -> Type
           "vocab" -> Vocab
           _ -> Word (Unqualified name)

@@ -332,7 +332,6 @@ inferCase _ _ _ = error "case of non-qualified name after name resolution"
 
 inferValue :: TypeEnv -> TypeEnv -> Origin -> Value a -> K (Value Type, Type, TypeEnv)
 inferValue tenvFinal tenv0 origin value = case value of
-  Boolean x -> return (Boolean x, TypeConstructor origin "bool", tenv0)
   Character x -> return (Character x, TypeConstructor origin "char", tenv0)
   Closed (ClosureIndex index) -> return
     (Closed $ ClosureIndex index, TypeEnv.closure tenv0 !! index, tenv0)
