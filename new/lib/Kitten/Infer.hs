@@ -136,6 +136,16 @@ inferType :: TypeEnv -> TypeEnv -> Term a -> K (Term Type, Type, TypeEnv)
 inferType tenvFinal tenv0 term0
   = while context (Term.origin term0) $ case term0 of
 
+-- The call operator denotes modus ponens: if we have some program state A, a
+-- permission +E, and a closure (A → B +E) as evidence that we can convert A to
+-- B given +E, then we can call the closure to produce B.
+
+    Call _ origin -> do
+      [a, b, e] <- fresh origin [Stack, Stack, Permission]
+      let type_ = funType origin (prodType origin a (funType origin a b e)) b e
+      let type' = Zonk.type_ tenvFinal type_
+      return (Drop type' origin, type_, tenv0)
+
 -- The type of the composition of two expressions is the composition of the
 -- types of those expressions.
 

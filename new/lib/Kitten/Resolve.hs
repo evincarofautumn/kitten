@@ -60,6 +60,7 @@ resolveNames fragment = do
 
     recur :: Term () -> Resolved (Term ())
     recur unresolved = case unresolved of
+      Call{} -> return unresolved
       Compose _ a b -> Compose () <$> recur a <*> recur b
       Drop{} -> return unresolved
       Generic{} -> error

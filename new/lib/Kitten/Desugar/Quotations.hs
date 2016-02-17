@@ -37,6 +37,7 @@ desugar program = do
 
     go :: Term Type -> StateT LambdaIndex K (Term Type, [((Qualified, Type), Term Type)])
     go term = case term of
+      Call{} -> done
       Compose type_ a b -> do
         (a', as) <- go a
         (b', bs) <- go b

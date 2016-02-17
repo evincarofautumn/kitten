@@ -41,6 +41,7 @@ linearize program = let
 
     go :: [Int] -> Term Type -> ([Int], Term Type)
     go counts0 term = case term of
+      Call{} -> (counts0, term)
       Compose type_ a b -> let
         (counts1, a') = go counts0 a
         (counts2, b') = go counts1 b
@@ -111,6 +112,7 @@ linearize program = let
 
     go :: Int -> Term Type -> Term Type
     go n term = case term of
+      Call{} -> term
       Compose type_ a b -> Compose type_ (go n a) (go n b)
       Drop{} -> term
       Generic x body origin -> Generic x (go n body) origin
