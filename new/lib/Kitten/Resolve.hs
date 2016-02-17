@@ -60,9 +60,6 @@ resolveNames fragment = do
 
     recur :: Term () -> Resolved (Term ())
     recur unresolved = case unresolved of
-      Call _ fixity name params origin -> Call () fixity
-        <$> resolveDefinitionName vocabulary name origin
-        <*> pure params <*> pure origin
       Compose _ a b -> Compose () <$> recur a <*> recur b
       Drop{} -> return unresolved
       Generic{} -> error
@@ -95,6 +92,9 @@ resolveNames fragment = do
       Push _ value origin -> Push ()
         <$> resolveValue vocabulary value <*> pure origin
       Swap{} -> return unresolved
+      Word _ fixity name params origin -> Word () fixity
+        <$> resolveDefinitionName vocabulary name origin
+        <*> pure params <*> pure origin
 
   resolveValue :: Qualifier -> Value () -> Resolved (Value ())
   resolveValue vocabulary value = case value of

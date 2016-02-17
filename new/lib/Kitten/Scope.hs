@@ -34,9 +34,6 @@ scope fragment = fragment
 
     recur :: Term () -> Term ()
     recur term = case term of
-      Call _ _ (LocalName index) _ origin
-        -> Push () (scopeValue stack (Local index)) origin
-      Call{} -> term
       Compose _ a b -> Compose () (recur a) (recur b)
       Drop{} -> term
       Generic{} -> error
@@ -59,6 +56,9 @@ scope fragment = fragment
       NewVector{} -> term
       Push _ value origin -> Push () (scopeValue stack value) origin
       Swap{} -> term
+      Word _ _ (LocalName index) _ origin
+        -> Push () (scopeValue stack (Local index)) origin
+      Word{} -> term
 
   scopeValue :: [Int] -> Value () -> Value ()
   scopeValue stack value = case value of
@@ -99,7 +99,6 @@ runCapture stack = flip runState []
 
 captureTerm :: Term () -> Captured (Term ())
 captureTerm term = case term of
-  Call{} -> return term
   Compose _ a b -> Compose () <$> captureTerm a <*> captureTerm b
   Drop{} -> return term
   Generic{} -> error
@@ -134,6 +133,7 @@ captureTerm term = case term of
   NewVector{} -> return term
   Push _ value origin -> Push () <$> captureValue value <*> pure origin
   Swap{} -> return term
+  Word{} -> return term
 
 captureValue :: Value () -> Captured (Value ())
 captureValue value = case value of

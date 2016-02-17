@@ -40,8 +40,6 @@ term tenv0 = go
   where
   zonk = type_ tenv0
   go t = case t of
-    Call tref fixity name params origin
-      -> Call (zonk tref) fixity name params origin
     Compose tref a b
       -> Compose (zonk tref) (go a) (go b)
     Drop tref origin
@@ -75,6 +73,8 @@ term tenv0 = go
       -> Push (zonk tref) (value tenv0 value') origin
     Swap tref origin
       -> Swap (zonk tref) origin
+    Word tref fixity name params origin
+      -> Word (zonk tref) fixity name params origin
 
 value :: TypeEnv -> Value Type -> Value Type
 value tenv0 = go

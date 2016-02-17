@@ -136,9 +136,6 @@ inferType :: TypeEnv -> TypeEnv -> Term a -> K (Term Type, Type, TypeEnv)
 inferType tenvFinal tenv0 term0
   = while context (Term.origin term0) $ case term0 of
 
-    -- FIXME: Should generic parameters be restricted to none?
-    Call _ _fixity name _ origin -> inferCall tenvFinal tenv0 name origin
-
 -- The type of the composition of two expressions is the composition of the
 -- types of those expressions.
 
@@ -300,6 +297,9 @@ inferType tenvFinal tenv0 term0
       let type' = Zonk.type_ tenvFinal type_
       return (Swap type' origin, type_, tenv0)
 
+    -- FIXME: Should generic parameters be restricted to none?
+    Word _ _fixity name _ origin -> inferCall tenvFinal tenv0 name origin
+
   where
   inferType' = inferType tenvFinal
   fresh origin = foldrM (\k ts -> (: ts) <$> TypeEnv.freshTv tenv0 origin k) []
@@ -373,7 +373,7 @@ inferCall tenvFinal tenv0 (QualifiedName name) origin
         type'' = Zonk.type_ tenvFinal type'
         params'' = map (Zonk.type_ tenvFinal) params'
       return
-        ( Call type'' Operator.Postfix (QualifiedName name) params'' origin
+        ( Word type'' Operator.Postfix (QualifiedName name) params'' origin
         , type'
         , tenv1
         )
@@ -409,7 +409,7 @@ inferCall tenvFinal tenv0 name@(IntrinsicName intrinsic) origin
 
   -- FIXME: Generate instantiation.
   returnCall type_ type' = return
-    (Call type' Operator.Postfix name [] origin, type_, tenv0)
+    (Word type' Operator.Postfix name [] origin, type_, tenv0)
 
 
 inferCall _ _ _ _ = error "cannot infer type of non-qualified name"

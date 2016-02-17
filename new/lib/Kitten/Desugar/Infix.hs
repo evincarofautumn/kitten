@@ -64,7 +64,6 @@ desugar fragment = do
 
     desugarTerm :: Term () -> K (Term ())
     desugarTerm term = case term of
-      Call{} -> return term
       Compose _ a b -> desugarTerms (Term.decompose a ++ Term.decompose b)
       Drop{} -> return term
       Generic{} -> error
@@ -93,6 +92,7 @@ desugar fragment = do
       NewVector{} -> return term
       Push _ value origin -> Push () <$> desugarValue value <*> pure origin
       Swap{} -> return term
+      Word{} -> return term
 
     desugarValue :: Value () -> K (Value ())
     desugarValue value = case value of
@@ -115,7 +115,7 @@ desugar fragment = do
     operand = (<?> "operand") $ do
       origin <- getOrigin
       results <- Parsec.many1 $ termSatisfy $ \ term -> case term of
-        Call _ Operator.Infix _ _ _ -> False
+        Word _ Operator.Infix _ _ _ -> False
         Lambda{} -> False
         _ -> True
       return $ Term.compose () origin results
@@ -168,13 +168,13 @@ desugar fragment = do
 
   binaryOperator :: GeneralName -> Rewriter (Term () -> Term () -> Term ())
   binaryOperator name = mapTerm $ \ term -> case term of
-    Call _ Operator.Infix name' _ origin
+    Word _ Operator.Infix name' _ origin
       | name == name' -> Just $ binary name origin
     _ -> Nothing
 
   binary :: GeneralName -> Origin -> Term () -> Term () -> Term ()
   binary name origin x y = Term.compose () origin
-    [x, y, Call () Operator.Postfix name [] origin]
+    [x, y, Word () Operator.Postfix name [] origin]
 
   mapTerm :: (Term () -> Maybe a) -> Rewriter a
   mapTerm = Parsec.tokenPrim show advanceTerm
