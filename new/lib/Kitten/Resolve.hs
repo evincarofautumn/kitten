@@ -143,8 +143,13 @@ resolveNames fragment = do
   resolveTypeName = resolveName Report.TypeName resolveLocal isDefined
     where
     isDefined = flip Set.member defined
-    defined = Set.fromList $ map TypeDefinition.name
-      $ Fragment.types fragment
+    defined = Set.union
+      (Set.fromList
+        $ map TypeDefinition.name
+        $ Fragment.types fragment)
+      (Set.fromList $ map Definition.name
+        $ filter ((== Definition.Permission) . Definition.category)
+        $ Fragment.definitions fragment)
     resolveLocal name _ = return $ UnqualifiedName name
 
   resolveName

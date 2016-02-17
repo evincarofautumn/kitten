@@ -61,7 +61,7 @@ inferTypes fragment = do
   definitions <- forM (Fragment.definitions fragment) $ \ definition -> do
     type_ <- typeFromSignature tenv0 $ Definition.signature definition
     let name = Definition.name definition
-    name' <- case Definition.mangling definition of
+    name' <- case Definition.category definition of
       Definition.Instance -> let
         mTrait = find ((name ==) . Trait.name) $ Fragment.traits fragment
         in case mTrait of
@@ -77,6 +77,7 @@ inferTypes fragment = do
               args' = valueKinded $ map (Zonk.type_ tenv2) args
               mangled = Mangle.name name args'
             return $ Qualified globalVocabulary $ Unqualified mangled
+      Definition.Permission -> return name
       Definition.Word -> return name
     return ((name', type_), Definition.body definition)
   traits <- forM (Fragment.traits fragment) $ \ trait -> do

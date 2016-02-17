@@ -41,6 +41,7 @@ data Token
   | Layout                    -- :
   | Match                     -- match
   | Operator !Unqualified     -- +
+  | Permission                -- permission
   | Reference                 -- \
   | Synonym                   -- synonym
   | Text !Text                -- "..."
@@ -81,6 +82,7 @@ instance Eq Token where
   Layout                  == Layout                  = True
   Match                   == Match                   = True
   Operator a              == Operator b              = a == b
+  Permission              == Permission              = True
   Reference               == Reference               = True
   Synonym                 == Synonym                 = True
   Text a                  == Text b                  = a == b
@@ -128,6 +130,7 @@ instance Pretty Token where
     Layout -> ":"
     Match -> "match"
     Operator name -> pPrint name
+    Permission -> "permission"
     Reference -> "\\"
     Synonym -> "synonym"
     Text t -> Pretty.doubleQuotes $ Pretty.text $ Text.unpack t
