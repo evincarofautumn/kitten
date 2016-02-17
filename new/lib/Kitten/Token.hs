@@ -39,11 +39,13 @@ data Token
   | Infix                     -- infix
   | Instance                  -- instance
   | Integer !Integer !Base    -- 1 0b1 0o1 0x1
+  | Jump                      -- jump
   | Layout                    -- :
   | Match                     -- match
   | Operator !Unqualified     -- +
   | Permission                -- permission
   | Reference                 -- \
+  | Return                    -- return
   | Synonym                   -- synonym
   | Text !Text                -- "..."
   | Trait                     -- trait
@@ -81,11 +83,13 @@ instance Eq Token where
   Instance                == Instance                = True
   -- Integer tokens are equal regardless of base.
   Integer a _baseA        == Integer b _baseB        = a == b
+  Jump                    == Jump                    = True
   Layout                  == Layout                  = True
   Match                   == Match                   = True
   Operator a              == Operator b              = a == b
   Permission              == Permission              = True
   Reference               == Reference               = True
+  Return                  == Return                  = True
   Synonym                 == Synonym                 = True
   Text a                  == Text b                  = a == b
   Trait                   == Trait                   = True
@@ -130,11 +134,13 @@ instance Pretty Token where
         Octal -> (8, "0o", ['0'..'7'])
         Decimal -> (10, "", ['0'..'9'])
         Hexadecimal -> (16, "0x", ['0'..'9'] ++ ['A'..'F'])
+    Jump -> "jump"
     Layout -> ":"
     Match -> "match"
     Operator name -> pPrint name
     Permission -> "permission"
     Reference -> "\\"
+    Return -> "return"
     Synonym -> "synonym"
     Text t -> Pretty.doubleQuotes $ Pretty.text $ Text.unpack t
     Trait -> "trait"
