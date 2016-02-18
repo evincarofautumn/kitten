@@ -93,6 +93,7 @@ desugar fragment = do
       NewVector{} -> return term
       Push _ value origin -> Push () <$> desugarValue value <*> pure origin
       Swap{} -> return term
+      With{} -> return term
       Word{} -> return term
 
     desugarValue :: Value () -> K (Value ())

@@ -158,6 +158,7 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
           "trait" -> Trait
           "type" -> Type
           "vocab" -> Vocab
+          "with" -> With
           _ -> Word (Unqualified name)
 
 -- See note [Angle Brackets].

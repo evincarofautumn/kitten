@@ -18,7 +18,7 @@ import Kitten.Monad (K)
 import Kitten.Name (GeneralName(..), LocalIndex(..), Qualified(..), Qualifier(..), Unqualified(..))
 import Kitten.Origin (Origin)
 import Kitten.Signature (Signature)
-import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
+import Kitten.Term (Case(..), Else(..), Term(..), Permit(Permit), Value(..))
 import Kitten.Vocabulary (globalVocabulary)
 import qualified Data.Set as Set
 import qualified Kitten.Definition as Definition
@@ -93,6 +93,11 @@ resolveNames fragment = do
       Push _ value origin -> Push ()
         <$> resolveValue vocabulary value <*> pure origin
       Swap{} -> return unresolved
+      With _ permits origin -> With () <$> mapM resolvePermit permits
+        <*> pure origin
+        where
+        resolvePermit (Permit allow name)
+          = Permit allow <$> resolveTypeName vocabulary name origin
       Word _ fixity name params origin -> Word () fixity
         <$> resolveDefinitionName vocabulary name origin
         <*> pure params <*> pure origin
