@@ -54,6 +54,7 @@ data Token
   | VectorEnd                 -- ]
   | Vocab                     -- vocab
   | VocabLookup               -- ::
+  | With                      -- with
   | Word !Unqualified         -- word
 
 instance Eq Token where
@@ -98,6 +99,7 @@ instance Eq Token where
   VectorEnd               == VectorEnd               = True
   Vocab                   == Vocab                   = True
   VocabLookup             == VocabLookup             = True
+  With                    == With                    = True
   Word a                  == Word b                  = a == b
   _                       == _                       = False
 
@@ -149,6 +151,7 @@ instance Pretty Token where
     VectorEnd -> "]"
     Vocab -> "vocab"
     VocabLookup -> "::"
+    With -> "with"
     Word name -> pPrint name
 
 -- Minor hack because Parsec requires 'Show'.

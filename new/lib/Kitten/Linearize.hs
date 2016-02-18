@@ -96,6 +96,7 @@ linearize program = let
         "pushing of quotation should not appear after desugaring"
       Push{} -> (counts0, term)
       Swap{} -> (counts0, term)
+      With{} -> (counts0, term)
       Word{} -> (counts0, term)
 
   instrumentDrop :: Origin -> Type -> Term Type -> Term Type
@@ -141,6 +142,7 @@ linearize program = let
           (QualifiedName (Qualified globalVocabulary "copy")) [varType] origin
       Push{} -> term
       Swap{} -> term
+      With{} -> term
       Word{} -> term
 
 todoTyped :: a

@@ -98,6 +98,7 @@ desugar program = do
 
       Push{} -> done
       Swap{} -> done
+      With{} -> done
       Word{} -> done
       where
       done = return (term, [])

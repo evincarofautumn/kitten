@@ -499,6 +499,7 @@ termParser = (<?> "expression") $ do
     , ifParser
     , doParser
     , Push () <$> blockValue <*> pure origin
+    , withParser
     ]
   where
 
@@ -619,6 +620,19 @@ termParser = (<?> "expression") $ do
         <*> pure []
         <*> pure origin
     Quotation <$> (blockParser <|> reference)
+
+  withParser :: Parser (Term ())
+  withParser = (<?> "'with' expression") $ do
+    origin <- getOrigin <* parserMatch_ Token.With
+    permits <- groupedParser $ Parsec.many1 permitParser
+    return $ With () permits origin
+    where
+
+    permitParser :: Parser Term.Permit
+    permitParser = Term.Permit <$> Parsec.choice
+      [ True <$ parserMatchOperator "+"
+      , False <$ parserMatchOperator "-"
+      ] <*> (UnqualifiedName <$> wordNameParser)
 
 parserMatchOperator :: Text -> Parser (Located Token)
 parserMatchOperator = parserMatch . Token.Operator . Unqualified

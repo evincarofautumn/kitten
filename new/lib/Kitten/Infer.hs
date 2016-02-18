@@ -8,6 +8,7 @@ module Kitten.Infer
 import Control.Monad (forM)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State (StateT, get, gets, modify, put, runStateT)
+import Data.Either (partitionEithers)
 import Data.Foldable (foldrM)
 import Data.List (find, foldl')
 import Data.Map (Map)
@@ -306,6 +307,51 @@ inferType tenvFinal tenv0 term0
           e
       let type' = Zonk.type_ tenvFinal type_
       return (Swap type' origin, type_, tenv0)
+
+-- The 'with' operator evaluates a closure with altered permissions. It can be
+-- used safely to add permissions, enabling a restricted function to be used in
+-- a more permissive context:
+--
+--     define call_optional<R..., S..., +E>
+--       (R..., optional<(R... -> S... +E)> -> S... +fail +E):
+--       match:
+--         case none:
+--           abort
+--         case some -> f:
+--           f with (-fail)
+--
+-- Here, 'call_optional' has the '+fail' permission, but we want to restrict 'f'
+-- from gaining access to that permission, so we remove it using 'with (-fail)'.
+--
+-- 'with' can also be used unsafely, to grant permissions that the caller
+-- doesn't necessarily have. This is typically used inside permission handlers,
+-- to remove the permission when it's been successfully evaluated:
+--
+--     permission io<R..., S..., +E> (R..., (R... -> S... +io +E) -> S... +E):
+--       with (+io)
+--
+-- FIXME: We should probably issue a warning when a permission is granted
+-- outside its permission handler, because that's a Highly Suspicious Thing.
+
+    With _ permits origin -> do
+      [a, b, e] <- fresh origin [Stack, Stack, Permission]
+      let
+        (es, es') = partitionEithers $ map (\p -> let
+          name = case Term.permitName p of
+            QualifiedName qualified -> qualified
+            _ -> error
+              "unqualified name should not appear after name resolution"
+          in (if Term.permitted p then Left else Right)
+            $ TypeConstructor origin $ Constructor name)
+          permits
+      let
+        type_ = funType origin
+          (prodType origin a
+            (funType origin a b (foldr (joinType origin) e es)))
+          b
+          (foldr (joinType origin) e es')
+        type' = Zonk.type_ tenvFinal type_
+      return (With type' permits origin, type_, tenv0)
 
     -- FIXME: Should generic parameters be restricted to none?
     Word _ _fixity name _ origin -> inferCall tenvFinal tenv0 name origin

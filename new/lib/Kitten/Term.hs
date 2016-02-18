@@ -4,6 +4,7 @@
 module Kitten.Term
   ( Case(..)
   , Else(..)
+  , Permit(..)
   , Term(..)
   , Value(..)
   , compose
@@ -53,6 +54,7 @@ data Term a
   | NewVector a !Int !Origin                    -- new.vec.n
   | Push a !(Value a) !Origin                   -- push v
   | Swap a !Origin                              -- swap
+  | With a [Permit] !Origin                     -- with (+foo -bar)
   | Word a !Fixity !GeneralName [Type] !Origin  -- f
   deriving (Eq, Show)
 
@@ -61,6 +63,11 @@ data Case a = Case !GeneralName !(Term a) !Origin
 
 data Else a = Else !(Term a) !Origin
   deriving (Eq, Show)
+
+data Permit = Permit
+  { permitted :: !Bool
+  , permitName :: !GeneralName
+  } deriving (Eq, Show)
 
 data Value a
   = Character !Char
@@ -100,6 +107,7 @@ origin term = case term of
   Match _ _ _ o -> o
   Push _ _ o -> o
   Swap _ o -> o
+  With _ _ o -> o
   Word _ _ _ _ o -> o
 
 quantifierCount :: Term a -> Int
@@ -130,6 +138,7 @@ metadata term = case term of
   NewVector t _ _ -> t
   Push t _ _ -> t
   Swap t _ -> t
+  With t _ _ -> t
   Word t _ _ _ _ -> t
 
 instance Pretty (Term a) where
@@ -160,6 +169,11 @@ instance Pretty (Term a) where
     NewVector _ size _ -> "new.vec." Pretty.<> pPrint size
     Push _ value _ -> pPrint value
     Swap{} -> "swap"
+    With _ permits _ -> Pretty.hcat $ concat
+      [ ["with ("]
+      , intersperse ", " $ map pPrint permits
+      , [")"]
+      ]
     Word _ _ name [] _ -> pPrint name
     Word _ _ name args _ -> Pretty.hcat
       $ pPrint name : "<" : intersperse ", " (map pPrint args) ++ [">"]
@@ -172,6 +186,10 @@ instance Pretty (Case a) where
 
 instance Pretty (Else a) where
   pPrint (Else body _) = Pretty.vcat ["else:", Pretty.nest 4 $ pPrint body]
+
+instance Pretty Permit where
+  pPrint (Permit allow name) = Pretty.hcat
+    [if allow then "+" else "-", pPrint name]
 
 instance Pretty (Value a) where
   pPrint value = case value of

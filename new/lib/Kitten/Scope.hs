@@ -57,6 +57,7 @@ scope fragment = fragment
       NewVector{} -> term
       Push _ value origin -> Push () (scopeValue stack value) origin
       Swap{} -> term
+      With{} -> term
       Word _ _ (LocalName index) _ origin
         -> Push () (scopeValue stack (Local index)) origin
       Word{} -> term
@@ -135,6 +136,7 @@ captureTerm term = case term of
   NewVector{} -> return term
   Push _ value origin -> Push () <$> captureValue value <*> pure origin
   Swap{} -> return term
+  With{} -> return term
   Word{} -> return term
 
 captureValue :: Value () -> Captured (Value ())

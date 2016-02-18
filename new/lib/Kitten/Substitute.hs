@@ -68,6 +68,8 @@ term tenv x a = recur
       <*> pure size <*> pure origin
     Push tref value origin -> Push <$> go tref <*> pure value <*> pure origin
     Swap tref origin -> Swap <$> go tref <*> pure origin
+    With tref permits origin -> With <$> go tref
+      <*> pure permits <*> pure origin
     Word tref fixity name args origin -> Word <$> go tref
       <*> pure fixity <*> pure name <*> mapM go args <*> pure origin
 

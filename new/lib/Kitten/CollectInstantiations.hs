@@ -99,6 +99,7 @@ collectInstantiations tenv0 program0 = do
       "quotation should not appear after quotation desugaring"
     Push{} -> proceed
     Swap{} -> proceed
+    With{} -> proceed
     Word type_ fixity (QualifiedName name) args origin -> return
       ( Word type_ fixity
         (UnqualifiedName (Unqualified (Mangle.name name args))) [] origin

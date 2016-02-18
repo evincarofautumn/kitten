@@ -97,5 +97,5 @@ typecheck input = runKitten $ do
 \type float {}\n\
 \type int {}\n\
 \permission io<R..., S..., +E> (R..., (R... -> S... +io +E) -> S... +E) {\n\
-\  _::magic call\n\
+\  with (+io)\n\
 \}\n"

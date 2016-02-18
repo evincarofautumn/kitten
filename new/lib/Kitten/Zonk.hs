@@ -74,6 +74,8 @@ term tenv0 = go
       -> Push (zonk tref) (value tenv0 value') origin
     Swap tref origin
       -> Swap (zonk tref) origin
+    With tref permits origin
+      -> With (zonk tref) permits origin
     Word tref fixity name params origin
       -> Word (zonk tref) fixity name params origin
 
