@@ -6,6 +6,7 @@ import Test.Hspec (Spec, describe, hspec)
 import qualified Test.Infer
 import qualified Test.Origin
 import qualified Test.Tokenize
+import qualified Test.Zonk
 
 main :: IO ()
 main = hspec spec
@@ -15,3 +16,4 @@ spec = do
   describe "tokenization" Test.Tokenize.spec
   describe "source locations" Test.Origin.spec
   describe "type inference" Test.Infer.spec
+  describe "zonking" Test.Zonk.spec
