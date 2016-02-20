@@ -25,6 +25,10 @@ import qualified Text.PrettyPrint as Pretty
 -- Since skolem constants only unify with type variables and themselves,
 -- unifying a skolemized scheme with a type tells you whether one is a generic
 -- instance of the other. This is used to check the signatures of definitions.
+--
+-- Take care when using this function that you remember which way the subtyping
+-- relation goes: ∀α. α → α is a generic instance of int → int, not the other
+-- way around!
 
 instanceCheck :: Pretty.Doc -> Type -> Pretty.Doc -> Type -> K ()
 instanceCheck aSort aScheme bSort bScheme = do
