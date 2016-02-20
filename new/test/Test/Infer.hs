@@ -20,7 +20,6 @@ import Kitten.Resolve (resolveNames)
 import Kitten.Scope (scope)
 import Kitten.Tokenize (tokenize)
 import Kitten.Type (Type(..), TypeId(..), Var(..))
-import Kitten.Vocabulary (globalVocabulary)
 import Test.HUnit (assertBool, assertFailure)
 import Test.Hspec (Spec, describe, it)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
@@ -33,6 +32,7 @@ import qualified Kitten.Program as Program
 import qualified Kitten.Report as Report
 import qualified Kitten.Term as Term
 import qualified Kitten.Type as Type
+import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.PrettyPrint as Pretty
 
 spec :: Spec
@@ -49,9 +49,9 @@ spec = do
   _s = TypeVar o $ Var (TypeId 1) Stack
   e = TypeVar o $ Var (TypeId 2) Permission
   int = TypeConstructor o $ Type.Constructor
-    $ Qualified globalVocabulary "int"
+    $ Qualified Vocabulary.global "int"
   float = TypeConstructor o $ Type.Constructor
-    $ Qualified globalVocabulary "float"
+    $ Qualified Vocabulary.global "float"
 
 testTypecheck :: Text -> Type -> IO ()
 testTypecheck input expected = do
@@ -70,7 +70,7 @@ testTypecheck input expected = do
       Nothing -> assertFailure $ Pretty.render $ Pretty.hsep
         ["missing main definition:", pPrint definitions]
       where
-      matching ((Qualified v "main", _), _) | v == globalVocabulary = True
+      matching ((Qualified v "main", _), _) | v == Vocabulary.global = True
       matching _ = False
     Left reports -> assertFailure $ unlines
       $ map (Pretty.render . Report.human) reports

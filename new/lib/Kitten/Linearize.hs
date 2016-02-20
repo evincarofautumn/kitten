@@ -11,11 +11,11 @@ import Kitten.Origin (Origin)
 import Kitten.Program (Program)
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Kitten.Type (Type)
-import Kitten.Vocabulary (globalVocabulary)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Program as Program
 import qualified Kitten.Term as Term
+import qualified Kitten.Vocabulary as Vocabulary
 
 -- Linearization replaces all copies and drops with explicit invocations of the
 -- '_::copy' and '_::drop' words. A value is copied if it appears twice or more
@@ -104,7 +104,7 @@ linearize program = let
     [ a
     , Push todoTyped (Local (LocalIndex 0)) origin
     , Word todoTyped Operator.Postfix
-      (QualifiedName (Qualified globalVocabulary "drop")) [type_] origin
+      (QualifiedName (Qualified Vocabulary.global "drop")) [type_] origin
     ]
 
   instrumentCopy :: Type -> Term Type -> Term Type
@@ -139,7 +139,7 @@ linearize program = let
       Push _ (Local (LocalIndex index)) origin
         | index == n
         -> Compose todoTyped term $ Word todoTyped Operator.Postfix
-          (QualifiedName (Qualified globalVocabulary "copy")) [varType] origin
+          (QualifiedName (Qualified Vocabulary.global "copy")) [varType] origin
       Push{} -> term
       Swap{} -> term
       With{} -> term

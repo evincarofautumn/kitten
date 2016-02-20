@@ -7,9 +7,9 @@ module Kitten.Mangle
 import Data.Text (Text)
 import Kitten.Name (Qualified(..), Qualifier(..), Unqualified(..))
 import Kitten.Type (Constructor(..), Type(..))
-import Kitten.Vocabulary (globalVocabulary)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.Text as Text
+import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.PrettyPrint as Pretty
 
 -- Names are mangled according to the local C++ mangling convention. This is a
@@ -24,8 +24,7 @@ type_ (TypeConstructor _ "fun" :@ _ :@ _) = "PFvv"
 type_ (TypeConstructor _ "ptr" :@ a) = Text.concat ["P", type_ a]
 type_ (TypeConstructor _origin (Constructor con)) = case con of
   Qualified qualifier unqualified
-    | qualifier == globalVocabulary
-    -> case unqualified of
+    | qualifier == Vocabulary.global -> case unqualified of
       "int" -> "i"
       "bool" -> "b"
       "char" -> "c"

@@ -18,10 +18,10 @@ import GHC.Exts (IsString(..))
 import Kitten.Kind (Kind(..))
 import Kitten.Name (Qualified(..), Unqualified(..))
 import Kitten.Origin (Origin)
-import Kitten.Vocabulary (globalVocabulary)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.Text as Text
 import qualified Kitten.Pretty as Pretty
+import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.PrettyPrint as Pretty
 
 -- This is the type language. It describes a system of conventional Hindley–
@@ -101,7 +101,7 @@ instance Hashable Var where
 
 instance IsString Constructor where
   fromString = Constructor
-    . Qualified globalVocabulary . Unqualified . Text.pack
+    . Qualified Vocabulary.global . Unqualified . Text.pack
 
 instance Pretty Constructor where
   pPrint (Constructor name) = pPrint name
