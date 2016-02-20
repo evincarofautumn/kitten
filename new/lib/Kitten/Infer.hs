@@ -120,7 +120,7 @@ inferType0 sigs _name declared term = while context (Term.origin term) $ do
     tenvFinal' <- Unify.type_ tenvFinal t declared
   let zonked = Zonk.type_ tenvFinal' t
   let regeneralized = regeneralize tenvFinal' zonked
-  instanceCheck "inferred" regeneralized "declared" declared
+  instanceCheck "declared" declared "inferred" regeneralized
   return (Zonk.term tenvFinal' term', regeneralized)
   where
 
