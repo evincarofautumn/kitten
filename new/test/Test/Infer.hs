@@ -47,15 +47,22 @@ spec = do
       testTypecheck "_::intrinsic::magic" $ Type.funType o r s e
       testTypecheck "1 2 _::intrinsic::add_int"
         $ Type.funType o r (Type.prodType o r int) e
+    it "typechecks data types" $ do
+      testTypecheck "type unit { case unit } unit"
+        $ Type.funType o r (Type.prodType o r (ctor "unit")) e
+      testTypecheck "type unit { case unit () } unit"
+        $ Type.funType o r (Type.prodType o r (ctor "unit")) e
+      testTypecheck "type unit () unit"
+        $ Type.funType o r (Type.prodType o r (ctor "unit")) e
   where
   o = Origin.point "" 0 0
   r = TypeVar o $ Var (TypeId 0) Stack
   s = TypeVar o $ Var (TypeId 1) Stack
   e = TypeVar o $ Var (TypeId 2) Permission
-  int = TypeConstructor o $ Type.Constructor
-    $ Qualified Vocabulary.global "int"
-  float = TypeConstructor o $ Type.Constructor
-    $ Qualified Vocabulary.global "float"
+  ctor = TypeConstructor o . Type.Constructor
+    . Qualified Vocabulary.global
+  int = ctor "int"
+  float = ctor "float"
 
 testTypecheck :: Text -> Type -> IO ()
 testTypecheck input expected = do
