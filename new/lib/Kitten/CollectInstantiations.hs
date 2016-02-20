@@ -15,7 +15,6 @@ import Kitten.Queue (Queue)
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Kitten.Type (Type)
 import Kitten.TypeEnv (TypeEnv)
-import Kitten.Vocabulary (globalVocabulary)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Kitten.Instantiate as Instantiate
 import qualified Kitten.Mangle as Mangle
@@ -23,6 +22,7 @@ import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Program as Program
 import qualified Kitten.Queue as Queue
 import qualified Kitten.Term as Term
+import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.PrettyPrint as Pretty
 
 -- In order to support unboxed generics, for every call site of a generic
@@ -121,7 +121,7 @@ collectInstantiations tenv0 program0 = do
     Nothing -> return defs
     Just ((name, args), q') -> let
       mangled = Mangle.name name args
-      name' = Qualified globalVocabulary $ Unqualified mangled
+      name' = Qualified Vocabulary.global $ Unqualified mangled
       in case lookupWith ((name' ==) . fst) defs of
         Just{} -> processQueue q' defs
         Nothing -> case lookupWith ((name ==) . fst) defs of
@@ -132,7 +132,7 @@ collectInstantiations tenv0 program0 = do
               (Term.origin term) $ Instantiate.term tenv0 term args
             (term'', q'') <- go q' term'
             processQueue q'' $ HashMap.insert
-              (Qualified globalVocabulary (Unqualified mangled), type_)
+              (Qualified Vocabulary.global (Unqualified mangled), type_)
               term'' defs
 
 type InstantiationQueue = Queue (Qualified, [Type])

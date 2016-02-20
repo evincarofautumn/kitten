@@ -1,16 +1,23 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Vocabulary
-  ( globalVocabulary
-  , globalVocabularyName
+  ( global
+  , globalName
+  , intrinsic
+  , intrinsicName
   ) where
 
 import Data.Text (Text)
 import Kitten.Name (Qualifier(..))
 
--- FIXME: Remove Hungarian.
-globalVocabulary :: Qualifier
-globalVocabulary = Qualifier [globalVocabularyName]
+global :: Qualifier
+global = Qualifier [globalName]
 
-globalVocabularyName :: Text
-globalVocabularyName = ""
+globalName :: Text
+globalName = ""
+
+intrinsic :: Qualifier
+intrinsic = Qualifier [globalName, intrinsicName]
+
+intrinsicName :: Text
+intrinsicName = "intrinsic"

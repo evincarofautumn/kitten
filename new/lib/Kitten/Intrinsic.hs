@@ -7,11 +7,11 @@ module Kitten.Intrinsic
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 
 data Intrinsic
-  = Add
+  = AddInt
   | Magic
   deriving (Eq, Ord, Show)
 
 instance Pretty Intrinsic where
   pPrint intrinsic = case intrinsic of
-    Add -> ".add.int"
+    AddInt -> ".add.int"
     Magic -> ".magic"

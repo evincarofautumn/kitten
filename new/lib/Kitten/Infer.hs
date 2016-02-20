@@ -26,7 +26,6 @@ import Kitten.Signature (Signature)
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Kitten.Type (Constructor(..), Type(..), Var(..), funType, joinType, prodType)
 import Kitten.TypeEnv (TypeEnv, freshTypeId)
-import Kitten.Vocabulary (globalVocabulary)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
 import qualified Kitten.Definition as Definition
@@ -44,6 +43,7 @@ import qualified Kitten.Trait as Trait
 import qualified Kitten.Type as Type
 import qualified Kitten.TypeEnv as TypeEnv
 import qualified Kitten.Unify as Unify
+import qualified Kitten.Vocabulary as Vocabulary
 import qualified Kitten.Zonk as Zonk
 import qualified Text.PrettyPrint as Pretty
 
@@ -77,7 +77,7 @@ inferTypes fragment = do
             let
               args' = valueKinded $ map (Zonk.type_ tenv2) args
               mangled = Mangle.name name args'
-            return $ Qualified globalVocabulary $ Unqualified mangled
+            return $ Qualified Vocabulary.global $ Unqualified mangled
       Definition.Permission -> return name
       Definition.Word -> return name
     return ((name', type_), Definition.body definition)
@@ -440,7 +440,7 @@ inferCall tenvFinal tenv0 (QualifiedName name) origin
 
 inferCall tenvFinal tenv0 name@(IntrinsicName intrinsic) origin
   = case intrinsic of
-    Intrinsic.Add -> do
+    Intrinsic.AddInt -> do
       a <- TypeEnv.freshTv tenv0 origin Stack
       e <- TypeEnv.freshTv tenv0 origin Permission
       let
@@ -599,7 +599,7 @@ typeKind t = case t of
   -- TODON'T: hard-code these.
   TypeConstructor _origin constructor -> case constructor of
     Constructor (Qualified qualifier unqualified)
-      | qualifier == globalVocabulary -> case unqualified of
+      | qualifier == Vocabulary.global -> case unqualified of
         "int" -> Value
         "bool" -> Value
         "char" -> Value

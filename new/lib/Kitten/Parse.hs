@@ -29,7 +29,6 @@ import Kitten.Term (Case(..), Else(..), Term(..), Value(..), compose)
 import Kitten.Token (Token)
 import Kitten.Trait (Trait(Trait))
 import Kitten.TypeDefinition (TypeDefinition(TypeDefinition))
-import Kitten.Vocabulary (globalVocabulary, globalVocabularyName)
 import Text.Parsec ((<?>))
 import Text.Parsec.Pos (SourcePos)
 import qualified Data.HashMap.Strict as HashMap
@@ -50,11 +49,12 @@ import qualified Kitten.Term as Term
 import qualified Kitten.Token as Token
 import qualified Kitten.Trait as Trait
 import qualified Kitten.TypeDefinition as TypeDefinition
+import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.Parsec as Parsec
 
 parse :: FilePath -> [Located Token] -> K (Fragment ())
 parse name tokens = let
-  parsed = Parsec.runParser fragmentParser globalVocabulary name tokens
+  parsed = Parsec.runParser fragmentParser Vocabulary.global name tokens
   in case parsed of
     Left parseError -> do
       report $ Report.parseError parseError
@@ -121,17 +121,17 @@ mainDefinition body = Definition
   { Definition.body = body
   , Definition.category = Definition.Word
   , Definition.fixity = Operator.Postfix
-  , Definition.name = Qualified globalVocabulary "main"
+  , Definition.name = Qualified Vocabulary.global "main"
   , Definition.origin = origin
   , Definition.signature = Signature.Quantified
     [("R", Stack, origin), ("S", Stack, origin)]
     (Signature.StackFunction "R" [] "S" []
-      [QualifiedName (Qualified globalVocabulary "io")] origin) origin
+      [QualifiedName (Qualified Vocabulary.global "io")] origin) origin
   }
   where origin = Term.origin body
 
 isMainDefinition :: Definition a -> Bool
-isMainDefinition = (== Qualified globalVocabulary "main") . Definition.name
+isMainDefinition = (== Qualified Vocabulary.global "main") . Definition.name
 
 vocabularyParser :: Parser [Element ()]
 vocabularyParser = (<?> "vocabulary definition") $ do
@@ -191,7 +191,7 @@ nameParser = (<?> "name") $ do
   return $ case parts of
     [(fixity, unqualified)]
       -> ((if global
-        then QualifiedName . Qualified globalVocabulary
+        then QualifiedName . Qualified Vocabulary.global
         else UnqualifiedName)
       unqualified, fixity)
     _ -> let
@@ -200,7 +200,7 @@ nameParser = (<?> "name") $ do
       (fixity, unqualified) = last parts
       in (QualifiedName (Qualified
         (Qualifier
-          ((if global then (globalVocabularyName :) else id) qualifier))
+          ((if global then (Vocabulary.globalName :) else id) qualifier))
         unqualified), fixity)
 
 unqualifiedNameParser :: Parser Unqualified

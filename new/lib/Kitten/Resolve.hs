@@ -19,7 +19,6 @@ import Kitten.Name (GeneralName(..), LocalIndex(..), Qualified(..), Qualifier(..
 import Kitten.Origin (Origin)
 import Kitten.Signature (Signature)
 import Kitten.Term (Case(..), Else(..), Term(..), Permit(Permit), Value(..))
-import Kitten.Vocabulary (globalVocabulary)
 import qualified Data.Set as Set
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Fragment as Fragment
@@ -28,6 +27,7 @@ import qualified Kitten.Report as Report
 import qualified Kitten.Signature as Signature
 import qualified Kitten.Trait as Trait
 import qualified Kitten.TypeDefinition as TypeDefinition
+import qualified Kitten.Vocabulary as Vocabulary
 
 type Resolved a = StateT [Unqualified] K a
 
@@ -176,7 +176,7 @@ resolveNames fragment = do
           Nothing -> do
             let qualified = Qualified vocabulary unqualified
             if isDefined qualified then return (QualifiedName qualified) else do
-              let global = Qualified globalVocabulary unqualified
+              let global = Qualified Vocabulary.global unqualified
               if isDefined global then return (QualifiedName global) else do
                 lift $ report $ Report.CannotResolveName origin category name
                 return name
@@ -224,8 +224,9 @@ reportDuplicateDefinitions generic = mapM_ reportDuplicate . groupWith fst
 
 intrinsicFromName :: Qualified -> Maybe Intrinsic
 intrinsicFromName name = case name of
-  Qualified qualifier (Unqualified "+")
-    | qualifier == globalVocabulary -> Just Intrinsic.Add
-  Qualified qualifier (Unqualified "magic")
-    | qualifier == globalVocabulary -> Just Intrinsic.Magic
+  Qualified qualifier (Unqualified unqualified)
+    | qualifier == Vocabulary.intrinsic -> case unqualified of
+      "add_int" -> Just Intrinsic.AddInt
+      "magic" -> Just Intrinsic.Magic
+      _ -> Nothing
   _ -> Nothing
