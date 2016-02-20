@@ -7,7 +7,7 @@ import Kitten.DataConstructor (DataConstructor)
 import Kitten.Definition (Definition(Definition))
 import Kitten.Fragment (Fragment)
 import Kitten.Monad (K)
-import Kitten.Name (ConstructorIndex(..), GeneralName(..), Qualified(..), qualifierFromName)
+import Kitten.Name (ConstructorIndex(..), GeneralName(..), Qualified(..))
 import Kitten.Term (Term(..))
 import Kitten.TypeDefinition (TypeDefinition)
 import qualified Kitten.DataConstructor as DataConstructor
@@ -56,4 +56,4 @@ desugar fragment = do
         }
       where
       origin = DataConstructor.origin constructor
-      qualifier = qualifierFromName $ TypeDefinition.name definition
+      qualifier = qualifierName $ TypeDefinition.name definition
