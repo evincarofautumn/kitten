@@ -61,8 +61,9 @@ testTypecheck input expected = do
       Just (_, term) -> do
         let
           actual = Term.type_ term
-        check <- runKitten
-          $ instanceCheck "inferred" actual "declared" expected
+        check <- runKitten $ do
+          instanceCheck "declared" expected "inferred" actual
+          checkpoint
         assertBool
           (Pretty.render
             $ Pretty.hsep [pPrint actual, "unifies with", pPrint expected])
@@ -90,7 +91,9 @@ typecheck input = runKitten $ do
   postfix <- Infix.desugar resolved
   checkpoint
   let scoped = scope postfix
-  inferTypes scoped
+  inferred <- inferTypes scoped
+  checkpoint
+  return inferred
   where
   -- FIXME: Avoid redundantly re-parsing common vocabulary.
   common = "\
