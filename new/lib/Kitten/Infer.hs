@@ -15,7 +15,6 @@ import Data.Map (Map)
 import Kitten.Fragment (Fragment)
 import Kitten.Informer (Informer(..))
 import Kitten.InstanceCheck (instanceCheck)
-import Kitten.Intrinsic (Intrinsic)
 import Kitten.Kind (Kind(..))
 import Kitten.Monad (K)
 import Kitten.Name (Closed(..), ClosureIndex(..), GeneralName(..), LocalIndex(..), Qualified(..), Unqualified(..))
@@ -200,8 +199,6 @@ inferType tenvFinal tenv0 term0
           (prodType origin a $ TypeConstructor origin "bool") b e
         type' = Zonk.type_ tenvFinal type_
       return (If type' true' false' origin, type_, tenv4)
-
-    Intrinsic _ name origin -> inferIntrinsic tenvFinal tenv0 name origin
 
 -- A local variable binding in Kitten is in fact a lambda term in the ordinary
 -- lambda-calculus sense. We infer the type of its body in the
@@ -469,10 +466,6 @@ inferCall tenvFinal tenv0 name@(IntrinsicName intrinsic) origin
 
 
 inferCall _ _ _ _ = error "cannot infer type of non-qualified name"
-
-inferIntrinsic
-  :: TypeEnv -> TypeEnv -> Intrinsic -> Origin -> K (Term a, Type, TypeEnv)
-inferIntrinsic _ _ _ _ = return $ error "TODO: infer intrinsic"
 
 -- Here we desugar a parsed signature into an actual type. We resolve whether
 -- names refer to quantified type variables or data definitions, and make stack

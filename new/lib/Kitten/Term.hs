@@ -16,7 +16,6 @@ module Kitten.Term
 
 import Data.List (intersperse)
 import Data.Text (Text)
-import Kitten.Intrinsic (Intrinsic)
 import Kitten.Name
 import Kitten.Operator (Fixity)
 import Kitten.Origin (Origin)
@@ -46,7 +45,6 @@ data Term a
   | Group !(Term a)                             -- (e)
   | Identity a !Origin                          --
   | If a !(Term a) !(Term a) !Origin            -- if { e1 } else { e2 }
-  | Intrinsic a !Intrinsic !Origin              -- .add.int
   | Lambda a !Unqualified a !(Term a) !Origin   -- → x; e
   | Match a [Case a] !(Maybe (Else a)) !Origin  -- match { case C {...}... else {...} }
   | New a !ConstructorIndex !Origin             -- new.n
@@ -99,7 +97,6 @@ origin term = case term of
   Group a -> origin a
   Identity _ o -> o
   If _ _ _ o -> o
-  Intrinsic _ _ o -> o
   Lambda _ _ _ _ o -> o
   New _ _ o -> o
   NewClosure _ _ o -> o
@@ -130,7 +127,6 @@ metadata term = case term of
   Group term' -> metadata term'
   Identity t _ -> t
   If t _ _ _ -> t
-  Intrinsic t _ _ -> t
   Lambda t _ _ _ _ -> t
   Match t _ _ _ -> t
   New t _ _ -> t
@@ -154,7 +150,6 @@ instance Pretty (Term a) where
       Pretty.$$ Pretty.nest 4 (pPrint a)
       Pretty.$$ "else:"
       Pretty.$$ Pretty.nest 4 (pPrint b)
-    Intrinsic _ name _ -> pPrint name
     Lambda _ name _ body _ -> "->"
       Pretty.<+> pPrint name
       Pretty.<> ";"

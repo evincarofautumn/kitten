@@ -67,8 +67,6 @@ resolveNames fragment = do
         "generic expression should not appear before name resolution"
       Group a -> Group <$> recur a
       Identity{} -> return unresolved
-      Intrinsic{} -> error
-        "intrinsic name should not appear before name resolution"
       If _ a b origin -> If ()
         <$> recur a <*> recur b <*> pure origin
       Lambda _ name _ term origin -> withLocal name

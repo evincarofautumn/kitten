@@ -56,7 +56,6 @@ linearize program = let
         (counts1, a') = go counts0 a
         (counts2, b') = go counts0 b
         in (zipWith max counts1 counts2, If type_ a' b' origin)
-      Intrinsic{} -> (counts0, term)
       Lambda type_ x varType body origin -> let
         (n : counts1, body') = go (0 : counts0) body
         body'' = case n of
@@ -120,7 +119,6 @@ linearize program = let
       Group{} -> error "group should not appear after desugaring"
       Identity{} -> term
       If type_ a b origin -> If type_ (go n a) (go n b) origin
-      Intrinsic{} -> term
       Lambda type_ name varType' body origin
         -> Lambda type_ name varType' (go (succ n) body) origin
       Match type_ cases mElse origin

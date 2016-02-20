@@ -73,7 +73,6 @@ desugar fragment = do
       Identity{} -> return term
       If _ a b origin -> If ()
         <$> desugarTerms' a <*> desugarTerms' b <*> pure origin
-      Intrinsic{} -> return term
       Lambda _ name _ body origin -> Lambda () name ()
         <$> desugarTerms' body <*> pure origin
       Match _ cases mElse origin -> Match ()

@@ -46,8 +46,6 @@ term tenv x a = recur
     Identity tref origin -> Identity <$> go tref <*> pure origin
     If tref true false origin -> If <$> go tref
       <*> recur true <*> recur false <*> pure origin
-    Intrinsic tref name origin -> Intrinsic <$> go tref
-      <*> pure name <*> pure origin
     Lambda tref name varType body origin -> Lambda <$> go tref
       <*> pure name <*> go varType <*> recur body <*> pure origin
     Match tref cases mElse origin -> Match <$> go tref

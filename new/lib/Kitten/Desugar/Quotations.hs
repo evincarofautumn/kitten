@@ -51,7 +51,6 @@ desugar program = do
         (a', as) <- go a
         (b', bs) <- go b
         return (If type_ a' b' origin, as ++ bs)
-      Intrinsic{} -> done
       Lambda type_ name varType a origin -> do
         (a', as) <- go a
         return (Lambda type_ name varType a' origin, as)
