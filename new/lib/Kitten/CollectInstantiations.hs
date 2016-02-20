@@ -77,7 +77,6 @@ collectInstantiations tenv0 program0 = do
       (true', q1) <- go q0 true
       (false', q2) <- go q1 false
       return (If type_ true' false' origin, q2)
-    Intrinsic{} -> proceed
     Lambda type_ name varType body origin -> do
       (body', q1) <- go q0 body
       return (Lambda type_ name varType body' origin, q1)

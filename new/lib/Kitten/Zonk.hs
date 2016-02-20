@@ -53,8 +53,6 @@ term tenv0 = go
       -> Identity (zonk tref) origin
     If tref true false origin
       -> If (zonk tref) (go true) (go false) origin
-    Intrinsic tref name origin
-      -> Intrinsic (zonk tref) name origin
     Lambda tref name varType body origin
       -> Lambda (zonk tref) name (zonk varType) (go body) origin
     Match tref cases mElse origin

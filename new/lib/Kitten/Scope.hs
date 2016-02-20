@@ -43,7 +43,6 @@ scope fragment = fragment
         "group expression should not appear after infix desugaring"
       Identity{} -> term
       If _ a b origin -> If () (recur a) (recur b) origin
-      Intrinsic{} -> term
       Lambda _ name _ a origin -> Lambda () name ()
         (scopeTerm (mapHead succ stack) a) origin
       Match _ cases mElse origin -> Match ()
@@ -111,7 +110,6 @@ captureTerm term = case term of
   Identity{} -> return term
   If _ a b origin -> If ()
     <$> captureTerm a <*> captureTerm b <*> pure origin
-  Intrinsic{} -> return term
   Lambda _ name _ a origin -> let
     inside env = env
       { scopeStack = mapHead succ (scopeStack env)

@@ -43,10 +43,14 @@ spec = do
     it "typechecks single literals" $ do
       testTypecheck "0" $ Type.funType o r (Type.prodType o r int) e
       testTypecheck "1.0" $ Type.funType o r (Type.prodType o r float) e
+    it "typechecks intrinsics" $ do
+      testTypecheck "_::intrinsic::magic" $ Type.funType o r s e
+      testTypecheck "1 2 _::intrinsic::add_int"
+        $ Type.funType o r (Type.prodType o r int) e
   where
   o = Origin.point "" 0 0
   r = TypeVar o $ Var (TypeId 0) Stack
-  _s = TypeVar o $ Var (TypeId 1) Stack
+  s = TypeVar o $ Var (TypeId 1) Stack
   e = TypeVar o $ Var (TypeId 2) Permission
   int = TypeConstructor o $ Type.Constructor
     $ Qualified Vocabulary.global "int"
