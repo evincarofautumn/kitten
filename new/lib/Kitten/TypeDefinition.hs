@@ -2,7 +2,7 @@
 
 module Kitten.TypeDefinition
   ( TypeDefinition(..)
-) where
+  ) where
 
 import Kitten.DataConstructor (DataConstructor)
 import Kitten.Kind (Kind)
