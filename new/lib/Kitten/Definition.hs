@@ -1,8 +1,8 @@
 module Kitten.Definition
   ( Definition(..)
-  , Category(..)
   ) where
 
+import Kitten.Entry.Category (Category)
 import Kitten.Name (Qualified)
 import Kitten.Operator (Fixity)
 import Kitten.Origin (Origin)
@@ -20,12 +20,6 @@ data Definition a = Definition
   , origin :: !Origin
   , signature :: !Signature
   } deriving (Show)
-
-data Category
-  = Instance
-  | Permission
-  | Word
-  deriving (Eq, Show)
 
 instance Pretty (Definition a) where
   pPrint definition = Pretty.asDefinition

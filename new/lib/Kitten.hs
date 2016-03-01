@@ -4,14 +4,20 @@
 
 module Kitten
   ( compile
+  , desugarFragment
+  , fragmentFromSource
+  , requestsFromFragment
   , runKitten
   , tokenize
   ) where
 
 import Control.Monad
 import Control.Monad.IO.Class
+import Data.Foldable (foldlM)
 import Data.Text (Text)
 import Kitten.CollectInstantiations (collectInstantiations)
+import Kitten.Dictionary (Dictionary)
+import Kitten.Fragment (Fragment)
 import Kitten.Infer (inferTypes)
 import Kitten.Informer (Informer(..))
 import Kitten.Layout (layout)
@@ -19,6 +25,7 @@ import Kitten.Linearize (linearize)
 import Kitten.Monad (K, runKitten)
 import Kitten.Parse (parse)
 import Kitten.Program (Program)
+import Kitten.Request (Request, submit)
 import Kitten.Resolve (resolveNames)
 import Kitten.Scope (scope)
 import Kitten.Tokenize (tokenize)
@@ -29,6 +36,7 @@ import qualified Data.Text.Encoding as Text
 import qualified Kitten.Desugar.Data as Data
 import qualified Kitten.Desugar.Infix as Infix
 import qualified Kitten.Desugar.Quotations as Quotations
+import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Quantify as Quantify
 import qualified Kitten.TypeEnv as TypeEnv
 
@@ -36,34 +44,51 @@ import qualified Kitten.TypeEnv as TypeEnv
 -- warnings ("reports") are accumulated, and reported to the programmer at the
 -- next checkpoint.
 
-compile :: [FilePath] -> K (Program Type)
+compile :: [FilePath] -> K Dictionary
 compile paths = do
 
 -- Source files must be encoded in UTF-8.
 
   sources <- liftIO $ mapM readFileUtf8 paths
+  parsed <- mconcat <$> zipWithM fragmentFromSource paths sources
+  desugared <- desugarFragment parsed
+  requests <- requestsFromFragment desugared
+  foldlM (flip submit) Dictionary.empty (requests :: [Request])
 
--- They are lexed into a stream of tokens.
+  where
 
-  tokenized <- zipWithM tokenize paths sources
+  readFileUtf8 :: FilePath -> IO Text
+  readFileUtf8 = fmap Text.decodeUtf8 . ByteString.readFile
+
+fragmentFromSource :: FilePath -> Text -> K (Fragment ())
+fragmentFromSource path source = do
+
+-- Sources are lexed into a stream of tokens.
+
+  tokenized <- tokenize path source
   checkpoint
 
 -- Next, the layout rule is applied to desugar indentation-based syntax, so that
 -- the parser can find the ends of blocks without checking the indentation of
 -- tokens.
 
-  laidout <- zipWithM layout paths tokenized
+  laidout <- layout path tokenized
   checkpoint
 
--- We parse the token stream as a series of top-level program elements.
+-- We then parse the token stream as a series of top-level program elements.
 
-  parsed <- mconcat <$> zipWithM parse paths laidout
+  parsed <- parse path laidout
   checkpoint
+
+  return parsed
+
+desugarFragment :: Fragment () -> K (Fragment ())
+desugarFragment fragment = do
 
 -- Datatype definitions are desugared into regular definitions, so that name
 -- resolution can find their names.
 
-  dataDesugared <- Data.desugar parsed
+  dataDesugared <- Data.desugar fragment
 
 -- Name resolution rewrites unqualified names into fully qualified names, so
 -- that it's evident from a name which program element it refers to.
@@ -81,39 +106,149 @@ compile paths = do
 -- quotations can be rewritten into closures that explicitly capture the
 -- variables they use from the enclosing scope.
 
-  let scoped = scope postfix
+  return $ scope postfix
 
--- Finally we can infer and check the types of all definitions.
+-- A fragment must be lowered from a high-level set of program elements into a
+-- low-level list of requests suitable for issuing to the dictionary.
 
-  inferred <- inferTypes scoped
-  checkpoint
+requestsFromFragment :: Fragment () -> K [Request]
+requestsFromFragment fragment = do
+  error "TODO requestsFromFragment"
 
--- Knowing the inferred types of all quotations in the program, we can now lift
--- them into top-level definitions.
+{-
 
-  desugared <- Quotations.desugar inferred
+    definitions :: [Definition a]
+    metadata :: [Metadata]
+    operators :: [Operator]
+    synonyms :: [Synonym]
+    traits :: [Trait]
+    types :: [TypeDefinition]
 
--- With fully desugared definitions, we can now make generic definitions
--- explicitly indicate the scalar type variables that must be instantiated when
--- generating specializations.
+->
 
-  let quantified = Quantify.program desugared
+define f (...) { ... }
+define g (...) { ... }
+about f { k1 { v1 } ... kn { vn } }
+define + (...) { ... }
+trait * (...)
+instance * (...) { ... }
+infix ... *
+type t { case c1 (...) ... cn }
 
--- Also, we now have enough type information to make calls to the destructors
--- and copy constructors of locals explicit.
+=>
 
-  let linear = linearize quantified
+// declare f (...)
+PUT /words/f
+category=word&signature=...
 
--- Now we can go through all definitions in the program, starting from the main
--- entry point, and collect specializations of generic definitions.
+// declare g (...)
+PUT /words/g
+category=word&signature=...
 
-  instantiated <- collectInstantiations TypeEnv.empty linear
-  -- generate instance declarations
-  --   (so inference can know what's available in a precompiled module)
-  -- generate code
-  return instantiated
+// declare + (...)
+PUT /words/%2B
+category=operator&signature=...
 
-  where
+// trait * (...)
+PUT /words/%2A
+category=trait&signature=...
 
-  readFileUtf8 :: FilePath -> IO Text
-  readFileUtf8 = fmap Text.decodeUtf8 . ByteString.readFile
+// instance * (...) { ... }
+PUT /words/<mangled>
+category=instance&signature=...&body=...
+
+// declare type t<...>
+PUT /types/t
+parameters=...
+
+// declare constructor c1 for t
+PUT /words/c1
+category=constructor&type=t&signature=...
+
+// about f { ... }
+POST /words/f
+k1=v1&...&kn=vn
+
+// infix right 5 +
+POST /words/%2B
+associativity=right&precedence=5
+
+data Request
+
+  = DeclareWord
+  -- associativity = Nothing
+  -- category = Word
+  -- body = Nothing
+  -- export = ...
+  -- origin = ...
+  -- precedence = Nothing
+  -- signature = ...
+  -- trait = Nothing
+  -- type_ = Nothing
+
+  | DeclareOperator
+  -- associativity = ...
+  -- category = Operator
+  -- body = Nothing
+  -- export = ...
+  -- origin = ...
+  -- precedence = ...
+  -- signature = ...
+  -- trait = Nothing
+  -- type_ = Nothing
+
+  | DeclareInstance
+  -- associativity = Nothing
+  -- category = Instance
+  -- body = Nothing
+  -- export = ...
+  -- origin = ...
+  -- precedence = ...?
+  -- signature = ...
+  -- trait = Just ...
+  -- type_ = Nothing
+
+  | DeclarePermission
+  -- associativity = Nothing
+  -- category = Permission
+  -- body = Nothing
+  -- export = ...
+  -- origin = ...
+  -- precedence = Nothing
+  -- signature = ...
+  -- trait = Nothing
+  -- type_ = Nothing
+
+  | DeclareConstructor
+  -- associativity = Nothing
+  -- category = Constructor
+  -- body = Nothing
+  -- export = ...
+  -- origin = ...
+  -- precedence = Nothing
+  -- signature = ...
+  -- trait = Nothing
+  -- type_ = Just ...
+
+  | DeclareTrait
+  -- associativity = Nothing
+  -- category = Trait
+  -- body = Nothing
+  -- export = ...
+  -- origin = ...
+  -- precedence = ...?
+  -- signature = ...
+  -- trait = Nothing
+  -- type_ = Nothing
+
+  | AddDefinition
+  -- body = Just ...
+
+  | AddMetadata
+  -- metadata = ...
+
+  | DeclareType
+  -- export = ...
+  -- origin = ...
+
+-}

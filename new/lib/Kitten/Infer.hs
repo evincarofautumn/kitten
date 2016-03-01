@@ -28,6 +28,7 @@ import Kitten.TypeEnv (TypeEnv, freshTypeId)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
 import qualified Kitten.Definition as Definition
+import qualified Kitten.Entry.Category as Category
 import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Instantiate as Instantiate
 import qualified Kitten.Intrinsic as Intrinsic
@@ -62,7 +63,8 @@ inferTypes fragment = do
     type_ <- typeFromSignature tenv0 $ Definition.signature definition
     let name = Definition.name definition
     name' <- case Definition.category definition of
-      Definition.Instance -> let
+      Category.Constructor -> return name
+      Category.Instance -> let
         mTrait = find ((name ==) . Trait.name) $ Fragment.traits fragment
         in case mTrait of
           Nothing -> error "instance refers to a nonexistent trait"
@@ -77,8 +79,8 @@ inferTypes fragment = do
               args' = valueKinded $ map (Zonk.type_ tenv2) args
               mangled = Mangle.name name args'
             return $ Qualified Vocabulary.global $ Unqualified mangled
-      Definition.Permission -> return name
-      Definition.Word -> return name
+      Category.Permission -> return name
+      Category.Word -> return name
     return ((name', type_), Definition.body definition)
   traits <- forM (Fragment.traits fragment) $ \ trait -> do
     type_ <- typeFromSignature tenv0 $ Trait.signature trait

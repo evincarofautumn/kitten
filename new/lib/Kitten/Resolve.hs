@@ -21,6 +21,7 @@ import Kitten.Signature (Signature)
 import Kitten.Term (Case(..), Else(..), Term(..), Permit(Permit), Value(..))
 import qualified Data.Set as Set
 import qualified Kitten.Definition as Definition
+import qualified Kitten.Entry.Category as Category
 import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Intrinsic as Intrinsic
 import qualified Kitten.Report as Report
@@ -152,7 +153,7 @@ resolveNames fragment = do
         $ map TypeDefinition.name
         $ Fragment.types fragment)
       (Set.fromList $ map Definition.name
-        $ filter ((== Definition.Permission) . Definition.category)
+        $ filter ((== Category.Permission) . Definition.category)
         $ Fragment.definitions fragment)
     resolveLocal name _ = return $ UnqualifiedName name
 
