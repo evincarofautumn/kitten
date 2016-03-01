@@ -19,7 +19,7 @@ data Signature
   | Variable !GeneralName !Origin
   | StackFunction
     !Unqualified [Signature] !Unqualified [Signature] [GeneralName] !Origin
-  deriving (Show)
+  deriving (Eq, Show)
 
 origin :: Signature -> Origin
 origin signature = case signature of

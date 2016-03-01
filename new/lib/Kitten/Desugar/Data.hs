@@ -12,6 +12,7 @@ import Kitten.Term (Term(..))
 import Kitten.TypeDefinition (TypeDefinition)
 import qualified Kitten.DataConstructor as DataConstructor
 import qualified Kitten.Definition as Definition
+import qualified Kitten.Entry.Category as Category
 import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Signature as Signature
@@ -47,7 +48,7 @@ desugar fragment = do
       return Definition
         { Definition.body = New () (ConstructorIndex index)
           $ DataConstructor.origin constructor
-        , Definition.category = Definition.Word
+        , Definition.category = Category.Word
         , Definition.fixity = Operator.Postfix
         , Definition.name = Qualified qualifier
           $ DataConstructor.name constructor

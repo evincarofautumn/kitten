@@ -12,6 +12,7 @@ import Data.Text (Text)
 import Kitten.DataConstructor (DataConstructor(DataConstructor))
 import Kitten.Definition (Definition(Definition))
 import Kitten.Element (Element)
+import Kitten.Entry.Category (Category)
 import Kitten.Fragment (Fragment)
 import Kitten.Informer (Informer(..))
 import Kitten.Kind (Kind(..))
@@ -37,6 +38,7 @@ import qualified Kitten.Base as Base
 import qualified Kitten.DataConstructor as DataConstructor
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Element as Element
+import qualified Kitten.Entry.Category as Category
 import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Layoutness as Layoutness
 import qualified Kitten.Located as Located
@@ -119,7 +121,7 @@ partitionElements = foldr go mempty
 mainDefinition :: Term a -> Definition a
 mainDefinition body = Definition
   { Definition.body = body
-  , Definition.category = Definition.Word
+  , Definition.category = Category.Word
   , Definition.fixity = Operator.Postfix
   , Definition.name = Qualified Vocabulary.global "main"
   , Definition.origin = origin
@@ -439,17 +441,17 @@ traitParser = (<?> "trait declaration") $ do
 
 basicDefinitionParser :: Parser (Definition ())
 basicDefinitionParser = (<?> "word definition")
-  $ definitionParser Token.Define Definition.Word
+  $ definitionParser Token.Define Category.Word
 
 instanceParser :: Parser (Definition ())
 instanceParser = (<?> "instance definition")
-  $ definitionParser Token.Instance Definition.Instance
+  $ definitionParser Token.Instance Category.Instance
 
 permissionParser :: Parser (Definition ())
 permissionParser = (<?> "permission definition")
-  $ definitionParser Token.Permission Definition.Permission
+  $ definitionParser Token.Permission Category.Permission
 
-definitionParser :: Token -> Definition.Category -> Parser (Definition ())
+definitionParser :: Token -> Category -> Parser (Definition ())
 definitionParser keyword category = do
   origin <- getOrigin <* parserMatch keyword
   (fixity, suffix) <- Parsec.choice

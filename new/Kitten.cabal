@@ -24,6 +24,7 @@ library
     Kitten.Base
     Kitten.Desugar.Data
     Kitten.Desugar.Infix
+    Kitten.Dictionary
     Kitten.Infer
     Kitten.Informer
     Kitten.InstanceCheck
@@ -36,6 +37,7 @@ library
     Kitten.Parse
     Kitten.Program
     Kitten.Report
+    Kitten.Request
     Kitten.Resolve
     Kitten.Scope
     Kitten.Term
@@ -51,6 +53,10 @@ library
     Kitten.Definition
     Kitten.Desugar.Quotations
     Kitten.Element
+    Kitten.Entry.Category
+    Kitten.Entry.Parent
+    Kitten.Entry.Type
+    Kitten.Entry.Word
     Kitten.Fragment
     Kitten.Free
     Kitten.Indent
