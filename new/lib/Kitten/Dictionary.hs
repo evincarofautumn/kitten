@@ -2,11 +2,14 @@
 {-# LANGUAGE PatternGuards #-}
 
 module Kitten.Dictionary
-  ( Dictionary(..)
+  ( Dictionary
   , empty
+  , fromList
+  , insert
   , lookup
   , operatorMetadata
   , signatures
+  , toList
   , typeNames
   , wordNames
   ) where
@@ -19,6 +22,7 @@ import Kitten.Name
 import Kitten.Operator (Operator(Operator))
 import Kitten.Signature (Signature)
 import Prelude hiding (lookup)
+import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Kitten.Entry as Entry
 import qualified Kitten.Entry.Category as Category
@@ -29,10 +33,23 @@ data Dictionary = Dictionary
   { entries :: !(HashMap Qualified Entry)
   } deriving (Show)
 
+instance Pretty Dictionary where
+  pPrint = pPrint . HashMap.keys . entries
+
 empty :: Dictionary
 empty = Dictionary
   { entries = HashMap.empty
   }
+
+fromList :: [(Qualified, Entry)] -> Dictionary
+fromList = Dictionary . HashMap.fromList
+
+-- Directly inserts into the dictionary. This is somewhat unsafe, as it can lead
+-- to an invalid dictionary state.
+
+insert ::  Qualified -> Entry -> Dictionary -> Dictionary
+insert name entry dictionary = dictionary
+  { entries = HashMap.insert name entry $ entries dictionary }
 
 lookup :: Qualified -> Dictionary -> Maybe Entry
 lookup name = HashMap.lookup name . entries
@@ -124,6 +141,9 @@ signatures = mapMaybe getSignature . HashMap.toList . entries
   getSignature (name, Entry.Trait _ signature)
     = Just (name, signature)
   getSignature _ = Nothing
+
+toList :: Dictionary -> [(Qualified, Entry)]
+toList = HashMap.toList . entries
 
 typeNames :: Dictionary -> [Qualified]
 typeNames = mapMaybe typeName . HashMap.toList . entries

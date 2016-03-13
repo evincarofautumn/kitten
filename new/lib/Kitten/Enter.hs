@@ -63,7 +63,7 @@ enterDeclaration dictionary declaration = do
     name = Declaration.name declaration
     signature = Declaration.signature declaration
     origin = Declaration.origin declaration
-  case HashMap.lookup name $ Dictionary.entries dictionary of
+  case Dictionary.lookup name dictionary of
     Just _existing -> do
       -- TODO: Check signatures.
       return dictionary
@@ -77,20 +77,16 @@ enterDeclaration dictionary declaration = do
             Nothing
             (Just signature)
             Nothing
-        return dictionary
-          { Dictionary.entries = HashMap.insert name entry
-            $ Dictionary.entries dictionary }
+        return $ Dictionary.insert name entry dictionary
       Declaration.Trait -> do
         let entry = Entry.Trait origin signature
-        return dictionary
-          { Dictionary.entries = HashMap.insert name entry
-            $ Dictionary.entries dictionary }
+        return $ Dictionary.insert name entry dictionary
 
 -- declare type, declare & define constructors
 declareType :: Dictionary -> TypeDefinition -> K Dictionary
 declareType dictionary type_ = let
   name = TypeDefinition.name type_
-  in case HashMap.lookup name $ Dictionary.entries dictionary of
+  in case Dictionary.lookup name dictionary of
     -- Not previously declared.
     Nothing -> do
       let
@@ -98,9 +94,7 @@ declareType dictionary type_ = let
           (TypeDefinition.origin type_)
           (TypeDefinition.parameters type_)
       liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Declaring type", Pretty.quote name]
-      return dictionary
-        { Dictionary.entries = HashMap.insert name entry
-          $ Dictionary.entries dictionary }
+      return $ Dictionary.insert name entry dictionary
     -- Previously declared with the same parameters.
     Just (Entry.Type _ parameters)
       | parameters == TypeDefinition.parameters type_
@@ -119,7 +113,7 @@ declareWord
 declareWord dictionary definition = let
   name = Definition.name definition
   signature = Definition.signature definition
-  in case HashMap.lookup name $ Dictionary.entries dictionary of
+  in case Dictionary.lookup name dictionary of
     -- Not previously declared or defined.
     Nothing -> do
       let
@@ -130,9 +124,7 @@ declareWord dictionary definition = let
           Nothing
           (Just signature)
           Nothing
-        dictionary' = dictionary
-          { Dictionary.entries = HashMap.insert name entry
-            $ Dictionary.entries dictionary }
+        dictionary' = Dictionary.insert name entry dictionary
       liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Declaring word", Pretty.quote name]
       return dictionary'
     -- Already declared with the same signature.
@@ -166,8 +158,7 @@ declareWord dictionary definition = let
           (Just (Parent.Trait name))
           (Just signature)
           Nothing
-      return dictionary { Dictionary.entries = HashMap.insert mangledName entry
-        $ Dictionary.entries dictionary }
+      return $ Dictionary.insert mangledName entry dictionary
     -- Already declared or defined with a different signature.
     Just{} -> error $ Pretty.render $ Pretty.hsep
       [ "word"
@@ -187,32 +178,26 @@ addMetadata dictionary0 metadata = do
   addField :: Dictionary -> (Unqualified, Term ()) -> K Dictionary
   addField dictionary (unqualified, term) = do
     let name = Qualified qualifier unqualified
-    case HashMap.lookup name $ Dictionary.entries dictionary of
+    case Dictionary.lookup name dictionary of
       Just{} -> return dictionary  -- TODO: Report duplicates or merge?
-      Nothing -> return dictionary
-        { Dictionary.entries = HashMap.insert name
-          (Entry.Metadata origin term)
-          $ Dictionary.entries dictionary }
+      Nothing -> return
+        $ Dictionary.insert name (Entry.Metadata origin term) dictionary
 
 resolveSignature :: Dictionary -> Definition () -> K Dictionary
 resolveSignature dictionary definition = do
   let
     name = Definition.name definition
     qualifier = qualifierName name
-  case HashMap.lookup name $ Dictionary.entries dictionary of
+  case Dictionary.lookup name dictionary of
     Just (Entry.Word category merge origin parent (Just signature) body) -> do
       signature' <- Resolve.run $ Resolve.signature dictionary qualifier signature
       let
         entry = Entry.Word category merge origin parent (Just signature') body
-      return dictionary
-        { Dictionary.entries = HashMap.insert name entry
-          $ Dictionary.entries dictionary }
+      return $ Dictionary.insert name entry dictionary
     Just (Entry.Trait origin signature) -> do
       signature' <- Resolve.run $ Resolve.signature dictionary qualifier signature
       let entry = Entry.Trait origin signature'
-      return dictionary
-        { Dictionary.entries = HashMap.insert name entry
-          $ Dictionary.entries dictionary }
+      return $ Dictionary.insert name entry dictionary
     _ -> return dictionary
 
 -- typecheck and define user-defined words
@@ -229,15 +214,13 @@ defineWord dictionary definition = do
   typecheckedBody <- typecheck dictionary name resolvedSignature $ Definition.body resolved
   checkpoint
   liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Typechecked", Pretty.quote name]
-  case HashMap.lookup name $ Dictionary.entries dictionary of
+  case Dictionary.lookup name dictionary of
     -- Previously declared with same signature, but not defined.
     Just (Entry.Word category merge origin' parent signature' Nothing)
       | maybe True (resolvedSignature ==) signature' -> do
       let entry = Entry.Word category merge origin' parent (Just resolvedSignature) (Just typecheckedBody)
       liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Defining word", Pretty.quote name]
-      return dictionary
-        { Dictionary.entries = HashMap.insert name entry
-          $ Dictionary.entries dictionary }
+      return $ Dictionary.insert name entry dictionary
     -- Already defined as concatenable.
     Just (Entry.Word category merge@Merge.Compose
       origin' parent mSignature@(Just signature') body)
@@ -251,9 +234,7 @@ defineWord dictionary definition = do
         entry = Entry.Word category merge origin' parent mSignature
           $ Just composed
       liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Appending to word", Pretty.quote name]
-      return dictionary
-        { Dictionary.entries = HashMap.insert name entry
-          $ Dictionary.entries dictionary }
+      return $ Dictionary.insert name entry dictionary
     -- Already defined, not concatenable.
     Just (Entry.Word _ Merge.Deny _ _ (Just sig) _) -> error $ Pretty.render $ Pretty.hcat
       [ "redefinition of existing word "
