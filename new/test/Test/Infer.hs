@@ -51,15 +51,11 @@ spec = do
       testTypecheck "_::kitten::magic" $ Type.funType o r s e
       testTypecheck "1 2 _::kitten::add_int"
         $ Type.funType o r (Type.prodType o r int) e
-{-
     it "typechecks data types" $ do
       testTypecheck "type Unit { case unit } unit"
         $ Type.funType o r (Type.prodType o r (ctor "Unit")) e
       testTypecheck "type Unit { case unit () } unit"
         $ Type.funType o r (Type.prodType o r (ctor "Unit")) e
-      testTypecheck "type Unit () unit"
-        $ Type.funType o r (Type.prodType o r (ctor "Unit")) e
--}
   where
   o = Origin.point "" 0 0
   r = TypeVar o $ Var (TypeId 0) Stack

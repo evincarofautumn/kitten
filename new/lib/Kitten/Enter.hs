@@ -206,9 +206,8 @@ defineWord dictionary definition = do
       let
         body' = maybe (Term.Identity () (Origin.point "<implicit>" 1 1))
           Term.stripMetadata body
-      -- Note that we use the resolved signature here.
       composed <- typecheck dictionary name resolvedSignature
-        $ Term.Compose () body' (Definition.body definition)
+        $ Term.Compose () body' $ Definition.body resolved
       let
         entry = Entry.Word category merge origin' parent mSignature
           $ Just composed
