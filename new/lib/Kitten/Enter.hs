@@ -50,20 +50,17 @@ fragment f
   >=> foldlMx declareType (Fragment.types f)
   >=> foldlMx resolveSignature (Fragment.definitions f)
   >=> foldlMx addMetadata (Fragment.metadata f)
-  >=> foldlMx addOperatorMetadata (Fragment.operators f)
   >=> foldlMx defineWord (Fragment.definitions f)
   where
   foldlMx :: (Foldable f, Monad m) => (b -> a -> m b) -> f a -> b -> m b
   foldlMx = flip . foldlM
-
-  addOperatorMetadata :: a
-  addOperatorMetadata = error "addOperatorMetadata"
 
 enterDeclaration :: Dictionary -> Declaration -> K Dictionary
 enterDeclaration dictionary declaration = do
   let
     name = Declaration.name declaration
     signature = Declaration.signature declaration
+    origin = Declaration.origin declaration
   case HashMap.lookup name $ Dictionary.entries dictionary of
     Just _existing -> do
       -- TODO: Check signatures.
@@ -74,14 +71,18 @@ enterDeclaration dictionary declaration = do
           entry = Entry.Word
             Category.Word
             Merge.Deny
-            (Declaration.origin declaration)
+            origin
             Nothing
             (Just signature)
             Nothing
         return dictionary
           { Dictionary.entries = HashMap.insert name entry
             $ Dictionary.entries dictionary }
-      Declaration.Trait -> error "TODO: declare trait"
+      Declaration.Trait -> do
+        let entry = Entry.Trait origin signature
+        return dictionary
+          { Dictionary.entries = HashMap.insert name entry
+            $ Dictionary.entries dictionary }
 
 -- declare type, declare & define constructors
 declareType :: Dictionary -> TypeDefinition -> K Dictionary
@@ -175,17 +176,24 @@ addMetadata dictionary0 metadata = do
 
 resolveSignature :: Dictionary -> Definition () -> K Dictionary
 resolveSignature dictionary definition = do
-  let name = Definition.name definition
+  let
+    name = Definition.name definition
+    qualifier = qualifierName name
   case HashMap.lookup name $ Dictionary.entries dictionary of
     Just (Entry.Word category merge origin parent (Just signature) body) -> do
-      let qualifier = qualifierName name
       signature' <- Resolve.run $ Resolve.signature dictionary qualifier signature
       let
         entry = Entry.Word category merge origin parent (Just signature') body
       return dictionary
         { Dictionary.entries = HashMap.insert name entry
           $ Dictionary.entries dictionary }
-    _ -> return dictionary  -- TODO: Error?
+    Just (Entry.Trait origin signature) -> do
+      signature' <- Resolve.run $ Resolve.signature dictionary qualifier signature
+      let entry = Entry.Trait origin signature'
+      return dictionary
+        { Dictionary.entries = HashMap.insert name entry
+          $ Dictionary.entries dictionary }
+    _ -> return dictionary
 
 -- typecheck and define user-defined words
 -- desugaring of operators has to take place here

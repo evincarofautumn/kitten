@@ -36,7 +36,6 @@ data Token
   | GroupEnd                  -- )
   | If                        -- if
   | Ignore                    -- _
-  | Infix                     -- infix
   | Instance                  -- instance
   | Integer !Integer !Base    -- 1 0b1 0o1 0x1
   | Intrinsic                 -- intrinsic
@@ -81,7 +80,6 @@ instance Eq Token where
   GroupEnd                == GroupEnd                = True
   If                      == If                      = True
   Ignore                  == Ignore                  = True
-  Infix                   == Infix                   = True
   Instance                == Instance                = True
   -- Integer tokens are equal regardless of base.
   Integer a _baseA        == Integer b _baseB        = a == b
@@ -127,7 +125,6 @@ instance Pretty Token where
     GroupEnd -> ")"
     If -> "if"
     Ignore -> "_"
-    Infix -> "infix"
     Instance -> "instance"
     Integer value hint
       -> Pretty.text $ if value < 0 then '-' : shown else shown
