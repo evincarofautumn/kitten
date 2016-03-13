@@ -6,8 +6,7 @@ module Kitten.TypeDefinition
 
 import Kitten.DataConstructor (DataConstructor)
 import Kitten.Entry.Parameter (Parameter)
-import Kitten.Kind (Kind)
-import Kitten.Name (Qualified, Unqualified)
+import Kitten.Name (Qualified)
 import Kitten.Origin (Origin)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Text.PrettyPrint as Pretty
