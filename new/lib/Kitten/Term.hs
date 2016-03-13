@@ -11,6 +11,7 @@ module Kitten.Term
   , decompose
   , origin
   , quantifierCount
+  , stripMetadata
   , type_
   ) where
 
@@ -136,6 +137,46 @@ metadata term = case term of
   Swap t _ -> t
   With t _ _ -> t
   Word t _ _ _ _ -> t
+
+stripMetadata :: Term a -> Term ()
+stripMetadata term = case term of
+  Call _ a -> Call () a
+  Compose _ a b -> Compose () (stripMetadata a) (stripMetadata b)
+  Drop _ a -> Drop () a
+  Generic a term' b -> Generic a (stripMetadata term') b
+  Group term' -> stripMetadata term'
+  Identity _ a -> Identity () a
+  If _ a b c -> If () (stripMetadata a) (stripMetadata b) c
+  Lambda _ a _ b c -> Lambda () a () (stripMetadata b) c
+  Match _ a b c -> Match () (map stripCase a) (fmap stripElse b) c
+  New _ a b -> New () a b
+  NewClosure _ a b -> NewClosure () a b
+  NewVector _ a b -> NewVector () a b
+  Push _ a b -> Push () (stripValue a) b
+  Swap _ a -> Swap () a
+  With _ a b -> With () a b
+  Word _ a b c d -> Word () a b c d
+  where
+
+  stripCase :: Case a -> Case ()
+  stripCase case_ = case case_ of
+    Case a b c -> Case a (stripMetadata b) c
+
+  stripElse :: Else a -> Else ()
+  stripElse else_ = case else_ of
+    Else a b -> Else (stripMetadata a) b
+
+  stripValue :: Value a -> Value ()
+  stripValue v = case v of
+    Character a -> Character a
+    Closed a -> Closed a
+    Closure a b -> Closure a (stripMetadata b)
+    Float a -> Float a
+    Integer a -> Integer a
+    Local a -> Local a
+    Name a -> Name a
+    Quotation a -> Quotation (stripMetadata a)
+    Text a -> Text a
 
 instance Pretty (Term a) where
   pPrint term = case term of

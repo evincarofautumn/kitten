@@ -19,14 +19,9 @@ import qualified Kitten.Fragment as Fragment
 -- definitions, scope resolution resolves local names to relative (De Bruijn)
 -- indices, and converts quotations to use explicit closures.
 
-scope :: Fragment () -> Fragment ()
-scope fragment = fragment
-  { Fragment.definitions = map scopeDefinition (Fragment.definitions fragment) }
+scope :: Term () -> Term ()
+scope = scopeTerm [0]
   where
-
-  scopeDefinition :: Definition () -> Definition ()
-  scopeDefinition definition = definition
-    { Definition.body = scopeTerm [0] (Definition.body definition) }
 
   scopeTerm :: [Int] -> Term () -> Term ()
   scopeTerm stack = recur

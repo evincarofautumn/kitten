@@ -20,19 +20,19 @@ name qualified args = Text.concat . (["_Z", lengthEncode qualified] ++)
   $ if null args then [] else ["I", Text.concat $ map type_ args, "E"]
 
 type_ :: Type -> Text
-type_ (TypeConstructor _ "fun" :@ _ :@ _) = "PFvv"
-type_ (TypeConstructor _ "ptr" :@ a) = Text.concat ["P", type_ a]
+type_ (TypeConstructor _ "Fun" :@ _ :@ _) = "PFvv"
+type_ (TypeConstructor _ "Ptr" :@ a) = Text.concat ["P", type_ a]
 type_ (TypeConstructor _origin (Constructor con)) = case con of
   Qualified qualifier unqualified
     | qualifier == Vocabulary.global -> case unqualified of
-      "int" -> "i"
-      "bool" -> "b"
-      "char" -> "c"
-      "float" -> "f"
-      "text" -> "PKc"
+      "Int" -> "i"
+      "Bool" -> "b"
+      "Char" -> "c"
+      "Float" -> "f"
+      "Text" -> "PKc"
       _ -> lengthEncode con
   _ -> lengthEncode con
-type_ (TypeConstructor _ "prod" :@ a :@ b)
+type_ (TypeConstructor _ "Prod" :@ a :@ b)
   = Text.concat $ map type_ [a, b]
 type_ t = Text.concat ["(", Text.pack (Pretty.render (pPrint t)), ")"]
 

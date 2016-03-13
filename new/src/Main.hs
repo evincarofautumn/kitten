@@ -9,7 +9,6 @@ import Data.Foldable (foldlM)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Kitten (compile, runKitten)
 import Kitten.Report (Report)
-import Kitten.Request (submit)
 import System.Environment
 import System.Exit
 import System.IO
@@ -18,6 +17,7 @@ import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.Text.IO as Text
 import qualified Kitten as Kitten
 import qualified Kitten.Dictionary as Dictionary
+import qualified Kitten.Enter as Enter
 import qualified Kitten.Report as Report
 import qualified Text.PrettyPrint as Pretty
 
@@ -55,9 +55,7 @@ runInteractive = do
           dictionary <- readIORef dictionaryRef
           mDictionary' <- runKitten $ do
             fragment <- Kitten.fragmentFromSource "<interactive>" line
-            desugared <- Kitten.desugarFragment fragment
-            requests <- Kitten.requestsFromFragment desugared
-            foldlM (flip submit) dictionary requests
+            Enter.fragment fragment dictionary
           case mDictionary' of
             Left reports -> do
               reportAll reports

@@ -2,16 +2,19 @@
 {-# LANGUAGE RecursiveDo #-}
 
 module Kitten.Infer
-  ( inferTypes
+  ( typecheck
   ) where
 
 import Control.Monad (forM)
+import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State (StateT, get, gets, modify, put, runStateT)
 import Data.Either (partitionEithers)
 import Data.Foldable (foldrM)
 import Data.List (find, foldl')
 import Data.Map (Map)
+import Kitten.Dictionary (Dictionary)
+import Kitten.Entry.Parameter (Parameter(Parameter))
 import Kitten.Fragment (Fragment)
 import Kitten.Informer (Informer(..))
 import Kitten.InstanceCheck (instanceCheck)
@@ -19,23 +22,24 @@ import Kitten.Kind (Kind(..))
 import Kitten.Monad (K)
 import Kitten.Name (Closed(..), ClosureIndex(..), GeneralName(..), LocalIndex(..), Qualified(..), Unqualified(..))
 import Kitten.Origin (Origin)
-import Kitten.Program (Program(Program))
 import Kitten.Regeneralize (regeneralize)
 import Kitten.Signature (Signature)
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Kitten.Type (Constructor(..), Type(..), Var(..), funType, joinType, prodType)
 import Kitten.TypeEnv (TypeEnv, freshTypeId)
+import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
 import qualified Kitten.Definition as Definition
+import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry.Category as Category
+import qualified Kitten.Entry.Word as Word
 import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Instantiate as Instantiate
 import qualified Kitten.Intrinsic as Intrinsic
 import qualified Kitten.Mangle as Mangle
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Pretty as Pretty
-import qualified Kitten.Program as Program
 import qualified Kitten.Report as Report
 import qualified Kitten.Signature as Signature
 import qualified Kitten.Term as Term
@@ -51,14 +55,14 @@ import qualified Text.PrettyPrint as Pretty
 -- term annotated with its inferred type. It's polymorphic in the annotation
 -- type of its input so that it can't depend on those annotations.
 
-inferTypes :: Fragment a -> K (Program Type)
-inferTypes fragment = do
-  let tenv0 = TypeEnv.empty
+typecheck :: Dictionary -> Qualified -> Signature -> Term a -> K (Term Type)
+typecheck dictionary definitionName declaredSignature term = do
 
 -- We begin by converting instance definitions into ordinary word definitions.
 -- With their mangled names already in the global vocabulary, they will be found
 -- first when checking for instantiations during instance collection.
 
+{-
   definitions <- forM (Fragment.definitions fragment) $ \ definition -> do
     type_ <- typeFromSignature tenv0 $ Definition.signature definition
     let name = Definition.name definition
@@ -85,12 +89,23 @@ inferTypes fragment = do
   traits <- forM (Fragment.traits fragment) $ \ trait -> do
     type_ <- typeFromSignature tenv0 $ Trait.signature trait
     return (Trait.name trait, type_)
-  let
-    declaredTypes = Map.union
-      (Map.fromList (map fst definitions))
-      (Map.fromList traits)
-    infer = inferType0 declaredTypes
+-}
 
+  let tenv0 = TypeEnv.empty
+  declaredType <- typeFromSignature tenv0 declaredSignature
+  declaredTypes <- mapM
+    (\ (name, signature) -> (,) name <$> typeFromSignature tenv0 signature)
+    $ Dictionary.signatures dictionary
+  let
+    tenv1 = tenv0
+      { TypeEnv.sigs = Map.union (Map.fromList declaredTypes)
+        $ TypeEnv.sigs tenv0 }
+  (term', type_) <- inferType0 tenv1 definitionName declaredType term
+  return term'
+  
+  -- declaredTypes
+
+{-
     go :: (Qualified, Type) -> Term a -> K ((Qualified, Type), Term Type)
     go (name, declaredScheme) term = do
       (term', inferredScheme) <- infer name declaredScheme term
@@ -101,11 +116,14 @@ inferTypes fragment = do
         Nothing -> return ()
       -- FIXME: Should this be the inferred or declared scheme?
       return ((name, inferredScheme), term')
+-}
+
+{-
   definitions' <- mapM (uncurry go) definitions
-  return Program
-    { Program.traits = HashMap.fromList traits
-    , Program.definitions = HashMap.fromList definitions'
+  return fragment
+    { Fragment.definitions = HashMap.fromList definitions'
     }
+-}
 
 -- Since type variables can be generalized if they do not depend on the initial
 -- state of the typing environment, the type of a single definition is inferred
@@ -113,16 +131,16 @@ inferTypes fragment = do
 -- regeneralized to increase stack polymorphism.
 
 inferType0
-  :: Map Qualified Type -> Qualified -> Type -> Term a -> K (Term Type, Type)
-inferType0 sigs _name declared term = while context (Term.origin term) $ do
-  rec
-    (term', t, tenvFinal) <- inferType tenvFinal'
-      TypeEnv.empty { TypeEnv.sigs = sigs } term
-    tenvFinal' <- Unify.type_ tenvFinal t declared
-  let zonked = Zonk.type_ tenvFinal' t
-  let regeneralized = regeneralize tenvFinal' zonked
-  instanceCheck "declared" declared "inferred" regeneralized
-  return (Zonk.term tenvFinal' term', regeneralized)
+  :: TypeEnv -> Qualified -> Type -> Term a -> K (Term Type, Type)
+inferType0 tenv _name declared term
+  = while context (Term.origin term) $ do
+    rec
+      (term', t, tenvFinal) <- inferType tenvFinal' tenv term
+      tenvFinal' <- Unify.type_ tenvFinal t declared
+    let zonked = Zonk.type_ tenvFinal' t
+    let regeneralized = regeneralize tenvFinal' zonked
+    instanceCheck "declared" declared "inferred" regeneralized
+    return (Zonk.term tenvFinal' term', regeneralized)
   where
 
   context :: Pretty.Doc
@@ -230,7 +248,7 @@ inferType tenvFinal tenv0 term0
           return (Just (Else body' elseOrigin), bodyType, tenv')
         Nothing -> do
           [a, b, e] <- fresh origin [Stack, Stack, Permission]
-          let permission = joinType origin (TypeConstructor origin "fail") e
+          let permission = joinType origin (TypeConstructor origin "Fail") e
           return (Nothing, funType origin a b permission, tenv1)
       tenv3 <- foldrM (\ type_ tenv -> Unify.type_ tenv elseType type_)
         tenv2 caseTypes
@@ -466,8 +484,9 @@ inferCall tenvFinal tenv0 name@(IntrinsicName intrinsic) origin
   returnCall type_ type' = return
     (Word type' Operator.Postfix name [] origin, type_, tenv0)
 
-
-inferCall _ _ _ _ = error "cannot infer type of non-qualified name"
+inferCall tenvFinal tenv0 name origin
+  = error $ Pretty.render $ Pretty.hsep
+    ["cannot infer type of non-qualified name", Pretty.quote name]
 
 -- Here we desugar a parsed signature into an actual type. We resolve whether
 -- names refer to quantified type variables or data definitions, and make stack
@@ -475,6 +494,7 @@ inferCall _ _ _ _ = error "cannot infer type of non-qualified name"
 
 typeFromSignature :: TypeEnv -> Signature -> K Type
 typeFromSignature tenv signature0 = do
+  liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Converting signature", pPrint signature0, "from", Pretty.text $ show $ Signature.origin signature0, "to type"]
   (type_, env) <- flip runStateT SignatureEnv
     { sigEnvAnonymous = []
     , sigEnvVars = Map.empty
@@ -510,10 +530,10 @@ typeFromSignature tenv signature0 = do
       where
 
       declare
-        :: (Unqualified, Kind, Origin)
+        :: Parameter
         -> (Map Unqualified (Var, Origin), [Var])
         -> K (Map Unqualified (Var, Origin), [Var])
-      declare (name, kind, varOrigin) (envVars, freshVars) = do
+      declare (Parameter varOrigin name kind) (envVars, freshVars) = do
         x <- freshTypeId tenv
         let var = Var x kind
         return (Map.insert name (var, varOrigin) envVars, var : freshVars)
@@ -595,20 +615,20 @@ typeKind t = case t of
   TypeConstructor _origin constructor -> case constructor of
     Constructor (Qualified qualifier unqualified)
       | qualifier == Vocabulary.global -> case unqualified of
-        "int" -> Value
-        "bool" -> Value
-        "char" -> Value
-        "float" -> Value
-        "text" -> Value
-        "fun" -> Stack :-> Stack :-> Permission :-> Value
-        "prod" -> Stack :-> Value :-> Stack
-        "vec" -> Value :-> Value
-        "ptr" -> Value :-> Value
-        "unsafe" -> Label
-        "pure" -> Label
-        "io" -> Label
-        "fail" -> Label
-        "join" -> Label :-> Permission :-> Permission
+        "Int" -> Value
+        "Bool" -> Value
+        "Char" -> Value
+        "Float" -> Value
+        "Text" -> Value
+        "Fun" -> Stack :-> Stack :-> Permission :-> Value
+        "Prod" -> Stack :-> Value :-> Stack
+        "Vec" -> Value :-> Value
+        "Ptr" -> Value :-> Value
+        "Unsafe" -> Label
+        "Pure" -> Label
+        "IO" -> Label
+        "Fail" -> Label
+        "Join" -> Label :-> Permission :-> Permission
         _ -> error "can't infer kind of constructor"
     _ -> error "TODO: infer kinds properly"
   TypeVar _origin (Var _ k) -> k
