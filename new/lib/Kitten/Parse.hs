@@ -22,7 +22,6 @@ import Kitten.Located (Located)
 import Kitten.Metadata (Metadata(Metadata))
 import Kitten.Monad (K)
 import Kitten.Name (GeneralName(..), Qualified(..), Qualifier(..), Unqualified(..))
-import Kitten.Operator (Operator(Operator))
 import Kitten.Origin (Origin)
 import Kitten.Parser (Parser, getOrigin)
 import Kitten.Parser (parserMatch, parserMatch_)
@@ -35,7 +34,6 @@ import Text.Parsec ((<?>))
 import Text.Parsec.Pos (SourcePos)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
-import qualified Kitten.Base as Base
 import qualified Kitten.DataConstructor as DataConstructor
 import qualified Kitten.Declaration as Declaration
 import qualified Kitten.Definition as Definition
@@ -87,7 +85,6 @@ partitionElements = rev . foldr go mempty
     { Fragment.declarations = reverse $ Fragment.declarations fragment
     , Fragment.definitions = reverse $ Fragment.definitions fragment
     , Fragment.metadata = reverse $ Fragment.metadata fragment
-    , Fragment.operators = reverse $ Fragment.operators fragment
     , Fragment.synonyms = reverse $ Fragment.synonyms fragment
     , Fragment.types = reverse $ Fragment.types fragment
     }
@@ -100,8 +97,6 @@ partitionElements = rev . foldr go mempty
       { Fragment.definitions = x : Fragment.definitions acc }
     Element.Metadata x -> acc
       { Fragment.metadata = x : Fragment.metadata acc }
-    Element.Operator x -> acc
-      { Fragment.operators = x : Fragment.operators acc }
     Element.Synonym x -> acc
       { Fragment.synonyms = x : Fragment.synonyms acc }
     Element.TypeDefinition x -> acc
@@ -259,7 +254,6 @@ elementParser = (<?> "top-level program element") $ Parsec.choice
     , intrinsicParser
     ]
   , Element.Metadata <$> metadataParser
-  , Element.Operator <$> operatorParser
   , Element.Synonym <$> synonymParser
   , Element.TypeDefinition <$> typeDefinitionParser
   , do
@@ -294,32 +288,6 @@ metadataParser = (<?> "metadata block") $ do
     , Metadata.name = QualifiedName name
     , Metadata.origin = origin
     }
-
-operatorParser :: Parser Operator
-operatorParser = (<?> "operator definition") $ do
-  parserMatch_ Token.Infix
-  (associativity, precedence) <- Parsec.choice
-    [ (,) Operator.Nonassociative <$> precedenceParser
-    , (,) Operator.Leftward
-      <$> (parserMatch_ (Token.Word (Unqualified "left")) *> precedenceParser)
-    , (,) Operator.Rightward
-      <$> (parserMatch_ (Token.Word (Unqualified "right")) *> precedenceParser)
-    ]
-  name <- Qualified <$> Parsec.getState <*> operatorNameParser
-  return Operator
-    { Operator.associativity = associativity
-    , Operator.name = name
-    , Operator.precedence = precedence
-    }
-  where
-
-  precedenceParser :: Parser Operator.Precedence
-  precedenceParser = (<?> "decimal integer precedence from 0 to 9")
-    $ parseOne $ \ token -> case Located.item token of
-      Token.Integer value Base.Decimal
-        | value >= 0 && value <= 9
-        -> Just $ Operator.Precedence $ fromInteger value
-      _ -> Nothing
 
 typeDefinitionParser :: Parser TypeDefinition
 typeDefinitionParser = (<?> "type definition") $ do

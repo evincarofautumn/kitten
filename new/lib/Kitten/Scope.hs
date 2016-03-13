@@ -8,8 +8,6 @@ import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Reader (ReaderT, asks, local, runReaderT)
 import Control.Monad.Trans.State (State, get, put, runState)
 import Data.List (elemIndex)
-import Kitten.Definition (Definition)
-import Kitten.Fragment (Fragment)
 import Kitten.Name (Closed(..), ClosureIndex(..), GeneralName(..), LocalIndex(..))
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 
