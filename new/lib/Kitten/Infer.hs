@@ -6,6 +6,7 @@ module Kitten.Infer
   , typecheck
   ) where
 
+import Control.Monad (filterM)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State (StateT, get, gets, modify, put, runStateT)
@@ -27,8 +28,10 @@ import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Kitten.Type (Constructor(..), Type(..), Var(..), funType, joinType, prodType)
 import Kitten.TypeEnv (TypeEnv, freshTypeId)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
 import qualified Kitten.Dictionary as Dictionary
+import qualified Kitten.Entry as Entry
 import qualified Kitten.Instantiate as Instantiate
 import qualified Kitten.Mangle as Mangle
 import qualified Kitten.Operator as Operator
@@ -78,7 +81,7 @@ typecheck dictionary definitionName declaredSignature term = do
     tenv1 = tenv0
       { TypeEnv.sigs = Map.union (Map.fromList declaredTypes)
         $ TypeEnv.sigs tenv0 }
-  (term', type_) <- inferType0 tenv1 definitionName declaredType term
+  (term', type_) <- inferType0 dictionary tenv1 definitionName declaredType term
   return term'
   
   -- declaredTypes
@@ -103,17 +106,17 @@ typecheck dictionary definitionName declaredSignature term = do
     }
 -}
 
-mangleInstance :: Qualified -> Signature -> Signature -> K Qualified
-mangleInstance name instanceSignature traitSignature = do
+mangleInstance
+  :: Dictionary -> Qualified -> Signature -> Signature -> K Qualified
+mangleInstance dictionary name instanceSignature traitSignature = do
   let tenv0 = TypeEnv.empty
   instanceType <- typeFromSignature tenv0 instanceSignature
   traitType <- typeFromSignature tenv0 traitSignature
   instanceCheck "trait" traitType "instance" instanceType
   (traitType', args, tenv1) <- Instantiate.prenex tenv0 traitType
   tenv2 <- Unify.type_ tenv1 instanceType traitType'
-  let
-    args' = valueKinded $ map (Zonk.type_ tenv2) args
-    mangled = Mangle.name name args'
+  args' <- valueKinded dictionary $ map (Zonk.type_ tenv2) args
+  let mangled = Mangle.name name args'
   return $ Qualified Vocabulary.global $ Unqualified mangled
 
 -- Since type variables can be generalized if they do not depend on the initial
@@ -122,11 +125,16 @@ mangleInstance name instanceSignature traitSignature = do
 -- regeneralized to increase stack polymorphism.
 
 inferType0
-  :: TypeEnv -> Qualified -> Type -> Term a -> K (Term Type, Type)
-inferType0 tenv _name declared term
+  :: Dictionary
+  -> TypeEnv
+  -> Qualified
+  -> Type
+  -> Term a
+  -> K (Term Type, Type)
+inferType0 dictionary tenv _name declared term
   = while context (Term.origin term) $ do
     rec
-      (term', t, tenvFinal) <- inferType tenvFinal' tenv term
+      (term', t, tenvFinal) <- inferType dictionary tenvFinal' tenv term
       tenvFinal' <- Unify.type_ tenvFinal t declared
     let zonked = Zonk.type_ tenvFinal' t
     let regeneralized = regeneralize tenvFinal' zonked
@@ -143,8 +151,13 @@ inferType0 tenv _name declared term
 -- be re-inferred and re-annotated if a program is updated with a new
 -- implementation of an existing definition.
 
-inferType :: TypeEnv -> TypeEnv -> Term a -> K (Term Type, Type, TypeEnv)
-inferType tenvFinal tenv0 term0
+inferType
+  :: Dictionary
+  -> TypeEnv
+  -> TypeEnv
+  -> Term a
+  -> K (Term Type, Type, TypeEnv)
+inferType dictionary tenvFinal tenv0 term0
   = while context (Term.origin term0) $ case term0 of
 
 -- The call operator denotes modus ponens: if we have some program state A, a
@@ -218,7 +231,7 @@ inferType tenvFinal tenv0 term0
       a <- TypeEnv.freshTv tenv0 origin Value
       let oldLocals = TypeEnv.vs tenv0
       let localEnv = tenv0 { TypeEnv.vs = a : TypeEnv.vs tenv0 }
-      (term', t1, tenv1) <- inferType tenvFinal localEnv term
+      (term', t1, tenv1) <- inferType' localEnv term
       let tenv2 = tenv1 { TypeEnv.vs = oldLocals }
       (b, c, e, tenv3) <- Unify.function tenv2 t1
       let
@@ -249,7 +262,7 @@ inferType tenvFinal tenv0 term0
 
       where
       inferCase' case_ (cases', types, tenv) = do
-        (case', type_, tenv') <- inferCase tenvFinal tenv case_
+        (case', type_, tenv') <- inferCase dictionary tenvFinal tenv case_
         return (case' : cases', type_ : types, tenv')
 
 -- A 'new' expression simply tags some fields on the stack, so the most
@@ -301,7 +314,7 @@ inferType tenvFinal tenv0 term0
 
     Push _ value origin -> do
       [a, e] <- fresh origin [Stack, Permission]
-      (value', t, tenv1) <- inferValue tenvFinal tenv0 origin value
+      (value', t, tenv1) <- inferValue dictionary tenvFinal tenv0 origin value
       let type_ = funType origin a (prodType origin a t) e
       let type' = Zonk.type_ tenvFinal type_
       return (Push type' value' origin, type_, tenv1)
@@ -362,10 +375,10 @@ inferType tenvFinal tenv0 term0
       return (With type' permits origin, type_, tenv0)
 
     -- FIXME: Should generic parameters be restricted to none?
-    Word _ _fixity name _ origin -> inferCall tenvFinal tenv0 name origin
+    Word _ _fixity name _ origin -> inferCall dictionary tenvFinal tenv0 name origin
 
   where
-  inferType' = inferType tenvFinal
+  inferType' = inferType dictionary tenvFinal
   fresh origin = foldrM (\k ts -> (: ts) <$> TypeEnv.freshTv tenv0 origin k) []
 
   context :: Pretty.Doc
@@ -376,9 +389,15 @@ inferType tenvFinal tenv0 term0
 -- an instance of a data type, a 'case' deconstructs an instance of a data type
 -- and produces the fields on the stack for the body of the case to consume.
 
-inferCase :: TypeEnv -> TypeEnv -> Case a -> K (Case Type, Type, TypeEnv)
-inferCase tenvFinal tenv0 (Case qualified@(QualifiedName name) body origin) = do
-  (body', bodyType, tenv1) <- inferType tenvFinal tenv0 body
+inferCase
+  :: Dictionary
+  -> TypeEnv
+  -> TypeEnv
+  -> Case a
+  -> K (Case Type, Type, TypeEnv)
+inferCase dictionary tenvFinal tenv0
+  (Case qualified@(QualifiedName name) body origin) = do
+  (body', bodyType, tenv1) <- inferType dictionary tenvFinal tenv0 body
   (a1, b1, e1, tenv2) <- Unify.function tenv1 bodyType
   case Map.lookup name $ TypeEnv.sigs tenv2 of
     Just signature -> do
@@ -393,10 +412,16 @@ inferCase tenvFinal tenv0 (Case qualified@(QualifiedName name) body origin) = do
       return (Case qualified body' origin, type_, tenv5)
     Nothing -> error
       "case constructor missing signature after name resolution"
-inferCase _ _ _ = error "case of non-qualified name after name resolution"
+inferCase _ _ _ _ = error "case of non-qualified name after name resolution"
 
-inferValue :: TypeEnv -> TypeEnv -> Origin -> Value a -> K (Value Type, Type, TypeEnv)
-inferValue tenvFinal tenv0 origin value = case value of
+inferValue
+  :: Dictionary
+  -> TypeEnv
+  -> TypeEnv
+  -> Origin
+  -> Value a
+  -> K (Value Type, Type, TypeEnv)
+inferValue dictionary tenvFinal tenv0 origin value = case value of
   Character x -> return (Character x, TypeConstructor origin "char", tenv0)
   Closed (ClosureIndex index) -> return
     (Closed $ ClosureIndex index, TypeEnv.closure tenv0 !! index, tenv0)
@@ -404,7 +429,7 @@ inferValue tenvFinal tenv0 origin value = case value of
     let types = map (getClosed tenv0) names
     let oldClosure = TypeEnv.closure tenv0
     let localEnv = tenv0 { TypeEnv.closure = types }
-    (term', t1, tenv1) <- inferType tenvFinal localEnv term
+    (term', t1, tenv1) <- inferType dictionary tenvFinal localEnv term
     let tenv2 = tenv1 { TypeEnv.closure = oldClosure }
     return (Closure names term', t1, tenv2)
   Float x -> return (Float x, TypeConstructor origin "Float", tenv0)
@@ -426,14 +451,20 @@ inferValue tenvFinal tenv0 origin value = case value of
     ClosedClosure (ClosureIndex index) -> TypeEnv.closure tenv !! index
 
 inferCall
-  :: TypeEnv -> TypeEnv -> GeneralName -> Origin -> K (Term Type, Type, TypeEnv)
-inferCall tenvFinal tenv0 (QualifiedName name) origin
+  :: Dictionary
+  -> TypeEnv
+  -> TypeEnv
+  -> GeneralName
+  -> Origin
+  -> K (Term Type, Type, TypeEnv)
+inferCall dictionary tenvFinal tenv0 (QualifiedName name) origin
   = case Map.lookup name $ TypeEnv.sigs tenv0 of
     Just t@Forall{} -> do
       (type_, params, tenv1) <- Instantiate.prenex tenv0 t
       let
         type' = Type.setOrigin origin type_
-        params' = valueKinded params
+      params' <- valueKinded dictionary params
+      let
         type'' = Zonk.type_ tenvFinal type'
         params'' = map (Zonk.type_ tenvFinal) params'
       return
@@ -446,7 +477,7 @@ inferCall tenvFinal tenv0 (QualifiedName name) origin
       report $ Report.MissingTypeSignature origin name
       halt
 
-inferCall _tenvFinal _tenv0 name origin
+inferCall _dictionary _tenvFinal _tenv0 name origin
   = error $ Pretty.render $ Pretty.hsep
     ["cannot infer type of non-qualified name", Pretty.quote name]
 
@@ -568,36 +599,48 @@ data SignatureEnv = SignatureEnv
   , sigEnvVars :: !(Map Unqualified (Var, Origin))
   }
 
-valueKinded :: [Type] -> [Type]
-valueKinded = filter $ (Value ==) . typeKind
+valueKinded :: Dictionary -> [Type] -> K [Type]
+valueKinded dictionary = filterM
+  $ fmap (Value ==) . typeKind dictionary
 
-typeKind :: Type -> Kind
-typeKind t = case t of
-  -- TODON'T: hard-code these.
-  TypeConstructor _origin constructor -> case constructor of
-    Constructor (Qualified qualifier unqualified)
-      | qualifier == Vocabulary.global -> case unqualified of
-        "Int" -> Value
-        "Bool" -> Value
-        "Char" -> Value
-        "Float" -> Value
-        "Text" -> Value
-        "Fun" -> Stack :-> Stack :-> Permission :-> Value
-        "Prod" -> Stack :-> Value :-> Stack
-        "Vec" -> Value :-> Value
-        "Ptr" -> Value :-> Value
-        "Unsafe" -> Label
-        "Pure" -> Label
-        "IO" -> Label
-        "Fail" -> Label
-        "Join" -> Label :-> Permission :-> Permission
-        _ -> error "can't infer kind of constructor"
-    _ -> error "TODO: infer kinds properly"
-  TypeVar _origin (Var _ k) -> k
-  TypeConstant _origin (Var _ k) -> k
-  Forall _origin _ t' -> typeKind t'
-  a :@ _b -> let
-    ka = typeKind a
-    in case ka of
-      _ :-> k -> k
-      _ -> error "applying non-constructor to type"
+typeKind :: Dictionary -> Type -> K Kind
+typeKind dictionary = go
+  where
+  go :: Type -> K Kind
+  go t = case t of
+    TypeConstructor _origin (Constructor qualified)
+      -> case HashMap.lookup qualified $ Dictionary.entries dictionary of
+      Just (Entry.Type _origin parameters) -> case parameters of
+        [] -> return Value
+        _ -> return $ foldr1 (:->) $ map (\ (Parameter _ _ k) -> k) parameters
+      _ -> case qualified of
+        Qualified qualifier unqualified
+          | qualifier == Vocabulary.global -> case unqualified of
+            "Fun" -> return $ Stack :-> Stack :-> Permission :-> Value
+            "Prod" -> return $ Stack :-> Value :-> Stack
+            "Unsafe" -> return Label
+            "IO" -> return Label
+            "Fail" -> return Label
+            "Join" -> return $ Label :-> Permission :-> Permission
+            _ -> error $ Pretty.render $ Pretty.hsep
+              [ "can't infer kind of constructor"
+              , Pretty.quote qualified
+              , "in dictionary"
+              , pPrint $ HashMap.keys $ Dictionary.entries dictionary
+              ]
+        -- TODO: Better error reporting.
+        _ -> error $ Pretty.render $ Pretty.hsep
+          [ "can't infer kind of constructor"
+          , Pretty.quote qualified
+          , "in dictionary"
+          , pPrint $ HashMap.keys $ Dictionary.entries dictionary
+          ]
+    TypeVar _origin (Var _ k) -> return k
+    TypeConstant _origin (Var _ k) -> return k
+    Forall _origin _ t' -> go t'
+    a :@ _b -> do
+      ka <- go a
+      case ka of
+        _ :-> k -> return k
+        -- TODO: Better error reporting.
+        _ -> error "applying non-constructor to type"
