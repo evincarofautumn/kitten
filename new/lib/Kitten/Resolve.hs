@@ -20,7 +20,6 @@ import Kitten.Origin (Origin)
 import Kitten.Signature (Signature)
 import Kitten.Term (Case(..), Else(..), Term(..), Permit(Permit), Value(..))
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
-import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Set as Set
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Dictionary as Dictionary
@@ -172,7 +171,7 @@ generalName dictionary category resolveLocal isDefined vocabulary name origin
             if isDefined qualified then return (QualifiedName qualified) else do
               let global = Qualified Vocabulary.global unqualified
               if isDefined global then return (QualifiedName global) else do
-                liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Dictionary before failure:", pPrint (HashMap.keys $ Dictionary.entries $ dictionary)]
+                liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Dictionary before failure:", pPrint dictionary]
                 lift $ report $ Report.CannotResolveName origin category name
                 return name
       liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Resolved to:", pPrint resolved]
@@ -190,7 +189,7 @@ generalName dictionary category resolveLocal isDefined vocabulary name origin
       if isDefined qualified'
         then return $ QualifiedName qualified'
         else do
-          liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Dictionary before failure:", pPrint (HashMap.keys $ Dictionary.entries $ dictionary)]
+          liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Dictionary before failure:", pPrint dictionary]
           lift $ report $ Report.CannotResolveName origin category name
           return name
 

@@ -28,7 +28,6 @@ import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Kitten.Type (Constructor(..), Type(..), Var(..), funType, joinType, prodType)
 import Kitten.TypeEnv (TypeEnv, freshTypeId)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
-import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
@@ -609,7 +608,7 @@ typeKind dictionary = go
   go :: Type -> K Kind
   go t = case t of
     TypeConstructor _origin (Constructor qualified)
-      -> case HashMap.lookup qualified $ Dictionary.entries dictionary of
+      -> case Dictionary.lookup qualified dictionary of
       Just (Entry.Type _origin parameters) -> case parameters of
         [] -> return Value
         _ -> return $ foldr1 (:->) $ map (\ (Parameter _ _ k) -> k) parameters
@@ -626,14 +625,14 @@ typeKind dictionary = go
               [ "can't infer kind of constructor"
               , Pretty.quote qualified
               , "in dictionary"
-              , pPrint $ HashMap.keys $ Dictionary.entries dictionary
+              , pPrint dictionary
               ]
         -- TODO: Better error reporting.
         _ -> error $ Pretty.render $ Pretty.hsep
           [ "can't infer kind of constructor"
           , Pretty.quote qualified
           , "in dictionary"
-          , pPrint $ HashMap.keys $ Dictionary.entries dictionary
+          , pPrint dictionary
           ]
     TypeVar _origin (Var _ k) -> return k
     TypeConstant _origin (Var _ k) -> return k

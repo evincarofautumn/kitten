@@ -5,7 +5,7 @@ module Kitten.CollectInstantiations
   ) where
 
 import Data.Foldable (foldrM)
-import Kitten.Dictionary (Dictionary(Dictionary))
+import Kitten.Dictionary (Dictionary)
 import Kitten.Informer (Informer(..))
 import Kitten.Monad (K)
 import Kitten.Name (GeneralName(..), Qualified(..), Unqualified(..))
@@ -13,7 +13,6 @@ import Kitten.Queue (Queue)
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Kitten.Type (Type)
 import Kitten.TypeEnv (TypeEnv)
-import qualified Data.HashMap.Strict as HashMap
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
 import qualified Kitten.Instantiate as Instantiate
@@ -47,13 +46,13 @@ collectInstantiations tenv0 dictionary0 = do
       -- types as well.
       _ -> return (original : acc, q))
     ([], Queue.empty)
-    $ HashMap.toList $ Dictionary.entries dictionary0
+    $ Dictionary.toList dictionary0
 
 -- Next, we process the queue. Doing so may enqueue new instantiation sites for
 -- processing; however, this is guaranteed to halt because the number of actual
 -- instantiations is finite.
 
-  processQueue q0 $ Dictionary $ HashMap.fromList entries
+  processQueue q0 $ Dictionary.fromList entries
   where
 
 -- We process a definition in a single pass, mangling all its call sites and
@@ -129,10 +128,10 @@ collectInstantiations tenv0 dictionary0 = do
             term' <- while (Pretty.hsep ["instantiating", Pretty.quote name])
               origin $ Instantiate.term tenv0 term args
             (term'', q'') <- go q' term'
-            processQueue q'' $ Dictionary $ HashMap.insert
+            processQueue q'' $ Dictionary.insert
               (Qualified Vocabulary.global $ Unqualified mangled)
               (Entry.Word category merge origin parent signature (Just term''))
-              $ Dictionary.entries dictionary
+              dictionary
           Just{} -> fail "attempt to instantiate non-word"
 
 type InstantiationQueue = Queue (Qualified, [Type])

@@ -17,7 +17,6 @@ import Kitten.Type (Type(..), TypeId(..), Var(..))
 import Test.HUnit (assertBool, assertFailure)
 import Test.Hspec (Spec, describe, it)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
-import qualified Data.HashMap.Strict as HashMap
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Enter as Enter
 import qualified Kitten.Entry as Entry
@@ -106,7 +105,7 @@ testTypecheck input expected = do
     liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Common frag:", pPrint common]
     commonDictionary <- Enter.fragment common Dictionary.empty
     Enter.fragment fragment commonDictionary
-  case HashMap.toList . Dictionary.entries <$> result of
+  case Dictionary.toList <$> result of
     Right definitions -> case find matching definitions of
       Just (_, Entry.Word _ _ _ _ _ (Just term)) -> do
         let
