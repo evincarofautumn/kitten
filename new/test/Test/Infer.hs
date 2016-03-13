@@ -61,9 +61,27 @@ spec = do
     it "typechecks operators" $ do
       testTypecheck
         "define + (Int, Int -> Int) { _::kitten::add_int }\n\
+        \1 + 1"
+        $ Type.funType o r (Type.prodType o r int) e
+      testTypecheck
+        "define + (Int, Int -> Int) { _::kitten::add_int }\n\
+        \about +:\n\
+        \  operator:\n\
+        \    right 5\n\
+        \1 + 1"
+        $ Type.funType o r (Type.prodType o r int) e
+      testTypecheck
+        "define + (Int, Int -> Int) { _::kitten::add_int }\n\
         \about +:\n\
         \  operator:\n\
         \    right\n\
+        \1 + 1"
+        $ Type.funType o r (Type.prodType o r int) e
+      testTypecheck
+        "define + (Int, Int -> Int) { _::kitten::add_int }\n\
+        \about +:\n\
+        \  operator:\n\
+        \    5\n\
         \1 + 1"
         $ Type.funType o r (Type.prodType o r int) e
 
