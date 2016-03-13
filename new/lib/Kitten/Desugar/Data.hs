@@ -5,6 +5,7 @@ module Kitten.Desugar.Data
 import Data.List (foldl')
 import Kitten.DataConstructor (DataConstructor)
 import Kitten.Definition (Definition(Definition))
+import Kitten.Entry.Parameter (Parameter(Parameter))
 import Kitten.Fragment (Fragment)
 import Kitten.Monad (K)
 import Kitten.Name (ConstructorIndex(..), GeneralName(..), Qualified(..))
@@ -13,6 +14,7 @@ import Kitten.TypeDefinition (TypeDefinition)
 import qualified Kitten.DataConstructor as DataConstructor
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Entry.Category as Category
+import qualified Kitten.Entry.Merge as Merge
 import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Signature as Signature
@@ -37,7 +39,7 @@ desugar fragment = do
           (\ a b -> Signature.Application a b origin)
           (Signature.Variable (QualifiedName $ TypeDefinition.name definition)
             $ TypeDefinition.origin definition)
-          $ map (\ (parameter, _, parameterOrigin)
+          $ map (\ (Parameter parameterOrigin parameter _kind)
             -> Signature.Variable (UnqualifiedName parameter) parameterOrigin)
           $ TypeDefinition.parameters definition
         constructorSignature = Signature.Quantified
@@ -50,6 +52,7 @@ desugar fragment = do
           $ DataConstructor.origin constructor
         , Definition.category = Category.Word
         , Definition.fixity = Operator.Postfix
+        , Definition.merge = Merge.Deny
         , Definition.name = Qualified qualifier
           $ DataConstructor.name constructor
         , Definition.origin = origin

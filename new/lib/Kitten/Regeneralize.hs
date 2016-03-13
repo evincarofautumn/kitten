@@ -44,7 +44,7 @@ regeneralize tenv t = let
   where
   go :: Type -> Writer [(TypeId, Kind)] Type
   go t' = case t' of
-    TypeConstructor _ "fun" :@ a :@ b :@ e
+    TypeConstructor _ "Fun" :@ a :@ b :@ e
       | TypeVar origin (Var c k) <- bottommost a
       , TypeVar _ (Var d _) <- bottommost b
       , c == d
@@ -54,7 +54,7 @@ regeneralize tenv t = let
         b' <- go b
         e' <- go e
         return $ Forall origin (Var c k) $ funType origin a' b' e'
-    c@(TypeConstructor _ "prod") :@ a :@ b -> do
+    c@(TypeConstructor _ "Prod") :@ a :@ b -> do
       a' <- go a
       b' <- go b
       return $ c :@ a' :@ b'
@@ -64,5 +64,5 @@ regeneralize tenv t = let
     _ -> return t'
 
 bottommost :: Type -> Type
-bottommost (TypeConstructor _ "prod" :@ a :@ _) = bottommost a
+bottommost (TypeConstructor _ "Prod" :@ a :@ _) = bottommost a
 bottommost a = a

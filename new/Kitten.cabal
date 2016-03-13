@@ -19,12 +19,16 @@ executable kitten
 library
   build-depends: base >=4.8, bytestring, containers, hashable, parsec, pretty, text, transformers, unordered-containers, vector
   default-language: Haskell2010
+
   exposed-modules:
+
     Kitten
     Kitten.Base
     Kitten.Desugar.Data
     Kitten.Desugar.Infix
     Kitten.Dictionary
+    Kitten.Enter
+    Kitten.Entry
     Kitten.Infer
     Kitten.Informer
     Kitten.InstanceCheck
@@ -35,9 +39,7 @@ library
     Kitten.Name
     Kitten.Origin
     Kitten.Parse
-    Kitten.Program
     Kitten.Report
-    Kitten.Request
     Kitten.Resolve
     Kitten.Scope
     Kitten.Term
@@ -47,16 +49,18 @@ library
     Kitten.TypeEnv
     Kitten.Vocabulary
     Kitten.Zonk
+
   other-modules:
+
     Kitten.CollectInstantiations
     Kitten.DataConstructor
     Kitten.Definition
     Kitten.Desugar.Quotations
     Kitten.Element
     Kitten.Entry.Category
+    Kitten.Entry.Merge
+    Kitten.Entry.Parameter
     Kitten.Entry.Parent
-    Kitten.Entry.Type
-    Kitten.Entry.Word
     Kitten.Fragment
     Kitten.Free
     Kitten.Indent
@@ -79,11 +83,13 @@ library
     Kitten.Trait
     Kitten.TypeDefinition
     Kitten.Unify
+
   ghc-options: -Wall
+
   hs-source-dirs: lib
 
 test-suite test
-  build-depends: base >=4.8, containers, Kitten, hspec, HUnit, parsec, pretty, text, unordered-containers
+  build-depends: base >=4.8, containers, Kitten, hspec, HUnit, parsec, pretty, text, transformers, unordered-containers
   default-language: Haskell2010
   ghc-options: -Wall
   hs-source-dirs: test

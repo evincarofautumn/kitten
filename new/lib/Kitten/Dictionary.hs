@@ -1,75 +1,53 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternGuards #-}
+
 module Kitten.Dictionary
   ( Dictionary(..)
   , empty
+  , lookup
+  , operatorMetadata
+  , signatures
+  , typeNames
+  , wordNames
   ) where
 
+import Control.Monad ((>=>))
+import Data.Char (isLetter)
+import Data.Foldable (foldlM)
 import Data.HashMap.Strict (HashMap)
+import Data.List (foldl')
+import Data.Maybe (mapMaybe)
+import Kitten.Definition (Definition)
+import Kitten.Entry (Entry)
+import Kitten.Entry.Parent (Parent)
+import Kitten.Fragment (Fragment)
 import Kitten.Monad (K)
-import Kitten.Name (Qualified)
+import Kitten.Name (GeneralName(..), Qualified(..), Unqualified(..))
+import Kitten.Operator (Operator(Operator))
 import Kitten.Origin (Origin)
 import Kitten.Signature (Signature)
 import Kitten.Term (Term)
-import Kitten.Type (Type)
-import Prelude hiding (words)
+import Prelude hiding (lookup)
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Text as Text
 import qualified Kitten.Definition as Definition
+import qualified Kitten.Entry as Entry
 import qualified Kitten.Entry.Category as Category
-import qualified Kitten.Entry.Type as Type
-import qualified Kitten.Entry.Word as Word
+import qualified Kitten.Fragment as Fragment
+import qualified Kitten.Operator as Operator
+import qualified Kitten.Term as Term
 
 data Dictionary = Dictionary
-  { words :: !(HashMap Qualified Word.Entry)
-  , types :: !(HashMap Qualified Type.Entry)
+  { entries :: !(HashMap Qualified Entry)
   } deriving (Show)
 
 empty :: Dictionary
 empty = Dictionary
-  { words = HashMap.empty
-  , types = HashMap.empty
+  { entries = HashMap.empty
   }
 
-declareWord
-  :: Qualified -> Signature -> Origin -> Dictionary -> Maybe Dictionary
-declareWord name signature origin dictionary
-  = case HashMap.lookup name $ words dictionary of
-    -- Not previously declared or defined.
-    Nothing -> let
-      entry = Word.Entry
-        { Word.associativity = Nothing
-        , Word.body = Nothing
-        , Word.category = Category.Word
-        , Word.export = False
-        , Word.metadata = HashMap.empty
-        , Word.origin = origin
-        , Word.precedence = Nothing
-        , Word.signature = signature
-        , Word.parent = Nothing
-        }
-      in Just dictionary
-        { words = HashMap.insert name entry $ words dictionary }
-    -- Already declared with the same signature.
-    Just existing | Word.signature existing == signature
-      -> Just dictionary
-    -- Already declared or defined with a different signature.
-    Just{} -> Nothing
-
-defineWord
-  :: Qualified -> Signature -> Term a -> Origin
-  -> Dictionary -> K (Maybe Dictionary)
-defineWord name signature body origin dictionary = do
-  body' <- typecheck body dictionary
-  case HashMap.lookup name $ words dictionary of
-    -- Previously declared but not defined.
-    Just existing@Word.Entry{ Word.body = Nothing } -> return $ Just dictionary
-      { words = HashMap.insert name existing { Word.body = Just body' }
-        $ words dictionary }
-    -- Not previously declared.
-    Nothing -> return Nothing
-    -- Already defined.
-    Just{} -> return Nothing
-
-typecheck :: a
-typecheck = error "TODO: typecheck"
+lookup :: Qualified -> Dictionary -> Maybe Entry
+lookup name = HashMap.lookup name . entries
 
 -- The dictionary should generally be monotonically increasing in size and
 -- specificity. We never remove definitions and we never remove data from
@@ -91,3 +69,53 @@ typecheck = error "TODO: typecheck"
 -- types:
 --   declareType = + origin parameters
 --   export = + export
+
+operatorMetadata :: Dictionary -> HashMap Qualified Operator
+operatorMetadata = HashMap.fromList . mapMaybe getMetadata
+  . HashMap.toList . entries
+  where
+
+  getMetadata :: (Qualified, Entry) -> Maybe (Qualified, Operator)
+  -- FIXME: this is wrong; should look for "...::f::fixity" not "...::f".
+  getMetadata (name@(Qualified _ (Unqualified unqualified)), Entry.Metadata _ term)
+    | (||) <$> Text.all isLetter <*> (== "_") $ Text.take 1 unqualified
+      -- TODO: Report invalid fixities?
+    , [Term.Word _ _ (UnqualifiedName (Unqualified associativityName)) _ origin]
+      <- Term.decompose term
+    = case associativityName of
+      -- TODO: Use actual precedences.
+      "left" -> Just (name, Operator
+        { Operator.associativity = Operator.Leftward
+        , Operator.name = name
+        , Operator.precedence = Operator.Precedence 6
+        })
+      "right" -> Just (name, Operator
+        { Operator.associativity = Operator.Rightward
+        , Operator.name = name
+        , Operator.precedence = Operator.Precedence 6
+        })
+      _ -> Nothing
+  getMetadata _ = Nothing
+
+signatures :: Dictionary -> [(Qualified, Signature)]
+signatures = mapMaybe getSignature . HashMap.toList . entries
+  where
+  getSignature :: (Qualified, Entry) -> Maybe (Qualified, Signature)
+  getSignature (name, Entry.Word _ _ _ _ (Just signature) _)
+    = Just (name, signature)
+  getSignature (name, Entry.Trait _ signature)
+    = Just (name, signature)
+  getSignature _ = Nothing
+
+typeNames :: Dictionary -> [Qualified]
+typeNames = mapMaybe typeName . HashMap.toList . entries
+  where
+  typeName (name, Entry.Word Category.Permission _ _ _ _ _) = Just name
+  typeName (name, Entry.Type{}) = Just name
+  typeName _ = Nothing
+
+wordNames :: Dictionary -> [Qualified]
+wordNames = mapMaybe wordName . HashMap.toList . entries
+  where
+  wordName (name, Entry.Word{}) = Just name
+  wordName _ = Nothing

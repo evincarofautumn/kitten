@@ -48,13 +48,13 @@ data Var = Var !TypeId !Kind
   deriving (Eq, Show)
 
 funType :: Origin -> Type -> Type -> Type -> Type
-funType o a b e = TypeConstructor o "fun" :@ a :@ b :@ e
+funType o a b e = TypeConstructor o "Fun" :@ a :@ b :@ e
 
 prodType :: Origin -> Type -> Type -> Type
-prodType o a b = TypeConstructor o "prod" :@ a :@ b
+prodType o a b = TypeConstructor o "Prod" :@ a :@ b
 
 joinType :: Origin -> Type -> Type -> Type
-joinType o a b = TypeConstructor o "join" :@ a :@ b
+joinType o a b = TypeConstructor o "Join" :@ a :@ b
 
 origin :: Type -> Origin
 origin type_ = case type_ of
@@ -108,11 +108,11 @@ instance Pretty Constructor where
 
 instance Pretty Type where
   pPrint type_ = case type_ of
-    TypeConstructor _ "fun" :@ a :@ b :@ e -> Pretty.parens
+    TypeConstructor _ "Fun" :@ a :@ b :@ e -> Pretty.parens
       $ Pretty.hsep [pPrint a, "->", pPrint b, pPrint e]
-    TypeConstructor _ "prod" :@ a :@ b
+    TypeConstructor _ "Prod" :@ a :@ b
       -> Pretty.hcat [pPrint a, ", ", pPrint b]
-    TypeConstructor _ "join" :@ a :@ b
+    TypeConstructor _ "Join" :@ a :@ b
       -> Pretty.hcat ["+", pPrint a, " ", pPrint b]
     a :@ b -> Pretty.hcat [pPrint a, Pretty.angles $ pPrint b]
     TypeConstructor _ constructor -> pPrint constructor

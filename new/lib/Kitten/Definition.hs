@@ -3,6 +3,7 @@ module Kitten.Definition
   ) where
 
 import Kitten.Entry.Category (Category)
+import Kitten.Entry.Merge (Merge)
 import Kitten.Name (Qualified)
 import Kitten.Operator (Fixity)
 import Kitten.Origin (Origin)
@@ -16,6 +17,7 @@ data Definition a = Definition
   { body :: !(Term a)
   , category :: !Category
   , fixity :: !Fixity
+  , merge :: !Merge
   , name :: !Qualified
   , origin :: !Origin
   , signature :: !Signature

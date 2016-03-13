@@ -5,6 +5,7 @@ module Kitten.TypeDefinition
   ) where
 
 import Kitten.DataConstructor (DataConstructor)
+import Kitten.Entry.Parameter (Parameter)
 import Kitten.Kind (Kind)
 import Kitten.Name (Qualified, Unqualified)
 import Kitten.Origin (Origin)
@@ -15,7 +16,7 @@ data TypeDefinition = TypeDefinition
   { constructors :: [DataConstructor]
   , name :: !Qualified
   , origin :: !Origin
-  , parameters :: [(Unqualified, Kind, Origin)]
+  , parameters :: [Parameter]
   } deriving (Show)
 
 -- FIXME: Support parameters.

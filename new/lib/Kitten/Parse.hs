@@ -13,7 +13,8 @@ import Kitten.DataConstructor (DataConstructor(DataConstructor))
 import Kitten.Definition (Definition(Definition))
 import Kitten.Element (Element)
 import Kitten.Entry.Category (Category)
-import Kitten.Fragment (Fragment)
+import Kitten.Entry.Parameter (Parameter(Parameter))
+import Kitten.Fragment (Fragment(Fragment))
 import Kitten.Informer (Informer(..))
 import Kitten.Kind (Kind(..))
 import Kitten.Located (Located)
@@ -39,6 +40,7 @@ import qualified Kitten.DataConstructor as DataConstructor
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Element as Element
 import qualified Kitten.Entry.Category as Category
+import qualified Kitten.Entry.Merge as Merge
 import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Layoutness as Layoutness
 import qualified Kitten.Located as Located
@@ -77,8 +79,20 @@ elementsParser :: Parser [Element ()]
 elementsParser = concat <$> many (vocabularyParser <|> (:[]) <$> elementParser)
 
 partitionElements :: [Element ()] -> Fragment ()
-partitionElements = foldr go mempty
+partitionElements = rev . foldr go mempty
   where
+
+  rev :: Fragment () -> Fragment ()
+  rev fragment = Fragment
+    { Fragment.definitions = reverse $ Fragment.definitions fragment
+    , Fragment.metadata = reverse $ Fragment.metadata fragment
+    , Fragment.operators = reverse $ Fragment.operators fragment
+    , Fragment.synonyms = reverse $ Fragment.synonyms fragment
+    , Fragment.traits = reverse $ Fragment.traits fragment
+    , Fragment.types = reverse $ Fragment.types fragment
+    }
+
+  go :: Element () -> Fragment () -> Fragment ()
   go element acc = case element of
     Element.Definition x -> acc
       { Fragment.definitions = x : Fragment.definitions acc }
@@ -123,12 +137,13 @@ mainDefinition body = Definition
   { Definition.body = body
   , Definition.category = Category.Word
   , Definition.fixity = Operator.Postfix
+  , Definition.merge = Merge.Compose
   , Definition.name = Qualified Vocabulary.global "main"
   , Definition.origin = origin
   , Definition.signature = Signature.Quantified
-    [("R", Stack, origin), ("S", Stack, origin)]
+    [Parameter origin "R" Stack, Parameter origin "S" Stack]
     (Signature.StackFunction "R" [] "S" []
-      [QualifiedName (Qualified Vocabulary.global "io")] origin) origin
+      [QualifiedName (Qualified Vocabulary.global "IO")] origin) origin
   }
   where origin = Term.origin body
 
@@ -313,6 +328,9 @@ typeDefinitionParser = (<?> "type definition") $ do
   parameters <- Parsec.option [] quantifierParser
   constructors <- Parsec.choice
     [ blockedParser $ many constructorParser
+{-
+    -- FIXME: If types and words are in the same namespace, a constructor can't
+    -- have the same name as its type, so this convenience syntax doesn't work.
     , do
       constructorOrigin <- getOrigin
       fields <- groupedParser $ constructorFieldsParser
@@ -321,6 +339,7 @@ typeDefinitionParser = (<?> "type definition") $ do
         , DataConstructor.name = unqualifiedName name
         , DataConstructor.origin = constructorOrigin
         }
+-}
     ]
   return TypeDefinition
     { TypeDefinition.constructors = constructors
@@ -401,19 +420,19 @@ basicTypeParser = (<?> "basic type") $ do
     Just suffix -> foldl' apply prefix suffix
     Nothing -> prefix
 
-quantifierParser :: Parser [(Unqualified, Kind, Origin)]
+quantifierParser :: Parser [Parameter]
 quantifierParser = typeListParser var
   where
 
-  var :: Parser (Unqualified, Kind, Origin)
+  var :: Parser Parameter
   var = do
     origin <- getOrigin
     Parsec.choice
-      [ (\ unqualified -> (unqualified, Permission, origin))
+      [ (\ unqualified -> Parameter origin unqualified Permission)
         <$> (parserMatchOperator "+" *> wordNameParser)
       , do
         name <- wordNameParser
-        (\ permission -> (name, permission, origin))
+        (\ permission -> Parameter origin name permission)
           <$> Parsec.option Value (Stack <$ parserMatch Token.Ellipsis)
       ]
 
@@ -465,6 +484,7 @@ definitionParser keyword category = do
     { Definition.body = body
     , Definition.category = category
     , Definition.fixity = fixity
+    , Definition.merge = Merge.Deny
     , Definition.name = name
     , Definition.origin = origin
     , Definition.signature = signature

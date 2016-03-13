@@ -55,7 +55,7 @@ skolemize tenv0 t = case t of
     (c', t'') <- skolemize tenv1 $ Zonk.type_ tenv1 t'
     return (Set.insert c c', t'')
   -- TForall _ t' -> skolemize tenv0 t'
-  TypeConstructor origin "fun" :@ a :@ b :@ e -> do
+  TypeConstructor origin "Fun" :@ a :@ b :@ e -> do
     (ids, b') <- skolemize tenv0 b
     return (ids, funType origin a b' e)
   _ -> return (Set.empty, t)
@@ -67,10 +67,10 @@ subsumptionCheck :: TypeEnv -> Type -> Type -> K TypeEnv
 subsumptionCheck tenv0 (Forall origin (Var x k) t) t2 = do
   (t1, _, tenv1) <- Instantiate.type_ tenv0 origin x k t
   subsumptionCheck tenv1 t1 t2
-subsumptionCheck tenv0 t1 (TypeConstructor _ "fun" :@ a' :@ b' :@ e') = do
+subsumptionCheck tenv0 t1 (TypeConstructor _ "Fun" :@ a' :@ b' :@ e') = do
   (a, b, e, tenv1) <- Unify.function tenv0 t1
   subsumptionCheckFun tenv1 a b e a' b' e'
-subsumptionCheck tenv0 (TypeConstructor _ "fun" :@ a :@ b :@ e) t2 = do
+subsumptionCheck tenv0 (TypeConstructor _ "Fun" :@ a :@ b :@ e) t2 = do
   (a', b', e', tenv1) <- Unify.function tenv0 t2
   subsumptionCheckFun tenv1 a b e a' b' e'
 subsumptionCheck tenv0 t1 t2 = Unify.type_ tenv0 t1 t2
@@ -90,6 +90,6 @@ subsumptionCheckFun tenv0 a b e a' b' e' = do
   where
 
   permissionList :: Type -> [(Origin, Constructor)]
-  permissionList (TypeConstructor _ "join" :@ TypeConstructor origin label :@ es)
+  permissionList (TypeConstructor _ "Join" :@ TypeConstructor origin label :@ es)
     = (origin, label) : permissionList es
   permissionList _ = []

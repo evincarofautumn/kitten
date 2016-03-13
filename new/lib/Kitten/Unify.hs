@@ -33,7 +33,7 @@ type_ tenv0 t1 t2 = case (t1', t2') of
     type_ tenv1 a b
   (Forall{}, _) -> commute
 
-  (TypeConstructor _ "join" :@ l :@ r, s) -> do
+  (TypeConstructor _ "Join" :@ l :@ r, s) -> do
     ms <- rowIso tenv0 l s (permissionTail r)
     case ms of
       Just (s', substitution, tenv1)
@@ -47,7 +47,7 @@ type_ tenv0 t1 t2 = case (t1', t2') of
         report $ Report.TypeMismatch t1' t2'
         halt
 
-  (_, TypeConstructor _ "join" :@ _ :@ _) -> commute
+  (_, TypeConstructor _ "Join" :@ _ :@ _) -> commute
 
 -- We fall back to regular unification for value type constructors. This makes
 -- the somewhat iffy assumption that there is no higher-kinded polymorphism
@@ -68,7 +68,7 @@ type_ tenv0 t1 t2 = case (t1', t2') of
   t1' = Zonk.type_ tenv0 t1
   t2' = Zonk.type_ tenv0 t2
   commute = type_ tenv0 t2 t1
-  permissionTail (TypeConstructor _ "join" :@ _ :@ a) = permissionTail a
+  permissionTail (TypeConstructor _ "Join" :@ _ :@ a) = permissionTail a
   permissionTail t = t
 
 -- Unification of a type variable with a type simply looks up the current value
@@ -92,7 +92,7 @@ unifyTv tenv0 origin v@(Var x _) t = case t of
         [ Report.TypeMismatch (TypeVar origin v) t'
         , Report.OccursCheckFailure (TypeVar origin v) t'
         ] ++ case t' of
-          TypeConstructor _ "prod" :@ _ :@ _ -> [Report.StackDepthMismatch (Type.origin t')]
+          TypeConstructor _ "Prod" :@ _ :@ _ -> [Report.StackDepthMismatch (Type.origin t')]
           _ -> []
       halt
     else declare
@@ -103,7 +103,7 @@ unifyTv tenv0 origin v@(Var x _) t = case t of
 
 function :: TypeEnv -> Type -> K (Type, Type, Type, TypeEnv)
 function tenv0 t = case t of
-  TypeConstructor _ "fun" :@ a :@ b :@ e -> return (a, b, e, tenv0)
+  TypeConstructor _ "Fun" :@ a :@ b :@ e -> return (a, b, e, tenv0)
   _ -> do
     let origin = Type.origin t
     a <- freshTv tenv0 origin Stack
@@ -126,13 +126,13 @@ rowIso
 -- The "head" rule: a row which already begins with the label is trivially
 -- rewritten by the identity substitution.
 
-rowIso tenv0 l (TypeConstructor _ "join" :@ l' :@ r') _
+rowIso tenv0 l (TypeConstructor _ "Join" :@ l' :@ r') _
   | l == l' = return $ Just (r', Nothing :: Maybe (TypeId, Type), tenv0)
 
 -- The "swap" rule: a row which contains the label somewhere within, can be
 -- rewritten to place that label at the head.
 
-rowIso tenv0 l (TypeConstructor origin "join" :@ l' :@ r') rt
+rowIso tenv0 l (TypeConstructor origin "Join" :@ l' :@ r') rt
   | l /= l' = do
   ms <- rowIso tenv0 l r' rt
   return $ case ms of
