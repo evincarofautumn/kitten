@@ -2,7 +2,8 @@
 {-# LANGUAGE RecursiveDo #-}
 
 module Kitten.Infer
-  ( typecheck
+  ( mangleInstance
+  , typecheck
   ) where
 
 import Control.Monad.IO.Class (liftIO)
@@ -29,6 +30,7 @@ import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.Map as Map
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Instantiate as Instantiate
+import qualified Kitten.Mangle as Mangle
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Report as Report
@@ -59,20 +61,6 @@ typecheck dictionary definitionName declaredSignature term = do
     name' <- case Definition.category definition of
       Category.Constructor -> return name
       Category.Instance -> let
-        mTrait = find ((name ==) . Trait.name) $ Fragment.traits fragment
-        in case mTrait of
-          Nothing -> error "instance refers to a nonexistent trait"
-          Just trait -> do
-            instanceType <- typeFromSignature tenv0
-              $ Definition.signature definition
-            traitType <- typeFromSignature tenv0 $ Trait.signature trait
-            instanceCheck "trait" traitType "instance" instanceType
-            (traitType', args, tenv1) <- Instantiate.prenex tenv0 traitType
-            tenv2 <- Unify.type_ tenv1 instanceType traitType'
-            let
-              args' = valueKinded $ map (Zonk.type_ tenv2) args
-              mangled = Mangle.name name args'
-            return $ Qualified Vocabulary.global $ Unqualified mangled
       Category.Permission -> return name
       Category.Word -> return name
     return ((name', type_), Definition.body definition)
@@ -114,6 +102,19 @@ typecheck dictionary definitionName declaredSignature term = do
     { Fragment.definitions = HashMap.fromList definitions'
     }
 -}
+
+mangleInstance :: Qualified -> Signature -> Signature -> K Qualified
+mangleInstance name instanceSignature traitSignature = do
+  let tenv0 = TypeEnv.empty
+  instanceType <- typeFromSignature tenv0 instanceSignature
+  traitType <- typeFromSignature tenv0 traitSignature
+  instanceCheck "trait" traitType "instance" instanceType
+  (traitType', args, tenv1) <- Instantiate.prenex tenv0 traitType
+  tenv2 <- Unify.type_ tenv1 instanceType traitType'
+  let
+    args' = valueKinded $ map (Zonk.type_ tenv2) args
+    mangled = Mangle.name name args'
+  return $ Qualified Vocabulary.global $ Unqualified mangled
 
 -- Since type variables can be generalized if they do not depend on the initial
 -- state of the typing environment, the type of a single definition is inferred
