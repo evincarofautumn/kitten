@@ -11,7 +11,7 @@ module Kitten.Dictionary
   , wordNames
   ) where
 
-import Data.Char (isLetter)
+import Control.Applicative (liftA2)
 import Data.HashMap.Strict (HashMap)
 import Data.Maybe (mapMaybe)
 import Kitten.Entry (Entry)
@@ -20,7 +20,6 @@ import Kitten.Operator (Operator(Operator))
 import Kitten.Signature (Signature)
 import Prelude hiding (lookup)
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Text as Text
 import qualified Kitten.Entry as Entry
 import qualified Kitten.Entry.Category as Category
 import qualified Kitten.Operator as Operator
@@ -68,28 +67,52 @@ operatorMetadata dictionary = HashMap.fromList $ map getMetadata
   getMetadata name = let
     key = Qualified (qualifierFromName name) (Unqualified "operator")
     in case HashMap.lookup key $ entries dictionary of
+      -- TODO: Report invalid metadata.
+      -- TODO: Avoid redundant decomposition.
       Just (Entry.Metadata _ term)
-        -- TODO: Report invalid metadata.
-        | [Term.Word _ _
-            (UnqualifiedName (Unqualified associativityName)) _ origin]
+
+        -- Just associativity.
+        | [Term.Word _ _ (UnqualifiedName (Unqualified assoc)) _ _]
           <- Term.decompose term
-        -> case associativityName of
-          -- TODO: Use actual precedences.
-          "left" -> (name, Operator
-            { Operator.associativity = Operator.Leftward
-            , Operator.name = name
-            , Operator.precedence = Operator.Precedence 6
-            })
-          "right" -> (name, Operator
-            { Operator.associativity = Operator.Rightward
-            , Operator.name = name
-            , Operator.precedence = Operator.Precedence 6
-            })
-      -- If unspecified, use default associativity and precedence.
-      _ -> (name, Operator
-        { Operator.associativity = Operator.Nonassociative
+        , Just associativity <- associativityFromName assoc
+        -> yield associativity defaultPrecedence
+
+        -- Just precedence.
+        | [Term.Push _ (Term.Integer prec) _]
+          <- Term.decompose term
+        , validPrecedence prec
+        -> yield defaultAssociativity
+          $ Operator.Precedence $ fromInteger prec
+
+        -- Associativity and precedence.
+        | [ Term.Word _ _ (UnqualifiedName (Unqualified assoc)) _ _
+          , Term.Push _ (Term.Integer prec) _
+          ] <- Term.decompose term
+        , Just associativity <- associativityFromName assoc
+        , validPrecedence prec
+        -> yield associativity
+          $ Operator.Precedence $ fromInteger prec
+
+        -- FIXME: Generate real report.
+        | otherwise -> error "invalid operator metadata"
+
+      _ -> yield defaultAssociativity defaultPrecedence
+
+      where
+
+      associativityFromName "left" = Just Operator.Leftward
+      associativityFromName "right" = Just Operator.Rightward
+      associativityFromName _ = Nothing
+
+      validPrecedence = liftA2 (&&) (>= 0) (<= 9)
+
+      defaultPrecedence = Operator.Precedence 6
+      defaultAssociativity = Operator.Nonassociative
+
+      yield associativity precedence = (name, Operator
+        { Operator.associativity = associativity
         , Operator.name = name
-        , Operator.precedence = Operator.Precedence 6
+        , Operator.precedence = precedence
         })
 
 signatures :: Dictionary -> [(Qualified, Signature)]
