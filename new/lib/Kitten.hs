@@ -11,31 +11,15 @@ module Kitten
 
 import Control.Monad
 import Control.Monad.IO.Class
-import Data.Foldable (foldlM)
 import Data.Text (Text)
-import Kitten.CollectInstantiations (collectInstantiations)
 import Kitten.Dictionary (Dictionary)
-import Kitten.Fragment (Fragment)
-import Kitten.Infer (typecheck)
-import Kitten.Informer (Informer(..))
-import Kitten.Layout (layout)
-import Kitten.Linearize (linearize)
 import Kitten.Monad (K, runKitten)
-import Kitten.Parse (parse)
-import Kitten.Scope (scope)
 import Kitten.Tokenize (tokenize)
-import Kitten.Type (Type)
 import Text.Parsec.Text ()
 import qualified Data.ByteString as ByteString
 import qualified Data.Text.Encoding as Text
-import qualified Kitten.Desugar.Data as Data
-import qualified Kitten.Desugar.Infix as Infix
-import qualified Kitten.Desugar.Quotations as Quotations
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Enter as Enter
-import qualified Kitten.Quantify as Quantify
-import qualified Kitten.Resolve as Resolve
-import qualified Kitten.TypeEnv as TypeEnv
 
 -- The compiler is a straightforward pipeline. At each stage, errors and
 -- warnings ("reports") are accumulated, and reported to the programmer at the

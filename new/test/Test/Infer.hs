@@ -8,32 +8,21 @@ import Control.Monad.IO.Class (liftIO)
 import Data.List (find)
 import Data.Text (Text)
 import Kitten (fragmentFromSource)
-import Kitten.Dictionary (Dictionary)
-import Kitten.Infer (typecheck)
 import Kitten.Informer (checkpoint)
 import Kitten.InstanceCheck (instanceCheck)
 import Kitten.Kind (Kind(..))
-import Kitten.Layout (layout)
 import Kitten.Monad (runKitten)
 import Kitten.Name (Qualified(..))
-import Kitten.Parse (parse)
-import Kitten.Report (Report)
-import Kitten.Scope (scope)
-import Kitten.Tokenize (tokenize)
 import Kitten.Type (Type(..), TypeId(..), Var(..))
 import Test.HUnit (assertBool, assertFailure)
 import Test.Hspec (Spec, describe, it)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Text as Text
-import qualified Kitten.Desugar.Data as Data
-import qualified Kitten.Desugar.Infix as Infix
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Enter as Enter
 import qualified Kitten.Entry as Entry
 import qualified Kitten.Origin as Origin
 import qualified Kitten.Report as Report
-import qualified Kitten.Resolve as Resolve
 import qualified Kitten.Term as Term
 import qualified Kitten.Type as Type
 import qualified Kitten.Vocabulary as Vocabulary

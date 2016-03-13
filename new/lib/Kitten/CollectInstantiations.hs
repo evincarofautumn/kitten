@@ -5,10 +5,7 @@ module Kitten.CollectInstantiations
   ) where
 
 import Data.Foldable (foldrM)
-import Data.HashMap.Strict (HashMap)
-import Data.List (find)
 import Kitten.Dictionary (Dictionary(Dictionary))
-import Kitten.Entry (Entry)
 import Kitten.Informer (Informer(..))
 import Kitten.Monad (K)
 import Kitten.Name (GeneralName(..), Qualified(..), Unqualified(..))
@@ -23,7 +20,6 @@ import qualified Kitten.Instantiate as Instantiate
 import qualified Kitten.Mangle as Mangle
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Queue as Queue
-import qualified Kitten.Term as Term
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.PrettyPrint as Pretty
 

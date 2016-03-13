@@ -12,8 +12,6 @@ import Kitten.Definition (Definition)
 import Kitten.Fragment (Fragment)
 import Kitten.Name (Closed(..), ClosureIndex(..), GeneralName(..), LocalIndex(..))
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
-import qualified Kitten.Definition as Definition
-import qualified Kitten.Fragment as Fragment
 
 -- Whereas name resolution is concerned with resolving references to
 -- definitions, scope resolution resolves local names to relative (De Bruijn)

@@ -6,17 +6,13 @@ module Kitten.Resolve
   , signature
   ) where
 
-import Control.Arrow ((&&&))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State (StateT, evalStateT, gets, modify)
 import Data.List (elemIndex)
-import Data.Set (Set)
-import GHC.Exts (groupWith)
 import Kitten.Definition (Definition)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Entry.Parameter (Parameter(Parameter))
-import Kitten.Fragment (Fragment)
 import Kitten.Informer (Informer(..))
 import Kitten.Monad (K)
 import Kitten.Name (GeneralName(..), LocalIndex(..), Qualified(..), Qualifier(..), Unqualified(..))
@@ -28,12 +24,8 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Set as Set
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Dictionary as Dictionary
-import qualified Kitten.Entry.Category as Category
-import qualified Kitten.Entry.Parameter as Parameter
-import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Report as Report
 import qualified Kitten.Signature as Signature
-import qualified Kitten.TypeDefinition as TypeDefinition
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.PrettyPrint as Pretty
 

@@ -3,26 +3,21 @@ module Kitten.Desugar.Infix
   ) where
 
 import Control.Applicative
-import Control.Arrow ((&&&))
 import Data.Functor.Identity (Identity)
 import Data.HashMap.Strict (HashMap)
-import Data.Map (Map)
 import Kitten.Definition (Definition)
 import Kitten.Dictionary (Dictionary)
-import Kitten.Fragment (Fragment)
 import Kitten.Informer (Informer(..))
 import Kitten.Monad (K)
 import Kitten.Name (GeneralName(..), Qualified)
-import Kitten.Operator (Operator(Operator))
+import Kitten.Operator (Operator)
 import Kitten.Origin (Origin)
 import Kitten.Parser (getOrigin)
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Text.Parsec ((<?>), ParsecT, SourcePos)
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Map as Map
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Dictionary as Dictionary
-import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Origin as Origin
 import qualified Kitten.Report as Report

@@ -5,7 +5,6 @@ module Kitten.Infer
   ( typecheck
   ) where
 
-import Control.Monad (forM)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State (StateT, get, gets, modify, put, runStateT)
@@ -15,7 +14,6 @@ import Data.List (find, foldl')
 import Data.Map (Map)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Entry.Parameter (Parameter(Parameter))
-import Kitten.Fragment (Fragment)
 import Kitten.Informer (Informer(..))
 import Kitten.InstanceCheck (instanceCheck)
 import Kitten.Kind (Kind(..))
@@ -28,16 +26,9 @@ import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Kitten.Type (Constructor(..), Type(..), Var(..), funType, joinType, prodType)
 import Kitten.TypeEnv (TypeEnv, freshTypeId)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
-import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
-import qualified Kitten.Declaration as Declaration
-import qualified Kitten.Definition as Definition
 import qualified Kitten.Dictionary as Dictionary
-import qualified Kitten.Entry.Category as Category
-import qualified Kitten.Entry.Word as Word
-import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Instantiate as Instantiate
-import qualified Kitten.Mangle as Mangle
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Report as Report
@@ -454,7 +445,7 @@ inferCall tenvFinal tenv0 (QualifiedName name) origin
       report $ Report.MissingTypeSignature origin name
       halt
 
-inferCall tenvFinal tenv0 name origin
+inferCall _tenvFinal _tenv0 name origin
   = error $ Pretty.render $ Pretty.hsep
     ["cannot infer type of non-qualified name", Pretty.quote name]
 

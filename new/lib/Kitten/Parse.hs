@@ -271,7 +271,7 @@ synonymParser :: Parser Synonym
 synonymParser = (<?> "synonym definition") $ do
   origin <- getOrigin <* parserMatch_ Token.Synonym
   from <- Qualified <$> Parsec.getState
-    <*> (wordNameParser <|> operatorNameParser)
+    <*> unqualifiedNameParser
   (to, _) <- nameParser
   return $ Synonym from to origin
 
@@ -457,8 +457,7 @@ intrinsicParser = (<?> "intrinsic declaration")
 declarationParser :: Token -> Declaration.Category -> Parser Declaration
 declarationParser keyword category = do
   origin <- getOrigin <* parserMatch keyword
-  suffix <- Parsec.choice
-    [wordNameParser, operatorNameParser] <?> "declaration name"
+  suffix <- unqualifiedNameParser <?> "declaration name"
   name <- Qualified <$> Parsec.getState <*> pure suffix
   signature <- signatureParser
   return Declaration

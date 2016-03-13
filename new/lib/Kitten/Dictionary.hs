@@ -11,29 +11,18 @@ module Kitten.Dictionary
   , wordNames
   ) where
 
-import Control.Monad ((>=>))
 import Data.Char (isLetter)
-import Data.Foldable (foldlM)
 import Data.HashMap.Strict (HashMap)
-import Data.List (foldl')
 import Data.Maybe (mapMaybe)
-import Kitten.Definition (Definition)
 import Kitten.Entry (Entry)
-import Kitten.Entry.Parent (Parent)
-import Kitten.Fragment (Fragment)
-import Kitten.Monad (K)
 import Kitten.Name (GeneralName(..), Qualified(..), Unqualified(..))
 import Kitten.Operator (Operator(Operator))
-import Kitten.Origin (Origin)
 import Kitten.Signature (Signature)
-import Kitten.Term (Term)
 import Prelude hiding (lookup)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
-import qualified Kitten.Definition as Definition
 import qualified Kitten.Entry as Entry
 import qualified Kitten.Entry.Category as Category
-import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Term as Term
 

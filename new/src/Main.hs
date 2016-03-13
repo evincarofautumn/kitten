@@ -5,7 +5,6 @@
 module Main where
 
 import Control.Monad.IO.Class (liftIO)
-import Data.Foldable (foldlM)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Kitten (compile, runKitten)
 import Kitten.Report (Report)
@@ -13,7 +12,6 @@ import System.Environment
 import System.Exit
 import System.IO
 import Text.Parsec.Text ()
-import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.Text.IO as Text
 import qualified Kitten as Kitten
 import qualified Kitten.Dictionary as Dictionary

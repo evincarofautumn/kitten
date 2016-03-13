@@ -166,48 +166,41 @@ resolveSignature dictionary definition = do
       return dictionary
         { Dictionary.entries = HashMap.insert name entry
           $ Dictionary.entries dictionary }
-    Nothing -> return dictionary  -- TODO: Error?
+    _ -> return dictionary  -- TODO: Error?
 
 -- typecheck and define user-defined words
 -- desugaring of operators has to take place here
 defineWord
   :: Dictionary -> Definition () -> K Dictionary
 defineWord dictionary definition = do
-  let
-    name = Definition.name definition
-    signature = Definition.signature definition
+  let name = Definition.name definition
+  -- TODO: Use resolveDefinition to desugar & scope?
   resolved <- Resolve.run $ Resolve.definition dictionary definition
   checkpoint
   let resolvedSignature = Definition.signature resolved
   -- Note that we use the resolved signature here.
   liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Typechecking", Pretty.quote name, "with resolved signature", pPrint resolvedSignature]
-  body' <- typecheck dictionary name resolvedSignature $ Definition.body resolved
+  typecheckedBody <- typecheck dictionary name resolvedSignature $ Definition.body resolved
   checkpoint
   liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Typechecked", Pretty.quote name]
   case HashMap.lookup name $ Dictionary.entries dictionary of
     -- Previously declared with same signature, but not defined.
     Just (Entry.Word category merge origin' parent signature' Nothing)
       | maybe True (resolvedSignature ==) signature' -> do
-      let entry = Entry.Word category merge origin' parent (Just resolvedSignature) (Just body')
+      let entry = Entry.Word category merge origin' parent (Just resolvedSignature) (Just typecheckedBody)
       liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Defining word", Pretty.quote name]
       return dictionary
         { Dictionary.entries = HashMap.insert name entry
           $ Dictionary.entries dictionary }
-    -- Not previously declared.
-    Nothing -> error $ Pretty.render $ Pretty.hsep
-      [ "defining word"
-      , Pretty.quote name
-      , "not previously declared"
-      ]
     -- Already defined as concatenable.
     Just (Entry.Word category merge@Merge.Compose
       origin' parent mSignature@(Just signature') body)
       | resolvedSignature == signature' -> do
       let
-        body' = maybe (Term.Identity () (Origin.point "<implicit>" 1 1))
+        strippedBody = maybe (Term.Identity () (Origin.point "<implicit>" 1 1))
           Term.stripMetadata body
       composed <- typecheck dictionary name resolvedSignature
-        $ Term.Compose () body' $ Definition.body resolved
+        $ Term.Compose () strippedBody $ Definition.body resolved
       let
         entry = Entry.Word category merge origin' parent mSignature
           $ Just composed
@@ -216,11 +209,17 @@ defineWord dictionary definition = do
         { Dictionary.entries = HashMap.insert name entry
           $ Dictionary.entries dictionary }
     -- Already defined, not concatenable.
-    redef@(Just (Entry.Word _ Merge.Deny _ _ (Just sig) _)) -> error $ Pretty.render $ Pretty.hcat
+    Just (Entry.Word _ Merge.Deny _ _ (Just sig) _) -> error $ Pretty.render $ Pretty.hcat
       [ "redefinition of existing word "
       , Pretty.quote name, " of signature ", pPrint sig
       , " with signature: "
       , pPrint resolvedSignature
+      ]
+    -- Not previously declared as word.
+    _ -> error $ Pretty.render $ Pretty.hsep
+      [ "defining word"
+      , Pretty.quote name
+      , "not previously declared"
       ]
 
 fragmentFromSource :: FilePath -> Text -> K (Fragment ())
