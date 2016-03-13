@@ -58,17 +58,17 @@ spec = do
         $ Type.funType o r (Type.prodType o r (ctor "Unit")) e
     it "typechecks definitions" $ do
       testTypecheck "define one (-> Int) { 1 } one"
-        $ Type.funType o r (Type.prodType o r (ctor "Int")) e
+        $ Type.funType o r (Type.prodType o r int) e
       testTypecheck
         "define one (-> Int) { 1 }\n\
         \define two (-> Int) { 2 }\n\
         \one two _::kitten::add_int"
-        $ Type.funType o r (Type.prodType o r (ctor "Int")) e
+        $ Type.funType o r (Type.prodType o r int) e
       testTypecheck
         "define up (Int -> Int) { 1 _::kitten::add_int }\n\
         \define down (Int -> Int) { -1 _::kitten::add_int }\n\
         \1 up 2 down _::kitten::add_int"
-        $ Type.funType o r (Type.prodType o r (ctor "Int")) e
+        $ Type.funType o r (Type.prodType o r int) e
   where
   o = Origin.point "" 0 0
   r = TypeVar o $ Var (TypeId 0) Stack
