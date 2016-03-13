@@ -16,7 +16,6 @@ module Kitten.Name
 import Data.Hashable (Hashable(..))
 import Data.Text (Text)
 import GHC.Exts (IsString(..))
-import Kitten.Intrinsic (Intrinsic)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.Text as Text
 import qualified Text.PrettyPrint as Pretty
@@ -29,7 +28,6 @@ data GeneralName
   = QualifiedName !Qualified
   | UnqualifiedName !Unqualified
   | LocalName !LocalIndex
-  | IntrinsicName !Intrinsic
   deriving (Eq, Ord, Show)
 
 data Qualified = Qualified
@@ -90,7 +88,6 @@ instance Pretty GeneralName where
     QualifiedName qualified -> pPrint qualified
     UnqualifiedName unqualified -> pPrint unqualified
     LocalName (LocalIndex i) -> "local." Pretty.<> Pretty.int i
-    IntrinsicName intrinsic -> pPrint intrinsic
 
 instance Pretty Closed where
   pPrint (ClosedLocal (LocalIndex index)) = Pretty.hcat

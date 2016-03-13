@@ -18,7 +18,6 @@ import Kitten.Dictionary (Dictionary)
 import Kitten.Entry.Parameter (Parameter(Parameter))
 import Kitten.Fragment (Fragment)
 import Kitten.Informer (Informer(..))
-import Kitten.Intrinsic (Intrinsic)
 import Kitten.Monad (K)
 import Kitten.Name (GeneralName(..), LocalIndex(..), Qualified(..), Qualifier(..), Unqualified(..))
 import Kitten.Origin (Origin)
@@ -32,10 +31,8 @@ import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry.Category as Category
 import qualified Kitten.Entry.Parameter as Parameter
 import qualified Kitten.Fragment as Fragment
-import qualified Kitten.Intrinsic as Intrinsic
 import qualified Kitten.Report as Report
 import qualified Kitten.Signature as Signature
-import qualified Kitten.Trait as Trait
 import qualified Kitten.TypeDefinition as TypeDefinition
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.PrettyPrint as Pretty
@@ -192,25 +189,20 @@ generalName dictionary category resolveLocal isDefined vocabulary name origin
 -- A qualified name must be fully qualified, and may refer to an intrinsic or a
 -- definition, respectively.
 
-    QualifiedName qualified -> case intrinsicFromName qualified of
-      Just intrinsic -> return (IntrinsicName intrinsic)
-      Nothing -> do
-        if isDefined qualified then return name else do
-          let
-            qualified' = case (vocabulary, qualifierName qualified) of
-              (Qualifier prefix, Qualifier suffix)
-                -> Qualified (Qualifier (prefix ++ suffix))
-                  $ unqualifiedName qualified
-          if isDefined qualified'
-            then return $ QualifiedName qualified'
-            else do
-              liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Dictionary before failure:", pPrint (HashMap.keys $ Dictionary.entries $ dictionary)]
-              lift $ report $ Report.CannotResolveName origin category name
-              return name
+    QualifiedName qualified -> if isDefined qualified then return name else do
+      let
+        qualified' = case (vocabulary, qualifierName qualified) of
+          (Qualifier prefix, Qualifier suffix)
+            -> Qualified (Qualifier (prefix ++ suffix))
+              $ unqualifiedName qualified
+      if isDefined qualified'
+        then return $ QualifiedName qualified'
+        else do
+          liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Dictionary before failure:", pPrint (HashMap.keys $ Dictionary.entries $ dictionary)]
+          lift $ report $ Report.CannotResolveName origin category name
+          return name
 
     LocalName{} -> error "local name should not appear before name resolution"
-    IntrinsicName{} -> error
-      "intrinsic name should not appear before name resolution"
 
 withLocal :: Unqualified -> Resolved a -> Resolved a
 withLocal name action = do
@@ -232,12 +224,3 @@ reportDuplicate dictionary def = return ()
       then return ()
       else report $ Report.MultipleDefinitions origin name $ map snd duplicates
 -}
-
-intrinsicFromName :: Qualified -> Maybe Intrinsic
-intrinsicFromName name = case name of
-  Qualified qualifier (Unqualified unqualified)
-    | qualifier == Vocabulary.intrinsic -> case unqualified of
-      "add_int" -> Just Intrinsic.AddInt
-      "magic" -> Just Intrinsic.Magic
-      _ -> Nothing
-  _ -> Nothing

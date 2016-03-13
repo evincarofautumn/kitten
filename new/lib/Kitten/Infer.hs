@@ -30,20 +30,19 @@ import Kitten.TypeEnv (TypeEnv, freshTypeId)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
+import qualified Kitten.Declaration as Declaration
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry.Category as Category
 import qualified Kitten.Entry.Word as Word
 import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Instantiate as Instantiate
-import qualified Kitten.Intrinsic as Intrinsic
 import qualified Kitten.Mangle as Mangle
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Report as Report
 import qualified Kitten.Signature as Signature
 import qualified Kitten.Term as Term
-import qualified Kitten.Trait as Trait
 import qualified Kitten.Type as Type
 import qualified Kitten.TypeEnv as TypeEnv
 import qualified Kitten.Unify as Unify
@@ -416,8 +415,8 @@ inferValue tenvFinal tenv0 origin value = case value of
     (term', t1, tenv1) <- inferType tenvFinal localEnv term
     let tenv2 = tenv1 { TypeEnv.closure = oldClosure }
     return (Closure names term', t1, tenv2)
-  Float x -> return (Float x, TypeConstructor origin "float", tenv0)
-  Integer x -> return (Integer x, TypeConstructor origin "int", tenv0)
+  Float x -> return (Float x, TypeConstructor origin "Float", tenv0)
+  Integer x -> return (Integer x, TypeConstructor origin "Int", tenv0)
   Local (LocalIndex index) -> return
     (Local $ LocalIndex index, TypeEnv.vs tenv0 !! index, tenv0)
   Quotation{} -> error "quotation should not appear during type inference"
@@ -454,35 +453,6 @@ inferCall tenvFinal tenv0 (QualifiedName name) origin
     Nothing -> do
       report $ Report.MissingTypeSignature origin name
       halt
-
-inferCall tenvFinal tenv0 name@(IntrinsicName intrinsic) origin
-  = case intrinsic of
-    Intrinsic.AddInt -> do
-      a <- TypeEnv.freshTv tenv0 origin Stack
-      e <- TypeEnv.freshTv tenv0 origin Permission
-      let
-        type_ = funType origin
-          (prodType origin
-            (prodType origin a (TypeConstructor origin "int"))
-            (TypeConstructor origin "int"))
-          (prodType origin a (TypeConstructor origin "int"))
-          e
-        type' = Zonk.type_ tenvFinal type_
-      returnCall type_ type'
-    Intrinsic.Magic -> do
-      a <- TypeEnv.freshTv tenv0 origin Stack
-      b <- TypeEnv.freshTv tenv0 origin Stack
-      e <- TypeEnv.freshTv tenv0 origin Permission
-      let
-        type_ = funType origin a b e
-        type' = Zonk.type_ tenvFinal type_
-      returnCall type_ type'
-
-  where
-
-  -- FIXME: Generate instantiation.
-  returnCall type_ type' = return
-    (Word type' Operator.Postfix name [] origin, type_, tenv0)
 
 inferCall tenvFinal tenv0 name origin
   = error $ Pretty.render $ Pretty.hsep

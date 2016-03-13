@@ -9,6 +9,7 @@ import Control.Monad ((>=>))
 import Control.Monad.IO.Class (liftIO)
 import Data.Foldable (foldlM)
 import Data.Text (Text)
+import Kitten.Declaration (Declaration)
 import Kitten.Definition (Definition)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Fragment (Fragment)
@@ -23,11 +24,13 @@ import Kitten.Tokenize (tokenize)
 import Kitten.TypeDefinition (TypeDefinition)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.HashMap.Strict as HashMap
+import qualified Kitten.Declaration as Declaration
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Desugar.Data as Data
 import qualified Kitten.Desugar.Infix as Infix
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
+import qualified Kitten.Entry.Category as Category
 import qualified Kitten.Entry.Merge as Merge
 import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Origin as Origin
@@ -39,7 +42,7 @@ import qualified Text.PrettyPrint as Pretty
 
 fragment :: Fragment () -> Dictionary -> K Dictionary
 fragment f
-  = foldlMx declareTrait (Fragment.traits f)
+  = foldlMx enterDeclaration (Fragment.declarations f)
   >=> foldlMx declareWord (Fragment.definitions f)
   >=> foldlMx declareType (Fragment.types f)
   >=> foldlMx resolveSignature (Fragment.definitions f)
@@ -50,14 +53,35 @@ fragment f
   foldlMx :: (Foldable f, Monad m) => (b -> a -> m b) -> f a -> b -> m b
   foldlMx = flip . foldlM
 
-  declareTrait :: a
-  declareTrait = error "declareTrait"
-
   addMetadata :: a
   addMetadata = error "addMetadata"
 
   addOperatorMetadata :: a
   addOperatorMetadata = error "addOperatorMetadata"
+
+enterDeclaration :: Dictionary -> Declaration -> K Dictionary
+enterDeclaration dictionary declaration = do
+  let
+    name = Declaration.name declaration
+    signature = Declaration.signature declaration
+  case HashMap.lookup name $ Dictionary.entries dictionary of
+    Just _existing -> do
+      -- TODO: Check signatures.
+      return dictionary
+    Nothing -> case Declaration.category declaration of
+      Declaration.Intrinsic -> do
+        let
+          entry = Entry.Word
+            Category.Word
+            Merge.Deny
+            (Declaration.origin declaration)
+            Nothing
+            (Just signature)
+            Nothing
+        return dictionary
+          { Dictionary.entries = HashMap.insert name entry
+            $ Dictionary.entries dictionary }
+      Declaration.Trait -> error "TODO: declare trait"
 
 -- declare type, declare & define constructors
 declareType :: Dictionary -> TypeDefinition -> K Dictionary
@@ -101,8 +125,6 @@ declareWord dictionary definition = let
           (Definition.merge definition)
           (Definition.origin definition)
           Nothing
-          -- We don't attempt to resolve the signature because not all types
-          -- have necessarily been declared yet.
           (Just signature)
           Nothing
         dictionary' = dictionary

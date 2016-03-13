@@ -47,11 +47,11 @@ spec = do
     it "typechecks single literals" $ do
       testTypecheck "0" $ Type.funType o r (Type.prodType o r int) e
       testTypecheck "1.0" $ Type.funType o r (Type.prodType o r float) e
-{-
     it "typechecks intrinsics" $ do
-      testTypecheck "_::intrinsic::magic" $ Type.funType o r s e
-      testTypecheck "1 2 _::intrinsic::add_int"
+      testTypecheck "_::kitten::magic" $ Type.funType o r s e
+      testTypecheck "1 2 _::kitten::add_int"
         $ Type.funType o r (Type.prodType o r int) e
+{-
     it "typechecks data types" $ do
       testTypecheck "type Unit { case unit } unit"
         $ Type.funType o r (Type.prodType o r (ctor "Unit")) e
@@ -67,8 +67,8 @@ spec = do
   e = TypeVar o $ Var (TypeId 2) Permission
   ctor = TypeConstructor o . Type.Constructor
     . Qualified Vocabulary.global
-  int = ctor "int"
-  float = ctor "float"
+  int = ctor "Int"
+  float = ctor "Float"
 
 testTypecheck :: Text -> Type -> IO ()
 testTypecheck input expected = do
@@ -80,7 +80,6 @@ testTypecheck input expected = do
     common <- fragmentFromSource "<common>" commonSource
     liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Common frag:", pPrint common]
     commonDictionary <- Enter.fragment common Dictionary.empty
-    liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Common dict:", Pretty.text $ show commonDictionary]
     Enter.fragment fragment commonDictionary
   case HashMap.toList . Dictionary.entries <$> result of
     Right definitions -> case find matching definitions of
@@ -127,6 +126,10 @@ typecheck input = runKitten $ do
 -- FIXME: Avoid redundantly re-parsing common vocabulary.
 commonSource :: Text
 commonSource = "\
+\vocab kitten {\
+\  intrinsic magic<R..., S...> (R... -> S...)\
+\  intrinsic add_int (_::Int, _::Int -> _::Int)\
+\}\
 \type Float {}\n\
 \type Int {}\n\
 \permission IO<R..., S..., +E> (R..., (R... -> S... +IO +E) -> S... +E) {\n\

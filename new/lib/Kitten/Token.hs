@@ -39,6 +39,7 @@ data Token
   | Infix                     -- infix
   | Instance                  -- instance
   | Integer !Integer !Base    -- 1 0b1 0o1 0x1
+  | Intrinsic                 -- intrinsic
   | Jump                      -- jump
   | Layout                    -- :
   | Match                     -- match
@@ -84,6 +85,7 @@ instance Eq Token where
   Instance                == Instance                = True
   -- Integer tokens are equal regardless of base.
   Integer a _baseA        == Integer b _baseB        = a == b
+  Intrinsic               == Intrinsic               = True
   Jump                    == Jump                    = True
   Layout                  == Layout                  = True
   Match                   == Match                   = True
@@ -136,6 +138,7 @@ instance Pretty Token where
         Octal -> (8, "0o", ['0'..'7'])
         Decimal -> (10, "", ['0'..'9'])
         Hexadecimal -> (16, "0x", ['0'..'9'] ++ ['A'..'F'])
+    Intrinsic -> "intrinsic"
     Jump -> "jump"
     Layout -> ":"
     Match -> "match"

@@ -10,6 +10,7 @@ import Data.List (find, findIndex, foldl')
 import Data.Maybe (fromMaybe, isJust)
 import Data.Text (Text)
 import Kitten.DataConstructor (DataConstructor(DataConstructor))
+import Kitten.Declaration (Declaration(Declaration))
 import Kitten.Definition (Definition(Definition))
 import Kitten.Element (Element)
 import Kitten.Entry.Category (Category)
@@ -29,7 +30,6 @@ import Kitten.Signature (Signature)
 import Kitten.Synonym (Synonym(Synonym))
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..), compose)
 import Kitten.Token (Token)
-import Kitten.Trait (Trait(Trait))
 import Kitten.TypeDefinition (TypeDefinition(TypeDefinition))
 import Text.Parsec ((<?>))
 import Text.Parsec.Pos (SourcePos)
@@ -37,6 +37,7 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 import qualified Kitten.Base as Base
 import qualified Kitten.DataConstructor as DataConstructor
+import qualified Kitten.Declaration as Declaration
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Element as Element
 import qualified Kitten.Entry.Category as Category
@@ -51,7 +52,6 @@ import qualified Kitten.Report as Report
 import qualified Kitten.Signature as Signature
 import qualified Kitten.Term as Term
 import qualified Kitten.Token as Token
-import qualified Kitten.Trait as Trait
 import qualified Kitten.TypeDefinition as TypeDefinition
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.Parsec as Parsec
@@ -84,16 +84,18 @@ partitionElements = rev . foldr go mempty
 
   rev :: Fragment () -> Fragment ()
   rev fragment = Fragment
-    { Fragment.definitions = reverse $ Fragment.definitions fragment
+    { Fragment.declarations = reverse $ Fragment.declarations fragment
+    , Fragment.definitions = reverse $ Fragment.definitions fragment
     , Fragment.metadata = reverse $ Fragment.metadata fragment
     , Fragment.operators = reverse $ Fragment.operators fragment
     , Fragment.synonyms = reverse $ Fragment.synonyms fragment
-    , Fragment.traits = reverse $ Fragment.traits fragment
     , Fragment.types = reverse $ Fragment.types fragment
     }
 
   go :: Element () -> Fragment () -> Fragment ()
   go element acc = case element of
+    Element.Declaration x -> acc
+      { Fragment.declarations = x : Fragment.declarations acc }
     Element.Definition x -> acc
       { Fragment.definitions = x : Fragment.definitions acc }
     Element.Metadata x -> acc
@@ -102,8 +104,6 @@ partitionElements = rev . foldr go mempty
       { Fragment.operators = x : Fragment.operators acc }
     Element.Synonym x -> acc
       { Fragment.synonyms = x : Fragment.synonyms acc }
-    Element.Trait x -> acc
-      { Fragment.traits = x : Fragment.traits acc }
     Element.TypeDefinition x -> acc
       { Fragment.types = x : Fragment.types acc }
     Element.Term x -> acc
@@ -161,8 +161,6 @@ vocabularyParser = (<?> "vocabulary definition") $ do
         -> (qualifier, unqualified)
       UnqualifiedName (Unqualified unqualified) -> ([], unqualified)
       LocalName{} -> error "local name should not appear as vocabulary name"
-      IntrinsicName{} -> error
-        "intrinsic name should not appear as vocabulary name"
   Parsec.putState (Qualifier (outer ++ inner ++ [name]))
   Parsec.choice
     [ [] <$ parserMatchOperator ";"
@@ -256,10 +254,13 @@ elementParser = (<?> "top-level program element") $ Parsec.choice
     , instanceParser
     , permissionParser
     ]
+  , Element.Declaration <$> Parsec.choice
+    [ traitParser
+    , intrinsicParser
+    ]
   , Element.Metadata <$> metadataParser
   , Element.Operator <$> operatorParser
   , Element.Synonym <$> synonymParser
-  , Element.Trait <$> traitParser
   , Element.TypeDefinition <$> typeDefinitionParser
   , do
     origin <- getOrigin
@@ -445,17 +446,26 @@ quantifiedParser thing = do
   origin <- getOrigin
   Signature.Quantified <$> quantifierParser <*> thing <*> pure origin
 
-traitParser :: Parser Trait
-traitParser = (<?> "trait declaration") $ do
-  origin <- getOrigin <* parserMatch Token.Trait
+traitParser :: Parser Declaration
+traitParser = (<?> "intrinsic declaration")
+  $ declarationParser Token.Trait Declaration.Trait
+
+intrinsicParser :: Parser Declaration
+intrinsicParser = (<?> "intrinsic declaration")
+  $ declarationParser Token.Intrinsic Declaration.Intrinsic
+
+declarationParser :: Token -> Declaration.Category -> Parser Declaration
+declarationParser keyword category = do
+  origin <- getOrigin <* parserMatch keyword
   suffix <- Parsec.choice
-    [wordNameParser, operatorNameParser] <?> "trait name"
+    [wordNameParser, operatorNameParser] <?> "declaration name"
   name <- Qualified <$> Parsec.getState <*> pure suffix
   signature <- signatureParser
-  return Trait
-    { Trait.name = name
-    , Trait.origin = origin
-    , Trait.signature = signature
+  return Declaration
+    { Declaration.category = category
+    , Declaration.name = name
+    , Declaration.origin = origin
+    , Declaration.signature = signature
     }
 
 basicDefinitionParser :: Parser (Definition ())

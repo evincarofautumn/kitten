@@ -150,6 +150,7 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
           "if" -> If
           "infix" -> Infix
           "instance" -> Instance
+          "intrinsic" -> Intrinsic
           "jump" -> Jump
           "match" -> Match
           "permission" -> Permission
