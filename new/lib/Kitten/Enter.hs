@@ -46,10 +46,10 @@ import qualified Text.PrettyPrint as Pretty
 
 fragment :: Fragment () -> Dictionary -> K Dictionary
 fragment f
-  = foldlMx enterDeclaration (Fragment.declarations f)
-  >=> foldlMx declareWord (Fragment.definitions f)
   -- TODO: Link constructors to parent type.
-  >=> foldlMx declareType (Fragment.types f)
+  = foldlMx declareType (Fragment.types f)
+  >=> foldlMx enterDeclaration (Fragment.declarations f)
+  >=> foldlMx declareWord (Fragment.definitions f)
   >=> foldlMx resolveSignature (Fragment.definitions f)
   >=> foldlMx addMetadata (Fragment.metadata f)
   >=> foldlMx defineWord (Fragment.definitions f)
@@ -155,7 +155,8 @@ declareWord dictionary definition = let
       -- TODO: Better error reporting when a non-instance matches a trait.
       | Definition.category definition == Category.Instance
       -> do
-      mangledName <- mangleInstance (Definition.name definition)
+      mangledName <- mangleInstance dictionary
+        (Definition.name definition)
         (Definition.signature definition) traitSignature
       let
         entry = Entry.Word
