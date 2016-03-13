@@ -13,7 +13,7 @@ import Kitten.Declaration (Declaration)
 import Kitten.Definition (Definition)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Fragment (Fragment)
-import Kitten.Infer (typecheck)
+import Kitten.Infer (mangleInstance, typecheck)
 import Kitten.Informer (checkpoint)
 import Kitten.Layout (layout)
 import Kitten.Metadata (Metadata)
@@ -34,6 +34,7 @@ import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
 import qualified Kitten.Entry.Category as Category
 import qualified Kitten.Entry.Merge as Merge
+import qualified Kitten.Entry.Parent as Parent
 import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Metadata as Metadata
 import qualified Kitten.Origin as Origin
@@ -47,6 +48,7 @@ fragment :: Fragment () -> Dictionary -> K Dictionary
 fragment f
   = foldlMx enterDeclaration (Fragment.declarations f)
   >=> foldlMx declareWord (Fragment.definitions f)
+  -- TODO: Link constructors to parent type.
   >=> foldlMx declareType (Fragment.types f)
   >=> foldlMx resolveSignature (Fragment.definitions f)
   >=> foldlMx addMetadata (Fragment.metadata f)
@@ -148,6 +150,23 @@ declareWord dictionary definition = let
         , "vs"
         , Pretty.text $ show signature'
         ]
+    -- Already declared or defined as a trait.
+    Just (Entry.Trait _origin traitSignature)
+      -- TODO: Better error reporting when a non-instance matches a trait.
+      | Definition.category definition == Category.Instance
+      -> do
+      mangledName <- mangleInstance (Definition.name definition)
+        (Definition.signature definition) traitSignature
+      let
+        entry = Entry.Word
+          (Definition.category definition)
+          (Definition.merge definition)
+          (Definition.origin definition)
+          (Just (Parent.Trait name))
+          (Just signature)
+          Nothing
+      return dictionary { Dictionary.entries = HashMap.insert mangledName entry
+        $ Dictionary.entries dictionary }
     -- Already declared or defined with a different signature.
     Just{} -> error $ Pretty.render $ Pretty.hsep
       [ "word"
