@@ -10,9 +10,13 @@ module Kitten.Name
   , Qualified(..)
   , Qualifier(..)
   , Unqualified(..)
+  , isOperatorName
+  , qualifiedFromQualifier
   , qualifierFromName
   ) where
 
+import Control.Applicative (liftA2)
+import Data.Char (isLetter)
 import Data.Hashable (Hashable(..))
 import Data.Text (Text)
 import GHC.Exts (IsString(..))
@@ -52,6 +56,20 @@ newtype ConstructorIndex = ConstructorIndex Int
 
 newtype LocalIndex = LocalIndex Int
   deriving (Eq, Ord, Show)
+
+-- TODO: Use types, not strings.
+isOperatorName :: Qualified -> Bool
+isOperatorName = match . unqualifiedName
+  where
+  match (Unqualified name) = not
+    $ liftA2 (||) (Text.all isLetter) (== "_")
+    $ Text.take 1 name
+
+qualifiedFromQualifier :: Qualifier -> Qualified
+qualifiedFromQualifier qualifier = case qualifier of
+  Qualifier [] -> error "qualifiedFromQualifier: empty qualifier"
+  Qualifier parts -> Qualified
+    (Qualifier $ init parts) $ Unqualified $ last parts
 
 qualifierFromName :: Qualified -> Qualifier
 qualifierFromName (Qualified (Qualifier parts) (Unqualified name))

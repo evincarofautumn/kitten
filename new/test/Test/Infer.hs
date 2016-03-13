@@ -58,6 +58,15 @@ spec = do
         \define down (Int -> Int) { -1 _::kitten::add_int }\n\
         \1 up 2 down _::kitten::add_int"
         $ Type.funType o r (Type.prodType o r int) e
+    it "typechecks operators" $ do
+      testTypecheck
+        "define + (Int, Int -> Int) { _::kitten::add_int }\n\
+        \about +:\n\
+        \  operator:\n\
+        \    right\n\
+        \1 + 1"
+        $ Type.funType o r (Type.prodType o r int) e
+
   where
   o = Origin.point "" 0 0
   r = TypeVar o $ Var (TypeId 0) Stack
