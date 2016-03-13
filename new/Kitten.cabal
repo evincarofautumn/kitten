@@ -54,6 +54,7 @@ library
 
     Kitten.CollectInstantiations
     Kitten.DataConstructor
+    Kitten.Declaration
     Kitten.Definition
     Kitten.Desugar.Quotations
     Kitten.Element
@@ -65,7 +66,6 @@ library
     Kitten.Free
     Kitten.Indent
     Kitten.Instantiate
-    Kitten.Intrinsic
     Kitten.Layoutness
     Kitten.Linearize
     Kitten.Mangle
@@ -80,7 +80,6 @@ library
     Kitten.Signature
     Kitten.Substitute
     Kitten.Synonym
-    Kitten.Trait
     Kitten.TypeDefinition
     Kitten.Unify
 

@@ -20,4 +20,4 @@ intrinsic :: Qualifier
 intrinsic = Qualifier [globalName, intrinsicName]
 
 intrinsicName :: Text
-intrinsicName = "intrinsic"
+intrinsicName = "kitten"
