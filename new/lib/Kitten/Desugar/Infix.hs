@@ -1,8 +1,11 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Kitten.Desugar.Infix
   ( desugar
   ) where
 
 import Control.Applicative
+import Control.Monad.IO.Class (liftIO)
 import Data.Functor.Identity (Identity)
 import Data.HashMap.Strict (HashMap)
 import Kitten.Definition (Definition)
@@ -15,20 +18,29 @@ import Kitten.Origin (Origin)
 import Kitten.Parser (getOrigin)
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Text.Parsec ((<?>), ParsecT, SourcePos)
+import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Origin as Origin
+import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Report as Report
 import qualified Kitten.Term as Term
 import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Expr as Expr
+import qualified Text.PrettyPrint as Pretty
 
 type Rewriter a = ParsecT [Term ()] () Identity a
 
 desugar :: Dictionary -> Definition () -> K (Definition ())
 desugar dictionary definition = do
+  liftIO $ putStrLn $ Pretty.render $ Pretty.hsep
+    [ "Desugaring infix in"
+    , Pretty.quote $ Definition.name definition
+    , "with raw operator table"
+    , pPrint rawOperatorTable
+    ]
   desugared <- desugarTerms' $ Definition.body definition
   return definition { Definition.body = desugared }
   where

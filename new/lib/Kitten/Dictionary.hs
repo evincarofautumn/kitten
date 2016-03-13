@@ -15,7 +15,7 @@ import Data.Char (isLetter)
 import Data.HashMap.Strict (HashMap)
 import Data.Maybe (mapMaybe)
 import Kitten.Entry (Entry)
-import Kitten.Name (GeneralName(..), Qualified(..), Unqualified(..))
+import Kitten.Name
 import Kitten.Operator (Operator(Operator))
 import Kitten.Signature (Signature)
 import Prelude hiding (lookup)
@@ -60,31 +60,37 @@ lookup name = HashMap.lookup name . entries
 --   export = + export
 
 operatorMetadata :: Dictionary -> HashMap Qualified Operator
-operatorMetadata = HashMap.fromList . mapMaybe getMetadata
-  . HashMap.toList . entries
+operatorMetadata dictionary = HashMap.fromList $ map getMetadata
+  $ filter isOperatorName $ wordNames dictionary
   where
 
-  getMetadata :: (Qualified, Entry) -> Maybe (Qualified, Operator)
-  -- FIXME: this is wrong; should look for "...::f::fixity" not "...::f".
-  getMetadata (name@(Qualified _ (Unqualified unqualified)), Entry.Metadata _ term)
-    | (||) <$> Text.all isLetter <*> (== "_") $ Text.take 1 unqualified
-      -- TODO: Report invalid fixities?
-    , [Term.Word _ _ (UnqualifiedName (Unqualified associativityName)) _ origin]
-      <- Term.decompose term
-    = case associativityName of
-      -- TODO: Use actual precedences.
-      "left" -> Just (name, Operator
-        { Operator.associativity = Operator.Leftward
+  getMetadata :: Qualified -> (Qualified, Operator)
+  getMetadata name = let
+    key = Qualified (qualifierFromName name) (Unqualified "operator")
+    in case HashMap.lookup key $ entries dictionary of
+      Just (Entry.Metadata _ term)
+        -- TODO: Report invalid metadata.
+        | [Term.Word _ _
+            (UnqualifiedName (Unqualified associativityName)) _ origin]
+          <- Term.decompose term
+        -> case associativityName of
+          -- TODO: Use actual precedences.
+          "left" -> (name, Operator
+            { Operator.associativity = Operator.Leftward
+            , Operator.name = name
+            , Operator.precedence = Operator.Precedence 6
+            })
+          "right" -> (name, Operator
+            { Operator.associativity = Operator.Rightward
+            , Operator.name = name
+            , Operator.precedence = Operator.Precedence 6
+            })
+      -- If unspecified, use default associativity and precedence.
+      _ -> (name, Operator
+        { Operator.associativity = Operator.Nonassociative
         , Operator.name = name
         , Operator.precedence = Operator.Precedence 6
         })
-      "right" -> Just (name, Operator
-        { Operator.associativity = Operator.Rightward
-        , Operator.name = name
-        , Operator.precedence = Operator.Precedence 6
-        })
-      _ -> Nothing
-  getMetadata _ = Nothing
 
 signatures :: Dictionary -> [(Qualified, Signature)]
 signatures = mapMaybe getSignature . HashMap.toList . entries

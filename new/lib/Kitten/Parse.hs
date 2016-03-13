@@ -282,7 +282,7 @@ metadataParser = (<?> "metadata block") $ do
   -- current vocabulary.
   name <- Qualified <$> Parsec.getState
     <*> Parsec.choice
-      [ wordNameParser <?> "word identifier"
+      [ unqualifiedNameParser <?> "word identifier"
       , (parserMatch Token.Type *> wordNameParser)
         <?> "'type' and type identifier"
       ]

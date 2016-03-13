@@ -16,10 +16,12 @@ import Kitten.Fragment (Fragment)
 import Kitten.Infer (typecheck)
 import Kitten.Informer (checkpoint)
 import Kitten.Layout (layout)
+import Kitten.Metadata (Metadata)
 import Kitten.Monad (K)
-import Kitten.Name (qualifierName)
+import Kitten.Name
 import Kitten.Parse (parse)
 import Kitten.Scope (scope)
+import Kitten.Term (Term)
 import Kitten.Tokenize (tokenize)
 import Kitten.TypeDefinition (TypeDefinition)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
@@ -33,6 +35,7 @@ import qualified Kitten.Entry as Entry
 import qualified Kitten.Entry.Category as Category
 import qualified Kitten.Entry.Merge as Merge
 import qualified Kitten.Fragment as Fragment
+import qualified Kitten.Metadata as Metadata
 import qualified Kitten.Origin as Origin
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Resolve as Resolve
@@ -52,9 +55,6 @@ fragment f
   where
   foldlMx :: (Foldable f, Monad m) => (b -> a -> m b) -> f a -> b -> m b
   foldlMx = flip . foldlM
-
-  addMetadata :: a
-  addMetadata = error "addMetadata"
 
   addOperatorMetadata :: a
   addOperatorMetadata = error "addOperatorMetadata"
@@ -154,6 +154,25 @@ declareWord dictionary definition = let
       , "already declared or defined without signature or as a non-word"
       ]
 
+addMetadata :: Dictionary -> Metadata -> K Dictionary
+addMetadata dictionary0 metadata = do
+  dictionary <- foldlM addField dictionary0 $ HashMap.toList $ Metadata.fields metadata
+  return dictionary
+  where
+  QualifiedName qualified = Metadata.name metadata
+  origin = Metadata.origin metadata
+  qualifier = qualifierFromName qualified
+
+  addField :: Dictionary -> (Unqualified, Term ()) -> K Dictionary
+  addField dictionary (unqualified, term) = do
+    let name = Qualified qualifier unqualified
+    case HashMap.lookup name $ Dictionary.entries dictionary of
+      Just{} -> return dictionary  -- TODO: Report duplicates or merge?
+      Nothing -> return dictionary
+        { Dictionary.entries = HashMap.insert name
+          (Entry.Metadata origin term)
+          $ Dictionary.entries dictionary }
+
 resolveSignature :: Dictionary -> Definition () -> K Dictionary
 resolveSignature dictionary definition = do
   let name = Definition.name definition
@@ -174,8 +193,7 @@ defineWord
   :: Dictionary -> Definition () -> K Dictionary
 defineWord dictionary definition = do
   let name = Definition.name definition
-  -- TODO: Use resolveDefinition to desugar & scope?
-  resolved <- Resolve.run $ Resolve.definition dictionary definition
+  resolved <- resolveAndDesugar dictionary definition
   checkpoint
   let resolvedSignature = Definition.signature resolved
   -- Note that we use the resolved signature here.
@@ -247,8 +265,8 @@ fragmentFromSource path source = do
 
   Data.desugar parsed
 
-resolveDefinition :: Dictionary -> Definition () -> K (Definition ())
-resolveDefinition dictionary definition = do
+resolveAndDesugar :: Dictionary -> Definition () -> K (Definition ())
+resolveAndDesugar dictionary definition = do
 
 -- Name resolution rewrites unqualified names into fully qualified names, so
 -- that it's evident from a name which program element it refers to.
