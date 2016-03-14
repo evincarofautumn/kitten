@@ -6,6 +6,7 @@ module Main where
 
 import Control.Monad.IO.Class (liftIO)
 import Data.IORef (newIORef, readIORef, writeIORef)
+import Data.Text (Text)
 import Kitten (compile, runKitten)
 import Kitten.Name (GeneralName(..), Qualified(..))
 import Kitten.Report (Report)
@@ -41,14 +42,24 @@ runBatch paths = do
 
 runInteractive :: IO ()
 runInteractive = do
-  dictionaryRef <- newIORef Dictionary.empty
+  commonDictionary <- runKitten $ do
+    fragment <- Kitten.fragmentFromSource
+      [QualifiedName $ Qualified Vocabulary.global "IO"]
+        "<interactive>" commonSource
+    Enter.fragment fragment Dictionary.empty
+  dictionaryRef <- newIORef =<< case commonDictionary of
+    Left reports -> do
+      reportAll reports
+      exitFailure
+    Right result -> return result
+  putStrLn "Welcome to Kitten! Type //help for help or //quit to quit."
   let
     loop = do
       putStr ">>> "
       hFlush stdout
       line <- Text.getLine
       case line of
-        "quit" -> do
+        "//quit" -> do
           liftIO $ putStrLn "bye"
           return ()
         _ -> do
@@ -69,3 +80,9 @@ runInteractive = do
 
 reportAll :: [Report] -> IO ()
 reportAll = mapM_ $ hPutStrLn stderr . Pretty.render . Report.human
+
+commonSource :: Text
+commonSource = "\
+\permission IO<R..., S..., +E> (R..., (R... -> S... +IO +E) -> S... +E):\n\
+\  with (+IO)\n\
+\"

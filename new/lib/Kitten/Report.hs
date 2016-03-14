@@ -20,6 +20,7 @@ import qualified Data.Text as Text
 import qualified Kitten.Origin as Origin
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Term as Term
+import qualified Kitten.Type as Type
 import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Error as Parsec
 import qualified Text.PrettyPrint as Pretty
@@ -116,7 +117,9 @@ human report = case report of
 
   TypeMismatch a b -> Pretty.hsep
     -- TODO: Report type kind.
-    [ "I can't match the type", Pretty.quote a
+    [ showOriginPrefix $ Type.origin a
+    , "I can't match the type", Pretty.quote a
+    , showOriginPrefix $ Type.origin b
     , "with the type", Pretty.quote b
     ]
 
