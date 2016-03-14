@@ -50,7 +50,9 @@ fragment f
   = foldlMx declareType (Fragment.types f)
   >=> foldlMx enterDeclaration (Fragment.declarations f)
   >=> foldlMx declareWord (Fragment.definitions f)
-  >=> foldlMx resolveSignature (Fragment.definitions f)
+  >=> foldlMx resolveSignature
+    (map Definition.name (Fragment.definitions f)
+      ++ map Declaration.name (Fragment.declarations f))
   >=> foldlMx addMetadata (Fragment.metadata f)
   >=> foldlMx defineWord (Fragment.definitions f)
   where
@@ -80,6 +82,12 @@ enterDeclaration dictionary declaration = do
         return $ Dictionary.insert name entry dictionary
       Declaration.Trait -> do
         let entry = Entry.Trait origin signature
+        liftIO $ putStrLn $ Pretty.render $ Pretty.hsep
+          [ "Declaring trait"
+          , Pretty.quote name
+          , "with signature"
+          , pPrint signature
+          ]
         return $ Dictionary.insert name entry dictionary
 
 -- declare type, declare & define constructors
@@ -158,6 +166,12 @@ declareWord dictionary definition = let
           (Just (Parent.Trait name))
           (Just signature)
           Nothing
+      liftIO $ putStrLn $ Pretty.render $ Pretty.hsep
+        [ "Declaring instance"
+        , Pretty.quote mangledName
+        , "of"
+        , Pretty.quote name
+        ]
       return $ Dictionary.insert mangledName entry dictionary
     -- Already declared or defined with a different signature.
     Just{} -> error $ Pretty.render $ Pretty.hsep
@@ -183,11 +197,13 @@ addMetadata dictionary0 metadata = do
       Nothing -> return
         $ Dictionary.insert name (Entry.Metadata origin term) dictionary
 
-resolveSignature :: Dictionary -> Definition () -> K Dictionary
-resolveSignature dictionary definition = do
-  let
-    name = Definition.name definition
-    qualifier = qualifierName name
+resolveSignature :: Dictionary -> Qualified -> K Dictionary
+resolveSignature dictionary name = do
+  let qualifier = qualifierName name
+  liftIO $ putStrLn $ Pretty.render $ Pretty.hsep
+    [ "Resolving signature of"
+    , Pretty.quote name
+    ]
   case Dictionary.lookup name dictionary of
     Just (Entry.Word category merge origin parent (Just signature) body) -> do
       signature' <- Resolve.run $ Resolve.signature dictionary qualifier signature
@@ -206,6 +222,11 @@ defineWord
   :: Dictionary -> Definition () -> K Dictionary
 defineWord dictionary definition = do
   let name = Definition.name definition
+  liftIO $ putStrLn $ Pretty.render $ Pretty.hsep
+    [ "Resolving and desugaring word"
+    , Pretty.quote name
+    , "before entering definition"
+    ]
   resolved <- resolveAndDesugar dictionary definition
   checkpoint
   let resolvedSignature = Definition.signature resolved
