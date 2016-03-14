@@ -54,30 +54,32 @@ import qualified Kitten.TypeDefinition as TypeDefinition
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.Parsec as Parsec
 
-parse :: FilePath -> [Located Token] -> K (Fragment ())
-parse name tokens = let
-  parsed = Parsec.runParser fragmentParser Vocabulary.global name tokens
+parse :: FilePath -> [GeneralName] -> [Located Token] -> K (Fragment ())
+parse name mainPermissions tokens = let
+  parsed = Parsec.runParser (fragmentParser mainPermissions)
+    Vocabulary.global name tokens
   in case parsed of
     Left parseError -> do
       report $ Report.parseError parseError
       halt
     Right result -> return
-      $ case find isMainDefinition $ Fragment.definitions result of
+      $ case find Definition.isMain $ Fragment.definitions result of
         Just{} -> result
         Nothing -> result
-          { Fragment.definitions = mainDefinition
+          { Fragment.definitions = Definition.main mainPermissions
             (Identity () (Origin.point "<implicit>" 1 1))
             : Fragment.definitions result
           }
 
-fragmentParser :: Parser (Fragment ())
-fragmentParser = partitionElements <$> elementsParser <* Parsec.eof
+fragmentParser :: [GeneralName] -> Parser (Fragment ())
+fragmentParser mainPermissions = partitionElements mainPermissions
+  <$> elementsParser <* Parsec.eof
 
 elementsParser :: Parser [Element ()]
 elementsParser = concat <$> many (vocabularyParser <|> (:[]) <$> elementParser)
 
-partitionElements :: [Element ()] -> Fragment ()
-partitionElements = rev . foldr go mempty
+partitionElements :: [GeneralName] -> [Element ()] -> Fragment ()
+partitionElements mainPermissions = rev . foldr go mempty
   where
 
   rev :: Fragment () -> Fragment ()
@@ -103,12 +105,13 @@ partitionElements = rev . foldr go mempty
       { Fragment.types = x : Fragment.types acc }
     Element.Term x -> acc
       { Fragment.definitions
-        = case findIndex isMainDefinition $ Fragment.definitions acc of
+        = case findIndex Definition.isMain $ Fragment.definitions acc of
           Just index -> case splitAt index $ Fragment.definitions acc of
             (a, existing : b) -> a ++ existing { Definition.body
               = composeUnderLambda (Definition.body existing) x } : b
             _ -> error "cannot find main definition"
-          Nothing -> mainDefinition x : Fragment.definitions acc
+          Nothing -> Definition.main mainPermissions
+            x : Fragment.definitions acc
       }
       where
 
@@ -126,24 +129,6 @@ partitionElements = rev . foldr go mempty
       composeUnderLambda (Lambda type_ name varType body origin) term
         = Lambda type_ name varType (composeUnderLambda body term) origin
       composeUnderLambda a b = Compose () a b
-
-mainDefinition :: Term a -> Definition a
-mainDefinition body = Definition
-  { Definition.body = body
-  , Definition.category = Category.Word
-  , Definition.fixity = Operator.Postfix
-  , Definition.merge = Merge.Compose
-  , Definition.name = Qualified Vocabulary.global "main"
-  , Definition.origin = origin
-  , Definition.signature = Signature.Quantified
-    [Parameter origin "R" Stack, Parameter origin "S" Stack]
-    (Signature.StackFunction "R" [] "S" []
-      [QualifiedName (Qualified Vocabulary.global "IO")] origin) origin
-  }
-  where origin = Term.origin body
-
-isMainDefinition :: Definition a -> Bool
-isMainDefinition = (== Qualified Vocabulary.global "main") . Definition.name
 
 vocabularyParser :: Parser [Element ()]
 vocabularyParser = (<?> "vocabulary definition") $ do
