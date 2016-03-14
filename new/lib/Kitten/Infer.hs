@@ -219,7 +219,7 @@ inferType dictionary tenvFinal tenv0 term0
       tenv4 <- Unify.type_ tenv3 t2 $ funType origin a b e
       let
         type_ = funType origin
-          (prodType origin a $ TypeConstructor origin "bool") b e
+          (prodType origin a $ TypeConstructor origin "Bool") b e
         type' = Zonk.type_ tenvFinal type_
       return (If type' true' false' origin, type_, tenv4)
 
