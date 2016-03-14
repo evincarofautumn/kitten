@@ -249,8 +249,8 @@ defineWord dictionary definition = do
       , "not previously declared"
       ]
 
-fragmentFromSource :: FilePath -> Text -> K (Fragment ())
-fragmentFromSource path source = do
+fragmentFromSource :: [GeneralName] -> FilePath -> Text -> K (Fragment ())
+fragmentFromSource mainPermissions path source = do
 
 -- Sources are lexed into a stream of tokens.
 
@@ -266,7 +266,7 @@ fragmentFromSource path source = do
 
 -- We then parse the token stream as a series of top-level program elements.
 
-  parsed <- parse path laidout
+  parsed <- parse path mainPermissions laidout
   checkpoint
 
 -- Datatype definitions are desugared into regular definitions, so that name

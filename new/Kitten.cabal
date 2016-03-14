@@ -24,11 +24,13 @@ library
 
     Kitten
     Kitten.Base
+    Kitten.Definition
     Kitten.Desugar.Data
     Kitten.Desugar.Infix
     Kitten.Dictionary
     Kitten.Enter
     Kitten.Entry
+    Kitten.Fragment
     Kitten.Infer
     Kitten.Informer
     Kitten.InstanceCheck
@@ -37,6 +39,7 @@ library
     Kitten.Located
     Kitten.Monad
     Kitten.Name
+    Kitten.Operator
     Kitten.Origin
     Kitten.Parse
     Kitten.Report
@@ -55,14 +58,12 @@ library
     Kitten.CollectInstantiations
     Kitten.DataConstructor
     Kitten.Declaration
-    Kitten.Definition
     Kitten.Desugar.Quotations
     Kitten.Element
     Kitten.Entry.Category
     Kitten.Entry.Merge
     Kitten.Entry.Parameter
     Kitten.Entry.Parent
-    Kitten.Fragment
     Kitten.Free
     Kitten.Indent
     Kitten.Instantiate
@@ -71,7 +72,6 @@ library
     Kitten.Mangle
     Kitten.Metadata
     Kitten.Occurrences
-    Kitten.Operator
     Kitten.Parser
     Kitten.Pretty
     Kitten.Quantify

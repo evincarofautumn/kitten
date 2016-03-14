@@ -7,6 +7,7 @@ module Main where
 import Control.Monad.IO.Class (liftIO)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Kitten (compile, runKitten)
+import Kitten.Name (GeneralName(..), Qualified(..))
 import Kitten.Report (Report)
 import System.Environment
 import System.Exit
@@ -17,6 +18,7 @@ import qualified Kitten as Kitten
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Enter as Enter
 import qualified Kitten.Report as Report
+import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.PrettyPrint as Pretty
 
 main :: IO ()
@@ -29,7 +31,7 @@ main = do
 
 runBatch :: [FilePath] -> IO ()
 runBatch paths = do
-  result <- runKitten $ compile paths
+  result <- runKitten $ compile [QualifiedName $ Qualified Vocabulary.global "IO"] paths
   case result of
     Left reports -> do
       reportAll reports
@@ -52,7 +54,9 @@ runInteractive = do
         _ -> do
           dictionary <- readIORef dictionaryRef
           mDictionary' <- runKitten $ do
-            fragment <- Kitten.fragmentFromSource "<interactive>" line
+            fragment <- Kitten.fragmentFromSource
+              [QualifiedName $ Qualified Vocabulary.global "IO"]
+              "<interactive>" line
             Enter.fragment fragment dictionary
           case mDictionary' of
             Left reports -> do
