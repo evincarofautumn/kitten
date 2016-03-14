@@ -56,16 +56,21 @@ human :: Report -> Pretty.Doc
 human report = case report of
 
   MissingTypeSignature origin name -> Pretty.hsep
-    ["I can't find a type signature for the word", Pretty.quote name]
+    [ showOriginPrefix origin
+    , "I can't find a type signature for the word"
+    , Pretty.quote name
+    ]
 
   MultiplePermissionVariables origin a b -> Pretty.hcat
-    ["I found multiple permission variables: "
+    [ showOriginPrefix origin
+    , "I found multiple permission variables: "
     , Pretty.quote a, " and ", Pretty.quote b
     , "but only one is allowed per function"
     ]
 
   CannotResolveType origin name -> Pretty.hsep
-    [ "I can't tell which type", Pretty.quote name
+    [ showOriginPrefix origin
+    , "I can't tell which type", Pretty.quote name
     , "refers to (did you mean to add it as a type parameter?)"
     ]
 
@@ -76,13 +81,15 @@ human report = case report of
     ]
 
   MissingPermissionLabel a b origin name -> Pretty.hsep
-    [ "the permission label", Pretty.quote name
+    [ showOriginPrefix origin
+    , "the permission label", Pretty.quote name
     , "was missing when I tried to match the permission type", Pretty.quote a
     , "with the permission type", Pretty.quote b
     ]
 
   TypeArgumentCountMismatch term args -> Pretty.hsep
-    [ "I expected", Pretty.int $ Term.quantifierCount term
+    [ showOriginPrefix $ Term.origin term
+    , "I expected", Pretty.int $ Term.quantifierCount term
     , "type arguments to", Pretty.quote term
     , "but", Pretty.int (length args), "were provided:"
     , Pretty.oxford "and" $ map Pretty.quote args
@@ -90,7 +97,8 @@ human report = case report of
 
   CannotResolveName origin category name -> Pretty.hsep
     -- TODO: Suggest similar names in scope.
-    [ "I can't find the", qualification, "that the", pPrint category
+    [ showOriginPrefix origin
+    , "I can't find the", qualification, "that the", pPrint category
     , "name", Pretty.quote name, "refers to"
     ]
     where
@@ -101,7 +109,8 @@ human report = case report of
       TypeName -> "type"
 
   MultipleDefinitions origin name duplicates -> Pretty.hcat
-    [ "I found multiple definitions of ", Pretty.quote name
+    [ showOriginPrefix origin
+    , "I found multiple definitions of ", Pretty.quote name
     , "(did you mean to declare it as a trait?)"
     ]
 
@@ -119,8 +128,10 @@ human report = case report of
     , "(which often indicates an infinite type)"
     ]
 
-  StackDepthMismatch origin
-    -> "there may be a stack depth mismatch"
+  StackDepthMismatch origin -> Pretty.hsep
+    [ showOriginPrefix origin
+    , "there may be a stack depth mismatch"
+    ]
 
   ParseError origin unexpected expected -> Pretty.hcat
     $ (showOriginPrefix origin :) $ intersperse "; " $ unexpected ++ [expected]

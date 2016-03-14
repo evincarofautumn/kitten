@@ -24,7 +24,9 @@ import qualified Kitten.Entry.Merge as Merge
 import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Origin as Origin
+import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Report as Report
+import qualified Kitten.Resolve as Resolve
 import qualified Kitten.Signature as Signature
 import qualified Kitten.Term as Term
 import qualified Kitten.Vocabulary as Vocabulary
@@ -32,25 +34,119 @@ import qualified Text.PrettyPrint as Pretty
 
 spec :: Spec
 spec = do
-  it "resolves global names" $ do
-    testResolve
+
+  it "resolves global words" $ do
+    testWord
       "define f (->) {}"
       Vocabulary.global
       (UnqualifiedName "f")
       (Qualified Vocabulary.global "f")
-    testResolve
+    testWord
       "define f (->) {}"
       (Qualifier ["v"])
       (UnqualifiedName "f")
       (Qualified Vocabulary.global "f")
-    testResolve
+    testWord
       "define f (->) {}"
       (Qualifier ["v1", "v2"])
       (UnqualifiedName "f")
       (Qualified Vocabulary.global "f")
 
-testResolve :: Text -> Qualifier -> GeneralName -> Qualified -> IO ()
-testResolve contextSource viewpoint name expected = do
+  it "resolves words in the same vocabulary" $ do
+    testWord
+      "vocab v { define f (->) {} }"
+      (Qualifier [Vocabulary.globalName, "v"])
+      (UnqualifiedName "f")
+      (Qualified (Qualifier [Vocabulary.globalName, "v"]) "f")
+    testWord
+      "vocab v1 { vocab v2 { define f (->) {} } }"
+      (Qualifier [Vocabulary.globalName, "v1", "v2"])
+      (UnqualifiedName "f")
+      (Qualified (Qualifier [Vocabulary.globalName, "v1", "v2"]) "f")
+    testWord
+      "vocab v1::v2 { define f (->) {} }"
+      (Qualifier [Vocabulary.globalName, "v1", "v2"])
+      (UnqualifiedName "f")
+      (Qualified (Qualifier [Vocabulary.globalName, "v1", "v2"]) "f")
+
+  it "resolves words in nested vocabularies" $ do
+    testWord
+      "vocab v1::v2 { define f (->) {} }"
+      (Qualifier [Vocabulary.globalName, "v1"])
+      (QualifiedName (Qualified (Qualifier ["v2"]) "f"))
+      (Qualified (Qualifier [Vocabulary.globalName, "v1", "v2"]) "f")
+    testWord
+      "vocab v1::v2::v3 { define f (->) {} }"
+      (Qualifier [Vocabulary.globalName, "v1"])
+      (QualifiedName (Qualified (Qualifier ["v2", "v3"]) "f"))
+      (Qualified (Qualifier [Vocabulary.globalName, "v1", "v2", "v3"]) "f")
+    testWord
+      "vocab v1::v2::v3 { define f (->) {} }"
+      (Qualifier [Vocabulary.globalName, "v1", "v2"])
+      (QualifiedName (Qualified (Qualifier ["v3"]) "f"))
+      (Qualified (Qualifier [Vocabulary.globalName, "v1", "v2", "v3"]) "f")
+
+  it "resolves global types" $ do
+    testType
+      "type T {}"
+      Vocabulary.global
+      (UnqualifiedName "T")
+      (Qualified Vocabulary.global "T")
+    testType
+      "type T {}"
+      (Qualifier ["v"])
+      (UnqualifiedName "T")
+      (Qualified Vocabulary.global "T")
+    testType
+      "type T {}"
+      (Qualifier ["v1", "v2"])
+      (UnqualifiedName "T")
+      (Qualified Vocabulary.global "T")
+
+  it "resolves types in the same vocabulary" $ do
+    testType
+      "vocab v { type T {} }"
+      (Qualifier [Vocabulary.globalName, "v"])
+      (UnqualifiedName "T")
+      (Qualified (Qualifier [Vocabulary.globalName, "v"]) "T")
+    testType
+      "vocab v1 { vocab v2 { type T {} } }"
+      (Qualifier [Vocabulary.globalName, "v1", "v2"])
+      (UnqualifiedName "T")
+      (Qualified (Qualifier [Vocabulary.globalName, "v1", "v2"]) "T")
+    testType
+      "vocab v1::v2 { type T {} }"
+      (Qualifier [Vocabulary.globalName, "v1", "v2"])
+      (UnqualifiedName "T")
+      (Qualified (Qualifier [Vocabulary.globalName, "v1", "v2"]) "T")
+
+  it "resolves types in nested vocabularies" $ do
+    testType
+      "vocab v1::v2 { type T {} }"
+      (Qualifier [Vocabulary.globalName, "v1"])
+      (QualifiedName (Qualified (Qualifier ["v2"]) "T"))
+      (Qualified (Qualifier [Vocabulary.globalName, "v1", "v2"]) "T")
+    testType
+      "vocab v1::v2::v3 { type T {} }"
+      (Qualifier [Vocabulary.globalName, "v1"])
+      (QualifiedName (Qualified (Qualifier ["v2", "v3"]) "T"))
+      (Qualified (Qualifier [Vocabulary.globalName, "v1", "v2", "v3"]) "T")
+    testType
+      "vocab v1::v2::v3 { type T {} }"
+      (Qualifier [Vocabulary.globalName, "v1", "v2"])
+      (QualifiedName (Qualified (Qualifier ["v3"]) "T"))
+      (Qualified (Qualifier [Vocabulary.globalName, "v1", "v2", "v3"]) "T")
+
+  it "resolves types in trait signatures" $ do
+    testType
+      "type Size {}\n\
+      \trait alignment<T> (T -> Size)"
+      Vocabulary.global
+      (UnqualifiedName "Size")
+      (Qualified Vocabulary.global "Size")
+
+testWord :: Text -> Qualifier -> GeneralName -> Qualified -> IO ()
+testWord contextSource viewpoint name expected = do
   dictionary <- runKitten $ do
     context <- fragmentFromSource [] "<common>" contextSource
     contextDictionary <- Enter.fragment context Dictionary.empty
@@ -81,11 +177,38 @@ testResolve contextSource viewpoint name expected = do
           , "within"
           , pPrint viewpoint
           ]
-        in assertEqual message name' (QualifiedName expected)
+        in assertEqual message (QualifiedName expected) name'
       _ -> assertFailure $ Pretty.render $ Pretty.hsep
         ["missing test word definition:", pPrint definitions]
       where
       matching (Qualified v "test", _) | v == viewpoint = True
       matching _ = False
+    Left reports -> assertFailure $ unlines
+      $ map (Pretty.render . Report.human) reports
+
+testType :: Text -> Qualifier -> GeneralName -> Qualified -> IO ()
+testType contextSource viewpoint name expected = do
+  resolved <- runKitten $ do
+    context <- fragmentFromSource [] "<common>" contextSource
+    contextDictionary <- Enter.fragment context Dictionary.empty
+    let origin = Origin.point "<test>" 0 0
+    Resolve.run $ Resolve.signature contextDictionary viewpoint
+      (Signature.Variable name origin)
+  case resolved of
+    Right (Signature.Variable name' _) -> let
+      message = Pretty.render $ Pretty.hsep
+        [ pPrint name
+        , "resolves to"
+        , pPrint expected
+        , "within"
+        , pPrint viewpoint
+        ]
+      in assertEqual message (QualifiedName expected) name'
+    Right result -> assertFailure $ Pretty.render $ Pretty.hsep
+      [ "signature variable"
+      , Pretty.quote name
+      , "resolved to non-variable"
+      , pPrint result
+      ]
     Left reports -> assertFailure $ unlines
       $ map (Pretty.render . Report.human) reports

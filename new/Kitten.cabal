@@ -45,6 +45,7 @@ library
     Kitten.Operator
     Kitten.Origin
     Kitten.Parse
+    Kitten.Pretty
     Kitten.Report
     Kitten.Resolve
     Kitten.Scope
@@ -74,7 +75,6 @@ library
     Kitten.Metadata
     Kitten.Occurrences
     Kitten.Parser
-    Kitten.Pretty
     Kitten.Quantify
     Kitten.Queue
     Kitten.Regeneralize
