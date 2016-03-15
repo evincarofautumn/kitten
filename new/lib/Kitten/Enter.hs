@@ -6,7 +6,6 @@ module Kitten.Enter
   ) where
 
 import Control.Monad ((>=>))
-import Control.Monad.IO.Class (liftIO)
 import Data.Foldable (foldlM)
 import Data.Text (Text)
 import Kitten.Declaration (Declaration)
@@ -82,12 +81,6 @@ enterDeclaration dictionary declaration = do
         return $ Dictionary.insert name entry dictionary
       Declaration.Trait -> do
         let entry = Entry.Trait origin signature
-        liftIO $ putStrLn $ Pretty.render $ Pretty.hsep
-          [ "Declaring trait"
-          , Pretty.quote name
-          , "with signature"
-          , pPrint signature
-          ]
         return $ Dictionary.insert name entry dictionary
 
 -- declare type, declare & define constructors
@@ -101,14 +94,11 @@ declareType dictionary type_ = let
         entry = Entry.Type
           (TypeDefinition.origin type_)
           (TypeDefinition.parameters type_)
-      liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Declaring type", Pretty.quote name]
       return $ Dictionary.insert name entry dictionary
     -- Previously declared with the same parameters.
     Just (Entry.Type _ parameters)
       | parameters == TypeDefinition.parameters type_
-      -> do
-        liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Already declared type", Pretty.quote name]
-        return dictionary
+      -> return dictionary
     -- Already declared or defined differently.
     Just{} -> error $ Pretty.render $ Pretty.hsep
       [ "type"
@@ -132,15 +122,11 @@ declareWord dictionary definition = let
           Nothing
           (Just signature)
           Nothing
-        dictionary' = Dictionary.insert name entry dictionary
-      liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Declaring word", Pretty.quote name]
-      return dictionary'
+      return $ Dictionary.insert name entry dictionary
     -- Already declared with the same signature.
     Just (Entry.Word _ _ _ _ (Just signature') _)
       | signature' == signature
-      -> do
-        liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Already declared word", Pretty.quote name]
-        return dictionary
+      -> return dictionary
       | otherwise
       -> error $ Pretty.render $ Pretty.hsep
         [ "word"
@@ -166,12 +152,6 @@ declareWord dictionary definition = let
           (Just (Parent.Trait name))
           (Just signature)
           Nothing
-      liftIO $ putStrLn $ Pretty.render $ Pretty.hsep
-        [ "Declaring instance"
-        , Pretty.quote mangledName
-        , "of"
-        , Pretty.quote name
-        ]
       return $ Dictionary.insert mangledName entry dictionary
     -- Already declared or defined with a different signature.
     Just{} -> error $ Pretty.render $ Pretty.hsep
@@ -200,10 +180,6 @@ addMetadata dictionary0 metadata = do
 resolveSignature :: Dictionary -> Qualified -> K Dictionary
 resolveSignature dictionary name = do
   let qualifier = qualifierName name
-  liftIO $ putStrLn $ Pretty.render $ Pretty.hsep
-    [ "Resolving signature of"
-    , Pretty.quote name
-    ]
   case Dictionary.lookup name dictionary of
     Just (Entry.Word category merge origin parent (Just signature) body) -> do
       signature' <- Resolve.run $ Resolve.signature dictionary qualifier signature
@@ -222,25 +198,17 @@ defineWord
   :: Dictionary -> Definition () -> K Dictionary
 defineWord dictionary definition = do
   let name = Definition.name definition
-  liftIO $ putStrLn $ Pretty.render $ Pretty.hsep
-    [ "Resolving and desugaring word"
-    , Pretty.quote name
-    , "before entering definition"
-    ]
   resolved <- resolveAndDesugar dictionary definition
   checkpoint
   let resolvedSignature = Definition.signature resolved
   -- Note that we use the resolved signature here.
-  liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Typechecking", Pretty.quote name, "with resolved signature", pPrint resolvedSignature]
   typecheckedBody <- typecheck dictionary name resolvedSignature $ Definition.body resolved
   checkpoint
-  liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Typechecked", Pretty.quote name]
   case Dictionary.lookup name dictionary of
     -- Previously declared with same signature, but not defined.
     Just (Entry.Word category merge origin' parent signature' Nothing)
       | maybe True (resolvedSignature ==) signature' -> do
       let entry = Entry.Word category merge origin' parent (Just resolvedSignature) (Just typecheckedBody)
-      liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Defining word", Pretty.quote name]
       return $ Dictionary.insert name entry dictionary
     -- Already defined as concatenable.
     Just (Entry.Word category merge@Merge.Compose
@@ -254,7 +222,6 @@ defineWord dictionary definition = do
       let
         entry = Entry.Word category merge origin' parent mSignature
           $ Just composed
-      liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Appending to word", Pretty.quote name]
       return $ Dictionary.insert name entry dictionary
     -- Already defined, not concatenable.
     Just (Entry.Word _ Merge.Deny _ _ (Just sig) _) -> error $ Pretty.render $ Pretty.hcat
