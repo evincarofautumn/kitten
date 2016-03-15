@@ -45,6 +45,7 @@ data Report
   | TypeArgumentCountMismatch !(Term Type) [Type]
   | CannotResolveName !Origin !NameCategory !GeneralName
   | MultipleDefinitions !Origin !Qualified [Origin]
+  | WordRedefinition !Origin !Qualified !Origin
   | TypeMismatch !Type !Type
   | Chain [Report]
   | OccursCheckFailure !Type !Type
@@ -62,10 +63,10 @@ human report = case report of
     , Pretty.quote name
     ]
 
-  MultiplePermissionVariables origin a b -> Pretty.hcat
+  MultiplePermissionVariables origin a b -> Pretty.hsep
     [ showOriginPrefix origin
-    , "I found multiple permission variables: "
-    , Pretty.quote a, " and ", Pretty.quote b
+    , "I found multiple permission variables:"
+    , Pretty.quote a, "and", Pretty.quote b
     , "but only one is allowed per function"
     ]
 
@@ -109,9 +110,17 @@ human report = case report of
       WordName -> "word"
       TypeName -> "type"
 
-  MultipleDefinitions origin name duplicates -> Pretty.hcat
+  MultipleDefinitions origin name duplicates -> Pretty.hsep
     [ showOriginPrefix origin
-    , "I found multiple definitions of ", Pretty.quote name
+    , "I found multiple definitions of"
+    , Pretty.quote name
+    , "(did you mean to declare it as a trait?)"
+    ]
+
+  WordRedefinition origin name originalOrigin -> Pretty.hsep
+    [ showOriginPrefix origin
+    , "Redefinition of existing word"
+    , Pretty.quote name
     , "(did you mean to declare it as a trait?)"
     ]
 
@@ -185,7 +194,7 @@ showOriginPrefix origin = Pretty.hcat $
   , ":", pPrint al, ".", pPrint ac, "-"
   ]
   ++ (if al == bl then [pPrint bc] else [pPrint bl, ".", pPrint bc])
-  ++ [": "]
+  ++ [":"]
   where
   al = Origin.beginLine origin
   bl = Origin.endLine origin
