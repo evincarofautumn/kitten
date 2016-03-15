@@ -67,7 +67,7 @@ runInteractive = do
             $ Dictionary.toList dictionary
           loop
         "//quit" -> do
-          liftIO $ putStrLn "bye"
+          liftIO $ putStrLn "Bye!"
           return ()
         _ -> do
           dictionary <- readIORef dictionaryRef
@@ -83,6 +83,7 @@ runInteractive = do
               reportAll reports
               loop
             Right dictionary' -> do
+              putStrLn "Okay."
               writeIORef dictionaryRef dictionary'
               loop
   loop
