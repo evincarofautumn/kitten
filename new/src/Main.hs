@@ -8,12 +8,14 @@ import Control.Monad.IO.Class (liftIO)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Text (Text)
 import Kitten (compile, runKitten)
+import Kitten.Informer (checkpoint)
 import Kitten.Name (GeneralName(..), Qualified(..))
 import Kitten.Report (Report)
 import System.Environment
 import System.Exit
 import System.IO
 import Text.Parsec.Text ()
+import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.Text.IO as Text
 import qualified Kitten as Kitten
 import qualified Kitten.Dictionary as Dictionary
@@ -59,6 +61,11 @@ runInteractive = do
       hFlush stdout
       line <- Text.getLine
       case line of
+        "//dict" -> do
+          dictionary <- readIORef dictionaryRef
+          liftIO $ mapM_ (putStrLn . Pretty.render . pPrint . fst)
+            $ Dictionary.toList dictionary
+          loop
         "//quit" -> do
           liftIO $ putStrLn "bye"
           return ()
@@ -68,7 +75,9 @@ runInteractive = do
             fragment <- Kitten.fragmentFromSource
               [QualifiedName $ Qualified Vocabulary.global "IO"]
               "<interactive>" line
-            Enter.fragment fragment dictionary
+            dictionary' <- Enter.fragment fragment dictionary
+            checkpoint
+            return dictionary'
           case mDictionary' of
             Left reports -> do
               reportAll reports

@@ -13,7 +13,7 @@ import Kitten.Definition (Definition)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Fragment (Fragment)
 import Kitten.Infer (mangleInstance, typecheck)
-import Kitten.Informer (checkpoint)
+import Kitten.Informer (checkpoint, report)
 import Kitten.Layout (layout)
 import Kitten.Metadata (Metadata)
 import Kitten.Monad (K)
@@ -23,7 +23,6 @@ import Kitten.Scope (scope)
 import Kitten.Term (Term)
 import Kitten.Tokenize (tokenize)
 import Kitten.TypeDefinition (TypeDefinition)
-import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Kitten.Declaration as Declaration
 import qualified Kitten.Definition as Definition
@@ -38,6 +37,7 @@ import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Metadata as Metadata
 import qualified Kitten.Origin as Origin
 import qualified Kitten.Pretty as Pretty
+import qualified Kitten.Report as Report
 import qualified Kitten.Resolve as Resolve
 import qualified Kitten.Term as Term
 import qualified Kitten.TypeDefinition as TypeDefinition
@@ -224,12 +224,10 @@ defineWord dictionary definition = do
           $ Just composed
       return $ Dictionary.insert name entry dictionary
     -- Already defined, not concatenable.
-    Just (Entry.Word _ Merge.Deny _ _ (Just sig) _) -> error $ Pretty.render $ Pretty.hcat
-      [ "redefinition of existing word "
-      , Pretty.quote name, " of signature ", pPrint sig
-      , " with signature: "
-      , pPrint resolvedSignature
-      ]
+    Just (Entry.Word _ Merge.Deny originalOrigin _ (Just sig) _) -> do
+      report $ Report.WordRedefinition (Definition.origin definition)
+        name originalOrigin
+      return dictionary
     -- Not previously declared as word.
     _ -> error $ Pretty.render $ Pretty.hsep
       [ "defining word"
