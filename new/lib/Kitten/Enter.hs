@@ -124,18 +124,14 @@ declareWord dictionary definition = let
           Nothing
       return $ Dictionary.insert name entry dictionary
     -- Already declared with the same signature.
-    Just (Entry.Word _ _ _ _ (Just signature') _)
+    Just (Entry.Word _ _ originalOrigin _ (Just signature') _)
       | signature' == signature
       -> return dictionary
       | otherwise
-      -> error $ Pretty.render $ Pretty.hsep
-        [ "word"
-        , Pretty.quote name
-        , "already declared or defined with different signature:"
-        , Pretty.text $ show signature
-        , "vs"
-        , Pretty.text $ show signature'
-        ]
+      -> do
+         report $ Report.WordRedeclaration (Definition.origin definition)
+           name signature originalOrigin signature'
+         return dictionary
     -- Already declared or defined as a trait.
     Just (Entry.Trait _origin traitSignature)
       -- TODO: Better error reporting when a non-instance matches a trait.

@@ -13,6 +13,7 @@ import Data.Function (on)
 import Data.List (intersperse, nub)
 import Kitten.Name (GeneralName, Qualified)
 import Kitten.Origin (Origin)
+import Kitten.Signature (Signature)
 import Kitten.Term (Term)
 import Kitten.Type (Constructor, Type)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
@@ -46,6 +47,7 @@ data Report
   | CannotResolveName !Origin !NameCategory !GeneralName
   | MultipleDefinitions !Origin !Qualified [Origin]
   | WordRedefinition !Origin !Qualified !Origin
+  | WordRedeclaration !Origin !Qualified !Signature !Origin !Signature
   | TypeMismatch !Type !Type
   | Chain [Report]
   | OccursCheckFailure !Type !Type
@@ -119,20 +121,41 @@ human report = case report of
 
   WordRedefinition origin name originalOrigin -> Pretty.hsep
     [ showOriginPrefix origin
-    , "Redefinition of existing word"
+    , "redefinition of existing word"
     , Pretty.quote name
     , "(did you mean to declare it as a trait?)"
     ]
 
-  TypeMismatch a b -> Pretty.hsep
-    -- TODO: Report type kind.
-    [ showOriginPrefix $ Type.origin a
-    , "I can't match the type", Pretty.quote a
-    , showOriginPrefix $ Type.origin b
-    , "with the type", Pretty.quote b
+  WordRedeclaration origin name signature
+    originalOrigin originalSignature -> Pretty.vcat
+    [ Pretty.hsep
+      [ showOriginPrefix origin
+      , "redeclaration of word"
+      , Pretty.quote name
+      , "with signature"
+      , pPrint signature
+      ]
+    , Pretty.hsep
+      [ showOriginPrefix originalOrigin
+      , "when it was declared or defined already with signature"
+      , pPrint originalSignature
+      ]
     ]
 
-  Chain reports -> Pretty.hcat $ intersperse ", because " $ map human reports
+  -- TODO: Report type kind.
+  TypeMismatch a b -> Pretty.vcat
+    [ Pretty.hsep
+      [ showOriginPrefix $ Type.origin a
+      , "I can't match the type"
+      , Pretty.quote a
+      ]
+    , Pretty.hsep
+      [ showOriginPrefix $ Type.origin b
+      , "with the type", Pretty.quote b
+      ]
+    ]
+
+  Chain reports -> Pretty.vcat $ map human reports
 
   OccursCheckFailure a b -> Pretty.hsep
     [ "the type", Pretty.quote a
