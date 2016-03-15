@@ -5,7 +5,7 @@
 module Main where
 
 import Control.Monad.IO.Class (liftIO)
-import Data.IORef (newIORef, readIORef, writeIORef)
+import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef)
 import Data.Text (Text)
 import Kitten (compile, runKitten)
 import Kitten.Informer (checkpoint)
@@ -16,6 +16,7 @@ import System.Exit
 import System.IO
 import Text.Parsec.Text ()
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
+import Text.Printf (printf)
 import qualified Data.Text.IO as Text
 import qualified Kitten as Kitten
 import qualified Kitten.Dictionary as Dictionary
@@ -47,17 +48,19 @@ runInteractive = do
   commonDictionary <- runKitten $ do
     fragment <- Kitten.fragmentFromSource
       [QualifiedName $ Qualified Vocabulary.global "IO"]
-        "<interactive>" commonSource
+        1 "<interactive>" commonSource
     Enter.fragment fragment Dictionary.empty
   dictionaryRef <- newIORef =<< case commonDictionary of
     Left reports -> do
       reportAll reports
       exitFailure
     Right result -> return result
+  lineNumberRef <- newIORef (1 :: Int)
   putStrLn "Welcome to Kitten! Type //help for help or //quit to quit."
   let
     loop = do
-      putStr ">>> "
+      lineNumber <- readIORef lineNumberRef
+      printf "% 4d: " lineNumber
       hFlush stdout
       line <- Text.getLine
       case line of
@@ -74,7 +77,7 @@ runInteractive = do
           mDictionary' <- runKitten $ do
             fragment <- Kitten.fragmentFromSource
               [QualifiedName $ Qualified Vocabulary.global "IO"]
-              "<interactive>" line
+              lineNumber "<interactive>" line
             dictionary' <- Enter.fragment fragment dictionary
             checkpoint
             return dictionary'
@@ -85,6 +88,7 @@ runInteractive = do
             Right dictionary' -> do
               putStrLn "Okay."
               writeIORef dictionaryRef dictionary'
+              modifyIORef' lineNumberRef (+ 1)
               loop
   loop
 

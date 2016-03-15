@@ -23,13 +23,17 @@ import qualified Kitten.Layoutness as Layoutness
 import qualified Kitten.Origin as Origin
 import qualified Kitten.Report as Report
 import qualified Text.Parsec as Parsec
+import qualified Text.Parsec.Pos as Parsec
 
-tokenize :: (Informer m) => FilePath -> Text -> m [Located Token]
-tokenize path text = case Parsec.runParser fileTokenizer 1 path text of
+tokenize :: (Informer m) => Int -> FilePath -> Text -> m [Located Token]
+tokenize line path text = case Parsec.runParser
+  (setPos *> fileTokenizer) 1 path text of
   Left parseError -> do
     report $ Report.parseError parseError
     halt
   Right result -> return result
+  where
+  setPos = Parsec.setPosition $ Parsec.newPos path line 1
 
 type Tokenizer a = ParsecT Text Column Identity a
 

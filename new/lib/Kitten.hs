@@ -32,7 +32,7 @@ compile mainPermissions paths = do
 -- Source files must be encoded in UTF-8.
 
   sources <- liftIO $ mapM readFileUtf8 paths
-  parsed <- mconcat <$> zipWithM (Enter.fragmentFromSource mainPermissions)
+  parsed <- mconcat <$> zipWithM (Enter.fragmentFromSource mainPermissions 1)
     paths sources
   Enter.fragment parsed Dictionary.empty
   where

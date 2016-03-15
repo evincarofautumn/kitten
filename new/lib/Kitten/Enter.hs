@@ -39,6 +39,7 @@ import qualified Kitten.Origin as Origin
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Report as Report
 import qualified Kitten.Resolve as Resolve
+import qualified Kitten.Signature as Signature
 import qualified Kitten.Term as Term
 import qualified Kitten.TypeDefinition as TypeDefinition
 import qualified Text.PrettyPrint as Pretty
@@ -129,8 +130,8 @@ declareWord dictionary definition = let
       -> return dictionary
       | otherwise
       -> do
-         report $ Report.WordRedeclaration (Definition.origin definition)
-           name signature originalOrigin signature'
+         report $ Report.WordRedeclaration (Signature.origin signature)
+           name signature (Signature.origin signature') signature'
          return dictionary
     -- Already declared or defined as a trait.
     Just (Entry.Trait _origin traitSignature)
@@ -231,12 +232,13 @@ defineWord dictionary definition = do
       , "not previously declared"
       ]
 
-fragmentFromSource :: [GeneralName] -> FilePath -> Text -> K (Fragment ())
-fragmentFromSource mainPermissions path source = do
+fragmentFromSource
+  :: [GeneralName] -> Int -> FilePath -> Text -> K (Fragment ())
+fragmentFromSource mainPermissions line path source = do
 
 -- Sources are lexed into a stream of tokens.
 
-  tokenized <- tokenize path source
+  tokenized <- tokenize line path source
   checkpoint
 
 -- Next, the layout rule is applied to desugar indentation-based syntax, so that
@@ -248,7 +250,7 @@ fragmentFromSource mainPermissions path source = do
 
 -- We then parse the token stream as a series of top-level program elements.
 
-  parsed <- parse path mainPermissions laidout
+  parsed <- parse line path mainPermissions laidout
   checkpoint
 
 -- Datatype definitions are desugared into regular definitions, so that name
