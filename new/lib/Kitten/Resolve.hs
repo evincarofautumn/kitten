@@ -6,7 +6,6 @@ module Kitten.Resolve
   , signature
   ) where
 
-import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State (StateT, evalStateT, gets, modify)
 import Data.List (elemIndex)
@@ -19,14 +18,12 @@ import Kitten.Name (GeneralName(..), LocalIndex(..), Qualified(..), Qualifier(..
 import Kitten.Origin (Origin)
 import Kitten.Signature (Signature)
 import Kitten.Term (Case(..), Else(..), Term(..), Permit(Permit), Value(..))
-import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.Set as Set
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Report as Report
 import qualified Kitten.Signature as Signature
 import qualified Kitten.Vocabulary as Vocabulary
-import qualified Text.PrettyPrint as Pretty
 
 type Resolved a = StateT [Unqualified] K a
 
@@ -131,19 +128,17 @@ signature dictionary vocabulary = go
 definitionName, typeName
   :: Dictionary -> Qualifier -> GeneralName -> Origin -> Resolved GeneralName
 
-definitionName dictionary qualifier name origin = do
-  liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Attempting to resolve word name", pPrint name, "in", pPrint $ Set.toList defined]
-  generalName dictionary Report.WordName resolveLocal isDefined qualifier name origin
+definitionName dictionary qualifier name origin
+  = generalName dictionary Report.WordName resolveLocal isDefined qualifier
+    name origin
   where
   isDefined = flip Set.member defined
   defined = Set.fromList $ Dictionary.wordNames dictionary
   resolveLocal _ index = return $ LocalName index
 
-typeName dictionary qualifier name origin = do
-  liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Attempting to resolve type name", pPrint name, "in", pPrint $ Set.toList defined]
-  resolved <- generalName dictionary Report.TypeName resolveLocal isDefined qualifier name origin
-  liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Resolved to:", pPrint resolved]
-  return resolved
+typeName dictionary qualifier name origin
+  = generalName dictionary Report.TypeName resolveLocal isDefined qualifier
+    name origin
   where
   isDefined = flip Set.member defined
   defined = Set.fromList $ Dictionary.typeNames dictionary
@@ -162,20 +157,16 @@ generalName dictionary category resolveLocal isDefined vocabulary name origin
 -- or a name in the global scope, respectively.
 
     UnqualifiedName unqualified -> do
-      resolved <- do
-        mLocalIndex <- gets (elemIndex unqualified)
-        case mLocalIndex of
-          Just index -> resolveLocal unqualified (LocalIndex index)
-          Nothing -> do
-            let qualified = Qualified vocabulary unqualified
-            if isDefined qualified then return (QualifiedName qualified) else do
-              let global = Qualified Vocabulary.global unqualified
-              if isDefined global then return (QualifiedName global) else do
-                liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Dictionary before failure:", pPrint dictionary]
-                lift $ report $ Report.CannotResolveName origin category name
-                return name
-      liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Resolved to:", pPrint resolved]
-      return resolved
+      mLocalIndex <- gets (elemIndex unqualified)
+      case mLocalIndex of
+        Just index -> resolveLocal unqualified (LocalIndex index)
+        Nothing -> do
+          let qualified = Qualified vocabulary unqualified
+          if isDefined qualified then return (QualifiedName qualified) else do
+            let global = Qualified Vocabulary.global unqualified
+            if isDefined global then return (QualifiedName global) else do
+              lift $ report $ Report.CannotResolveName origin category name
+              return name
 
 -- A qualified name must be fully qualified, and may refer to an intrinsic or a
 -- definition, respectively.
@@ -189,7 +180,6 @@ generalName dictionary category resolveLocal isDefined vocabulary name origin
       if isDefined qualified'
         then return $ QualifiedName qualified'
         else do
-          liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Dictionary before failure:", pPrint dictionary]
           lift $ report $ Report.CannotResolveName origin category name
           return name
 

@@ -7,7 +7,6 @@ module Kitten.Infer
   ) where
 
 import Control.Monad (filterM)
-import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State (StateT, get, gets, modify, put, runStateT)
 import Data.Either (partitionEithers)
@@ -486,7 +485,6 @@ inferCall _dictionary _tenvFinal _tenv0 name origin
 
 typeFromSignature :: TypeEnv -> Signature -> K Type
 typeFromSignature tenv signature0 = do
-  liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Converting signature", pPrint signature0, "from", Pretty.text $ show $ Signature.origin signature0, "to type"]
   (type_, env) <- flip runStateT SignatureEnv
     { sigEnvAnonymous = []
     , sigEnvVars = Map.empty
