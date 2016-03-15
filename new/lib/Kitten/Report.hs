@@ -80,8 +80,11 @@ human report = case report of
 
   FailedInstanceCheck a b -> Pretty.hsep
     -- TODO: Show type kind.
-    [ "the type", Pretty.quote a
-    , "is not an instance of the type", Pretty.quote b
+    [ "I expected"
+    , Pretty.quote a
+    , "to be an instance of the type"
+    , Pretty.quote b
+    , "but it isn't"
     ]
 
   MissingPermissionLabel a b origin name -> Pretty.hsep
@@ -121,24 +124,24 @@ human report = case report of
 
   WordRedefinition origin name originalOrigin -> Pretty.hsep
     [ showOriginPrefix origin
-    , "redefinition of existing word"
+    , "I can't redefine the word"
     , Pretty.quote name
-    , "(did you mean to declare it as a trait?)"
+    , "because it already exists (did you mean to declare it as a trait?)"
     ]
 
   WordRedeclaration origin name signature
     originalOrigin originalSignature -> Pretty.vcat
     [ Pretty.hsep
       [ showOriginPrefix origin
-      , "redeclaration of word"
+      , "I can't redeclare the word"
       , Pretty.quote name
-      , "with signature"
-      , pPrint signature
+      , "with the signature"
+      , Pretty.quote signature
       ]
     , Pretty.hsep
       [ showOriginPrefix originalOrigin
-      , "when it was declared or defined already with signature"
-      , pPrint originalSignature
+      , "because it was declared or defined already with the signature"
+      , Pretty.quote originalSignature
       ]
     ]
 
@@ -165,7 +168,7 @@ human report = case report of
 
   StackDepthMismatch origin -> Pretty.hsep
     [ showOriginPrefix origin
-    , "there may be a stack depth mismatch"
+    , "you may have a stack depth mismatch"
     ]
 
   ParseError origin unexpected expected -> Pretty.hcat
