@@ -93,7 +93,7 @@ spec = do
 testOrigin :: [String] -> Expectation
 testOrigin test = let
   (input, origins) = deinterleave test
-  in (fmap (map Located.origin) $ runIdentity $ runKitten $ tokenize ""
+  in (fmap (map Located.origin) $ runIdentity $ runKitten $ tokenize 1 ""
       $ Text.unlines $ map Text.pack input)
     `shouldBe` Right (parseOrigins origins)
 

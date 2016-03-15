@@ -14,7 +14,6 @@ import Kitten.Monad (K)
 import Kitten.Name (GeneralName(..), Qualified)
 import Kitten.Operator (Operator)
 import Kitten.Origin (Origin)
-import Kitten.Parser (getOrigin)
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Text.Parsec ((<?>), ParsecT, SourcePos)
 import qualified Data.HashMap.Strict as HashMap
@@ -108,7 +107,7 @@ desugar dictionary definition = do
   expression = Expr.buildExpressionParser operatorTable operand
     where
     operand = (<?> "operand") $ do
-      origin <- getOrigin
+      origin <- getTermOrigin
       results <- Parsec.many1 $ termSatisfy $ \ term -> case term of
         Word _ Operator.Infix _ _ _ -> False
         Lambda{} -> False
@@ -160,3 +159,6 @@ desugar dictionary definition = do
   advanceTerm :: SourcePos -> t -> [Term a] -> SourcePos
   advanceTerm _ _ (term : _) = Origin.begin $ Term.origin term
   advanceTerm sourcePos _ _ = sourcePos
+
+  getTermOrigin = Term.origin
+    <$> Parsec.lookAhead (termSatisfy (const True))

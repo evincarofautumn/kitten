@@ -23,7 +23,7 @@ import Kitten.Metadata (Metadata(Metadata))
 import Kitten.Monad (K)
 import Kitten.Name (GeneralName(..), Qualified(..), Qualifier(..), Unqualified(..))
 import Kitten.Origin (Origin)
-import Kitten.Parser (Parser, getOrigin)
+import Kitten.Parser (Parser, getTokenOrigin)
 import Kitten.Parser (parserMatch, parserMatch_)
 import Kitten.Signature (Signature)
 import Kitten.Synonym (Synonym(Synonym))
@@ -54,8 +54,8 @@ import qualified Kitten.TypeDefinition as TypeDefinition
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.Parsec as Parsec
 
-parse :: FilePath -> [GeneralName] -> [Located Token] -> K (Fragment ())
-parse name mainPermissions tokens = let
+parse :: Int -> FilePath -> [GeneralName] -> [Located Token] -> K (Fragment ())
+parse line name mainPermissions tokens = let
   parsed = Parsec.runParser (fragmentParser mainPermissions)
     Vocabulary.global name tokens
   in case parsed of
@@ -67,7 +67,7 @@ parse name mainPermissions tokens = let
         Just{} -> result
         Nothing -> result
           { Fragment.definitions = Definition.main mainPermissions
-            (Identity () (Origin.point "<implicit>" 1 1))
+            (Identity () (Origin.point "<implicit>" line 1))
             : Fragment.definitions result
           }
 
@@ -161,7 +161,7 @@ groupedParser = Parsec.between
 
 groupParser :: Parser (Term ())
 groupParser = do
-  origin <- getOrigin
+  origin <- getTokenOrigin
   groupedParser $ Group . compose () origin <$> Parsec.many1 termParser
 
 -- See note [Angle Brackets].
@@ -242,13 +242,13 @@ elementParser = (<?> "top-level program element") $ Parsec.choice
   , Element.Synonym <$> synonymParser
   , Element.TypeDefinition <$> typeDefinitionParser
   , do
-    origin <- getOrigin
+    origin <- getTokenOrigin
     Element.Term . compose () origin <$> Parsec.many1 termParser
   ]
 
 synonymParser :: Parser Synonym
 synonymParser = (<?> "synonym definition") $ do
-  origin <- getOrigin <* parserMatch_ Token.Synonym
+  origin <- getTokenOrigin <* parserMatch_ Token.Synonym
   from <- Qualified <$> Parsec.getState
     <*> unqualifiedNameParser
   (to, _) <- nameParser
@@ -256,7 +256,7 @@ synonymParser = (<?> "synonym definition") $ do
 
 metadataParser :: Parser Metadata
 metadataParser = (<?> "metadata block") $ do
-  origin <- getOrigin <* parserMatch Token.About
+  origin <- getTokenOrigin <* parserMatch Token.About
   -- FIXME: This only allows metadata to be defined for elements within the
   -- current vocabulary.
   name <- Qualified <$> Parsec.getState
@@ -276,7 +276,7 @@ metadataParser = (<?> "metadata block") $ do
 
 typeDefinitionParser :: Parser TypeDefinition
 typeDefinitionParser = (<?> "type definition") $ do
-  origin <- getOrigin <* parserMatch Token.Type
+  origin <- getTokenOrigin <* parserMatch Token.Type
   name <- Qualified <$> Parsec.getState
     <*> (wordNameParser <?> "type definition name")
   parameters <- Parsec.option [] quantifierParser
@@ -286,7 +286,7 @@ typeDefinitionParser = (<?> "type definition") $ do
     -- FIXME: If types and words are in the same namespace, a constructor can't
     -- have the same name as its type, so this convenience syntax doesn't work.
     , do
-      constructorOrigin <- getOrigin
+      constructorOrigin <- getTokenOrigin
       fields <- groupedParser $ constructorFieldsParser
       return $ (:[]) $ DataConstructor
         { DataConstructor.fields = fields
@@ -304,7 +304,7 @@ typeDefinitionParser = (<?> "type definition") $ do
 
 constructorParser :: Parser DataConstructor
 constructorParser = (<?> "constructor definition") $ do
-  origin <- getOrigin <* parserMatch Token.Case
+  origin <- getTokenOrigin <* parserMatch Token.Case
   name <- wordNameParser <?> "constructor name"
   fields <- (<?> "constructor fields") $ Parsec.option []
     $ groupedParser $ constructorFieldsParser
@@ -353,14 +353,14 @@ functionTypeParser = (<?> "function type") $ do
   comma = void $ parserMatch Token.Comma
 
   arrow :: Parser Origin
-  arrow = getOrigin <* parserMatch Token.Arrow
+  arrow = getTokenOrigin <* parserMatch Token.Arrow
 
 basicTypeParser :: Parser Signature
 basicTypeParser = (<?> "basic type") $ do
   prefix <- Parsec.choice
     [ quantifiedParser $ groupedParser typeParser
     , Parsec.try $ do
-      origin <- getOrigin
+      origin <- getTokenOrigin
       (name, fixity) <- nameParser
       -- Must be a word, not an operator, but may be qualified.
       guard $ fixity == Operator.Postfix
@@ -380,7 +380,7 @@ quantifierParser = typeListParser var
 
   var :: Parser Parameter
   var = do
-    origin <- getOrigin
+    origin <- getTokenOrigin
     Parsec.choice
       [ (\ unqualified -> Parameter origin unqualified Permission)
         <$> (parserMatchOperator "+" *> wordNameParser)
@@ -396,7 +396,7 @@ typeListParser element = angledParser
 
 quantifiedParser :: Parser Signature -> Parser Signature
 quantifiedParser thing = do
-  origin <- getOrigin
+  origin <- getTokenOrigin
   Signature.Quantified <$> quantifierParser <*> thing <*> pure origin
 
 traitParser :: Parser Declaration
@@ -409,7 +409,7 @@ intrinsicParser = (<?> "intrinsic declaration")
 
 declarationParser :: Token -> Declaration.Category -> Parser Declaration
 declarationParser keyword category = do
-  origin <- getOrigin <* parserMatch keyword
+  origin <- getTokenOrigin <* parserMatch keyword
   suffix <- unqualifiedNameParser <?> "declaration name"
   name <- Qualified <$> Parsec.getState <*> pure suffix
   signature <- signatureParser
@@ -434,7 +434,7 @@ permissionParser = (<?> "permission definition")
 
 definitionParser :: Token -> Category -> Parser (Definition ())
 definitionParser keyword category = do
-  origin <- getOrigin <* parserMatch keyword
+  origin <- getTokenOrigin <* parserMatch keyword
   (fixity, suffix) <- Parsec.choice
     [ (,) Operator.Postfix <$> wordNameParser
     , (,) Operator.Infix <$> operatorNameParser
@@ -461,14 +461,14 @@ blockParser = blockedParser blockContentsParser <?> "block"
 
 blockContentsParser :: Parser (Term ())
 blockContentsParser = do
-  origin <- getOrigin
+  origin <- getTokenOrigin
   terms <- many termParser
   let origin' = case terms of { x : _ -> Term.origin x; _ -> origin }
   return $ foldr (Compose ()) (Identity () origin') terms
 
 termParser :: Parser (Term ())
 termParser = (<?> "expression") $ do
-  origin <- getOrigin
+  origin <- getTokenOrigin
   Parsec.choice
     [ Parsec.try (uncurry (Push ()) <$> parseOne toLiteral <?> "literal")
     , do
@@ -502,23 +502,23 @@ termParser = (<?> "expression") $ do
   sectionParser :: Parser (Term ())
   sectionParser = (<?> "operator section") $ groupedParser $ Parsec.choice
     [ do
-      origin <- getOrigin
+      origin <- getTokenOrigin
       function <- operatorNameParser
       let
         call = Word () Operator.Postfix
           (UnqualifiedName function) [] origin
       Parsec.choice
         [ do
-          operandOrigin <- getOrigin
+          operandOrigin <- getTokenOrigin
           operand <- Parsec.many1 termParser
           return $ compose () operandOrigin $ operand ++ [call]
         , return call
         ]
     , do
-      operandOrigin <- getOrigin
+      operandOrigin <- getTokenOrigin
       operand <- Parsec.many1
         $ Parsec.notFollowedBy operatorNameParser *> termParser
-      origin <- getOrigin
+      origin <- getTokenOrigin
       function <- operatorNameParser
       return $ compose () operandOrigin $ operand ++
         [ Swap () origin
@@ -528,7 +528,7 @@ termParser = (<?> "expression") $ do
 
   vectorParser :: Parser (Term ())
   vectorParser = (<?> "vector literal") $ do
-    vectorOrigin <- getOrigin
+    vectorOrigin <- getTokenOrigin
     elements <- bracketedParser
       $ termParser `Parsec.sepEndBy` parserMatch Token.Comma
     return $ compose () vectorOrigin $ elements
@@ -538,7 +538,7 @@ termParser = (<?> "expression") $ do
   lambdaParser = (<?> "variable introduction") $ Parsec.choice
     [ Parsec.try $ parserMatch Token.Arrow *> do
       names <- lambdaNamesParser <* parserMatchOperator ";"
-      origin <- getOrigin
+      origin <- getTokenOrigin
       body <- blockContentsParser
       return $ makeLambda names body origin
     , do
@@ -549,17 +549,17 @@ termParser = (<?> "expression") $ do
 
   matchParser :: Parser (Term ())
   matchParser = (<?> "match") $ do
-    matchOrigin <- getOrigin <* parserMatch Token.Match
-    scrutineeOrigin <- getOrigin
+    matchOrigin <- getTokenOrigin <* parserMatch Token.Match
+    scrutineeOrigin <- getTokenOrigin
     mScrutinee <- Parsec.optionMaybe groupParser <?> "scrutinee"
     (cases, mElse) <- blockedParser $ do
       cases' <- many $ (<?> "case") $ parserMatch Token.Case *> do
-        origin <- getOrigin
+        origin <- getTokenOrigin
         (name, _) <- nameParser
         body <- blockLikeParser
         return $ Case name body origin
       mElse' <- Parsec.optionMaybe $ do
-        origin <- getOrigin <* parserMatch Token.Else
+        origin <- getTokenOrigin <* parserMatch Token.Else
         body <- blockParser
         return $ Else body origin
       return (cases', mElse')
@@ -570,11 +570,11 @@ termParser = (<?> "expression") $ do
 
   ifParser :: Parser (Term ())
   ifParser = (<?> "if-else expression") $ do
-    ifOrigin <- getOrigin <* parserMatch Token.If
+    ifOrigin <- getTokenOrigin <* parserMatch Token.If
     mCondition <- Parsec.optionMaybe groupParser <?> "condition"
     ifBody <- blockParser
     elifs <- many $ do
-      origin <- getOrigin <* parserMatch Token.Elif
+      origin <- getTokenOrigin <* parserMatch Token.Elif
       condition <- groupParser <?> "condition"
       body <- blockParser
       return (condition, body, origin)
@@ -589,7 +589,7 @@ termParser = (<?> "expression") $ do
 
   doParser :: Parser (Term ())
   doParser = (<?> "do expression") $ do
-    doOrigin <- getOrigin <* parserMatch Token.Do
+    doOrigin <- getTokenOrigin <* parserMatch Token.Do
     term <- groupParser <?> "parenthesized expression"
     body <- blockLikeParser
     return $ compose () doOrigin
@@ -597,7 +597,7 @@ termParser = (<?> "expression") $ do
 
   blockValue :: Parser (Value ())
   blockValue = (<?> "quotation") $ do
-    origin <- getOrigin
+    origin <- getTokenOrigin
     let
       reference = Word () Operator.Postfix
         <$> (parserMatch Token.Reference *> (fst <$> nameParser))
@@ -607,7 +607,7 @@ termParser = (<?> "expression") $ do
 
   withParser :: Parser (Term ())
   withParser = (<?> "'with' expression") $ do
-    origin <- getOrigin <* parserMatch_ Token.With
+    origin <- getTokenOrigin <* parserMatch_ Token.With
     permits <- groupedParser $ Parsec.many1 permitParser
     return $ With () permits origin
     where
@@ -624,7 +624,7 @@ parserMatchOperator = parserMatch . Token.Operator . Unqualified
 lambdaBlockParser :: Parser ([(Maybe Unqualified, Origin)], Term (), Origin)
 lambdaBlockParser = parserMatch Token.Arrow *> do
   names <- lambdaNamesParser
-  origin <- getOrigin
+  origin <- getTokenOrigin
   body <- blockParser
   return (names, body, origin)
 
@@ -632,7 +632,7 @@ lambdaNamesParser :: Parser [(Maybe Unqualified, Origin)]
 lambdaNamesParser = lambdaName `Parsec.sepEndBy1` parserMatch Token.Comma
   where
   lambdaName = do
-    origin <- getOrigin
+    origin <- getTokenOrigin
     name <- Just <$> wordNameParser <|> Nothing <$ parserMatch Token.Ignore
     return (name, origin)
 

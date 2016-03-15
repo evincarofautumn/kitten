@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Kitten.Origin
   ( Origin(..)
   , begin
@@ -9,7 +11,9 @@ module Kitten.Origin
 
 import Data.Text (Text)
 import Text.Parsec.Pos
+import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.Text as Text
+import qualified Text.PrettyPrint as Pretty
 
 data Origin = Origin
   { name :: !Text
@@ -45,3 +49,16 @@ range a b = Origin
   , endLine = sourceLine b
   , endColumn = sourceColumn b
   }
+
+instance Pretty Origin where
+  pPrint origin = Pretty.hcat $
+    [ Pretty.text $ Text.unpack $ name origin
+    , ":", pPrint al, ".", pPrint ac, "-"
+    ]
+    ++ (if al == bl then [pPrint bc] else [pPrint bl, ".", pPrint bc])
+    ++ [":"]
+    where
+    al = beginLine origin
+    bl = endLine origin
+    ac = beginColumn origin
+    bc = endColumn origin

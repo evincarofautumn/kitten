@@ -84,4 +84,5 @@ spec = do
       testTokenize "1e-1" `shouldBe` Right [Float 1 0 (-1)]
 
 testTokenize :: Text -> Either [Report] [Token]
-testTokenize = fmap (map Located.item) . runIdentity . runKitten . tokenize ""
+testTokenize = fmap (map Located.item) . runIdentity . runKitten
+  . tokenize 1 ""

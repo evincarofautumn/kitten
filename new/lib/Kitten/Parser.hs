@@ -1,6 +1,6 @@
 module Kitten.Parser
   ( Parser
-  , getOrigin
+  , getTokenOrigin
   , parserMatch
   , parserMatch_
   , tokenSatisfy
@@ -20,14 +20,14 @@ import qualified Text.Parsec as Parsec
 
 type Parser a = ParsecT [Located Token] Qualifier Identity a
 
-getOrigin :: (Monad m, Parsec.Stream s m c) => ParsecT s u m Origin
-getOrigin = Origin.pos <$> Parsec.getPosition
+getTokenOrigin = Located.origin
+  <$> Parsec.lookAhead (tokenSatisfy (const True))
 
 tokenSatisfy :: (Located Token -> Bool) -> Parser (Located Token)
 tokenSatisfy predicate = Parsec.tokenPrim show advance
   (\token -> if predicate token then Just token else Nothing)
   where
-  advance :: SourcePos -> t -> [Located Token] -> SourcePos
+  advance :: SourcePos -> Located Token -> [Located Token] -> SourcePos
   advance _ _ (token : _) = Origin.begin (Located.origin token)
   advance sourcePos _ _ = sourcePos
 

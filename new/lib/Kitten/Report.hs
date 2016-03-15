@@ -177,6 +177,9 @@ human report = case report of
   -- TODO: Show context.
   Context context message -> human message
 
+showOriginPrefix :: Origin -> Pretty.Doc
+showOriginPrefix origin = Pretty.hcat [pPrint origin, ":"]
+
 parseError :: Parsec.ParseError -> Report
 parseError parsecError = ParseError origin unexpected' expected'
   where
@@ -213,19 +216,6 @@ parseError parsecError = ParseError origin unexpected' expected'
       , if null string then "end of input"
         else Pretty.quotes $ Pretty.text string
       ]
-
-showOriginPrefix :: Origin -> Pretty.Doc
-showOriginPrefix origin = Pretty.hcat $
-  [ Pretty.text $ Text.unpack $ Origin.name origin
-  , ":", pPrint al, ".", pPrint ac, "-"
-  ]
-  ++ (if al == bl then [pPrint bc] else [pPrint bl, ".", pPrint bc])
-  ++ [":"]
-  where
-  al = Origin.beginLine origin
-  bl = Origin.endLine origin
-  ac = Origin.beginColumn origin
-  bc = Origin.endColumn origin
 
 categoryPrefix :: Category -> Pretty.Doc
 categoryPrefix category = case category of
