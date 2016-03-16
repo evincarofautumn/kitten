@@ -4,6 +4,7 @@
 
 module Main where
 
+import Control.Exception (try)
 import Control.Monad.IO.Class (liftIO)
 import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef)
 import Data.Text (Text)
@@ -14,6 +15,7 @@ import Kitten.Report (Report)
 import System.Environment
 import System.Exit
 import System.IO
+import System.IO.Error (isEOFError)
 import Text.Parsec.Text ()
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import Text.Printf (printf)
@@ -62,35 +64,39 @@ runInteractive = do
       lineNumber <- readIORef lineNumberRef
       printf "% 4d: " lineNumber
       hFlush stdout
-      line <- Text.getLine
-      case line of
-        "//dict" -> do
-          dictionary <- readIORef dictionaryRef
-          liftIO $ mapM_ (putStrLn . Pretty.render . pPrint . fst)
-            $ Dictionary.toList dictionary
-          loop
-        "//quit" -> do
-          liftIO $ putStrLn "Bye!"
-          return ()
-        _ -> do
-          dictionary <- readIORef dictionaryRef
-          mDictionary' <- runKitten $ do
-            fragment <- Kitten.fragmentFromSource
-              [QualifiedName $ Qualified Vocabulary.global "IO"]
-              lineNumber "<interactive>" line
-            dictionary' <- Enter.fragment fragment dictionary
-            checkpoint
-            return dictionary'
-          case mDictionary' of
-            Left reports -> do
-              reportAll reports
-              loop
-            Right dictionary' -> do
-              putStrLn "Okay."
-              writeIORef dictionaryRef dictionary'
-              modifyIORef' lineNumberRef (+ 1)
-              loop
+      mLine <- try Text.getLine
+      case mLine of
+        Left e -> if isEOFError e then putStrLn "" >> bye else ioError e
+        Right line -> case line of
+          "//dict" -> do
+            dictionary <- readIORef dictionaryRef
+            liftIO $ mapM_ (putStrLn . Pretty.render . pPrint . fst)
+              $ Dictionary.toList dictionary
+            loop
+          "//quit" -> bye
+          _ -> do
+            dictionary <- readIORef dictionaryRef
+            mDictionary' <- runKitten $ do
+              fragment <- Kitten.fragmentFromSource
+                [QualifiedName $ Qualified Vocabulary.global "IO"]
+                lineNumber "<interactive>" line
+              dictionary' <- Enter.fragment fragment dictionary
+              checkpoint
+              return dictionary'
+            case mDictionary' of
+              Left reports -> do
+                reportAll reports
+                loop
+              Right dictionary' -> do
+                putStrLn "Okay."
+                writeIORef dictionaryRef dictionary'
+                modifyIORef' lineNumberRef (+ 1)
+                loop
   loop
+  where
+  bye = do
+    liftIO $ putStrLn "Bye!"
+    return ()
 
 reportAll :: [Report] -> IO ()
 reportAll = mapM_ $ hPutStrLn stderr . Pretty.render . Report.human
