@@ -4,16 +4,20 @@ module Kitten.Entry
   ( Entry(..)
   ) where
 
+import Data.List (intersperse)
 import Kitten.Entry.Category (Category)
+import Kitten.Entry.Merge (Merge)
 import Kitten.Entry.Parameter (Parameter)
 import Kitten.Entry.Parent (Parent)
-import Kitten.Entry.Merge (Merge)
 import Kitten.Name (Qualified)
 import Kitten.Origin (Origin)
 import Kitten.Signature (Signature)
 import Kitten.Term (Term)
 import Kitten.Type (Type)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
+import qualified Kitten.Entry.Category as Category
+import qualified Kitten.Pretty as Pretty
+import qualified Text.PrettyPrint as Pretty
 
 data Entry
 
@@ -47,11 +51,27 @@ data Entry
 
   deriving (Show)
 
--- TODO: Better instance.
 instance Pretty Entry where
   pPrint entry = case entry of
-    Word _category _merge _origin _parent _signature _body -> "<word>"
+    Word category _merge origin _parent mSignature _body -> Pretty.vcat
+      [ case category of
+        Category.Constructor -> "constructor"  -- of type
+        Category.Instance -> "instance"  -- of trait
+        Category.Permission -> "permission"
+        Category.Word -> "word"
+      , Pretty.hsep ["defined at", pPrint origin]
+      , case mSignature of
+        Just signature -> Pretty.hsep
+          ["with signature", Pretty.quote signature]
+        Nothing -> "with no signature"
+      ]
     Metadata _origin _term -> "<metadata>"
     Synonym _origin _name -> "<synonym>"
     Trait _origin _signature -> "<signature>"
-    Type _origin _parameters -> "<type>"
+    Type origin parameters -> Pretty.vcat
+      [ "type"
+      , Pretty.hsep ["defined at", pPrint origin]
+      , Pretty.hcat $ "with parameters <"
+        : intersperse ", " (map pPrint parameters)
+        ++ [">"]
+      ]
