@@ -18,7 +18,6 @@ import Kitten.Layout (layout)
 import Kitten.Metadata (Metadata)
 import Kitten.Monad (K)
 import Kitten.Name
-import Kitten.Parse (parse)
 import Kitten.Scope (scope)
 import Kitten.Term (Term)
 import Kitten.Tokenize (tokenize)
@@ -36,6 +35,7 @@ import qualified Kitten.Entry.Parent as Parent
 import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Metadata as Metadata
 import qualified Kitten.Origin as Origin
+import qualified Kitten.Parse as Parse
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Report as Report
 import qualified Kitten.Resolve as Resolve
@@ -250,7 +250,7 @@ fragmentFromSource mainPermissions line path source = do
 
 -- We then parse the token stream as a series of top-level program elements.
 
-  parsed <- parse line path mainPermissions laidout
+  parsed <- Parse.program line path mainPermissions laidout
   checkpoint
 
 -- Datatype definitions are desugared into regular definitions, so that name
