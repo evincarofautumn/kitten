@@ -1,7 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Parse
-  ( parse
+  ( generalName
+  , program
   ) where
 
 import Control.Applicative
@@ -29,6 +30,7 @@ import Kitten.Signature (Signature)
 import Kitten.Synonym (Synonym(Synonym))
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..), compose)
 import Kitten.Token (Token)
+import Kitten.Tokenize (tokenize)
 import Kitten.TypeDefinition (TypeDefinition(TypeDefinition))
 import Text.Parsec ((<?>))
 import Text.Parsec.Pos (SourcePos)
@@ -54,10 +56,10 @@ import qualified Kitten.TypeDefinition as TypeDefinition
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.Parsec as Parsec
 
-parse :: Int -> FilePath -> [GeneralName] -> [Located Token] -> K (Fragment ())
-parse line name mainPermissions tokens = let
+program :: Int -> FilePath -> [GeneralName] -> [Located Token] -> K (Fragment ())
+program line path mainPermissions tokens = let
   parsed = Parsec.runParser (fragmentParser mainPermissions)
-    Vocabulary.global name tokens
+    Vocabulary.global path tokens
   in case parsed of
     Left parseError -> do
       report $ Report.parseError parseError
@@ -70,6 +72,17 @@ parse line name mainPermissions tokens = let
             (Identity () (Origin.point "<implicit>" line 1))
             : Fragment.definitions result
           }
+
+generalName :: (Informer m) => Int -> FilePath -> Text -> m GeneralName
+generalName line path text = do
+  tokens <- tokenize line path text
+  checkpoint
+  let parsed = Parsec.runParser nameParser Vocabulary.global path tokens
+  case parsed of
+    Left parseError -> do
+      report $ Report.parseError parseError
+      halt
+    Right (name, _) -> return name
 
 fragmentParser :: [GeneralName] -> Parser (Fragment ())
 fragmentParser mainPermissions = partitionElements mainPermissions

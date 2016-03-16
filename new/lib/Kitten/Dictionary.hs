@@ -7,6 +7,7 @@ module Kitten.Dictionary
   , fromList
   , insert
   , lookup
+  , member
   , operatorMetadata
   , signatures
   , toList
@@ -53,6 +54,9 @@ insert name entry dictionary = dictionary
 
 lookup :: Qualified -> Dictionary -> Maybe Entry
 lookup name = HashMap.lookup name . entries
+
+member :: Qualified -> Dictionary -> Bool
+member name = (name `HashMap.member`) . entries
 
 -- The dictionary should generally be monotonically increasing in size and
 -- specificity. We never remove definitions and we never remove data from

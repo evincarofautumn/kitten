@@ -14,13 +14,20 @@ import Kitten.Name (GeneralName(..), Qualified(..))
 import Report
 import System.Exit (exitFailure)
 import System.IO (hFlush, stdout)
+import System.IO (hPutStrLn, stderr)
 import System.IO.Error (isEOFError)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import Text.Printf (printf)
+import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
-import qualified Kitten as Kitten
+import qualified Kitten
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Enter as Enter
+import qualified Kitten.Origin as Origin
+import qualified Kitten.Parse as Parse
+import qualified Kitten.Pretty as Pretty
+import qualified Kitten.Report as Report
+import qualified Kitten.Resolve as Resolve
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.PrettyPrint as Pretty
 
@@ -52,6 +59,50 @@ run = do
             liftIO $ mapM_ (putStrLn . Pretty.render . pPrint . fst)
               $ Dictionary.toList dictionary
             loop
+          _
+            | "//" `Text.isPrefixOf` line
+            -> case Text.break (== ' ') $ Text.drop 2 line of
+              ("info", name) -> do
+                result <- runKitten $ Parse.generalName
+                  lineNumber "<interactive>" name
+                case result of
+                  Right unresolved -> do
+                    dictionary <- readIORef dictionaryRef
+                    mResolved <- runKitten $ Resolve.run $ Resolve.generalName
+                      dictionary
+                      -- TODO: Use 'WordOrTypeName' or something as the category.
+                      Report.WordName
+                      (\ _ index -> return $ LocalName index)
+                      (`Dictionary.member` dictionary)
+                      -- TODO: Keep a notion of current vocabulary?
+                      Vocabulary.global
+                      unresolved
+                      -- TODO: Get this from the parser.
+                      (Origin.point "<interactive>" lineNumber 1)
+                    case mResolved of
+                      Left reports -> do
+                        reportAll reports
+                        loop
+                      Right (QualifiedName resolved)
+                        | Just entry <- Dictionary.lookup resolved dictionary
+                        -> do
+                          putStrLn $ Pretty.render $ pPrint entry
+                          loop
+                      Right resolved -> do
+                        hPutStrLn stderr $ Pretty.render $ Pretty.hsep
+                          [ "I can't find an entry in the dictionary for"
+                          , Pretty.quote resolved
+                          ]
+                        loop
+                  Left reports -> do
+                    reportAll reports
+                    loop
+              (command, _) -> do
+                hPutStrLn stderr $ Pretty.render $ Pretty.hsep
+                  [ "I don't know the command"
+                  , Pretty.quotes $ Pretty.text $ Text.unpack command
+                  ]
+                loop
           "//quit" -> bye
           _ -> do
             dictionary <- readIORef dictionaryRef

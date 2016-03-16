@@ -2,6 +2,7 @@
 
 module Kitten.Resolve
   ( definition
+  , generalName
   , run
   , signature
   ) where
