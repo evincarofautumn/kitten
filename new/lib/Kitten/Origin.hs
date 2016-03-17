@@ -56,7 +56,6 @@ instance Pretty Origin where
     , ":", pPrint al, ".", pPrint ac, "-"
     ]
     ++ (if al == bl then [pPrint bc] else [pPrint bl, ".", pPrint bc])
-    ++ [":"]
     where
     al = beginLine origin
     bl = endLine origin
