@@ -10,4 +10,4 @@ class (Monad m) => Informer m where
   checkpoint :: m ()
   halt :: m a
   report :: Report -> m ()
-  while :: Pretty.Doc -> Origin -> m a -> m a
+  while :: Origin -> Pretty.Doc -> m a -> m a

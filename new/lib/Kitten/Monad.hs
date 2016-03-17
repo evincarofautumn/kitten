@@ -9,6 +9,7 @@ import Control.Concurrent (newEmptyMVar, putMVar, takeMVar)
 import Control.Monad.Fix (MonadFix(..))
 import Control.Monad.IO.Class
 import Kitten.Informer (Informer(..))
+import Kitten.Origin (Origin)
 import Kitten.Report (Report(..))
 import System.IO.Unsafe (unsafeInterleaveIO)
 import qualified Text.PrettyPrint as Pretty
@@ -16,7 +17,7 @@ import qualified Text.PrettyPrint as Pretty
 newtype KT m a = KT
   { unKT :: Context -> Reports -> m (Either Reports (a, Reports)) }
 
-type Context = [Pretty.Doc]
+type Context = [(Origin, Pretty.Doc)]
 
 type Reports = [Report]
 
@@ -87,5 +88,5 @@ instance (Monad m) => Informer (KT m) where
   report r = KT $ \ context reports -> return . Right . (,) () $ case context of
     [] -> r : reports
     _ -> Context context r : reports
-  while message origin action = KT $ \ context reports
-    -> unKT action (message : context) reports
+  while origin message action = KT $ \ context reports
+    -> unKT action ((origin, message) : context) reports

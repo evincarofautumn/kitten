@@ -37,7 +37,7 @@ type_ tenv0 origin x k t = do
 
 prenex :: TypeEnv -> Type -> K (Type, [Type], TypeEnv)
 prenex tenv0 q@(Forall origin (Var x k) t)
-  = while (Pretty.hsep ["instantiating", Pretty.quote q]) origin $ do
+  = while origin (Pretty.hsep ["instantiating", Pretty.quote q]) $ do
     (t', a, tenv1) <- type_ tenv0 origin x k t
     (t'', as, tenv2) <- prenex tenv1 t'
     return (t'', a : as, tenv2)

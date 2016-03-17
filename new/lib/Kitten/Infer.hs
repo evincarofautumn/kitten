@@ -130,7 +130,7 @@ inferType0
   -> Term a
   -> K (Term Type, Type)
 inferType0 dictionary tenv _name declared term
-  = while context (Term.origin term) $ do
+  = while (Term.origin term) context $ do
     rec
       (term', t, tenvFinal) <- inferType dictionary tenvFinal' tenv term
       tenvFinal' <- Unify.type_ tenvFinal t declared
@@ -156,7 +156,7 @@ inferType
   -> Term a
   -> K (Term Type, Type, TypeEnv)
 inferType dictionary tenvFinal tenv0 term0
-  = while context (Term.origin term0) $ case term0 of
+  = while (Term.origin term0) context $ case term0 of
 
 -- The call operator denotes modus ponens: if we have some program state A, a
 -- permission +E, and a closure (A → B +E) as evidence that we can convert A to
@@ -210,9 +210,9 @@ inferType dictionary tenvFinal tenv0 term0
 
     If _ true false origin -> do
       [a, b, e] <- fresh origin [Stack, Stack, Permission]
-      (true', t1, tenv1) <- while "checking true branch" origin
+      (true', t1, tenv1) <- while origin "checking true branch"
         $ inferType' tenv0 true
-      (false', t2, tenv2) <- while "checking false branch" origin
+      (false', t2, tenv2) <- while origin "checking false branch"
         $ inferType' tenv1 false
       tenv3 <- Unify.type_ tenv2 t1 $ funType origin a b e
       tenv4 <- Unify.type_ tenv3 t2 $ funType origin a b e
