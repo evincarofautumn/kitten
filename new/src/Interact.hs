@@ -13,6 +13,7 @@ import Data.Maybe (fromJust)
 import Data.Text (Text)
 import Kitten (runKitten)
 import Kitten.Dictionary (Dictionary)
+import Kitten.Entry (Entry)
 import Kitten.Informer (checkpoint)
 import Kitten.Name (GeneralName(..), Qualified(..))
 import Report
@@ -27,6 +28,7 @@ import qualified Data.Text.IO as Text
 import qualified Kitten
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Enter as Enter
+import qualified Kitten.Entry as Entry
 import qualified Kitten.Name as Name
 import qualified Kitten.Origin as Origin
 import qualified Kitten.Parse as Parse
@@ -65,41 +67,18 @@ run = do
           _
             | "//" `Text.isPrefixOf` line
             -> case Text.break (== ' ') $ Text.drop 2 line of
-              ("info", name) -> do
-                result <- runKitten $ Parse.generalName
-                  lineNumber "<interactive>" name
-                case result of
-                  Right unresolved -> do
-                    dictionary <- readIORef dictionaryRef
-                    mResolved <- runKitten $ Resolve.run $ Resolve.generalName
-                      dictionary
-                      -- TODO: Use 'WordOrTypeName' or something as the category.
-                      Report.WordName
-                      (\ _ index -> return $ LocalName index)
-                      (`Dictionary.member` dictionary)
-                      -- TODO: Keep a notion of current vocabulary?
-                      Vocabulary.global
-                      unresolved
-                      -- TODO: Get this from the parser.
-                      (Origin.point "<interactive>" lineNumber 1)
-                    case mResolved of
-                      Left reports -> do
-                        reportAll reports
-                        loop
-                      Right (QualifiedName resolved)
-                        | Just entry <- Dictionary.lookup resolved dictionary
-                        -> do
-                          putStrLn $ Pretty.render $ pPrint entry
-                          loop
-                      Right resolved -> do
-                        hPutStrLn stderr $ Pretty.render $ Pretty.hsep
-                          [ "I can't find an entry in the dictionary for"
-                          , Pretty.quote resolved
-                          ]
-                        loop
-                  Left reports -> do
-                    reportAll reports
-                    loop
+              ("info", name) -> nameCommand lineNumber dictionaryRef name loop
+                $ \ _name' entry -> do
+                  putStrLn $ Pretty.render $ pPrint entry
+              ("list", name) -> nameCommand lineNumber dictionaryRef name loop
+                $ \ name' entry -> case entry of
+                  Entry.Word _ _ _ _ _ (Just body) -> do
+                    putStrLn $ Pretty.render $ pPrint body
+                  _ -> hPutStrLn stderr $ Pretty.render $ Pretty.hsep
+                    [ "I can't find a word entry called"
+                    , Pretty.quote name'
+                    , "with a body to list"
+                    ]
               (command, _) -> do
                 hPutStrLn stderr $ Pretty.render $ Pretty.hsep
                   [ "I don't know the command"
@@ -169,3 +148,46 @@ commonPrefix (x : xs) (y : ys)
   | otherwise = []
 commonPrefix xs@[] _ = xs
 commonPrefix _ ys@[] = ys
+
+nameCommand
+  :: Int
+  -> IORef Dictionary
+  -> Text
+  -> IO ()
+  -> (Qualified -> Entry -> IO ())
+  -> IO ()
+nameCommand lineNumber dictionaryRef name loop action = do
+  result <- runKitten $ Parse.generalName
+    lineNumber "<interactive>" name
+  case result of
+    Right unresolved -> do
+      dictionary <- readIORef dictionaryRef
+      mResolved <- runKitten $ Resolve.run $ Resolve.generalName
+        dictionary
+        -- TODO: Use 'WordOrTypeName' or something as the category.
+        Report.WordName
+        (\ _ index -> return $ LocalName index)
+        (`Dictionary.member` dictionary)
+        -- TODO: Keep a notion of current vocabulary?
+        Vocabulary.global
+        unresolved
+        -- TODO: Get this from the parser.
+        (Origin.point "<interactive>" lineNumber 1)
+      case mResolved of
+        Left reports -> do
+          reportAll reports
+          loop
+        Right (QualifiedName resolved)
+          | Just entry <- Dictionary.lookup resolved dictionary
+          -> do
+            action resolved entry
+            loop
+        Right resolved -> do
+          hPutStrLn stderr $ Pretty.render $ Pretty.hsep
+            [ "I can't find an entry in the dictionary for"
+            , Pretty.quote resolved
+            ]
+          loop
+    Left reports -> do
+      reportAll reports
+      loop
