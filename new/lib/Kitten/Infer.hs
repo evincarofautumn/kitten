@@ -430,6 +430,7 @@ inferValue dictionary tenvFinal tenv0 origin value = case value of
   Character x -> return (Character x, TypeConstructor origin "char", tenv0)
   Closed (ClosureIndex index) -> return
     (Closed $ ClosureIndex index, TypeEnv.closure tenv0 !! index, tenv0)
+  Closure{} -> error "closure should not appear before runtime"
   Float x -> return (Float x, TypeConstructor origin "Float", tenv0)
   Integer x -> return (Integer x, TypeConstructor origin "Int", tenv0)
   Local (LocalIndex index) -> return

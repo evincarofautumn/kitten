@@ -93,6 +93,7 @@ desugar dictionary definition = do
     Capture names body -> Capture names <$> desugarTerms' body
     Character{} -> return value
     Closed{} -> error "closed name should not appear before infix desugaring"
+    Closure{} -> error "closure should not appear before runtime"
     Float{} -> return value
     Integer{} -> return value
     Local{} -> error "local name should not appear before infix desugaring"

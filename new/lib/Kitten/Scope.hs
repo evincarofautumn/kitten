@@ -57,6 +57,7 @@ scope = scopeTerm [0]
     Capture{} -> error "capture should not appear before scope resolution"
     Character{} -> value
     Closed{} -> error "closed name should not appear before scope resolution"
+    Closure{} -> error "closure should not appear before runtime"
     Float{} -> value
     Integer{} -> value
     Local{} -> value
@@ -143,6 +144,7 @@ captureValue value = case value of
       ClosedClosure{} -> return original
   Character{} -> return value
   Closed{} -> return value
+  Closure{} -> error "closure should not appear before runtime"
   Float{} -> return value
   Integer{} -> return value
   Local index -> do

@@ -72,6 +72,7 @@ data Value a
   = Capture [Closed] !(Term a)
   | Character !Char
   | Closed !ClosureIndex
+  | Closure !Qualified [Value a]
   | Float !Double
   | Integer !Integer
   | Local !LocalIndex
@@ -171,6 +172,7 @@ stripMetadata term = case term of
     Capture a b -> Capture a (stripMetadata b)
     Character a -> Character a
     Closed a -> Closed a
+    Closure a b -> Closure a (map stripValue b)
     Float a -> Float a
     Integer a -> Integer a
     Local a -> Local a
@@ -236,6 +238,7 @@ instance Pretty (Value a) where
       ]
     Character c -> Pretty.quotes $ Pretty.char c
     Closed (ClosureIndex index) -> "closure." Pretty.<> Pretty.int index
+    Closure{} -> "<closure>"
     Float f -> Pretty.double f
     Integer i -> Pretty.integer i
     Local (LocalIndex index) -> "local." Pretty.<> Pretty.int index

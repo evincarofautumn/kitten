@@ -4,6 +4,7 @@ module Kitten.Definition
   ( Definition(..)
   , isMain
   , main
+  , mainName
   ) where
 
 import Kitten.Entry.Category (Category)
@@ -51,7 +52,7 @@ main permissions term = Definition
   , category = Category.Word
   , fixity = Operator.Postfix
   , merge = Merge.Compose
-  , name = Qualified Vocabulary.global "main"
+  , name = mainName
   , origin = o
   , signature = Signature.Quantified
     [Parameter o "R" Stack, Parameter o "S" Stack]
@@ -59,6 +60,9 @@ main permissions term = Definition
       permissions o) o
   }
   where o = Term.origin term
+
+mainName :: Qualified
+mainName = Qualified Vocabulary.global "main"
 
 isMain :: Definition a -> Bool
 isMain = (== Qualified Vocabulary.global "main") . name
