@@ -6,9 +6,13 @@ module Interact
 
 import Control.Exception (try)
 import Control.Monad.IO.Class (liftIO)
-import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef)
+import Data.Foldable (forM_)
+import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
+import Data.List (partition, sort, stripPrefix)
+import Data.Maybe (fromJust)
 import Data.Text (Text)
 import Kitten (runKitten)
+import Kitten.Dictionary (Dictionary)
 import Kitten.Informer (checkpoint)
 import Kitten.Name (GeneralName(..), Qualified(..))
 import Report
@@ -23,6 +27,7 @@ import qualified Data.Text.IO as Text
 import qualified Kitten
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Enter as Enter
+import qualified Kitten.Name as Name
 import qualified Kitten.Origin as Origin
 import qualified Kitten.Parse as Parse
 import qualified Kitten.Pretty as Pretty
@@ -55,9 +60,7 @@ run = do
         Left e -> if isEOFError e then putStrLn "" >> bye else ioError e
         Right line -> case line of
           "//dict" -> do
-            dictionary <- readIORef dictionaryRef
-            liftIO $ mapM_ (putStrLn . Pretty.render . pPrint . fst)
-              $ Dictionary.toList dictionary
+            renderDictionary dictionaryRef
             loop
           _
             | "//" `Text.isPrefixOf` line
@@ -132,4 +135,37 @@ commonSource :: Text
 commonSource = "\
 \permission IO<R..., S..., +E> (R..., (R... -> S... +IO +E) -> S... +E):\n\
 \  with (+IO)\n\
-\"
+\\&"
+
+renderDictionary :: IORef Dictionary -> IO ()
+renderDictionary dictionaryRef = do
+  names <- sort . map (Name.toParts . fst) . Dictionary.toList
+    <$> readIORef dictionaryRef
+  let
+    loop :: Int -> [[Text]] -> IO ()
+    loop depth acc = case foldr0 commonPrefix [] acc of
+      [] -> return ()
+      prefix -> let
+        stripped = map (fromJust . stripPrefix prefix) acc
+        (leaves, branches) = partition ((== 1) . length) stripped
+        in do
+          putStrLn $ prettyName depth prefix
+          loop (depth + 4) branches
+          mapM_ (putStrLn . prettyName (depth + 4)) leaves
+  loop 0 names
+  where
+  -- TODO: Don't rely on name of global vocabulary.
+  prettyName depth = Pretty.render . Pretty.nest depth . Pretty.text
+    . Text.unpack . Text.intercalate "::"
+    . (\x -> if x == [""] then ["_"] else x)
+
+foldr0 :: (a -> a -> a) -> a -> [a] -> a
+foldr0 f x [] = x
+foldr0 f _ xs = foldr1 f xs
+
+commonPrefix :: (Eq a) => [a] -> [a] -> [a]
+commonPrefix (x : xs) (y : ys)
+  | x == y = x : commonPrefix xs ys
+  | otherwise = []
+commonPrefix xs@[] _ = xs
+commonPrefix _ ys@[] = ys
