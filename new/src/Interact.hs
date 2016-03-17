@@ -14,6 +14,7 @@ import Kitten (runKitten)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Entry (Entry)
 import Kitten.Informer (checkpoint)
+import Kitten.Interpret (interpret)
 import Kitten.Name (GeneralName(..), Qualified(..))
 import Report
 import System.Exit (exitFailure)
@@ -102,6 +103,7 @@ run = do
                 putStrLn "Okay."
                 writeIORef dictionaryRef dictionary'
                 modifyIORef' lineNumberRef (+ 1)
+                interpret dictionary'
                 loop
   loop
   where

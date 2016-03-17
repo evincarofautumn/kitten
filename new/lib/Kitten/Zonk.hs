@@ -84,6 +84,7 @@ value tenv0 = go
     Capture names body -> Capture names $ term tenv0 body
     Character{} -> v
     Closed{} -> v
+    Closure{} -> v
     Float{} -> v
     Integer{} -> v
     Local{} -> v

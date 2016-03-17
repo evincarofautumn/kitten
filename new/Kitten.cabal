@@ -51,6 +51,7 @@ library
     Kitten.Infer
     Kitten.Informer
     Kitten.InstanceCheck
+    Kitten.Interpret
     Kitten.Kind
     Kitten.Layout
     Kitten.Located
