@@ -6,7 +6,6 @@ module Interact
 
 import Control.Exception (try)
 import Control.Monad.IO.Class (liftIO)
-import Data.Foldable (forM_)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.List (partition, sort, stripPrefix)
 import Data.Maybe (fromJust)
@@ -139,7 +138,7 @@ renderDictionary dictionaryRef = do
     . (\x -> if x == [""] then ["_"] else x)
 
 foldr0 :: (a -> a -> a) -> a -> [a] -> a
-foldr0 f x [] = x
+foldr0 _ x [] = x
 foldr0 f _ xs = foldr1 f xs
 
 commonPrefix :: (Eq a) => [a] -> [a] -> [a]
