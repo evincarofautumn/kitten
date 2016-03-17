@@ -138,16 +138,19 @@ declareWord dictionary definition = let
       -- TODO: Better error reporting when a non-instance matches a trait.
       | Definition.category definition == Category.Instance
       -> do
+      let qualifier = qualifierName name
+      resolvedSignature <- Resolve.run $ Resolve.signature
+        dictionary qualifier $ Definition.signature definition
       mangledName <- mangleInstance dictionary
         (Definition.name definition)
-        (Definition.signature definition) traitSignature
+        resolvedSignature traitSignature
       let
         entry = Entry.Word
           (Definition.category definition)
           (Definition.merge definition)
           (Definition.origin definition)
           (Just (Parent.Trait name))
-          (Just signature)
+          (Just resolvedSignature)
           Nothing
       return $ Dictionary.insert mangledName entry dictionary
     -- Already declared or defined with a different signature.
@@ -199,9 +202,25 @@ defineWord dictionary definition = do
   checkpoint
   let resolvedSignature = Definition.signature resolved
   -- Note that we use the resolved signature here.
-  typecheckedBody <- typecheck dictionary name resolvedSignature $ Definition.body resolved
+  typecheckedBody <- typecheck dictionary name resolvedSignature
+    $ Definition.body resolved
   checkpoint
   case Dictionary.lookup name dictionary of
+    -- Already declared or defined as a trait.
+    Just (Entry.Trait _origin traitSignature)
+      | Definition.category definition == Category.Instance
+      -> do
+      mangledName <- mangleInstance dictionary
+        (Definition.name definition) resolvedSignature traitSignature
+      let
+        entry = Entry.Word
+          (Definition.category definition)
+          (Definition.merge definition)
+          (Definition.origin definition)
+          (Just (Parent.Trait name))
+          (Just resolvedSignature)
+          (Just typecheckedBody)
+      return $ Dictionary.insert mangledName entry dictionary
     -- Previously declared with same signature, but not defined.
     Just (Entry.Word category merge origin' parent signature' Nothing)
       | maybe True (resolvedSignature ==) signature' -> do
