@@ -52,8 +52,7 @@ desugar qualifier = flip evalStateT (LambdaIndex 0) . go
     New{} -> done
     NewClosure{} -> done
     NewVector{} -> done
-    -- FIXME: Should be Closure, not Quotation.
-    Push _type (Closure closed a) origin -> do
+    Push _type (Capture closed a) origin -> do
       (a', as) <- go a
       LambdaIndex index <- get
       let

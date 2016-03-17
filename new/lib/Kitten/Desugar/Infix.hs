@@ -90,9 +90,9 @@ desugar dictionary definition = do
 
   desugarValue :: Value () -> K (Value ())
   desugarValue value = case value of
+    Capture names body -> Capture names <$> desugarTerms' body
     Character{} -> return value
     Closed{} -> error "closed name should not appear before infix desugaring"
-    Closure names body -> Closure names <$> desugarTerms' body
     Float{} -> return value
     Integer{} -> return value
     Local{} -> error "local name should not appear before infix desugaring"

@@ -74,8 +74,8 @@ linearize = snd . go []
     Push _ (Local (LocalIndex index)) _ -> let
       (h, t : ts) = splitAt index counts0
       in (h ++ succ t : ts, term)
-    Push _ Closure{} _ -> error
-      "pushing of closure should not appear after desugaring"
+    Push _ Capture{} _ -> error
+      "pushing of capture should not appear after desugaring"
     Push _ Quotation{} _ -> error
       "pushing of quotation should not appear after desugaring"
     Push{} -> (counts0, term)
