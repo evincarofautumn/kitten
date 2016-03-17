@@ -53,7 +53,7 @@ data Report
   | OccursCheckFailure !Type !Type
   | StackDepthMismatch !Origin
   | ParseError !Origin [Pretty.Doc] Pretty.Doc
-  | Context [Pretty.Doc] Report
+  | Context [(Origin, Pretty.Doc)] Report
   deriving (Eq, Show)
 
 human :: Report -> Pretty.Doc
@@ -158,7 +158,7 @@ human report = case report of
       ]
     ]
 
-  Chain reports -> Pretty.vcat $ map human reports
+  Chain reports -> Pretty.vsep $ map human reports
 
   OccursCheckFailure a b -> Pretty.vcat
     [ Pretty.hsep
@@ -182,8 +182,11 @@ human report = case report of
   ParseError origin unexpected expected -> Pretty.hcat
     $ (showOriginPrefix origin :) $ intersperse "; " $ unexpected ++ [expected]
 
-  -- TODO: Show context.
-  Context context message -> human message
+  Context context message -> Pretty.vsep
+    $ map
+      (\ (origin, doc) -> Pretty.hsep [showOriginPrefix origin, "while", doc])
+      context
+    ++ [human message]
 
 showOriginPrefix :: Origin -> Pretty.Doc
 showOriginPrefix origin = Pretty.hcat [pPrint origin, ":"]

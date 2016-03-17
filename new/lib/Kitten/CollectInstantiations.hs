@@ -125,8 +125,9 @@ collectInstantiations tenv0 dictionary0 = do
           -- The name is not user-defined, so it doesn't need to be mangled.
           Nothing -> processQueue q' dictionary
           Just (Entry.Word category merge origin parent signature (Just term)) -> do
-            term' <- while (Pretty.hsep ["instantiating", Pretty.quote name])
-              origin $ Instantiate.term tenv0 term args
+            term' <- while origin
+              (Pretty.hsep ["instantiating", Pretty.quote name])
+              $ Instantiate.term tenv0 term args
             (term'', q'') <- go q' term'
             processQueue q'' $ Dictionary.insert
               (Qualified Vocabulary.global $ Unqualified mangled)
