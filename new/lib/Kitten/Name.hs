@@ -11,6 +11,7 @@ module Kitten.Name
   , Qualifier(..)
   , Unqualified(..)
   , isOperatorName
+  , toParts
   , qualifiedFromQualifier
   , qualifierFromName
   ) where
@@ -64,6 +65,10 @@ isOperatorName = match . unqualifiedName
   match (Unqualified name) = not
     $ liftA2 (||) (Text.all isLetter) (== "_")
     $ Text.take 1 name
+
+toParts :: Qualified -> [Text]
+toParts (Qualified (Qualifier parts) (Unqualified part))
+  = parts ++ [part]
 
 qualifiedFromQualifier :: Qualifier -> Qualified
 qualifiedFromQualifier qualifier = case qualifier of
