@@ -212,7 +212,7 @@ instance Pretty (Term a) where
       ]
     Word _ _ name [] _ -> pPrint name
     Word _ _ name args _ -> Pretty.hcat
-      $ pPrint name : "<" : intersperse ", " (map pPrint args) ++ [">"]
+      $ pPrint name : "::<" : intersperse ", " (map pPrint args) ++ [">"]
 
 instance Pretty (Case a) where
   pPrint (Case name body _) = Pretty.vcat
