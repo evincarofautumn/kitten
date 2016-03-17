@@ -160,10 +160,18 @@ human report = case report of
 
   Chain reports -> Pretty.vcat $ map human reports
 
-  OccursCheckFailure a b -> Pretty.hsep
-    [ "the type", Pretty.quote a
-    , "occurs in the type", Pretty.quote b
-    , "(which often indicates an infinite type)"
+  OccursCheckFailure a b -> Pretty.vcat
+    [ Pretty.hsep
+      [ showOriginPrefix $ Type.origin a
+      , "the type"
+      , Pretty.quote a
+      ]
+    , Pretty.hsep
+      [ showOriginPrefix $ Type.origin b
+      , "occurs in the type"
+      , Pretty.quote b
+      , "(which often indicates an infinite type)"
+      ]
     ]
 
   StackDepthMismatch origin -> Pretty.hsep
