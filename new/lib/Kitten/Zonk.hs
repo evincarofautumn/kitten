@@ -81,9 +81,9 @@ value :: TypeEnv -> Value Type -> Value Type
 value tenv0 = go
   where
   go v = case v of
+    Capture names body -> Capture names $ term tenv0 body
     Character{} -> v
     Closed{} -> v
-    Closure names body -> Closure names $ term tenv0 body
     Float{} -> v
     Integer{} -> v
     Local{} -> v

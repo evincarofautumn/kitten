@@ -69,9 +69,9 @@ data Permit = Permit
   } deriving (Eq, Show)
 
 data Value a
-  = Character !Char
+  = Capture [Closed] !(Term a)
+  | Character !Char
   | Closed !ClosureIndex
-  | Closure [Closed] !(Term a)
   | Float !Double
   | Integer !Integer
   | Local !LocalIndex
@@ -168,9 +168,9 @@ stripMetadata term = case term of
 
   stripValue :: Value a -> Value ()
   stripValue v = case v of
+    Capture a b -> Capture a (stripMetadata b)
     Character a -> Character a
     Closed a -> Closed a
-    Closure a b -> Closure a (stripMetadata b)
     Float a -> Float a
     Integer a -> Integer a
     Local a -> Local a
@@ -229,13 +229,13 @@ instance Pretty Permit where
 
 instance Pretty (Value a) where
   pPrint value = case value of
-    Character c -> Pretty.quotes $ Pretty.char c
-    Closed (ClosureIndex index) -> "closure." Pretty.<> Pretty.int index
-    Closure names term -> Pretty.hcat
+    Capture names term -> Pretty.hcat
       [ Pretty.char '$'
       , Pretty.parens $ Pretty.list $ map pPrint names
       , Pretty.braces $ pPrint term
       ]
+    Character c -> Pretty.quotes $ Pretty.char c
+    Closed (ClosureIndex index) -> "closure." Pretty.<> Pretty.int index
     Float f -> Pretty.double f
     Integer i -> Pretty.integer i
     Local (LocalIndex index) -> "local." Pretty.<> Pretty.int index

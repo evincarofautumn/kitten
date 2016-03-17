@@ -420,16 +420,16 @@ inferValue
   -> Value a
   -> K (Value Type, Type, TypeEnv)
 inferValue dictionary tenvFinal tenv0 origin value = case value of
-  Character x -> return (Character x, TypeConstructor origin "char", tenv0)
-  Closed (ClosureIndex index) -> return
-    (Closed $ ClosureIndex index, TypeEnv.closure tenv0 !! index, tenv0)
-  Closure names term -> do
+  Capture names term -> do
     let types = map (getClosed tenv0) names
     let oldClosure = TypeEnv.closure tenv0
     let localEnv = tenv0 { TypeEnv.closure = types }
     (term', t1, tenv1) <- inferType dictionary tenvFinal localEnv term
     let tenv2 = tenv1 { TypeEnv.closure = oldClosure }
-    return (Closure names term', t1, tenv2)
+    return (Capture names term', t1, tenv2)
+  Character x -> return (Character x, TypeConstructor origin "char", tenv0)
+  Closed (ClosureIndex index) -> return
+    (Closed $ ClosureIndex index, TypeEnv.closure tenv0 !! index, tenv0)
   Float x -> return (Float x, TypeConstructor origin "Float", tenv0)
   Integer x -> return (Integer x, TypeConstructor origin "Int", tenv0)
   Local (LocalIndex index) -> return

@@ -54,14 +54,14 @@ scope = scopeTerm [0]
 
   scopeValue :: [Int] -> Value () -> Value ()
   scopeValue stack value = case value of
+    Capture{} -> error "capture should not appear before scope resolution"
     Character{} -> value
     Closed{} -> error "closed name should not appear before scope resolution"
-    Closure{} -> error "closure should not appear before scope resolution"
     Float{} -> value
     Integer{} -> value
     Local{} -> value
     Name{} -> value
-    Quotation body -> Closure (map ClosedLocal capturedNames) capturedTerm
+    Quotation body -> Capture (map ClosedLocal capturedNames) capturedTerm
       where
 
       capturedTerm :: Term ()
@@ -130,9 +130,7 @@ captureTerm term = case term of
 
 captureValue :: Value () -> Captured (Value ())
 captureValue value = case value of
-  Character{} -> return value
-  Closed{} -> return value
-  Closure names term -> Closure <$> mapM close names <*> pure term
+  Capture names term -> Capture <$> mapM close names <*> pure term
     where
 
     close :: Closed -> Captured Closed
@@ -143,7 +141,8 @@ captureValue value = case value of
           Nothing -> original
           Just index' -> ClosedClosure index'
       ClosedClosure{} -> return original
-
+  Character{} -> return value
+  Closed{} -> return value
   Float{} -> return value
   Integer{} -> return value
   Local index -> do
