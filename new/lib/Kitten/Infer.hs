@@ -166,7 +166,7 @@ inferType dictionary tenvFinal tenv0 term0
       [a, b, e] <- fresh origin [Stack, Stack, Permission]
       let type_ = funType origin (prodType origin a (funType origin a b e)) b e
       let type' = Zonk.type_ tenvFinal type_
-      return (Drop type' origin, type_, tenv0)
+      return (Call type' origin, type_, tenv0)
 
 -- The type of the composition of two expressions is the composition of the
 -- types of those expressions.
