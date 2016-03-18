@@ -436,7 +436,15 @@ inferValue dictionary tenvFinal tenv0 origin value = case value of
   Local (LocalIndex index) -> return
     (Local $ LocalIndex index, TypeEnv.vs tenv0 !! index, tenv0)
   Quotation{} -> error "quotation should not appear during type inference"
-  Name{} -> error "raw name should not appear during type inference"
+  Name name -> case Dictionary.lookup name dictionary of
+    Just (Entry.Word _ _ _ _ (Just signature) _) -> do
+      type_ <- typeFromSignature tenv0 signature
+      return (Name name, type_, tenv0)
+    _ -> error $ Pretty.render $ Pretty.hsep
+      [ "unbound word name"
+      , Pretty.quote name
+      , "found during type inference"
+      ]
   Text x -> return
     ( Text x
     , TypeConstructor origin "vector" :@ TypeConstructor origin "char"
@@ -537,6 +545,8 @@ typeFromSignature tenv signature0 = do
       es' <- mapM var es
       (me, es'') <- lift $ permissionVar origin es'
       makeFunction origin r' as s' bs es'' me
+    -- TODO: Verify that the type contains no free variables.
+    Signature.Type type_ -> return type_
 
   permissionVar :: Origin -> [Type] -> K (Maybe Type, [Type])
   permissionVar origin types = case splitFind isTypeVar types of

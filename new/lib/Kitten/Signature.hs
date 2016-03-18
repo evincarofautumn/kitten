@@ -9,8 +9,10 @@ import Kitten.Entry.Parameter (Parameter(Parameter))
 import Kitten.Kind (Kind(..))
 import Kitten.Name (GeneralName, Unqualified)
 import Kitten.Origin (Origin)
+import Kitten.Type (Type)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Kitten.Pretty as Pretty
+import qualified Kitten.Type as Type
 import qualified Text.PrettyPrint as Pretty
 
 data Signature
@@ -20,6 +22,9 @@ data Signature
   | Variable !GeneralName !Origin
   | StackFunction
     !Unqualified [Signature] !Unqualified [Signature] [GeneralName] !Origin
+  -- Produced when generating signatures for lifted quotations after
+  -- typechecking.
+  | Type !Type
   deriving (Show)
 
 -- Signatures are compared regardless of origin.
@@ -39,6 +44,7 @@ origin signature = case signature of
   Quantified _ _ o -> o
   Variable _ o -> o
   StackFunction _ _ _ _ _ o -> o
+  Type t -> Type.origin t
 
 instance Pretty Signature where
   pPrint signature = case signature of
@@ -67,3 +73,4 @@ instance Pretty Signature where
       : map pPrint as ++ ["->"]
       ++ ((pPrint s Pretty.<> "...") : map pPrint bs)
       ++ map ((Pretty.char '+' Pretty.<>) . pPrint) es
+    Type t -> pPrint t
