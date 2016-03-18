@@ -60,7 +60,7 @@ run = do
     Right result -> return result
   lineNumberRef <- newIORef (1 :: Int)
   stackRef <- newIORef []
-  putStrLn "Welcome to Kitten! Type //help for help or //quit to quit."
+  putStrLn "Welcome to Kitten! Type //help for help or //quit to quit"
   let
     loop = do
       lineNumber <- readIORef lineNumberRef
@@ -149,7 +149,7 @@ run = do
                 reportAll reports
                 loop
               Right dictionary' -> do
-                putStrLn "Okay."
+                putStrLn "Okay"
                 writeIORef dictionaryRef dictionary'
                 modifyIORef' lineNumberRef (+ 1)
                 stack <- interpret dictionary'
