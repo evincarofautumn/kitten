@@ -93,6 +93,7 @@ term dictionary vocabulary = recur
 
 value :: Dictionary -> Qualifier -> Value () -> Resolved (Value ())
 value dictionary vocabulary v = case v of
+  Algebraic{} -> error "adt should not appear before runtime"
   Capture{} -> error "closure should not appear before name resolution"
   Character{} -> return v
   Closed{} -> error "closed name should not appear before name resolution"

@@ -59,7 +59,8 @@ term tenv x a = recur
       goElse :: Else Type -> K (Else Type)
       goElse (Else body elseOrigin) = Else <$> recur body <*> pure elseOrigin
 
-    New tref index origin -> New <$> go tref <*> pure index <*> pure origin
+    New tref index size origin -> New
+      <$> go tref <*> pure index <*> pure size <*> pure origin
     NewClosure tref size origin -> NewClosure <$> go tref
       <*> pure size <*> pure origin
     NewVector tref size origin -> NewVector <$> go tref

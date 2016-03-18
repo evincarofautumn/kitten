@@ -49,7 +49,10 @@ interpret dictionary mName initialStack = do
         term body
         modifyIORef' localsRef tail
       Match _ _cases _mElse _ -> error "match"
-      New _ _index _ -> error "new"
+      New _ index size _ -> do
+        r <- readIORef stackRef
+        let (fields, r') = splitAt size r
+        writeIORef stackRef $ Algebraic index fields : r'
       NewClosure _ size _ -> do
         r <- readIORef stackRef
         let (Name name : closure, r') = splitAt (size + 1) r

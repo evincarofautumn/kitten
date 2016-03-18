@@ -13,6 +13,10 @@ type UInt64 {}
 type Float32 {}
 type Float64 {}
 
+type Bool:
+  case false
+  case true
+
 permission Fail<R..., S..., +P> (R..., (R... -> S... +Fail +P) -> S... +P):
   with (+Fail)
 
