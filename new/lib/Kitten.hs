@@ -11,16 +11,14 @@ module Kitten
 
 import Control.Monad
 import Control.Monad.IO.Class
-import Data.Text (Text)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Monad (K, runKitten)
 import Kitten.Name
 import Kitten.Tokenize (tokenize)
 import Text.Parsec.Text ()
-import qualified Data.ByteString as ByteString
-import qualified Data.Text.Encoding as Text
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Enter as Enter
+import qualified Kitten.IO as IO
 
 -- The compiler is a straightforward pipeline. At each stage, errors and
 -- warnings ("reports") are accumulated, and reported to the programmer at the
@@ -35,15 +33,11 @@ compile mainPermissions mainName paths = do
 
 -- Source files must be encoded in UTF-8.
 
-  sources <- liftIO $ mapM readFileUtf8 paths
+  sources <- liftIO $ mapM IO.readFileUtf8 paths
   parsed <- mconcat <$> zipWithM
     (Enter.fragmentFromSource mainPermissions mainName 1)
     paths sources
   Enter.fragment parsed Dictionary.empty
-  where
-
-  readFileUtf8 :: FilePath -> IO Text
-  readFileUtf8 = fmap Text.decodeUtf8 . ByteString.readFile
 
 {-
 

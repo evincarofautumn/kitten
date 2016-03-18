@@ -48,6 +48,7 @@ library
     Kitten.Entry.Merge
     Kitten.Entry.Parameter
     Kitten.Fragment
+    Kitten.IO
     Kitten.Infer
     Kitten.Informer
     Kitten.InstanceCheck

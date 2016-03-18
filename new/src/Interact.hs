@@ -33,6 +33,7 @@ import qualified Kitten.Definition as Definition
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Enter as Enter
 import qualified Kitten.Entry as Entry
+import qualified Kitten.IO as IO
 import qualified Kitten.Name as Name
 import qualified Kitten.Origin as Origin
 import qualified Kitten.Parse as Parse
@@ -47,11 +48,13 @@ import qualified Text.PrettyPrint as Pretty
 
 run :: IO ()
 run = do
+  let commonPath = "common.ktn"
+  commonSource <- IO.readFileUtf8 commonPath
   commonDictionary <- runKitten $ do
     fragment <- Kitten.fragmentFromSource
       [QualifiedName $ Qualified Vocabulary.global "IO"]
       (Just $ Qualified Vocabulary.global "main")
-      1 "<interactive>" commonSource
+      1 commonPath commonSource
     Enter.fragment fragment Dictionary.empty
   dictionaryRef <- newIORef =<< case commonDictionary of
     Left reports -> do
@@ -163,12 +166,6 @@ run = do
   bye = do
     liftIO $ putStrLn "Bye!"
     return ()
-
-commonSource :: Text
-commonSource = "\
-\permission IO<R..., S..., +E> (R..., (R... -> S... +IO +E) -> S... +E):\n\
-\  with (+IO)\n\
-\\&"
 
 renderDictionary :: IORef Dictionary -> IO ()
 renderDictionary dictionaryRef = do
