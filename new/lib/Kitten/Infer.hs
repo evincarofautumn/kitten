@@ -303,7 +303,7 @@ inferType dictionary tenvFinal tenv0 term0
       let
         type_ = funType origin
           (foldl' (prodType origin) a (replicate size b))
-          (prodType origin a (TypeConstructor origin "vector" :@ b))
+          (prodType origin a (TypeConstructor origin "List" :@ b))
           e
         type' = Zonk.type_ tenvFinal type_
       return (NewVector type' size origin, type_, tenv0)
@@ -427,12 +427,12 @@ inferValue dictionary tenvFinal tenv0 origin value = case value of
     (term', t1, tenv1) <- inferType dictionary tenvFinal localEnv term
     let tenv2 = tenv1 { TypeEnv.closure = oldClosure }
     return (Capture names term', t1, tenv2)
-  Character x -> return (Character x, TypeConstructor origin "char", tenv0)
+  Character x -> return (Character x, TypeConstructor origin "Char", tenv0)
   Closed (ClosureIndex index) -> return
     (Closed $ ClosureIndex index, TypeEnv.closure tenv0 !! index, tenv0)
   Closure{} -> error "closure should not appear before runtime"
-  Float x -> return (Float x, TypeConstructor origin "Float", tenv0)
-  Integer x -> return (Integer x, TypeConstructor origin "Int", tenv0)
+  Float x -> return (Float x, TypeConstructor origin "Float64", tenv0)
+  Integer x -> return (Integer x, TypeConstructor origin "Int32", tenv0)
   Local (LocalIndex index) -> return
     (Local $ LocalIndex index, TypeEnv.vs tenv0 !! index, tenv0)
   Quotation{} -> error "quotation should not appear during type inference"
@@ -447,7 +447,7 @@ inferValue dictionary tenvFinal tenv0 origin value = case value of
       ]
   Text x -> return
     ( Text x
-    , TypeConstructor origin "vector" :@ TypeConstructor origin "char"
+    , TypeConstructor origin "List" :@ TypeConstructor origin "Char"
     , tenv0
     )
   where

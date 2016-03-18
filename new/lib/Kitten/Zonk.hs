@@ -12,9 +12,9 @@ import qualified Kitten.TypeEnv as TypeEnv
 -- Zonking a type fully substitutes all type variables. That is, if you have:
 --
 --     t0 ~ t1
---     t1 ~ int
+--     t1 ~ Int32
 --
--- Then zonking "t0" gives you "int".
+-- Then zonking "t0" gives you "Int32".
 
 type_ :: TypeEnv -> Type -> Type
 type_ tenv0 = recur

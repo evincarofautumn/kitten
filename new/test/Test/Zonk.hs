@@ -27,4 +27,4 @@ spec = do
   ib = TypeId 1
   vb = TypeVar o $ Var ib kv
   kv = Value
-  int = TypeConstructor o "int"
+  int = TypeConstructor o "Int32"
