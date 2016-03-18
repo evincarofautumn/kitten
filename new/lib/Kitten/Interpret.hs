@@ -7,7 +7,7 @@ module Kitten.Interpret
 import Data.IORef (newIORef, modifyIORef', readIORef, writeIORef)
 import Kitten.Definition (mainName)
 import Kitten.Dictionary (Dictionary)
-import Kitten.Name (GeneralName(..), Qualified)
+import Kitten.Name
 import Kitten.Term (Term(..), Value(..))
 import Kitten.Type (Type(..))
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
@@ -17,9 +17,9 @@ import qualified Text.PrettyPrint as Pretty
 
 interpret :: Dictionary -> IO ()
 interpret dictionary = do
-  putStrLn "Interpreting..."
   stackRef <- newIORef []
-  localsRef <- newIORef [[]]
+  localsRef <- newIORef []
+  currentClosureRef <- newIORef []
   let
 
     word :: Qualified -> IO ()
@@ -37,11 +37,13 @@ interpret dictionary = do
       Group t' -> term t'
       Identity _ _ -> return ()
       If _ _true _false _ -> error "if"
-      Lambda _ _name _ _body _ -> do
+      Lambda _ _name _ body _ -> do
         (a : r) <- readIORef stackRef
-        (l : ls) <- readIORef localsRef
-        writeIORef localsRef ((a : l) : ls)
+        ls <- readIORef localsRef
         writeIORef stackRef r
+        writeIORef localsRef (a : ls)
+        term body
+        modifyIORef' localsRef tail
       Match _ _cases _mElse _ -> error "match"
       New _ _index _ -> error "new"
       NewClosure _ size _ -> do
@@ -57,10 +59,23 @@ interpret dictionary = do
       Word _ _ (QualifiedName name) _args _ -> word name
       Word _ _ name _ _ -> error "unresolved word name"
 
-    call = error "call"
+    call :: IO ()
+    call = do
+      (Closure name closure : r) <- readIORef stackRef
+      writeIORef stackRef r
+      modifyIORef' currentClosureRef (closure :)
+      word name
+      modifyIORef' currentClosureRef tail
 
     push :: Value Type -> IO ()
-    push value = modifyIORef' stackRef (value :)
+    push value = case value of
+      Closed (ClosureIndex index) -> do
+        (currentClosure : _) <- readIORef currentClosureRef
+        modifyIORef' stackRef ((currentClosure !! index) :)
+      Local (LocalIndex index) -> do
+        locals <- readIORef localsRef
+        modifyIORef' stackRef ((locals !! index) :)
+      _ -> modifyIORef' stackRef (value :)
 
   word mainName
   stack <- readIORef stackRef
