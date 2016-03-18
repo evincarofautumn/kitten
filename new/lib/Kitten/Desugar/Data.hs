@@ -52,6 +52,7 @@ desugar fragment = do
           $ DataConstructor.origin constructor
         , Definition.category = Category.Word
         , Definition.fixity = Operator.Postfix
+        , Definition.inferSignature = False
         , Definition.merge = Merge.Deny
         , Definition.name = Qualified qualifier
           $ DataConstructor.name constructor

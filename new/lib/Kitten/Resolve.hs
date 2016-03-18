@@ -113,6 +113,7 @@ signature dictionary vocabulary = go
   go sig = case sig of
     Signature.Application a b origin -> Signature.Application
       <$> go a <*> go b <*> pure origin
+    Signature.Bottom{} -> pure sig
     Signature.Function as bs es origin -> Signature.Function
       <$> mapM go as <*> mapM go bs
       <*> mapM (uncurry (typeName dictionary vocabulary)) (zip es (repeat origin))
@@ -126,6 +127,7 @@ signature dictionary vocabulary = go
       <$> mapM go as <*> pure s <*> mapM go bs
       <*> mapM (uncurry (typeName dictionary vocabulary)) (zip es (repeat origin))
       <*> pure origin
+    Signature.Type{} -> pure sig
 
 definitionName, typeName
   :: Dictionary -> Qualifier -> GeneralName -> Origin -> Resolved GeneralName

@@ -4,6 +4,7 @@
 module Kitten.Infer
   ( mangleInstance
   , typecheck
+  , typeFromSignature
   ) where
 
 import Control.Monad (filterM)
@@ -48,8 +49,12 @@ import qualified Text.PrettyPrint as Pretty
 -- term annotated with its inferred type. It's polymorphic in the annotation
 -- type of its input so that it can't depend on those annotations.
 
-typecheck :: Dictionary -> Qualified -> Signature -> Term a -> K (Term Type)
-typecheck dictionary definitionName declaredSignature term = do
+typecheck
+  :: Dictionary
+  -> Maybe Signature
+  -> Term a
+  -> K (Term Type, Type)
+typecheck dictionary mDeclaredSignature term = do
 
 -- We begin by converting instance definitions into ordinary word definitions.
 -- With their mangled names already in the global vocabulary, they will be found
@@ -71,7 +76,7 @@ typecheck dictionary definitionName declaredSignature term = do
 -}
 
   let tenv0 = TypeEnv.empty
-  declaredType <- typeFromSignature tenv0 declaredSignature
+  declaredType <- traverse (typeFromSignature tenv0) mDeclaredSignature
   declaredTypes <- mapM
     (\ (name, signature) -> (,) name <$> typeFromSignature tenv0 signature)
     $ Dictionary.signatures dictionary
@@ -79,8 +84,7 @@ typecheck dictionary definitionName declaredSignature term = do
     tenv1 = tenv0
       { TypeEnv.sigs = Map.union (Map.fromList declaredTypes)
         $ TypeEnv.sigs tenv0 }
-  (term', type_) <- inferType0 dictionary tenv1 definitionName declaredType term
-  return term'
+  inferType0 dictionary tenv1 declaredType term
   
   -- declaredTypes
 
@@ -125,18 +129,20 @@ mangleInstance dictionary name instanceSignature traitSignature = do
 inferType0
   :: Dictionary
   -> TypeEnv
-  -> Qualified
-  -> Type
+  -> Maybe Type
   -> Term a
   -> K (Term Type, Type)
-inferType0 dictionary tenv _name declared term
+inferType0 dictionary tenv mDeclared term
   = while (Term.origin term) context $ do
     rec
       (term', t, tenvFinal) <- inferType dictionary tenvFinal' tenv term
-      tenvFinal' <- Unify.type_ tenvFinal t declared
+      tenvFinal' <- maybe (return tenvFinal) (Unify.type_ tenvFinal t) mDeclared
     let zonked = Zonk.type_ tenvFinal' t
     let regeneralized = regeneralize tenvFinal' zonked
-    instanceCheck "declared" declared "inferred" regeneralized
+    case mDeclared of
+      Just declared -> instanceCheck
+        "declared" declared "inferred" regeneralized
+      Nothing -> return ()
     return (Zonk.term tenvFinal' term', regeneralized)
   where
 
@@ -510,6 +516,7 @@ typeFromSignature tenv signature0 = do
   go :: Signature -> StateT SignatureEnv K Type
   go signature = case signature of
     Signature.Application a b _ -> (:@) <$> go a <*> go b
+    Signature.Bottom origin -> return $ Type.bottomType origin
     Signature.Function as bs es origin -> do
       r <- lift $ freshTypeId tenv
       let var = Var r Stack
@@ -540,8 +547,8 @@ typeFromSignature tenv signature0 = do
     Signature.Variable name origin -> fromVar origin name
     Signature.StackFunction r as s bs es origin -> do
       let var = fromVar origin
-      r' <- var $ UnqualifiedName r
-      s' <- var $ UnqualifiedName s
+      r' <- go r
+      s' <- go s
       es' <- mapM var es
       (me, es'') <- lift $ permissionVar origin es'
       makeFunction origin r' as s' bs es'' me
@@ -624,6 +631,7 @@ typeKind dictionary = go
       _ -> case qualified of
         Qualified qualifier unqualified
           | qualifier == Vocabulary.global -> case unqualified of
+            "Bottom" -> return Stack
             "Fun" -> return $ Stack :-> Stack :-> Permission :-> Value
             "Prod" -> return $ Stack :-> Value :-> Stack
             "Unsafe" -> return Label

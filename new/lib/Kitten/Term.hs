@@ -12,6 +12,7 @@ module Kitten.Term
   , origin
   , quantifierCount
   , stripMetadata
+  , stripValue
   , type_
   ) where
 
@@ -167,18 +168,18 @@ stripMetadata term = case term of
   stripElse else_ = case else_ of
     Else a b -> Else (stripMetadata a) b
 
-  stripValue :: Value a -> Value ()
-  stripValue v = case v of
-    Capture a b -> Capture a (stripMetadata b)
-    Character a -> Character a
-    Closed a -> Closed a
-    Closure a b -> Closure a (map stripValue b)
-    Float a -> Float a
-    Integer a -> Integer a
-    Local a -> Local a
-    Name a -> Name a
-    Quotation a -> Quotation (stripMetadata a)
-    Text a -> Text a
+stripValue :: Value a -> Value ()
+stripValue v = case v of
+  Capture a b -> Capture a (stripMetadata b)
+  Character a -> Character a
+  Closed a -> Closed a
+  Closure a b -> Closure a (map stripValue b)
+  Float a -> Float a
+  Integer a -> Integer a
+  Local a -> Local a
+  Name a -> Name a
+  Quotation a -> Quotation (stripMetadata a)
+  Text a -> Text a
 
 instance Pretty (Term a) where
   pPrint term = case term of

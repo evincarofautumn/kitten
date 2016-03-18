@@ -127,7 +127,7 @@ declareWord dictionary definition = let
       return $ Dictionary.insert name entry dictionary
     -- Already declared with the same signature.
     Just (Entry.Word _ _ originalOrigin _ (Just signature') _)
-      | signature' == signature
+      | Definition.inferSignature definition || signature' == signature
       -> return dictionary
       | otherwise
       -> do
@@ -196,14 +196,17 @@ resolveSignature dictionary name = do
 -- typecheck and define user-defined words
 -- desugaring of operators has to take place here
 defineWord
-  :: Dictionary -> Definition () -> K Dictionary
+  :: Dictionary
+  -> Definition ()
+  -> K Dictionary
 defineWord dictionary definition = do
   let name = Definition.name definition
   resolved <- resolveAndDesugar dictionary definition
   checkpoint
   let resolvedSignature = Definition.signature resolved
   -- Note that we use the resolved signature here.
-  typecheckedBody <- typecheck dictionary name resolvedSignature
+  (typecheckedBody, type_) <- typecheck dictionary
+    (Just resolvedSignature)
     $ Definition.body resolved
   checkpoint
   case Dictionary.lookup name dictionary of
@@ -225,13 +228,13 @@ defineWord dictionary definition = do
           (Just resolvedSignature)
           (Just flattenedBody)
         entries = map
-          (\ ((quotationName, type_), quotationBody)
+          (\ ((quotationName, quotationType), quotationBody)
             -> (quotationName, Entry.Word
               Category.Word
               Merge.Deny
               (Term.origin quotationBody)
               Nothing
-              (Just (Signature.Type type_))
+              (Just (Signature.Type quotationType))
               (Just quotationBody)))
           quotations
       return $ foldr
@@ -245,16 +248,19 @@ defineWord dictionary definition = do
       (flattenedBody, quotations) <- Quotations.desugar
         (qualifierFromName name) typecheckedBody
       let
-        entry = Entry.Word category merge origin' parent
-          (Just resolvedSignature) (Just flattenedBody)
+        entry = Entry.Word
+          category merge origin' parent
+          (Just $ if Definition.inferSignature definition
+            then Signature.Type type_
+            else resolvedSignature) (Just flattenedBody)
         entries = map
-          (\ ((quotationName, type_), quotationBody)
+          (\ ((quotationName, quotationType), quotationBody)
             -> (quotationName, Entry.Word
               Category.Word
               Merge.Deny
               (Term.origin quotationBody)
               Nothing
-              (Just (Signature.Type type_))
+              (Just (Signature.Type quotationType))
               (Just quotationBody)))
           quotations
       return $ foldr
@@ -265,25 +271,32 @@ defineWord dictionary definition = do
     -- Already defined as concatenable.
     Just (Entry.Word category merge@Merge.Compose
       origin' parent mSignature@(Just signature') body)
-      | resolvedSignature == signature' -> do
+      | Definition.inferSignature definition
+        || resolvedSignature == signature' -> do
       let
         strippedBody = maybe (Term.Identity () (Origin.point "<implicit>" 1 1))
           Term.stripMetadata body
-      composed <- typecheck dictionary name resolvedSignature
+      (composed, composedType) <- typecheck dictionary
+        (if Definition.inferSignature definition
+          then Nothing
+          else Just resolvedSignature)
         $ Term.Compose () strippedBody $ Definition.body resolved
       (flattenedBody, quotations) <- Quotations.desugar
         (qualifierFromName name) composed
       let
-        entry = Entry.Word category merge origin' parent mSignature
+        entry = Entry.Word category merge origin' parent
+          (if Definition.inferSignature definition
+            then Just (Signature.Type composedType)
+            else mSignature)
           $ Just flattenedBody
         entries = map
-          (\ ((quotationName, type_), quotationBody)
+          (\ ((quotationName, quotationType), quotationBody)
             -> (quotationName, Entry.Word
               Category.Word
               Merge.Deny
               (Term.origin quotationBody)
               Nothing
-              (Just (Signature.Type type_))
+              (Just (Signature.Type quotationType))
               (Just quotationBody)))
           quotations
       return $ foldr
@@ -304,8 +317,13 @@ defineWord dictionary definition = do
       ]
 
 fragmentFromSource
-  :: [GeneralName] -> Int -> FilePath -> Text -> K (Fragment ())
-fragmentFromSource mainPermissions line path source = do
+  :: [GeneralName]
+  -> Maybe Qualified
+  -> Int
+  -> FilePath
+  -> Text
+  -> K (Fragment ())
+fragmentFromSource mainPermissions mainName line path source = do
 
 -- Sources are lexed into a stream of tokens.
 
@@ -321,7 +339,7 @@ fragmentFromSource mainPermissions line path source = do
 
 -- We then parse the token stream as a series of top-level program elements.
 
-  parsed <- Parse.program line path mainPermissions laidout
+  parsed <- Parse.program line path mainPermissions mainName laidout
   checkpoint
 
 -- Datatype definitions are desugared into regular definitions, so that name

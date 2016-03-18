@@ -56,19 +56,29 @@ import qualified Kitten.TypeDefinition as TypeDefinition
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.Parsec as Parsec
 
-program :: Int -> FilePath -> [GeneralName] -> [Located Token] -> K (Fragment ())
-program line path mainPermissions tokens = let
-  parsed = Parsec.runParser (fragmentParser mainPermissions)
+program
+  :: Int
+  -> FilePath
+  -> [GeneralName]
+  -> Maybe Qualified
+  -> [Located Token]
+  -> K (Fragment ())
+program line path mainPermissions mainName tokens = let
+  parsed = Parsec.runParser
+    (fragmentParser mainPermissions mainName)
     Vocabulary.global path tokens
   in case parsed of
     Left parseError -> do
       report $ Report.parseError parseError
       halt
     Right result -> return
-      $ case find Definition.isMain $ Fragment.definitions result of
+      $ case find
+        ((== fromMaybe Definition.mainName mainName) . Definition.name)
+        $ Fragment.definitions result of
         Just{} -> result
         Nothing -> result
           { Fragment.definitions = Definition.main mainPermissions
+            mainName
             (Identity () (Origin.point "<implicit>" line 1))
             : Fragment.definitions result
           }
@@ -84,15 +94,21 @@ generalName line path text = do
       halt
     Right (name, _) -> return name
 
-fragmentParser :: [GeneralName] -> Parser (Fragment ())
-fragmentParser mainPermissions = partitionElements mainPermissions
-  <$> elementsParser <* Parsec.eof
+fragmentParser
+  :: [GeneralName] -> Maybe Qualified -> Parser (Fragment ())
+fragmentParser mainPermissions mainName
+  = partitionElements mainPermissions mainName
+    <$> elementsParser <* Parsec.eof
 
 elementsParser :: Parser [Element ()]
 elementsParser = concat <$> many (vocabularyParser <|> (:[]) <$> elementParser)
 
-partitionElements :: [GeneralName] -> [Element ()] -> Fragment ()
-partitionElements mainPermissions = rev . foldr go mempty
+partitionElements
+  :: [GeneralName]
+  -> Maybe Qualified
+  -> [Element ()]
+  -> Fragment ()
+partitionElements mainPermissions mainName = rev . foldr go mempty
   where
 
   rev :: Fragment () -> Fragment ()
@@ -118,13 +134,15 @@ partitionElements mainPermissions = rev . foldr go mempty
       { Fragment.types = x : Fragment.types acc }
     Element.Term x -> acc
       { Fragment.definitions
-        = case findIndex Definition.isMain $ Fragment.definitions acc of
+        = case findIndex
+          ((== fromMaybe Definition.mainName mainName) . Definition.name)
+          $ Fragment.definitions acc of
           Just index -> case splitAt index $ Fragment.definitions acc of
             (a, existing : b) -> a ++ existing { Definition.body
               = composeUnderLambda (Definition.body existing) x } : b
             _ -> error "cannot find main definition"
-          Nothing -> Definition.main mainPermissions
-            x : Fragment.definitions acc
+          Nothing -> Definition.main mainPermissions mainName x
+            : Fragment.definitions acc
       }
       where
 
@@ -343,7 +361,10 @@ functionTypeParser = (<?> "function type") $ do
       rightVar <- stack
       rightTypes <- Parsec.option [] (parserMatch Token.Comma *> right)
       return
-        (Signature.StackFunction leftVar leftTypes rightVar rightTypes, origin)
+        ( Signature.StackFunction
+          (Signature.Variable (UnqualifiedName leftVar) origin) leftTypes
+          (Signature.Variable (UnqualifiedName rightVar) origin) rightTypes
+        , origin)
     , do
       leftTypes <- left
       origin <- arrow
@@ -459,6 +480,7 @@ definitionParser keyword category = do
     { Definition.body = body
     , Definition.category = category
     , Definition.fixity = fixity
+    , Definition.inferSignature = False
     , Definition.merge = Merge.Deny
     , Definition.name = name
     , Definition.origin = origin

@@ -148,7 +148,7 @@ spec = do
 testWord :: Text -> Qualifier -> GeneralName -> Qualified -> IO ()
 testWord contextSource viewpoint name expected = do
   dictionary <- runKitten $ do
-    context <- fragmentFromSource [] 1 "<common>" contextSource
+    context <- fragmentFromSource [] Nothing 1 "<common>" contextSource
     contextDictionary <- Enter.fragment context Dictionary.empty
     let
       origin = Origin.point "<test>" 0 0
@@ -157,12 +157,16 @@ testWord contextSource viewpoint name expected = do
           { Definition.body = Term.Word () Operator.Postfix name [] origin
           , Definition.category = Category.Word
           , Definition.fixity = Operator.Postfix
+          , Definition.inferSignature = False
           , Definition.merge = Merge.Deny
           , Definition.name = Qualified viewpoint "test"
           , Definition.origin = origin
           , Definition.signature = Signature.Quantified
             [Parameter origin "R" Stack, Parameter origin "S" Stack]
-            (Signature.StackFunction "R" [] "S" [] [] origin) origin
+            (Signature.StackFunction
+              (Signature.Variable "R" origin) []
+              (Signature.Variable "S" origin) []
+              [] origin) origin
           }
         }
     Enter.fragment fragment contextDictionary
@@ -189,7 +193,7 @@ testWord contextSource viewpoint name expected = do
 testType :: Text -> Qualifier -> GeneralName -> Qualified -> IO ()
 testType contextSource viewpoint name expected = do
   resolved <- runKitten $ do
-    context <- fragmentFromSource [] 1 "<common>" contextSource
+    context <- fragmentFromSource [] Nothing 1 "<common>" contextSource
     contextDictionary <- Enter.fragment context Dictionary.empty
     let origin = Origin.point "<test>" 0 0
     Resolve.run $ Resolve.signature contextDictionary viewpoint

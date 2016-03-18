@@ -7,6 +7,7 @@ module Kitten.Definition
   , mainName
   ) where
 
+import Data.Maybe (fromMaybe)
 import Kitten.Entry.Category (Category)
 import Kitten.Entry.Merge (Merge)
 import Kitten.Entry.Parameter (Parameter(..))
@@ -30,6 +31,7 @@ data Definition a = Definition
   { body :: !(Term a)
   , category :: !Category
   , fixity :: !Fixity
+  , inferSignature :: !Bool
   , merge :: !Merge
   , name :: !Qualified
   , origin :: !Origin
@@ -46,17 +48,20 @@ instance Pretty (Definition a) where
 -- The main definition, created implicitly from top-level code in program
 -- fragments. The list of permissions are those granted by the runtime.
 
-main :: [GeneralName] -> Term a -> Definition a
-main permissions term = Definition
+main :: [GeneralName] -> Maybe Qualified -> Term a -> Definition a
+main permissions mName term = Definition
   { body = term
   , category = Category.Word
   , fixity = Operator.Postfix
+  , inferSignature = True
   , merge = Merge.Compose
-  , name = mainName
+  , name = fromMaybe mainName mName
   , origin = o
   , signature = Signature.Quantified
     [Parameter o "R" Stack, Parameter o "S" Stack]
-    (Signature.StackFunction "R" [] "S" []
+    (Signature.StackFunction
+      (Signature.Variable "R" o) []
+      (Signature.Variable "S" o) []
       permissions o) o
   }
   where o = Term.origin term

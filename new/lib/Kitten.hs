@@ -14,7 +14,7 @@ import Control.Monad.IO.Class
 import Data.Text (Text)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Monad (K, runKitten)
-import Kitten.Name (GeneralName)
+import Kitten.Name
 import Kitten.Tokenize (tokenize)
 import Text.Parsec.Text ()
 import qualified Data.ByteString as ByteString
@@ -26,13 +26,18 @@ import qualified Kitten.Enter as Enter
 -- warnings ("reports") are accumulated, and reported to the programmer at the
 -- next checkpoint.
 
-compile :: [GeneralName] -> [FilePath] -> K Dictionary
-compile mainPermissions paths = do
+compile
+  :: [GeneralName]
+  -> Maybe Qualified
+  -> [FilePath]
+  -> K Dictionary
+compile mainPermissions mainName paths = do
 
 -- Source files must be encoded in UTF-8.
 
   sources <- liftIO $ mapM readFileUtf8 paths
-  parsed <- mconcat <$> zipWithM (Enter.fragmentFromSource mainPermissions 1)
+  parsed <- mconcat <$> zipWithM
+    (Enter.fragmentFromSource mainPermissions mainName 1)
     paths sources
   Enter.fragment parsed Dictionary.empty
   where

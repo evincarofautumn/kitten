@@ -7,7 +7,7 @@ module Kitten.Signature
 
 import Kitten.Entry.Parameter (Parameter(Parameter))
 import Kitten.Kind (Kind(..))
-import Kitten.Name (GeneralName, Unqualified)
+import Kitten.Name (GeneralName)
 import Kitten.Origin (Origin)
 import Kitten.Type (Type)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
@@ -17,11 +17,15 @@ import qualified Text.PrettyPrint as Pretty
 
 data Signature
   = Application Signature Signature !Origin
+  | Bottom !Origin
   | Function [Signature] [Signature] [GeneralName] !Origin
   | Quantified [Parameter] !Signature !Origin
   | Variable !GeneralName !Origin
   | StackFunction
-    !Unqualified [Signature] !Unqualified [Signature] [GeneralName] !Origin
+    Signature [Signature]
+    Signature [Signature]
+    [GeneralName]
+    !Origin
   -- Produced when generating signatures for lifted quotations after
   -- typechecking.
   | Type !Type
@@ -40,6 +44,7 @@ instance Eq Signature where
 origin :: Signature -> Origin
 origin signature = case signature of
   Application _ _ o -> o
+  Bottom o -> o
   Function _ _ _ o -> o
   Quantified _ _ o -> o
   Variable _ o -> o
@@ -50,6 +55,7 @@ instance Pretty Signature where
   pPrint signature = case signature of
     Application a b _ -> Pretty.hcat
       [pPrint a, Pretty.angles $ pPrint b]
+    Bottom _ -> "<bottom>"
     Function as bs es _ -> Pretty.parens $ Pretty.hsep $
       [ Pretty.list $ map pPrint as
       , "->"

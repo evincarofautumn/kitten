@@ -35,6 +35,9 @@ data GeneralName
   | LocalName !LocalIndex
   deriving (Eq, Ord, Show)
 
+instance IsString GeneralName where
+  fromString = UnqualifiedName . fromString
+
 data Qualified = Qualified
   { qualifierName :: !Qualifier
   , unqualifiedName :: !Unqualified
