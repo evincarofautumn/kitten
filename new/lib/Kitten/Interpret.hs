@@ -5,6 +5,7 @@ module Kitten.Interpret
   ) where
 
 import Data.IORef (newIORef, modifyIORef', readIORef, writeIORef)
+import Data.Maybe (fromMaybe)
 import Kitten.Definition (mainName)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Name
@@ -15,9 +16,14 @@ import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
 import qualified Text.PrettyPrint as Pretty
 
-interpret :: Dictionary -> IO ()
-interpret dictionary = do
-  stackRef <- newIORef []
+interpret
+  :: Dictionary
+  -> Maybe Qualified
+  -> [Value Type]
+  -> IO [Value Type]
+interpret dictionary mName initialStack = do
+  -- TODO: Types.
+  stackRef <- newIORef initialStack
   localsRef <- newIORef []
   currentClosureRef <- newIORef []
   let
@@ -77,8 +83,9 @@ interpret dictionary = do
         modifyIORef' stackRef ((locals !! index) :)
       _ -> modifyIORef' stackRef (value :)
 
-  word mainName
+  word $ fromMaybe mainName mName
   stack <- readIORef stackRef
   case stack of
     [] -> return ()
     _ -> putStrLn $ Pretty.render $ Pretty.vcat $ "Stack:" : map pPrint stack
+  return stack

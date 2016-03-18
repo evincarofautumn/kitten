@@ -70,6 +70,7 @@ library
     Kitten.Tokenize
     Kitten.Type
     Kitten.TypeEnv
+    Kitten.Unify
     Kitten.Vocabulary
     Kitten.Zonk
 
@@ -96,7 +97,6 @@ library
     Kitten.Substitute
     Kitten.Synonym
     Kitten.TypeDefinition
-    Kitten.Unify
 
   ghc-options: -Wall
 

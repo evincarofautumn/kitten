@@ -6,6 +6,7 @@ module Kitten.Type
   , Type(..)
   , TypeId(..)
   , Var(..)
+  , bottomType
   , funType
   , joinType
   , prodType
@@ -46,6 +47,9 @@ newtype Constructor = Constructor Qualified
 
 data Var = Var !TypeId !Kind
   deriving (Eq, Show)
+
+bottomType :: Origin -> Type
+bottomType o = TypeConstructor o "Bottom"
 
 funType :: Origin -> Type -> Type -> Type -> Type
 funType o a b e = TypeConstructor o "Fun" :@ a :@ b :@ e

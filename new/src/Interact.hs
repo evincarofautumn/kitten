@@ -13,9 +13,12 @@ import Data.Text (Text)
 import Kitten (runKitten)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Entry (Entry)
+import Kitten.Entry.Parameter (Parameter(..))
+import Kitten.Infer (typeFromSignature)
 import Kitten.Informer (checkpoint)
 import Kitten.Interpret (interpret)
-import Kitten.Name (GeneralName(..), Qualified(..))
+import Kitten.Kind (Kind(..))
+import Kitten.Name
 import Report
 import System.Exit (exitFailure)
 import System.IO (hFlush, stdout)
@@ -26,6 +29,7 @@ import Text.Printf (printf)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import qualified Kitten
+import qualified Kitten.Definition as Definition
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Enter as Enter
 import qualified Kitten.Entry as Entry
@@ -35,6 +39,9 @@ import qualified Kitten.Parse as Parse
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Report as Report
 import qualified Kitten.Resolve as Resolve
+import qualified Kitten.Signature as Signature
+import qualified Kitten.TypeEnv as TypeEnv
+import qualified Kitten.Unify as Unify
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.PrettyPrint as Pretty
 
@@ -43,7 +50,8 @@ run = do
   commonDictionary <- runKitten $ do
     fragment <- Kitten.fragmentFromSource
       [QualifiedName $ Qualified Vocabulary.global "IO"]
-        1 "<interactive>" commonSource
+      (Just $ Qualified Vocabulary.global "main")
+      1 "<interactive>" commonSource
     Enter.fragment fragment Dictionary.empty
   dictionaryRef <- newIORef =<< case commonDictionary of
     Left reports -> do
@@ -51,10 +59,12 @@ run = do
       exitFailure
     Right result -> return result
   lineNumberRef <- newIORef (1 :: Int)
+  stackRef <- newIORef []
   putStrLn "Welcome to Kitten! Type //help for help or //quit to quit."
   let
     loop = do
       lineNumber <- readIORef lineNumberRef
+      let currentOrigin = Origin.point "<interactive>" lineNumber 1
       printf "% 4d: " lineNumber
       hFlush stdout
       mLine <- try Text.getLine
@@ -88,13 +98,49 @@ run = do
           "//quit" -> bye
           _ -> do
             dictionary <- readIORef dictionaryRef
+            let
+              entryNameUnqualified = Text.pack $ "entry" ++ show lineNumber
+              entryName = Qualified
+                (Qualifier [Vocabulary.globalName, "interactive"])
+                $ Unqualified entryNameUnqualified
             mDictionary' <- runKitten $ do
+              -- Each entry gets its own definition in the dictionary, so it can
+              -- be executed individually, and later conveniently referred to.
               fragment <- Kitten.fragmentFromSource
                 [QualifiedName $ Qualified Vocabulary.global "IO"]
+                (Just entryName)
                 lineNumber "<interactive>" line
               dictionary' <- Enter.fragment fragment dictionary
               checkpoint
-              return dictionary'
+              callFragment <- Kitten.fragmentFromSource
+                [QualifiedName $ Qualified Vocabulary.global "IO"]
+                Nothing lineNumber "<interactive>"
+                -- TODO: Avoid stringly typing.
+                (Text.pack $ Pretty.render $ pPrint entryName)
+              dictionary'' <- Enter.fragment callFragment dictionary'
+              checkpoint
+              let tenv = TypeEnv.empty
+              mainScheme <- case Dictionary.lookup
+                Definition.mainName dictionary'' of
+                Just (Entry.Word _ _ _ _ (Just signature) _)
+                  -> typeFromSignature tenv signature
+                _ -> error "cannot get entry scheme"
+              stackScheme <- typeFromSignature tenv $ Signature.Quantified
+                [ Parameter currentOrigin "R" Stack
+                , Parameter currentOrigin "E" Permission
+                ]
+                (Signature.StackFunction
+                  (Signature.Bottom currentOrigin) []
+                  (Signature.Variable "R" currentOrigin) []
+                  ["E"] currentOrigin)
+                currentOrigin
+              -- Checking that the main definition is able to operate on an
+              -- empty stack is the same as verifying the last entry against the
+              -- current stack state, as long as the state was modified
+              -- correctly by the interpreter.
+              _ <- Unify.type_ tenv stackScheme mainScheme
+              checkpoint
+              return dictionary''
             case mDictionary' of
               Left reports -> do
                 reportAll reports
@@ -103,7 +149,10 @@ run = do
                 putStrLn "Okay."
                 writeIORef dictionaryRef dictionary'
                 modifyIORef' lineNumberRef (+ 1)
-                interpret dictionary'
+                stack <- interpret dictionary'
+                  (Just entryName)
+                  =<< readIORef stackRef
+                writeIORef stackRef stack
                 loop
   loop
   where
@@ -124,7 +173,7 @@ renderDictionary dictionaryRef = do
   let
     loop :: Int -> [[Text]] -> IO ()
     loop depth acc = case foldr0 commonPrefix [] acc of
-      [] -> return ()
+      [] -> mapM_ (putStrLn . prettyName depth) acc
       prefix -> let
         stripped = map (fromJust . stripPrefix prefix) acc
         (leaves, branches) = partition ((== 1) . length) stripped
@@ -160,6 +209,7 @@ nameCommand
 nameCommand lineNumber dictionaryRef name loop action = do
   result <- runKitten $ Parse.generalName
     lineNumber "<interactive>" name
+  let currentOrigin = Origin.point "<interactive>" lineNumber 1
   case result of
     Right unresolved -> do
       dictionary <- readIORef dictionaryRef
@@ -173,7 +223,7 @@ nameCommand lineNumber dictionaryRef name loop action = do
         Vocabulary.global
         unresolved
         -- TODO: Get this from the parser.
-        (Origin.point "<interactive>" lineNumber 1)
+        currentOrigin
       case mResolved of
         Left reports -> do
           reportAll reports

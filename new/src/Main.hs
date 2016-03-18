@@ -27,7 +27,9 @@ main = do
 runBatch :: [FilePath] -> IO ()
 runBatch paths = do
   result <- runKitten
-    $ compile [QualifiedName $ Qualified Vocabulary.global "IO"] paths
+    $ compile
+    [QualifiedName $ Qualified Vocabulary.global "IO"]
+    Nothing paths
   case result of
     Left reports -> do
       reportAll reports
