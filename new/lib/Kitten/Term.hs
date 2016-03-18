@@ -242,6 +242,6 @@ instance Pretty (Value a) where
     Float f -> Pretty.double f
     Integer i -> Pretty.integer i
     Local (LocalIndex index) -> "local." Pretty.<> Pretty.int index
-    Name n -> pPrint n
+    Name n -> Pretty.hcat ["\\", pPrint n]
     Quotation body -> Pretty.braces $ pPrint body
     Text t -> Pretty.doubleQuotes $ Pretty.text $ Text.unpack t
