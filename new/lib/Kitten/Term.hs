@@ -49,7 +49,7 @@ data Term a
   | If a !(Term a) !(Term a) !Origin            -- if { e1 } else { e2 }
   | Lambda a !Unqualified a !(Term a) !Origin   -- → x; e
   | Match a [Case a] !(Maybe (Else a)) !Origin  -- match { case C {...}... else {...} }
-  | New a !ConstructorIndex !Origin             -- new.n
+  | New a !ConstructorIndex !Int !Origin        -- new.n
   | NewClosure a !Int !Origin                   -- new.closure.n
   | NewVector a !Int !Origin                    -- new.vec.n
   | Push a !(Value a) !Origin                   -- push v
@@ -70,7 +70,8 @@ data Permit = Permit
   } deriving (Eq, Show)
 
 data Value a
-  = Capture [Closed] !(Term a)
+  = Algebraic !ConstructorIndex [Value a]
+  | Capture [Closed] !(Term a)
   | Character !Char
   | Closed !ClosureIndex
   | Closure !Qualified [Value a]
@@ -101,7 +102,7 @@ origin term = case term of
   Identity _ o -> o
   If _ _ _ o -> o
   Lambda _ _ _ _ o -> o
-  New _ _ o -> o
+  New _ _ _ o -> o
   NewClosure _ _ o -> o
   NewVector _ _ o -> o
   Match _ _ _ o -> o
@@ -132,7 +133,7 @@ metadata term = case term of
   If t _ _ _ -> t
   Lambda t _ _ _ _ -> t
   Match t _ _ _ -> t
-  New t _ _ -> t
+  New t _ _ _ -> t
   NewClosure t _ _ -> t
   NewVector t _ _ -> t
   Push t _ _ -> t
@@ -151,7 +152,7 @@ stripMetadata term = case term of
   If _ a b c -> If () (stripMetadata a) (stripMetadata b) c
   Lambda _ a _ b c -> Lambda () a () (stripMetadata b) c
   Match _ a b c -> Match () (map stripCase a) (fmap stripElse b) c
-  New _ a b -> New () a b
+  New _ a b c -> New () a b c
   NewClosure _ a b -> NewClosure () a b
   NewVector _ a b -> NewVector () a b
   Push _ a b -> Push () (stripValue a) b
@@ -170,6 +171,7 @@ stripMetadata term = case term of
 
 stripValue :: Value a -> Value ()
 stripValue v = case v of
+  Algebraic a b -> Algebraic a (map stripValue b)
   Capture a b -> Capture a (stripMetadata b)
   Character a -> Character a
   Closed a -> Closed a
@@ -203,7 +205,7 @@ instance Pretty (Term a) where
       , Pretty.nest 4 $ Pretty.vcat $ map pPrint cases
         ++ [pPrint else_ | Just else_ <- [mElse]]
       ]
-    New _ (ConstructorIndex index) _ -> "new." Pretty.<> Pretty.int index
+    New _ (ConstructorIndex index) _size _ -> "new." Pretty.<> Pretty.int index
     NewClosure _ size _ -> "new.closure." Pretty.<> pPrint size
     NewVector _ size _ -> "new.vec." Pretty.<> pPrint size
     Push _ value _ -> pPrint value
@@ -232,6 +234,7 @@ instance Pretty Permit where
 
 instance Pretty (Value a) where
   pPrint value = case value of
+    Algebraic{} -> "<adt>"
     Capture names term -> Pretty.hcat
       [ Pretty.char '$'
       , Pretty.parens $ Pretty.list $ map pPrint names

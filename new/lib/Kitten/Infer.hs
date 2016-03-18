@@ -274,11 +274,11 @@ inferType dictionary tenvFinal tenv0 term0
 -- the type signature of the desugared data constructor definition to make this
 -- type-safe, since only the compiler can generate 'new' expressions.
 
-    New _ constructor origin -> do
+    New _ constructor size origin -> do
       [a, b, e] <- fresh origin [Stack, Stack, Permission]
       let type_ = funType origin a b e
       let type' = Zonk.type_ tenvFinal type_
-      return (New type' constructor origin, type_, tenv0)
+      return (New type' constructor size origin, type_, tenv0)
 
 -- Unlike with 'new', we cannot simply type a 'new closure' expression as an
 -- unsafe cast because we need to know its effect on the stack within the body
@@ -426,6 +426,7 @@ inferValue
   -> Value a
   -> K (Value Type, Type, TypeEnv)
 inferValue dictionary tenvFinal tenv0 origin value = case value of
+  Algebraic{} -> error "adt should not appear before runtime"
   Capture names term -> do
     let types = map (getClosed tenv0) names
     let oldClosure = TypeEnv.closure tenv0

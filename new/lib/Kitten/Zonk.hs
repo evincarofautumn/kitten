@@ -62,8 +62,8 @@ term tenv0 = go
         = Case name (go body) caseOrigin
       goElse (Else body elseOrigin)
         = Else (go body) elseOrigin
-    New tref index origin
-      -> New (zonk tref) index origin
+    New tref index size origin
+      -> New (zonk tref) index size origin
     NewClosure tref index origin
       -> NewClosure (zonk tref) index origin
     NewVector tref size origin
@@ -81,6 +81,7 @@ value :: TypeEnv -> Value Type -> Value Type
 value tenv0 = go
   where
   go v = case v of
+    Algebraic{} -> error "adt should not appear before runtime"
     Capture names body -> Capture names $ term tenv0 body
     Character{} -> v
     Closed{} -> v

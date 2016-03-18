@@ -48,7 +48,9 @@ desugar fragment = do
             (DataConstructor.fields constructor) [resultSignature] [] origin)
           origin
       return Definition
-        { Definition.body = New () (ConstructorIndex index)
+        { Definition.body = New ()
+          (ConstructorIndex index)
+          (length $ DataConstructor.fields constructor)
           $ DataConstructor.origin constructor
         , Definition.category = Category.Word
         , Definition.fixity = Operator.Postfix
