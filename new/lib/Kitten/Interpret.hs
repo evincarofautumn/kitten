@@ -11,10 +11,8 @@ import Kitten.Dictionary (Dictionary)
 import Kitten.Name
 import Kitten.Term (Term(..), Value(..))
 import Kitten.Type (Type(..))
-import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
-import qualified Text.PrettyPrint as Pretty
 
 interpret
   :: Dictionary
@@ -84,8 +82,4 @@ interpret dictionary mName initialStack = do
       _ -> modifyIORef' stackRef (value :)
 
   word $ fromMaybe mainName mName
-  stack <- readIORef stackRef
-  case stack of
-    [] -> return ()
-    _ -> putStrLn $ Pretty.render $ Pretty.vcat $ "Stack:" : map pPrint stack
-  return stack
+  readIORef stackRef

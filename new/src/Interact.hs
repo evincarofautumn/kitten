@@ -74,6 +74,9 @@ run = do
           "//dict" -> do
             renderDictionary dictionaryRef
             loop
+          "//stack" -> do
+            renderStack stackRef
+            loop
           _
             | "//" `Text.isPrefixOf` line
             -> case Text.break (== ' ') $ Text.drop 2 line of
@@ -153,6 +156,7 @@ run = do
                   (Just entryName)
                   =<< readIORef stackRef
                 writeIORef stackRef stack
+                renderStack stackRef
                 loop
   loop
   where
@@ -242,3 +246,10 @@ nameCommand lineNumber dictionaryRef name loop action = do
     Left reports -> do
       reportAll reports
       loop
+
+renderStack :: (Pretty a) => IORef [a] -> IO ()
+renderStack stackRef = do
+  stack <- readIORef stackRef
+  case stack of
+    [] -> putStrLn "The stack is empty"
+    _ -> putStrLn $ Pretty.render $ Pretty.vcat $ map pPrint stack
