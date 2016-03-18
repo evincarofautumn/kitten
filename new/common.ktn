@@ -17,8 +17,19 @@ type Bool:
   case false
   case true
 
+type Optional<T>:
+  case none
+  case some (T)
+
 permission Fail<R..., S..., +P> (R..., (R... -> S... +Fail +P) -> S... +P):
   with (+Fail)
 
 permission IO<R..., S..., +P> (R..., (R... -> S... +IO +P) -> S... +P):
   with (+IO)
+
+define drop<T> (T ->):
+  -> _;
+
+define dup<T> (T -> T, T):
+  -> x;
+  x x
