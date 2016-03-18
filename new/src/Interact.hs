@@ -68,7 +68,7 @@ run = do
     loop = do
       lineNumber <- readIORef lineNumberRef
       let currentOrigin = Origin.point "<interactive>" lineNumber 1
-      printf "% 4d: " lineNumber
+      printf "\n% 4d: " lineNumber
       hFlush stdout
       mLine <- try Text.getLine
       case mLine of
