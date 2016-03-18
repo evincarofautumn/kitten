@@ -40,7 +40,12 @@ interpret dictionary mName initialStack = do
       Generic _ _ _ -> error "generic"
       Group t' -> term t'
       Identity _ _ -> return ()
-      If _ _true _false _ -> error "if"
+      If _ true false _ -> do
+        (Algebraic (ConstructorIndex index) [] : r) <- readIORef stackRef
+        writeIORef stackRef r
+        term $ case toEnum index of
+          False -> false
+          True -> true
       Lambda _ _name _ body _ -> do
         (a : r) <- readIORef stackRef
         ls <- readIORef localsRef
