@@ -45,39 +45,39 @@ spec = do
       testTypecheck "type Unit { case unit () } unit"
         $ Type.funType o r (Type.prodType o r (ctor "Unit")) e
     it "typechecks definitions" $ do
-      testTypecheck "define one (-> Int) { 1 } one"
+      testTypecheck "define one (-> Int32) { 1 } one"
         $ Type.funType o r (Type.prodType o r int) e
       testTypecheck
-        "define one (-> Int) { 1 }\n\
-        \define two (-> Int) { 2 }\n\
+        "define one (-> Int32) { 1 }\n\
+        \define two (-> Int32) { 2 }\n\
         \one two _::kitten::add_int"
         $ Type.funType o r (Type.prodType o r int) e
       testTypecheck
-        "define up (Int -> Int) { 1 _::kitten::add_int }\n\
-        \define down (Int -> Int) { -1 _::kitten::add_int }\n\
+        "define up (Int32 -> Int32) { 1 _::kitten::add_int }\n\
+        \define down (Int32 -> Int32) { -1 _::kitten::add_int }\n\
         \1 up 2 down _::kitten::add_int"
         $ Type.funType o r (Type.prodType o r int) e
     it "typechecks operators" $ do
       testTypecheck
-        "define + (Int, Int -> Int) { _::kitten::add_int }\n\
+        "define + (Int32, Int32 -> Int32) { _::kitten::add_int }\n\
         \1 + 1"
         $ Type.funType o r (Type.prodType o r int) e
       testTypecheck
-        "define + (Int, Int -> Int) { _::kitten::add_int }\n\
+        "define + (Int32, Int32 -> Int32) { _::kitten::add_int }\n\
         \about +:\n\
         \  operator:\n\
         \    right 5\n\
         \1 + 1"
         $ Type.funType o r (Type.prodType o r int) e
       testTypecheck
-        "define + (Int, Int -> Int) { _::kitten::add_int }\n\
+        "define + (Int32, Int32 -> Int32) { _::kitten::add_int }\n\
         \about +:\n\
         \  operator:\n\
         \    right\n\
         \1 + 1"
         $ Type.funType o r (Type.prodType o r int) e
       testTypecheck
-        "define + (Int, Int -> Int) { _::kitten::add_int }\n\
+        "define + (Int32, Int32 -> Int32) { _::kitten::add_int }\n\
         \about +:\n\
         \  operator:\n\
         \    5\n\
@@ -91,8 +91,8 @@ spec = do
   e = TypeVar o $ Var (TypeId 2) Permission
   ctor = TypeConstructor o . Type.Constructor
     . Qualified Vocabulary.global
-  int = ctor "Int"
-  float = ctor "Float"
+  int = ctor "Int32"
+  float = ctor "Float64"
 
 testTypecheck :: Text -> Type -> IO ()
 testTypecheck input expected = do
@@ -153,10 +153,10 @@ commonSource :: Text
 commonSource = "\
 \vocab kitten {\
 \  intrinsic magic<R..., S...> (R... -> S...)\
-\  intrinsic add_int (_::Int, _::Int -> _::Int)\
+\  intrinsic add_int (_::Int32, _::Int32 -> _::Int32)\
 \}\
 \type Float {}\n\
-\type Int {}\n\
+\type Int32 {}\n\
 \permission IO<R..., S..., +E> (R..., (R... -> S... +IO +E) -> S... +E) {\n\
 \  with (+IO)\n\
 \}\n"

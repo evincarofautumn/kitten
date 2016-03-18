@@ -25,10 +25,10 @@ type_ (TypeConstructor _ "Ptr" :@ a) = Text.concat ["P", type_ a]
 type_ (TypeConstructor _origin (Constructor con)) = case con of
   Qualified qualifier unqualified
     | qualifier == Vocabulary.global -> case unqualified of
-      "Int" -> "i"
+      "Int32" -> "i"
       "Bool" -> "b"
       "Char" -> "c"
-      "Float" -> "f"
+      "Float64" -> "f"
       "Text" -> "PKc"
       _ -> lengthEncode con
   _ -> lengthEncode con
