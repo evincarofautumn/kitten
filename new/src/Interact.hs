@@ -78,6 +78,9 @@ run = do
           "//dict" -> do
             renderDictionary dictionaryRef
             loop
+          "//help" -> do
+            showHelp
+            loop
           "//stack" -> do
             renderStack stackRef
             loop
@@ -261,3 +264,15 @@ renderStack stackRef = do
   case stack of
     [] -> return ()
     _ -> putStrLn $ Pretty.render $ Pretty.vcat $ map pPrint stack
+
+showHelp :: IO ()
+showHelp = putStrLn "\
+\\n\
+\//help         - Show this help.\n\
+\//quit         - Quit interactive mode.\n\
+\\n\
+\//dict         - Show the contents of the dictionary.\n\
+\//info <name>  - Show information about <name>.\n\
+\//list <name>  - Show the desugared source of <name>.\n\
+\//stack        - Show the state of the stack.\n\
+\\&"
