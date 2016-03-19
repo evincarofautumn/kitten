@@ -11,6 +11,7 @@ import Kitten.Dictionary (Dictionary)
 import Kitten.Name
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Kitten.Type (Type(..))
+import qualified Data.Text as Text
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
 import qualified Kitten.Term as Term
@@ -52,6 +53,10 @@ interpret dictionary mName initialStack = do
             "prepend" -> do
               (Array xs : x : r) <- readIORef stackRef
               writeIORef stackRef $ Array (x : xs) : r
+            "print" -> do
+              (Array cs : r) <- readIORef stackRef
+              writeIORef stackRef r
+              mapM_ (\ (Character c) -> putChar c) cs
             "tail" -> do
               (Array xs : r) <- readIORef stackRef
               case xs of
@@ -146,6 +151,8 @@ interpret dictionary mName initialStack = do
       Local (LocalIndex index) -> do
         locals <- readIORef localsRef
         modifyIORef' stackRef ((locals !! index) :)
+      Text text -> modifyIORef' stackRef
+        ((Array $ map Character $ Text.unpack text) :)
       _ -> modifyIORef' stackRef (value :)
 
   word $ fromMaybe mainName mName
