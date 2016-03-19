@@ -49,6 +49,9 @@ interpret dictionary mName initialStack = do
                 x : _ -> do
                   writeIORef stackRef $ x : r
                   word $ Qualified Vocabulary.global "some"
+            "prepend" -> do
+              (Array xs : x : r) <- readIORef stackRef
+              writeIORef stackRef $ Array (x : xs) : r
             "tail" -> do
               (Array xs : r) <- readIORef stackRef
               case xs of

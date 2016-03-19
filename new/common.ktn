@@ -21,6 +21,12 @@ type Optional<T>:
   case none
   case some (T)
 
+type Pair<A, B>:
+  case pair (A, B)
+
+define unpair<A, B> (Pair<A, B> -> A, B):
+  match: case pair {}
+
 type List<T> {}
 
 intrinsic empty<T> (List<T> -> Bool)
@@ -28,6 +34,31 @@ intrinsic empty<T> (List<T> -> Bool)
 intrinsic head<T> (List<T> -> Optional<T>)
 
 intrinsic tail<T> (List<T> -> Optional<List<T>>)
+
+intrinsic prepend<T> (T, List<T> -> List<T>)
+
+define head_tail<T> (List<T> -> Optional<Pair<T, List<T>>>):
+  -> xs;
+  match (xs head):
+    case none:
+      none
+    case some -> y:
+      match (xs tail):
+        case none:
+          none
+        case some -> ys:
+          y ys pair some
+
+define map<A, B, +P> (List<A>, (A -> B +P) -> List<B> +P):
+  -> xs, f;
+  match (xs head_tail):
+    case none:
+      []
+    case some:
+      unpair -> y, ys;
+      y f call -> z;
+      ys f map -> zs;
+      z zs prepend
 
 permission Fail<R..., S..., +P> (R..., (R... -> S... +Fail +P) -> S... +P):
   with (+Fail)
