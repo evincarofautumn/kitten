@@ -89,6 +89,8 @@ compose :: a -> Origin -> [Term a] -> Term a
 compose x o = foldr (Compose x) (Identity x o)
 
 decompose :: Term a -> [Term a]
+-- TODO: Verify that this is correct.
+decompose (Generic _ t _) = decompose t
 decompose (Compose _ a b) = decompose a ++ decompose b
 decompose Identity{} = []
 decompose term = [term]
