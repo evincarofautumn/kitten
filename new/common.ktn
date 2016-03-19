@@ -31,13 +31,26 @@ define unpair<A, B> (Pair<A, B> -> A, B):
 
 type List<T> {}
 
-intrinsic empty<T> (List<T> -> Bool)
+vocab kitten {
 
-intrinsic head<T> (List<T> -> Optional<T>)
+  intrinsic empty<T> (List<T> -> Bool)
+  intrinsic head<T> (List<T> -> Optional<T>)
+  intrinsic tail<T> (List<T> -> Optional<List<T>>)
+  intrinsic prepend<T> (T, List<T> -> List<T>)
 
-intrinsic tail<T> (List<T> -> Optional<List<T>>)
+}
 
-intrinsic prepend<T> (T, List<T> -> List<T>)
+define empty<T> (List<T> -> Bool):
+  _::kitten::empty
+
+define head<T> (List<T> -> Optional<T>):
+  _::kitten::head
+
+define tail<T> (List<T> -> Optional<List<T>>):
+  _::kitten::tail
+
+define prepend<T> (T, List<T> -> List<T>):
+  _::kitten::prepend
 
 define head_tail<T> (List<T> -> Optional<Pair<T, List<T>>>):
   -> xs;
@@ -62,9 +75,18 @@ define map<A, B, +P> (List<A>, (A -> B +P) -> List<B> +P):
       ys f map -> zs;
       z zs prepend
 
-intrinsic print (List<Char> -> +IO)
+vocab kitten {
 
-define say (List<Char> -> +IO):
+  intrinsic print (List<Char> -> +IO)
+
+}
+
+trait print<T> (T -> +_::IO)
+
+instance print (List<Char> -> +IO):
+  _::kitten::print
+
+define say<T> (T -> +IO):
   print
   "\n" print
 

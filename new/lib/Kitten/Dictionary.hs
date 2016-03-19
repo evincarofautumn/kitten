@@ -160,4 +160,6 @@ wordNames :: Dictionary -> [Qualified]
 wordNames = mapMaybe wordName . HashMap.toList . entries
   where
   wordName (name, Entry.Word{}) = Just name
+  -- TODO: Figure out how to get mangled names out of this...
+  wordName (name, Entry.Trait{}) = Just name
   wordName _ = Nothing

@@ -196,8 +196,8 @@ inferType dictionary tenvFinal tenv0 term0
       let type' = Zonk.type_ tenvFinal type_
       return (Drop type' origin, type_, tenv0)
 
-    Generic{} -> error
-      "generic expresison should not appear during type inference"
+    -- TODO: Verify that this is correct.
+    Generic _ t _ -> inferType' tenv0 t
     Group{} -> error
       "group expression should not appear during type inference"
 
@@ -482,8 +482,14 @@ inferCall dictionary tenvFinal tenv0 (QualifiedName name) origin
       let
         type'' = Zonk.type_ tenvFinal type'
         params'' = map (Zonk.type_ tenvFinal) params'
+      let
+        mangled = QualifiedName name {- $ case params'' of
+          [] -> name
+          _ -> Qualified Vocabulary.global
+            $ Unqualified $ Mangle.name name params'' -}
       return
-        ( Word type'' Operator.Postfix (QualifiedName name) params'' origin
+        ( Word type'' Operator.Postfix mangled
+          params'' origin
         , type'
         , tenv1
         )
@@ -629,7 +635,8 @@ typeKind dictionary = go
       -> case Dictionary.lookup qualified dictionary of
       Just (Entry.Type _origin parameters) -> case parameters of
         [] -> return Value
-        _ -> return $ foldr1 (:->) $ map (\ (Parameter _ _ k) -> k) parameters
+        _ -> return $ foldr (:->) Value
+          $ map (\ (Parameter _ _ k) -> k) parameters
       _ -> case qualified of
         Qualified qualifier unqualified
           | qualifier == Vocabulary.global -> case unqualified of
@@ -640,6 +647,7 @@ typeKind dictionary = go
             "IO" -> return Label
             "Fail" -> return Label
             "Join" -> return $ Label :-> Permission :-> Permission
+            "List" -> return $ Value :-> Value
             _ -> error $ Pretty.render $ Pretty.hsep
               [ "can't infer kind of constructor"
               , Pretty.quote qualified
@@ -656,9 +664,16 @@ typeKind dictionary = go
     TypeVar _origin (Var _ k) -> return k
     TypeConstant _origin (Var _ k) -> return k
     Forall _origin _ t' -> go t'
-    a :@ _b -> do
+    a :@ b -> do
       ka <- go a
       case ka of
         _ :-> k -> return k
         -- TODO: Better error reporting.
-        _ -> error "applying non-constructor to type"
+        _ -> error $ Pretty.render $ Pretty.hsep
+          [ "applying type"
+          , Pretty.quote a
+          , "of non-constructor kind"
+          , Pretty.quote ka
+          , "to type"
+          , Pretty.quote b
+          ]

@@ -38,6 +38,7 @@ import qualified Kitten.Metadata as Metadata
 import qualified Kitten.Origin as Origin
 import qualified Kitten.Parse as Parse
 import qualified Kitten.Pretty as Pretty
+import qualified Kitten.Quantify as Quantify
 import qualified Kitten.Report as Report
 import qualified Kitten.Resolve as Resolve
 import qualified Kitten.Signature as Signature
@@ -217,8 +218,10 @@ defineWord dictionary definition = do
       mangledName <- mangleInstance dictionary name
         resolvedSignature traitSignature
       -- Should this use the mangled name?
-      (flattenedBody, quotations) <- Quotations.desugar
-        (qualifierFromName name) typecheckedBody
+      (flattenedBody, dictionary') <- Quotations.desugar
+        dictionary
+        (qualifierFromName name)
+        $ Quantify.term type_ typecheckedBody
       let
         entry = Entry.Word
           (Definition.category definition)
@@ -227,47 +230,21 @@ defineWord dictionary definition = do
           (Just (Parent.Trait name))
           (Just resolvedSignature)
           (Just flattenedBody)
-        entries = map
-          (\ ((quotationName, quotationType), quotationBody)
-            -> (quotationName, Entry.Word
-              Category.Word
-              Merge.Deny
-              (Term.origin quotationBody)
-              Nothing
-              (Just (Signature.Type quotationType))
-              (Just quotationBody)))
-          quotations
-      return $ foldr
-        (\ (quotationName, quotationEntry)
-          -> Dictionary.insert quotationName quotationEntry)
-        (Dictionary.insert mangledName entry dictionary)
-        entries
+      return $ Dictionary.insert mangledName entry dictionary'
     -- Previously declared with same signature, but not defined.
     Just (Entry.Word category merge origin' parent signature' Nothing)
       | maybe True (resolvedSignature ==) signature' -> do
-      (flattenedBody, quotations) <- Quotations.desugar
-        (qualifierFromName name) typecheckedBody
+      (flattenedBody, dictionary') <- Quotations.desugar
+        dictionary (qualifierFromName name)
+        $ Quantify.term type_ typecheckedBody
       let
         entry = Entry.Word
           category merge origin' parent
           (Just $ if Definition.inferSignature definition
             then Signature.Type type_
-            else resolvedSignature) (Just flattenedBody)
-        entries = map
-          (\ ((quotationName, quotationType), quotationBody)
-            -> (quotationName, Entry.Word
-              Category.Word
-              Merge.Deny
-              (Term.origin quotationBody)
-              Nothing
-              (Just (Signature.Type quotationType))
-              (Just quotationBody)))
-          quotations
-      return $ foldr
-        (\ (quotationName, quotationEntry)
-          -> Dictionary.insert quotationName quotationEntry)
-        (Dictionary.insert name entry dictionary)
-        entries
+            else resolvedSignature)
+          $ Just flattenedBody
+      return $ Dictionary.insert name entry dictionary'
     -- Already defined as concatenable.
     Just (Entry.Word category merge@Merge.Compose
       origin' parent mSignature@(Just signature') body)
@@ -281,29 +258,16 @@ defineWord dictionary definition = do
           then Nothing
           else Just resolvedSignature)
         $ Term.Compose () strippedBody $ Definition.body resolved
-      (flattenedBody, quotations) <- Quotations.desugar
-        (qualifierFromName name) composed
+      (flattenedBody, dictionary') <- Quotations.desugar
+        dictionary (qualifierFromName name)
+        $ Quantify.term composedType composed
       let
         entry = Entry.Word category merge origin' parent
           (if Definition.inferSignature definition
             then Just (Signature.Type composedType)
             else mSignature)
           $ Just flattenedBody
-        entries = map
-          (\ ((quotationName, quotationType), quotationBody)
-            -> (quotationName, Entry.Word
-              Category.Word
-              Merge.Deny
-              (Term.origin quotationBody)
-              Nothing
-              (Just (Signature.Type quotationType))
-              (Just quotationBody)))
-          quotations
-      return $ foldr
-        (\ (quotationName, quotationEntry)
-          -> Dictionary.insert quotationName quotationEntry)
-        (Dictionary.insert name entry dictionary)
-        entries
+      return $ Dictionary.insert name entry dictionary'
     -- Already defined, not concatenable.
     Just (Entry.Word _ Merge.Deny originalOrigin _ (Just sig) _) -> do
       report $ Report.WordRedefinition (Definition.origin definition)
@@ -368,4 +332,4 @@ resolveAndDesugar dictionary definition = do
 -- quotations can be rewritten into closures that explicitly capture the
 -- variables they use from the enclosing scope.
 
-  return $ postfix { Definition.body = scope $ Definition.body postfix }
+  return postfix { Definition.body = scope $ Definition.body postfix }

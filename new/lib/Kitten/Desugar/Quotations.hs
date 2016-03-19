@@ -2,79 +2,105 @@ module Kitten.Desugar.Quotations
   ( desugar
   ) where
 
-import Control.Monad (mapAndUnzipM)
-import Control.Monad.Trans.State (StateT, evalStateT, get, put)
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.State (StateT, gets, modify, runStateT)
+import Data.Traversable (forM)
+import Kitten.Dictionary (Dictionary)
+import Kitten.Infer (typecheck)
 import Kitten.Monad (K)
 import Kitten.Name (Closed(..), Qualified(..), Qualifier, Unqualified(..))
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Kitten.Type (Type(..), Var(..))
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import qualified Kitten.Dictionary as Dictionary
+import qualified Kitten.Entry as Entry
+import qualified Kitten.Entry.Category as Category
+import qualified Kitten.Entry.Merge as Merge
 import qualified Kitten.Free as Free
+import qualified Kitten.Signature as Signature
 import qualified Kitten.Term as Term
 
 newtype LambdaIndex = LambdaIndex Int
 
-desugar :: Qualifier -> Term Type -> K (Term Type, [((Qualified, Type), Term Type)])
-desugar qualifier = flip evalStateT (LambdaIndex 0) . go
+desugar
+  :: Dictionary
+  -> Qualifier
+  -> Term Type
+  -> K (Term Type, Dictionary)
+desugar dictionary qualifier term0 = do
+  (term', (_, dictionary')) <- flip runStateT (LambdaIndex 0, dictionary)
+    $ go term0
+  return (term', dictionary')
   where
 
-  go :: Term Type -> StateT LambdaIndex K (Term Type, [((Qualified, Type), Term Type)])
+  go
+    :: Term Type
+    -> StateT (LambdaIndex, Dictionary) K (Term Type)
   go term = case term of
     Call{} -> done
     Compose type_ a b -> do
-      (a', as) <- go a
-      (b', bs) <- go b
-      return (Compose type_ a' b', as ++ bs)
+      a' <- go a
+      b' <- go b
+      return $ Compose type_ a' b'
     Drop{} -> done
-    Generic{} -> error
-      "generic expression should not appear before desugaring"
+    Generic type_ a origin -> do
+      a' <- go a
+      return $ Generic type_ a' origin
     Group{} -> error "group should not appear after infix desugaring"
     Identity{} -> done
     If type_ a b origin -> do
-      (a', as) <- go a
-      (b', bs) <- go b
-      return (If type_ a' b' origin, as ++ bs)
+      a' <- go a
+      b' <- go b
+      return $ If type_ a' b' origin
     Lambda type_ name varType a origin -> do
-      (a', as) <- go a
-      return (Lambda type_ name varType a' origin, as)
+      a' <- go a
+      return $ Lambda type_ name varType a' origin
     Match type_ cases mElse origin -> do
-      (cases', as) <- flip mapAndUnzipM cases
+      cases' <- forM cases
         $ \ (Case name a caseOrigin) -> do
-          (a', xs) <- go a
-          return (Case name a' caseOrigin, xs)
-      (mElse', bs) <- case mElse of
+          a' <- go a
+          return $ Case name a' caseOrigin
+      mElse' <- case mElse of
         Just (Else a elseOrigin) -> do
-          (a', xs) <- go a
-          return (Just (Else a' elseOrigin), xs)
-        Nothing -> return (Nothing, [])
-      return (Match type_ cases' mElse' origin, concat as ++ bs)
+          a' <- go a
+          return $ Just $ Else a' elseOrigin
+        Nothing -> return Nothing
+      return $ Match type_ cases' mElse' origin
     New{} -> done
     NewClosure{} -> done
     NewVector{} -> done
     Push _type (Capture closed a) origin -> do
-      (a', as) <- go a
-      LambdaIndex index <- get
+      a' <- go a
+      LambdaIndex index <- gets fst
       let
         name = Qualified qualifier
           $ Unqualified $ Text.pack $ "lambda" ++ show index
-      put $ LambdaIndex $ succ index
+      modify $ \ (_, d) -> (LambdaIndex $ succ index, d)
       let
         deducedType = Term.type_ a
         type_ = foldr (uncurry ((Forall origin .) . Var)) deducedType
           $ Map.toList $ Free.tvks deducedType
-      return
-        ( Term.compose todoTyped origin $ map pushClosed closed ++
-          -- FIXME: What type should be used here?
-          [ Push todoTyped (Name name) origin
-          , NewClosure todoTyped (length closed) origin
+      modify $ \ (l, d) -> let
+        entry = Entry.Word
+          Category.Word
+          Merge.Deny
+          (Term.origin a')
+          Nothing
+          (Just (Signature.Type type_))
+          (Just a')
+        in (l, Dictionary.insert name entry d)
+      dict <- gets snd
+      (typechecked, _) <- lift $ typecheck dict Nothing
+        $ Term.compose () origin $ map pushClosed closed ++
+          [ Push () (Name name) origin
+          , NewClosure () (length closed) origin
           ]
-        , ((name, type_), a') : as
-        )
+      return typechecked
       where
 
-      pushClosed :: Closed -> Term Type
-      pushClosed name = Push todoTyped (case name of
+      pushClosed :: Closed -> Term ()
+      pushClosed name = Push () (case name of
         ClosedLocal index -> Local index
         ClosedClosure index -> Closed index) origin
 
@@ -83,7 +109,4 @@ desugar qualifier = flip evalStateT (LambdaIndex 0) . go
     With{} -> done
     Word{} -> done
     where
-    done = return (term, [])
-
-todoTyped :: a
-todoTyped = error "TODO: generate typed terms"
+    done = return term

@@ -4,7 +4,7 @@ module Interact
   ( run
   ) where
 
-import Control.Exception (try)
+import Control.Exception (catch, try)
 import Control.Monad.IO.Class (liftIO)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.List (partition, sort, stripPrefix)
@@ -16,7 +16,7 @@ import Kitten.Entry (Entry)
 import Kitten.Entry.Parameter (Parameter(..))
 import Kitten.Infer (typeFromSignature)
 import Kitten.Informer (checkpoint)
-import Kitten.Interpret (interpret)
+import Kitten.Interpret (Failure, interpret)
 import Kitten.Kind (Kind(..))
 import Kitten.Name
 import Report
@@ -41,6 +41,7 @@ import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Report as Report
 import qualified Kitten.Resolve as Resolve
 import qualified Kitten.Signature as Signature
+import qualified Kitten.Term as Term
 import qualified Kitten.TypeEnv as TypeEnv
 import qualified Kitten.Unify as Unify
 import qualified Kitten.Vocabulary as Vocabulary
@@ -109,7 +110,7 @@ run = do
               entryName = Qualified
                 (Qualifier [Vocabulary.globalName, "interactive"])
                 $ Unqualified entryNameUnqualified
-            mDictionary' <- runKitten $ do
+            mResults <- runKitten $ do
               -- Each entry gets its own definition in the dictionary, so it can
               -- be executed individually, and later conveniently referred to.
               fragment <- Kitten.fragmentFromSource
@@ -126,10 +127,12 @@ run = do
               dictionary'' <- Enter.fragment callFragment dictionary'
               checkpoint
               let tenv = TypeEnv.empty
-              mainScheme <- case Dictionary.lookup
+              (mainScheme, mainBody) <- case Dictionary.lookup
                 Definition.mainName dictionary'' of
-                Just (Entry.Word _ _ _ _ (Just signature) _)
-                  -> typeFromSignature tenv signature
+                Just (Entry.Word _ _ _ _ (Just signature) (Just body))
+                  -> do
+                    type_ <- typeFromSignature tenv signature
+                    return (type_, body)
                 _ -> error "cannot get entry scheme"
               stackScheme <- typeFromSignature tenv $ Signature.Quantified
                 [ Parameter currentOrigin "R" Stack
@@ -146,19 +149,28 @@ run = do
               -- correctly by the interpreter.
               _ <- Unify.type_ tenv stackScheme mainScheme
               checkpoint
-              return dictionary''
-            case mDictionary' of
+              return (dictionary'', mainBody)
+            case mResults of
               Left reports -> do
                 reportAll reports
                 loop
-              Right dictionary' -> do
+              Right (dictionary', mainBody) -> do
                 writeIORef dictionaryRef dictionary'
                 modifyIORef' lineNumberRef (+ 1)
-                stack <- interpret dictionary'
-                  (Just entryName)
-                  =<< readIORef stackRef
-                writeIORef stackRef stack
-                renderStack stackRef
+                -- HACK: Get the last entry from the main body so we have the
+                -- right generic args.
+                let lastEntry = last $ Term.decompose mainBody
+                case lastEntry of
+                  (Term.Word _ _ _ args _) -> catch
+                    (do
+                      stack <- interpret dictionary'
+                        (Just entryName) args
+                        =<< readIORef stackRef
+                      writeIORef stackRef stack
+                      renderStack stackRef)
+                    $ \ e -> hPutStrLn stderr
+                      $ show (e :: Failure)
+                  _ -> error $ show lastEntry
                 loop
   loop
   where
