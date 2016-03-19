@@ -21,6 +21,14 @@ type Optional<T>:
   case none
   case some (T)
 
+type List<T> {}
+
+intrinsic empty<T> (List<T> -> Bool)
+
+intrinsic head<T> (List<T> -> Optional<T>)
+
+intrinsic tail<T> (List<T> -> Optional<List<T>>)
+
 permission Fail<R..., S..., +P> (R..., (R... -> S... +Fail +P) -> S... +P):
   with (+Fail)
 

@@ -71,6 +71,7 @@ data Permit = Permit
 
 data Value a
   = Algebraic !ConstructorIndex [Value a]
+  | Array [Value a]
   | Capture [Closed] !(Term a)
   | Character !Char
   | Closed !ClosureIndex
@@ -172,6 +173,7 @@ stripMetadata term = case term of
 stripValue :: Value a -> Value ()
 stripValue v = case v of
   Algebraic a b -> Algebraic a (map stripValue b)
+  Array a -> Array (map stripValue a)
   Capture a b -> Capture a (stripMetadata b)
   Character a -> Character a
   Closed a -> Closed a
@@ -235,6 +237,7 @@ instance Pretty Permit where
 instance Pretty (Value a) where
   pPrint value = case value of
     Algebraic{} -> "<adt>"
+    Array values -> Pretty.brackets $ Pretty.list $ map pPrint values
     Capture names term -> Pretty.hcat
       [ Pretty.char '$'
       , Pretty.parens $ Pretty.list $ map pPrint names
