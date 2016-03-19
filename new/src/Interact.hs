@@ -152,7 +152,6 @@ run = do
                 reportAll reports
                 loop
               Right dictionary' -> do
-                putStrLn "Okay"
                 writeIORef dictionaryRef dictionary'
                 modifyIORef' lineNumberRef (+ 1)
                 stack <- interpret dictionary'
@@ -248,5 +247,5 @@ renderStack :: (Pretty a) => IORef [a] -> IO ()
 renderStack stackRef = do
   stack <- readIORef stackRef
   case stack of
-    [] -> putStrLn "The stack is empty"
+    [] -> return ()
     _ -> putStrLn $ Pretty.render $ Pretty.vcat $ map pPrint stack
