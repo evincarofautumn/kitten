@@ -10,6 +10,8 @@ type UInt32 {}
 type UInt64 {}
 type UInt64 {}
 
+type Char {}
+
 type Float32 {}
 type Float64 {}
 
@@ -59,6 +61,12 @@ define map<A, B, +P> (List<A>, (A -> B +P) -> List<B> +P):
       y f call -> z;
       ys f map -> zs;
       z zs prepend
+
+intrinsic print (List<Char> -> +IO)
+
+define say (List<Char> -> +IO):
+  print
+  "\n" print
 
 permission Fail<R..., S..., +P> (R..., (R... -> S... +Fail +P) -> S... +P):
   with (+Fail)
