@@ -55,6 +55,7 @@ scope = scopeTerm [0]
   scopeValue :: [Int] -> Value () -> Value ()
   scopeValue stack value = case value of
     Algebraic{} -> value
+    Array{} -> error "array should not appear before runtime"
     Capture{} -> error "capture should not appear before scope resolution"
     Character{} -> value
     Closed{} -> error "closed name should not appear before scope resolution"
@@ -133,6 +134,7 @@ captureTerm term = case term of
 captureValue :: Value () -> Captured (Value ())
 captureValue value = case value of
   Algebraic{} -> error "adt should not appear before runtime"
+  Array{} -> error "array should not appear before runtime"
   Capture names term -> Capture <$> mapM close names <*> pure term
     where
 
