@@ -80,6 +80,7 @@ run = do
           "//stack" -> do
             renderStack stackRef
             loop
+          "//quit" -> bye
           _
             | "//" `Text.isPrefixOf` line
             -> case Text.break (== ' ') $ Text.drop 2 line of
@@ -101,7 +102,6 @@ run = do
                   , Pretty.quotes $ Pretty.text $ Text.unpack command
                   ]
                 loop
-          "//quit" -> bye
           _ -> do
             dictionary <- readIORef dictionaryRef
             let
