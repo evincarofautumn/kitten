@@ -173,6 +173,9 @@ instance show (Char -> List<Char>):
   -> x;
   [x]
 
+instance show (Bool -> List<Char>):
+  if { "true" } else { "false" }
+
 define say<T> (T -> +IO):
   show print
   "\n" print
