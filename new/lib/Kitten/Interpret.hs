@@ -9,6 +9,8 @@ import Control.Exception (Exception, throwIO)
 import Data.IORef (newIORef, modifyIORef', readIORef, writeIORef)
 import Data.Maybe (fromMaybe)
 import Data.Typeable (Typeable)
+import Data.Int
+import Data.Word
 import Kitten.Definition (mainName)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Monad (runKitten)
@@ -67,41 +69,7 @@ interpret dictionary mName mainArgs initialStack = do
           Just (Entry.Word _ _ _ _ _ Nothing) -> case name of
             Qualified v unqualified
               | v == Vocabulary.intrinsic
-              -> case unqualified of
-                "empty" -> do
-                  (Array xs : r) <- readIORef stackRef
-                  writeIORef stackRef r
-                  case xs of
-                    [] -> word (Qualified Vocabulary.global "true") []
-                    _ : _ -> word (Qualified Vocabulary.global "false") []
-                "head" -> do
-                  (Array xs : r) <- readIORef stackRef
-                  case xs of
-                    [] -> do
-                      writeIORef stackRef r
-                      word (Qualified Vocabulary.global "none") []
-                    x : _ -> do
-                      writeIORef stackRef $ x : r
-                      -- FIXME: Use right args.
-                      word (Qualified Vocabulary.global "some") []
-                "prepend" -> do
-                  (Array xs : x : r) <- readIORef stackRef
-                  writeIORef stackRef $ Array (x : xs) : r
-                "print" -> do
-                  (Array cs : r) <- readIORef stackRef
-                  writeIORef stackRef r
-                  mapM_ (\ (Character c) -> putChar c) cs
-                "tail" -> do
-                  (Array xs : r) <- readIORef stackRef
-                  case xs of
-                    [] -> do
-                      writeIORef stackRef r
-                      word (Qualified Vocabulary.global "none") []
-                    _ : x -> do
-                      writeIORef stackRef $ Array x : r
-                      -- FIXME: Use right args.
-                      word (Qualified Vocabulary.global "some") []
-                _ -> error "no such intrinsic"
+              -> intrinsic unqualified
             _ -> error "no such intrinsic"
           _ -> do
             throwIO $ Failure $ Pretty.hcat
@@ -195,6 +163,57 @@ interpret dictionary mName mainArgs initialStack = do
       Text text -> modifyIORef' stackRef
         ((Array $ map Character $ Text.unpack text) :)
       _ -> modifyIORef' stackRef (value :)
+
+    intrinsic :: Unqualified -> IO ()
+    intrinsic name = case name of
+      "add_int32" -> binaryInt32 (+)
+      "sub_int32" -> binaryInt32 (-)
+      "mul_int32" -> binaryInt32 (*)
+      "div_int32" -> binaryInt32 div
+      "mod_int32" -> binaryInt32 mod
+      "empty" -> do
+        (Array xs : r) <- readIORef stackRef
+        writeIORef stackRef r
+        case xs of
+          [] -> word (Qualified Vocabulary.global "true") []
+          _ : _ -> word (Qualified Vocabulary.global "false") []
+      "head" -> do
+        (Array xs : r) <- readIORef stackRef
+        case xs of
+          [] -> do
+            writeIORef stackRef r
+            word (Qualified Vocabulary.global "none") []
+          x : _ -> do
+            writeIORef stackRef $ x : r
+            -- FIXME: Use right args.
+            word (Qualified Vocabulary.global "some") []
+      "prepend" -> do
+        (Array xs : x : r) <- readIORef stackRef
+        writeIORef stackRef $ Array (x : xs) : r
+      "print" -> do
+        (Array cs : r) <- readIORef stackRef
+        writeIORef stackRef r
+        mapM_ (\ (Character c) -> putChar c) cs
+      "tail" -> do
+        (Array xs : r) <- readIORef stackRef
+        case xs of
+          [] -> do
+            writeIORef stackRef r
+            word (Qualified Vocabulary.global "none") []
+          _ : x -> do
+            writeIORef stackRef $ Array x : r
+            -- FIXME: Use right args.
+            word (Qualified Vocabulary.global "some") []
+      _ -> error "no such intrinsic"
+
+      where
+
+      binaryInt32 f = do
+        (Integer y : Integer x : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Integer (fromIntegral
+            $ f (fromIntegral x :: Int32) (fromIntegral y :: Int32))
+          : r
 
   word (fromMaybe mainName mName) mainArgs
   readIORef stackRef
