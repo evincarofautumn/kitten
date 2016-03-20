@@ -270,6 +270,20 @@ define say<T> (T -> +IO):
 permission Fail<R..., S..., +P> (R..., (R... -> S... +Fail +P) -> S... +P):
   with (+Fail)
 
+vocab kitten {
+
+  intrinsic abort (List<Char> -> +Fail)
+
+}
+
+define abort (-> +Fail):
+  "abort called" _::kitten::abort
+
+define assert (List<Char>, (-> Bool) -> +Fail):
+  -> message, test;
+  if (test call not):
+    message _::kitten::abort
+
 permission IO<R..., S..., +P> (R..., (R... -> S... +IO +P) -> S... +P):
   with (+IO)
 

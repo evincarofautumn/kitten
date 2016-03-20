@@ -167,6 +167,14 @@ interpret dictionary mName mainArgs initialStack = do
 
     intrinsic :: Unqualified -> IO ()
     intrinsic name = case name of
+      "abort" -> do
+        (Array cs : r) <- readIORef stackRef
+        writeIORef stackRef r
+        let message = map (\ (Character c) -> c) cs
+        throwIO $ Failure $ Pretty.hsep
+          [ "Execution failure:"
+          , Pretty.text message
+          ]
       "add_int32" -> binaryInt32 (+)
       "sub_int32" -> binaryInt32 (-)
       "mul_int32" -> binaryInt32 (*)
