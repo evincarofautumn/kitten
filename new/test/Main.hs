@@ -4,6 +4,7 @@ module Main
 
 import Test.Hspec (Spec, describe, hspec)
 import qualified Test.Infer
+import qualified Test.Interpret
 import qualified Test.Origin
 import qualified Test.Resolve
 import qualified Test.Tokenize
@@ -19,3 +20,4 @@ spec = do
   describe "name resolution" Test.Resolve.spec
   describe "type inference" Test.Infer.spec
   describe "zonking" Test.Zonk.spec
+  describe "interpretation" Test.Interpret.spec

@@ -10,6 +10,65 @@ type UInt32 {}
 type UInt64 {}
 type UInt64 {}
 
+vocab kitten {
+
+  intrinsic add_int32 (Int32, Int32 -> Int32)
+  intrinsic sub_int32 (Int32, Int32 -> Int32)
+  intrinsic mul_int32 (Int32, Int32 -> Int32)
+  intrinsic div_int32 (Int32, Int32 -> Int32)
+  intrinsic mod_int32 (Int32, Int32 -> Int32)
+
+}
+
+trait + <T> (T, T -> T)
+
+about +:
+  operator:
+    left 6
+
+instance + (Int32, Int32 -> Int32):
+  _::kitten::add_int32
+
+trait - <T> (T, T -> T)
+
+about -:
+  operator:
+    left 6
+
+instance - (Int32, Int32 -> Int32):
+  _::kitten::sub_int32
+
+trait * <T> (T, T -> T)
+
+about *:
+  operator:
+    left 7
+
+instance * (Int32, Int32 -> Int32):
+  _::kitten::mul_int32
+
+trait / <T> (T, T -> T)
+
+about /:
+  operator:
+    left 7
+
+instance / (Int32, Int32 -> Int32):
+  _::kitten::div_int32
+
+trait % <T> (T, T -> T)
+
+about %:
+  operator:
+    left 7
+
+instance % (Int32, Int32 -> Int32):
+  _::kitten::mod_int32
+
+define div_mod<T> (T, T -> T, T):
+  -> x, y;
+  (x / y) (x % y)
+
 type Char {}
 
 type Float32 {}
@@ -86,8 +145,16 @@ trait print<T> (T -> +_::IO)
 instance print (List<Char> -> +IO):
   _::kitten::print
 
+trait show<T> (T -> _::List<_::Char>)
+
+instance show (List<Char> -> List<Char>) {}
+
+instance show (Char -> List<Char>):
+  -> x;
+  [x]
+
 define say<T> (T -> +IO):
-  print
+  show print
   "\n" print
 
 permission Fail<R..., S..., +P> (R..., (R... -> S... +Fail +P) -> S... +P):
