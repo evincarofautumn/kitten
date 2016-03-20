@@ -45,13 +45,13 @@ spec = do
     it "interprets 'hello world'" $ do
      testInterpret' "\"meow\" say" []
   describe "with operators" $ do
-    it "interprets binary operators" $ do
+    it "interprets Int32 operators" $ do
       testInterpret' "2 + 3" [Integer 5]
       testInterpret' "2 - 3" [Integer (-1)]
       testInterpret' "2 * 3" [Integer 6]
       testInterpret' "2 / 3" [Integer 0]
       testInterpret' "2 % 3" [Integer 2]
-    it "interprets chains of operators" $ do
+    it "interprets chains of Int32 operators" $ do
       testInterpret' "2 + 3 + 4" [Integer 9]
       testInterpret' "2 + 3 * 4" [Integer 14]
       testInterpret' "2 * 3 + 4" [Integer 10]
@@ -59,6 +59,12 @@ spec = do
     it "wraps Int32" $ do
       testInterpret' "2147483647 + 1" [Integer (-2147483648)]
       testInterpret' "-2147483648 - 1" [Integer 2147483647]
+    it "interprets Float64 operators" $ do
+      testInterpret' "2.0 + 3.0" [Float 5]
+      testInterpret' "2.0 - 3.0" [Float (-1)]
+      testInterpret' "2.0 * 3.0" [Float 6]
+      testInterpret' "2.0 / 4.0" [Float 0.5]
+      testInterpret' "2.0 % 3.0" [Float 2]
 
 testInterpret :: Dictionary -> Text -> [Value ()] -> IO ()
 testInterpret commonDictionary input expected = do
