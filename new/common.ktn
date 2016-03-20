@@ -160,12 +160,12 @@ vocab kitten {
 
 }
 
-trait print<T> (T -> +_::IO)
+trait print<T> (T -> +IO)
 
 instance print (List<Char> -> +IO):
   _::kitten::print
 
-trait show<T> (T -> _::List<_::Char>)
+trait show<T> (T -> List<Char>)
 
 instance show (List<Char> -> List<Char>) {}
 
