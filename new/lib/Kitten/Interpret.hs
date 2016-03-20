@@ -6,10 +6,11 @@ module Kitten.Interpret
   ) where
 
 import Control.Exception (Exception, throwIO)
+import Data.Fixed (mod')
 import Data.IORef (newIORef, modifyIORef', readIORef, writeIORef)
+import Data.Int
 import Data.Maybe (fromMaybe)
 import Data.Typeable (Typeable)
-import Data.Int
 import Data.Word
 import Kitten.Definition (mainName)
 import Kitten.Dictionary (Dictionary)
@@ -171,6 +172,11 @@ interpret dictionary mName mainArgs initialStack = do
       "mul_int32" -> binaryInt32 (*)
       "div_int32" -> binaryInt32 div
       "mod_int32" -> binaryInt32 mod
+      "add_float64" -> binaryFloat64 (+)
+      "sub_float64" -> binaryFloat64 (-)
+      "mul_float64" -> binaryFloat64 (*)
+      "div_float64" -> binaryFloat64 (/)
+      "mod_float64" -> binaryFloat64 mod'
       "empty" -> do
         (Array xs : r) <- readIORef stackRef
         writeIORef stackRef r
@@ -214,6 +220,10 @@ interpret dictionary mName mainArgs initialStack = do
           $ Integer (fromIntegral
             $ f (fromIntegral x :: Int32) (fromIntegral y :: Int32))
           : r
+
+      binaryFloat64 f = do
+        (Float y : Float x : r) <- readIORef stackRef
+        writeIORef stackRef $ Float (f x y) : r
 
   word (fromMaybe mainName mName) mainArgs
   readIORef stackRef
