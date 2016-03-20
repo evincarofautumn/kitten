@@ -6,7 +6,7 @@ module Interact
 
 import Control.Exception (catch, try)
 import Control.Monad.IO.Class (liftIO)
-import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.List (partition, sort, stripPrefix)
 import Data.Maybe (fromJust)
 import Data.Text (Text)
@@ -27,7 +27,6 @@ import System.IO.Error (isEOFError)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import Text.Printf (printf)
 import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
 import qualified Kitten
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Dictionary as Dictionary
@@ -69,12 +68,10 @@ run = do
     loop = do
       lineNumber <- readIORef lineNumberRef
       let currentOrigin = Origin.point "<interactive>" lineNumber 1
-      printf "\n% 4d: " lineNumber
-      hFlush stdout
-      mLine <- try Text.getLine
+      mLine <- try $ getEntry lineNumber
       case mLine of
         Left e -> if isEOFError e then putStrLn "" >> bye else ioError e
-        Right line -> case line of
+        Right (line, lineNumber') -> case line of
           "//dict" -> do
             renderDictionary dictionaryRef
             loop
@@ -159,7 +156,7 @@ run = do
                 loop
               Right (dictionary', mainBody) -> do
                 writeIORef dictionaryRef dictionary'
-                modifyIORef' lineNumberRef (+ 1)
+                writeIORef lineNumberRef lineNumber'
                 -- HACK: Get the last entry from the main body so we have the
                 -- right generic args.
                 let lastEntry = last $ Term.decompose mainBody
@@ -175,6 +172,7 @@ run = do
                       $ show (e :: Failure)
                   _ -> error $ show lastEntry
                 loop
+
   loop
   where
   bye = do
@@ -276,3 +274,49 @@ showHelp = putStrLn "\
 \//list <name>  - Show the desugared source of <name>.\n\
 \//stack        - Show the state of the stack.\n\
 \\&"
+
+data InString = Inside | Outside
+
+getEntry :: Int -> IO (Text, Int)
+getEntry lineNumber0 = do
+  printf "\n% 4d: " lineNumber0
+  hFlush stdout
+  line <- getLine
+  (result, lineNumber') <- check lineNumber0 line Nothing
+  return (Text.pack result, lineNumber' + 1)
+  where
+
+  check :: Int -> String -> Maybe String -> IO (String, Int)
+  check lineNumber line acc
+    | matched acc' = return (acc', lineNumber)
+    | otherwise = continue (succ lineNumber) $ Just acc'
+    where
+    acc' = case acc of
+      Just previous -> concat [previous, "\n", line]
+      Nothing -> line
+
+  continue :: Int -> Maybe String -> IO (String, Int)
+  continue lineNumber acc = do
+    printf "\n% 4d| " lineNumber
+    hFlush stdout
+    line <- getLine
+    check lineNumber line acc
+
+  matched :: String -> Bool
+  matched = go Outside (0::Int)
+    where
+
+    go :: InString -> Int -> String -> Bool
+    go q n ('\\':x:xs)
+      | x `elem` ("'\"" :: String) = go q n xs
+      | otherwise = go q n xs
+    go q n ('"':xs) = go (case q of Inside -> Outside; Outside -> Inside) n xs
+    go Inside n (_:xs) = go Inside n xs
+    go Inside _ [] = True
+    go Outside n (x:xs)
+      | isOpen x = go Outside (succ n) xs
+      | isClose x = n <= 0 || go Outside (pred n) xs
+      | otherwise = go Outside n xs
+    go Outside n [] = n == 0
+    isOpen = (`elem` ("([{" :: String))
+    isClose = (`elem` ("}])" :: String))
