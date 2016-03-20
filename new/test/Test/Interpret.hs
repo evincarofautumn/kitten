@@ -9,7 +9,7 @@ import Kitten (fragmentFromSource)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Interpret (interpret)
 import Kitten.Monad (runKitten)
-import Kitten.Name (GeneralName(..), Qualified(..))
+import Kitten.Name
 import Kitten.Term (Value(..))
 import Test.HUnit (assertEqual, assertFailure)
 import Test.Hspec (Spec, describe, it, runIO)
@@ -65,6 +65,26 @@ spec = do
       testInterpret' "2.0 * 3.0" [Float 6]
       testInterpret' "2.0 / 4.0" [Float 0.5]
       testInterpret' "2.0 % 3.0" [Float 2]
+    it "interprets Bool operators" $ do
+      let
+        false = Algebraic (ConstructorIndex 0) []
+        true = Algebraic (ConstructorIndex 1) []
+      testInterpret' "false & false" [false]
+      testInterpret' "false & true" [false]
+      testInterpret' "true & false" [false]
+      testInterpret' "true & true" [true]
+      testInterpret' "false | false" [false]
+      testInterpret' "false | true" [true]
+      testInterpret' "true | false" [true]
+      testInterpret' "true | true" [true]
+      testInterpret' "false ~ false" [false]
+      testInterpret' "false ~ true" [true]
+      testInterpret' "true ~ false" [true]
+      testInterpret' "true ~ true" [false]
+      testInterpret' "false --> false" [true]
+      testInterpret' "false --> true" [true]
+      testInterpret' "true --> false" [false]
+      testInterpret' "true --> true" [true]
 
 testInterpret :: Dictionary -> Text -> [Value ()] -> IO ()
 testInterpret commonDictionary input expected = do
