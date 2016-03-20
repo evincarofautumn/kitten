@@ -301,6 +301,29 @@ define length<T> (List<T> -> Int32):
     case some:
       length (+ 1)
 
+// TODO: Partial instances.
+trait == <T> (List<T>, List<T> -> Bool)
+
+instance == (List<Int32>, List<Int32> -> Bool):
+  -> xs, ys;
+  if (xs length <> ys length):
+    false
+  else:
+    match (xs head_tail):
+      case some:
+        unpair -> x, xs_;
+        match (ys head_tail):
+          case some:
+            unpair -> y, ys_;
+            if (x <> y):
+              false
+            else:
+              xs_ == ys_
+          case none:
+            true
+      case none:
+        true
+
 define head<T> (List<T> -> Optional<T>):
   _::kitten::head
 
