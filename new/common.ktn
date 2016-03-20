@@ -98,6 +98,93 @@ type Bool:
   case false
   case true
 
+define not (Bool -> Bool):
+  if:
+    false
+  else:
+    true
+
+// Strict intersection.
+trait & <T> (T, T -> T)
+
+about &:
+  operator:
+    right 3
+
+instance & (Bool, Bool -> Bool):
+  -> x, y;
+  if (x):
+    y
+  else:
+    false
+
+// Lazy intersection.
+trait && <T> (T, (-> T) -> T)
+
+instance && (Bool, (-> Bool) -> Bool):
+  -> x, y;
+  if (x):
+    y call
+  else:
+    false
+
+// Strict union.
+trait | <T> (T, T -> T)
+
+about |:
+  operator:
+    right 2
+
+instance | (Bool, Bool -> Bool):
+  -> x, y;
+  if (x):
+    true
+  else:
+    y
+
+// Lazy union.
+trait || <T> (T, (-> T) -> T)
+
+about ||:
+  operator:
+    right 2
+
+instance || (Bool, (-> Bool) -> Bool):
+  -> x, y;
+  if (x):
+    true
+  else:
+    y call
+
+// Strict difference.
+trait ~ <A> (A, A -> A)
+
+about ~:
+  operator:
+    5
+
+instance ~ (Bool, Bool -> Bool):
+  swap
+  if { not }
+
+// Strict implication.
+define --> (Bool, Bool -> Bool):
+  -> a, b;
+  if (a) { b } else { true }
+
+about -->:
+  operator:
+    right 1
+
+// Lazy implication.
+define ---> (Bool, (-> Bool) -> Bool):
+  -> a, b;
+  if (a) { b call } else { true }
+
+about --->:
+  operator:
+    right 1
+
 type Optional<T>:
   case none
   case some (T)
@@ -192,3 +279,7 @@ define drop<T> (T ->):
 define dup<T> (T -> T, T):
   -> x;
   x x
+
+define swap<A, B> (A, B -> B, A):
+  -> x, y;
+  y x
