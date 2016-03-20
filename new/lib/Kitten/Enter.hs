@@ -50,12 +50,26 @@ fragment :: Fragment () -> Dictionary -> K Dictionary
 fragment f
   -- TODO: Link constructors to parent type.
   = foldlMx declareType (Fragment.types f)
+  -- We enter declarations of all traits and intrinsics.
   >=> foldlMx enterDeclaration (Fragment.declarations f)
-  >=> foldlMx declareWord (Fragment.definitions f)
+  -- Then declare all permissions.
+  >=> foldlMx declareWord
+    (filter ((== Category.Permission) . Definition.category)
+      $ Fragment.definitions f)
+  -- With everything type-level declared, we can resolve type signatures.
+  >=> foldlMx resolveSignature
+    (map Declaration.name (Fragment.declarations f))
+  -- And declare regular words.
+  >=> foldlMx declareWord
+    (filter ((/= Category.Permission) . Definition.category)
+      $ Fragment.definitions f)
+  -- Then resolve their signatures.
   >=> foldlMx resolveSignature
     (map Definition.name (Fragment.definitions f)
       ++ map Declaration.name (Fragment.declarations f))
+  -- Add their metadata (esp. for operator metadata).
   >=> foldlMx addMetadata (Fragment.metadata f)
+  -- And finally enter their definitions.
   >=> foldlMx defineWord (Fragment.definitions f)
   where
   foldlMx :: (Foldable f, Monad m) => (b -> a -> m b) -> f a -> b -> m b
