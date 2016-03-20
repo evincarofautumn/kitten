@@ -293,6 +293,14 @@ vocab kitten {
 define empty<T> (List<T> -> Bool):
   _::kitten::empty
 
+// TODO: Use Size, not Int32.
+define length<T> (List<T> -> Int32):
+  match (tail):
+    case none:
+      0
+    case some:
+      length (+ 1)
+
 define head<T> (List<T> -> Optional<T>):
   _::kitten::head
 
