@@ -17,11 +17,23 @@ vocab kitten {
   intrinsic mul_int32 (Int32, Int32 -> Int32)
   intrinsic div_int32 (Int32, Int32 -> Int32)
   intrinsic mod_int32 (Int32, Int32 -> Int32)
+  intrinsic lt_int32 (Int32, Int32 -> Bool)
+  intrinsic gt_int32 (Int32, Int32 -> Bool)
+  intrinsic le_int32 (Int32, Int32 -> Bool)
+  intrinsic ge_int32 (Int32, Int32 -> Bool)
+  intrinsic eq_int32 (Int32, Int32 -> Bool)
+  intrinsic ne_int32 (Int32, Int32 -> Bool)
   intrinsic add_float64 (Float64, Float64 -> Float64)
   intrinsic sub_float64 (Float64, Float64 -> Float64)
   intrinsic mul_float64 (Float64, Float64 -> Float64)
   intrinsic div_float64 (Float64, Float64 -> Float64)
   intrinsic mod_float64 (Float64, Float64 -> Float64)
+  intrinsic lt_float64 (Float64, Float64 -> Bool)
+  intrinsic gt_float64 (Float64, Float64 -> Bool)
+  intrinsic le_float64 (Float64, Float64 -> Bool)
+  intrinsic ge_float64 (Float64, Float64 -> Bool)
+  intrinsic eq_float64 (Float64, Float64 -> Bool)
+  intrinsic ne_float64 (Float64, Float64 -> Bool)
 
 }
 
@@ -88,6 +100,78 @@ instance % (Float64, Float64 -> Float64):
 define div_mod<T> (T, T -> T, T):
   -> x, y;
   (x / y) (x % y)
+
+trait < <T> (T, T -> Bool)
+
+about <:
+  operator:
+    4
+
+trait > <T> (T, T -> Bool)
+
+about >:
+  operator:
+    4
+
+trait <= <T> (T, T -> Bool)
+
+about <=:
+  operator:
+    4
+
+trait >= <T> (T, T -> Bool)
+
+about >=:
+  operator:
+    4
+
+trait = <T> (T, T -> Bool)
+
+about =:
+  operator:
+    4
+
+trait <> <T> (T, T -> Bool)
+
+about <>:
+  operator:
+    4
+
+instance < (Int32, Int32 -> Bool):
+  _::kitten::lt_int32
+
+instance > (Int32, Int32 -> Bool):
+  _::kitten::gt_int32
+
+instance <= (Int32, Int32 -> Bool):
+  _::kitten::le_int32
+
+instance >= (Int32, Int32 -> Bool):
+  _::kitten::ge_int32
+
+instance = (Int32, Int32 -> Bool):
+  _::kitten::eq_int32
+
+instance <> (Int32, Int32 -> Bool):
+  _::kitten::ne_int32
+
+instance < (Float64, Float64 -> Bool):
+  _::kitten::lt_float64
+
+instance > (Float64, Float64 -> Bool):
+  _::kitten::gt_float64
+
+instance <= (Float64, Float64 -> Bool):
+  _::kitten::le_float64
+
+instance >= (Float64, Float64 -> Bool):
+  _::kitten::ge_float64
+
+instance = (Float64, Float64 -> Bool):
+  _::kitten::eq_float64
+
+instance <> (Float64, Float64 -> Bool):
+  _::kitten::ne_float64
 
 type Char {}
 
