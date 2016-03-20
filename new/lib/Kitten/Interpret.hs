@@ -175,16 +175,33 @@ interpret dictionary mName mainArgs initialStack = do
           [ "Execution failure:"
           , Pretty.text message
           ]
+
       "add_int32" -> binaryInt32 (+)
       "sub_int32" -> binaryInt32 (-)
       "mul_int32" -> binaryInt32 (*)
       "div_int32" -> binaryInt32 div
       "mod_int32" -> binaryInt32 mod
+
+      "lt_int32" -> boolInt32 (<)
+      "gt_int32" -> boolInt32 (>)
+      "le_int32" -> boolInt32 (<=)
+      "ge_int32" -> boolInt32 (>=)
+      "eq_int32" -> boolInt32 (==)
+      "ne_int32" -> boolInt32 (/=)
+
       "add_float64" -> binaryFloat64 (+)
       "sub_float64" -> binaryFloat64 (-)
       "mul_float64" -> binaryFloat64 (*)
       "div_float64" -> binaryFloat64 (/)
       "mod_float64" -> binaryFloat64 mod'
+
+      "lt_float64" -> boolFloat64 (<)
+      "gt_float64" -> boolFloat64 (>)
+      "le_float64" -> boolFloat64 (<=)
+      "ge_float64" -> boolFloat64 (>=)
+      "eq_float64" -> boolFloat64 (==)
+      "ne_float64" -> boolFloat64 (/=)
+
       "empty" -> do
         (Array xs : r) <- readIORef stackRef
         writeIORef stackRef r
@@ -222,16 +239,32 @@ interpret dictionary mName mainArgs initialStack = do
 
       where
 
+      binaryInt32 :: (Int32 -> Int32 -> Int32) -> IO ()
       binaryInt32 f = do
         (Integer y : Integer x : r) <- readIORef stackRef
         writeIORef stackRef
           $ Integer (fromIntegral
-            $ f (fromIntegral x :: Int32) (fromIntegral y :: Int32))
+            $ f (fromIntegral x) (fromIntegral y))
           : r
 
+      boolInt32 :: (Int32 -> Int32 -> Bool) -> IO ()
+      boolInt32 f = do
+        (Integer y : Integer x : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Algebraic (ConstructorIndex $ fromEnum
+            $ f (fromIntegral x) (fromIntegral y)) []
+          : r
+
+      binaryFloat64 :: (Double -> Double -> Double) -> IO ()
       binaryFloat64 f = do
         (Float y : Float x : r) <- readIORef stackRef
         writeIORef stackRef $ Float (f x y) : r
+
+      boolFloat64 :: (Double -> Double -> Bool) -> IO ()
+      boolFloat64 f = do
+        (Float y : Float x : r) <- readIORef stackRef
+        writeIORef stackRef $ Algebraic
+          (ConstructorIndex $ fromEnum $ f x y) [] : r
 
   word (fromMaybe mainName mName) mainArgs
   readIORef stackRef
