@@ -11,7 +11,9 @@ import Data.Foldable (forM_)
 import Data.IORef (newIORef, modifyIORef', readIORef, writeIORef)
 import Data.Int
 import Data.Maybe (fromMaybe)
+import Data.Monoid ((<>))
 import Data.Typeable (Typeable)
+import Data.Vector (Vector, (!))
 import Data.Word
 import Kitten.Bits
 import Kitten.Definition (mainName)
@@ -27,6 +29,8 @@ import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LazyByteString
 import qualified Data.Text as Text
+import qualified Data.Vector as Vector
+import qualified Data.Vector as Vector
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
 import qualified Kitten.Instantiate as Instantiate
@@ -143,7 +147,8 @@ interpret dictionary mName mainArgs initialStack = do
       NewVector _ size _ -> do
         r <- readIORef stackRef
         let (values, r') = splitAt size r
-        writeIORef stackRef (Array (reverse values) : r')
+        writeIORef stackRef
+          (Array (Vector.reverse $ Vector.fromList values) : r')
       Push _ value _ -> push value
       Swap _ _ -> do
         (a : b : r) <- readIORef stackRef
@@ -170,7 +175,7 @@ interpret dictionary mName mainArgs initialStack = do
         locals <- readIORef localsRef
         modifyIORef' stackRef ((locals !! index) :)
       Text text -> modifyIORef' stackRef
-        ((Array $ map Character $ Text.unpack text) :)
+        ((Array $ fmap Character $ Vector.fromList $ Text.unpack text) :)
       _ -> modifyIORef' stackRef (value :)
 
     intrinsic :: Unqualified -> IO ()
@@ -178,7 +183,7 @@ interpret dictionary mName mainArgs initialStack = do
       "abort" -> do
         (Array cs : r) <- readIORef stackRef
         writeIORef stackRef r
-        let message = map (\ (Character c) -> c) cs
+        let message = map (\ (Character c) -> c) $ Vector.toList cs
         throwIO $ Failure $ Pretty.hsep
           [ "Execution failure:"
           , Pretty.text message
@@ -317,28 +322,29 @@ interpret dictionary mName mainArgs initialStack = do
       "empty" -> do
         (Array xs : r) <- readIORef stackRef
         writeIORef stackRef r
-        case xs of
-          [] -> word (Qualified Vocabulary.global "true") []
-          _ : _ -> word (Qualified Vocabulary.global "false") []
+        if Vector.null xs
+          then word (Qualified Vocabulary.global "true") []
+          else word (Qualified Vocabulary.global "false") []
       "head" -> do
         (Array xs : r) <- readIORef stackRef
-        case xs of
-          [] -> do
+        if Vector.null xs
+          then do
             writeIORef stackRef r
             word (Qualified Vocabulary.global "none") []
-          x : _ -> do
+          else do
+            let x = xs ! 0
             writeIORef stackRef $ x : r
             -- FIXME: Use right args.
             word (Qualified Vocabulary.global "some") []
       "append" -> do
         (x : Array xs : r) <- readIORef stackRef
-        writeIORef stackRef $ Array (xs ++ [x]) : r
+        writeIORef stackRef $ Array (Vector.snoc xs x) : r
       "prepend" -> do
         (Array xs : x : r) <- readIORef stackRef
-        writeIORef stackRef $ Array (x : xs) : r
+        writeIORef stackRef $ Array (Vector.cons x xs) : r
       "cat" -> do
         (Array ys : Array xs : r) <- readIORef stackRef
-        writeIORef stackRef $ Array (xs ++ ys) : r
+        writeIORef stackRef $ Array (xs <> ys) : r
       "get" -> do
         (Integer i _ : Array xs : r) <- readIORef stackRef
         if i < 0 || i >= fromIntegral (length xs)
@@ -346,7 +352,7 @@ interpret dictionary mName mainArgs initialStack = do
             writeIORef stackRef r
             word (Qualified Vocabulary.global "none") []
           else do
-            writeIORef stackRef $ (xs !! fromIntegral i) : r
+            writeIORef stackRef $ (xs ! fromIntegral i) : r
             -- FIXME: Use right args.
             word (Qualified Vocabulary.global "some") []
       "set" -> do
@@ -356,8 +362,9 @@ interpret dictionary mName mainArgs initialStack = do
             writeIORef stackRef r
             word (Qualified Vocabulary.global "none") []
           else do
-            let (before, after) = splitAt (fromIntegral i) xs
-            writeIORef stackRef $ Array (before ++ [x] ++ tail after) : r
+            let (before, after) = Vector.splitAt (fromIntegral i) xs
+            writeIORef stackRef $ Array
+              (before <> Vector.singleton x <> Vector.tail after) : r
             -- FIXME: Use right args.
             word (Qualified Vocabulary.global "some") []
       "print" -> do
@@ -366,12 +373,13 @@ interpret dictionary mName mainArgs initialStack = do
         mapM_ (\ (Character c) -> putChar c) cs
       "tail" -> do
         (Array xs : r) <- readIORef stackRef
-        case xs of
-          [] -> do
+        if Vector.null xs
+          then do
             writeIORef stackRef r
             word (Qualified Vocabulary.global "none") []
-          _ : x -> do
-            writeIORef stackRef $ Array x : r
+          else do
+            let xs' = Vector.tail xs
+            writeIORef stackRef $ Array xs' : r
             -- FIXME: Use right args.
             word (Qualified Vocabulary.global "some") []
 
@@ -382,15 +390,15 @@ interpret dictionary mName mainArgs initialStack = do
           height = length ys
           width = if null ys
             then 0
-            else case ys of
-              Array xs : _ -> length xs
+            else case ys ! 0 of
+              Array xs -> Vector.length xs
         printf "\ESC]1337;File=width=%dpx;height=%dpx;inline=1:%s\BEL"
           width height
           $ map ((toEnum :: Int -> Char) . fromIntegral)
           $ ByteString.unpack $ Base64.encode
           $ LazyByteString.toStrict $ Png.encodePng
-          $ Picture.generateImage (\ x y -> case (ys !! y) of
-            Array xs -> case xs !! x of
+          $ Picture.generateImage (\ x y -> case (ys ! y) of
+            Array xs -> case xs ! x of
               Algebraic _ channels -> case channels of
                 [Integer r _, Integer g _, Integer b _, Integer a _]
                   -> Picture.PixelRGBA8

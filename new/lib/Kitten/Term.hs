@@ -18,6 +18,7 @@ module Kitten.Term
 
 import Data.List (intersperse)
 import Data.Text (Text)
+import Data.Vector (Vector)
 import Kitten.Bits
 import Kitten.Name
 import Kitten.Operator (Fixity)
@@ -25,6 +26,7 @@ import Kitten.Origin (Origin)
 import Kitten.Type (Type, TypeId)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.Text as Text
+import qualified Data.Vector as Vector
 import qualified Kitten.Pretty as Pretty
 import qualified Text.PrettyPrint as Pretty
 
@@ -72,7 +74,7 @@ data Permit = Permit
 
 data Value a
   = Algebraic !ConstructorIndex [Value a]
-  | Array [Value a]
+  | Array !(Vector (Value a))
   | Capture [Closed] !(Term a)
   | Character !Char
   | Closed !ClosureIndex
@@ -176,7 +178,7 @@ stripMetadata term = case term of
 stripValue :: Value a -> Value ()
 stripValue v = case v of
   Algebraic a b -> Algebraic a (map stripValue b)
-  Array a -> Array (map stripValue a)
+  Array a -> Array (fmap stripValue a)
   Capture a b -> Capture a (stripMetadata b)
   Character a -> Character a
   Closed a -> Closed a
@@ -240,7 +242,8 @@ instance Pretty Permit where
 instance Pretty (Value a) where
   pPrint value = case value of
     Algebraic{} -> "<adt>"
-    Array values -> Pretty.brackets $ Pretty.list $ map pPrint values
+    Array values -> Pretty.brackets $ Pretty.list
+      $ Vector.toList $ fmap pPrint values
     Capture names term -> Pretty.hcat
       [ Pretty.char '$'
       , Pretty.parens $ Pretty.list $ map pPrint names
