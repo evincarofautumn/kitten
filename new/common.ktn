@@ -505,6 +505,22 @@ define get<T> (List<T>, Int32 -> Optional<T>):
 define set<T> (List<T>, T, Int32 -> Optional<List<T>>):
   _::kitten::set
 
+define modify<T> (List<T>, (T -> T), Int32 -> Optional<List<T>>):
+  -> xs, f, i;
+  match (xs i get):
+    case none:
+      none
+    case some -> x:
+      xs (x f call) i set
+
+define replicate<T> (T, Int32 -> List<T>):
+  -> value, count;
+  if (count <= 0):
+    []
+  else:
+    value (count - 1) replicate
+    value append
+
 define head_tail<T> (List<T> -> Optional<Pair<T, List<T>>>):
   -> xs;
   match (xs head):
