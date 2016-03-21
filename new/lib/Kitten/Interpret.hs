@@ -132,7 +132,7 @@ interpret dictionary mName mainArgs initialStack = do
       NewClosure _ size _ -> do
         r <- readIORef stackRef
         let (Name name : closure, r') = splitAt (size + 1) r
-        writeIORef stackRef (Closure name closure : r')
+        writeIORef stackRef (Closure name (reverse closure) : r')
       NewVector _ size _ -> do
         r <- readIORef stackRef
         let (values, r') = splitAt size r
