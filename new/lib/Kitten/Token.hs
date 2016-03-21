@@ -8,6 +8,7 @@ module Kitten.Token
 import Data.Ratio ((%))
 import Data.Text (Text)
 import Kitten.Base (Base(..))
+import Kitten.Bits
 import Kitten.Layoutness (Layoutness)
 import Kitten.Name (Unqualified)
 import Numeric
@@ -16,46 +17,46 @@ import qualified Data.Text as Text
 import qualified Text.PrettyPrint as Pretty
 
 data Token
-  = About                     -- about
-  | AngleBegin                -- < See note [Angle Brackets].
-  | AngleEnd                  -- > See note [Angle Brackets].
-  | Arrow                     -- ->
-  | BlockBegin !Layoutness    -- { :
-  | BlockEnd                  -- }
-  | Call                      -- call
-  | Case                      -- case
-  | Character !Char           -- 'x'
-  | Comma                     -- ,
-  | Define                    -- define
-  | Do                        -- do
-  | Ellipsis                  -- ...
-  | Elif                      -- elif
-  | Else                      -- else
-  | Float !Integer !Int !Int  -- See note [Float Literals].
-  | GroupBegin                -- (
-  | GroupEnd                  -- )
-  | If                        -- if
-  | Ignore                    -- _
-  | Instance                  -- instance
-  | Integer !Integer !Base    -- 1 0b1 0o1 0x1
-  | Intrinsic                 -- intrinsic
-  | Jump                      -- jump
-  | Layout                    -- :
-  | Match                     -- match
-  | Operator !Unqualified     -- +
-  | Permission                -- permission
-  | Reference                 -- \
-  | Return                    -- return
-  | Synonym                   -- synonym
-  | Text !Text                -- "..."
-  | Trait                     -- trait
-  | Type                      -- type
-  | VectorBegin               -- [
-  | VectorEnd                 -- ]
-  | Vocab                     -- vocab
-  | VocabLookup               -- ::
-  | With                      -- with
-  | Word !Unqualified         -- word
+  = About                                -- about
+  | AngleBegin                           -- < See note [Angle Brackets].
+  | AngleEnd                             -- > See note [Angle Brackets].
+  | Arrow                                -- ->
+  | BlockBegin !Layoutness               -- { :
+  | BlockEnd                             -- }
+  | Call                                 -- call
+  | Case                                 -- case
+  | Character !Char                      -- 'x'
+  | Comma                                -- ,
+  | Define                               -- define
+  | Do                                   -- do
+  | Ellipsis                             -- ...
+  | Elif                                 -- elif
+  | Else                                 -- else
+  | Float !Integer !Int !Int !FloatBits  -- See note [Float Literals].
+  | GroupBegin                           -- (
+  | GroupEnd                             -- )
+  | If                                   -- if
+  | Ignore                               -- _
+  | Instance                             -- instance
+  | Integer !Integer !Base !IntegerBits  -- 1 0b1 0o1 0x1 1i64 1u16
+  | Intrinsic                            -- intrinsic
+  | Jump                                 -- jump
+  | Layout                               -- :
+  | Match                                -- match
+  | Operator !Unqualified                -- +
+  | Permission                           -- permission
+  | Reference                            -- \
+  | Return                               -- return
+  | Synonym                              -- synonym
+  | Text !Text                           -- "..."
+  | Trait                                -- trait
+  | Type                                 -- type
+  | VectorBegin                          -- [
+  | VectorEnd                            -- ]
+  | Vocab                                -- vocab
+  | VocabLookup                          -- ::
+  | With                                 -- with
+  | Word !Unqualified                    -- word
 
 instance Eq Token where
   About                   == About                   = True
@@ -75,14 +76,16 @@ instance Eq Token where
   Elif                    == Elif                    = True
   Else                    == Else                    = True
   -- See note [Float Literals].
-  Float a b c             == Float d e f             = (a, c - b) == (d, f - e)
+  -- TODO: Incorporate bits in equality testing?
+  Float a b c _bitsA      == Float d e f _bitsB      = (a, c - b) == (d, f - e)
   GroupBegin              == GroupBegin              = True
   GroupEnd                == GroupEnd                = True
   If                      == If                      = True
   Ignore                  == Ignore                  = True
   Instance                == Instance                = True
   -- Integer tokens are equal regardless of base.
-  Integer a _baseA        == Integer b _baseB        = a == b
+  -- TODO: Incorporate bits/wrapping in equality testing?
+  Integer a _baseA _bitsA == Integer b _baseB _bitsB = a == b
   Intrinsic               == Intrinsic               = True
   Jump                    == Jump                    = True
   Layout                  == Layout                  = True
@@ -120,21 +123,25 @@ instance Pretty Token where
     Ellipsis -> "..."
     Elif -> "elif"
     Else -> "else"
-    Float a b c -> Pretty.double $ float a b c
+    Float a b c bits -> Pretty.hcat [Pretty.double $ float a b c, pPrint bits]
     GroupBegin -> "("
     GroupEnd -> ")"
     If -> "if"
     Ignore -> "_"
     Instance -> "instance"
-    Integer value hint
+    Integer value hint bits
       -> Pretty.text $ if value < 0 then '-' : shown else shown
       where
-      shown = prefix ++ showIntAtBase base (digits !!) (abs value) ""
+      shown = concat
+        [prefix, showIntAtBase base (digits !!) (abs value) "", suffix]
       (base, prefix, digits) = case hint of
         Binary -> (2, "0b", "01")
         Octal -> (8, "0o", ['0'..'7'])
         Decimal -> (10, "", ['0'..'9'])
         Hexadecimal -> (16, "0x", ['0'..'9'] ++ ['A'..'F'])
+      suffix = case bits of
+        Signed32 -> ""
+        _ -> Pretty.render $ pPrint bits
     Intrinsic -> "intrinsic"
     Jump -> "jump"
     Layout -> ":"

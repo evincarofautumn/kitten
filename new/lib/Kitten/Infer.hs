@@ -15,6 +15,7 @@ import Data.Foldable (foldrM)
 import Data.List (find, foldl')
 import Data.Map (Map)
 import Kitten.Dictionary (Dictionary)
+import Kitten.Bits
 import Kitten.Entry.Parameter (Parameter(Parameter))
 import Kitten.Informer (Informer(..))
 import Kitten.InstanceCheck (instanceCheck)
@@ -439,8 +440,22 @@ inferValue dictionary tenvFinal tenv0 origin value = case value of
   Closed (ClosureIndex index) -> return
     (Closed $ ClosureIndex index, TypeEnv.closure tenv0 !! index, tenv0)
   Closure{} -> error "closure should not appear before runtime"
-  Float x -> return (Float x, TypeConstructor origin "Float64", tenv0)
-  Integer x -> return (Integer x, TypeConstructor origin "Int32", tenv0)
+  Float x bits -> let
+    ctor = case bits of
+      Float32 -> "Float32"
+      Float64 -> "Float64"
+    in return (Float x bits, TypeConstructor origin ctor, tenv0)
+  Integer x bits -> let
+    ctor = case bits of
+      Signed8 -> "Int8"
+      Signed16 -> "Int16"
+      Signed32 -> "Int32"
+      Signed64 -> "Int64"
+      Unsigned8 -> "UInt8"
+      Unsigned16 -> "UInt16"
+      Unsigned32 -> "UInt32"
+      Unsigned64 -> "UInt64"
+    in return (Integer x bits, TypeConstructor origin ctor, tenv0)
   Local (LocalIndex index) -> return
     (Local $ LocalIndex index, TypeEnv.vs tenv0 !! index, tenv0)
   Quotation{} -> error "quotation should not appear during type inference"

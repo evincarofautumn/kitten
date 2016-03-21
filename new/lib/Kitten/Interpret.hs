@@ -12,6 +12,7 @@ import Data.Int
 import Data.Maybe (fromMaybe)
 import Data.Typeable (Typeable)
 import Data.Word
+import Kitten.Bits
 import Kitten.Definition (mainName)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Monad (runKitten)
@@ -176,11 +177,43 @@ interpret dictionary mName mainArgs initialStack = do
           , Pretty.text message
           ]
 
+      "add_int8" -> binaryInt8 (+)
+      "sub_int8" -> binaryInt8 (-)
+      "mul_int8" -> binaryInt8 (*)
+      "div_int8" -> binaryInt8 div
+      "mod_int8" -> binaryInt8 mod
+
+      "add_int16" -> binaryInt16 (+)
+      "sub_int16" -> binaryInt16 (-)
+      "mul_int16" -> binaryInt16 (*)
+      "div_int16" -> binaryInt16 div
+      "mod_int16" -> binaryInt16 mod
+
       "add_int32" -> binaryInt32 (+)
       "sub_int32" -> binaryInt32 (-)
       "mul_int32" -> binaryInt32 (*)
       "div_int32" -> binaryInt32 div
       "mod_int32" -> binaryInt32 mod
+
+      "add_int64" -> binaryInt64 (+)
+      "sub_int64" -> binaryInt64 (-)
+      "mul_int64" -> binaryInt64 (*)
+      "div_int64" -> binaryInt64 div
+      "mod_int64" -> binaryInt64 mod
+
+      "lt_int8" -> boolInt8 (<)
+      "gt_int8" -> boolInt8 (>)
+      "le_int8" -> boolInt8 (<=)
+      "ge_int8" -> boolInt8 (>=)
+      "eq_int8" -> boolInt8 (==)
+      "ne_int8" -> boolInt8 (/=)
+
+      "lt_int16" -> boolInt16 (<)
+      "gt_int16" -> boolInt16 (>)
+      "le_int16" -> boolInt16 (<=)
+      "ge_int16" -> boolInt16 (>=)
+      "eq_int16" -> boolInt16 (==)
+      "ne_int16" -> boolInt16 (/=)
 
       "lt_int32" -> boolInt32 (<)
       "gt_int32" -> boolInt32 (>)
@@ -189,11 +222,83 @@ interpret dictionary mName mainArgs initialStack = do
       "eq_int32" -> boolInt32 (==)
       "ne_int32" -> boolInt32 (/=)
 
+      "lt_int64" -> boolInt64 (<)
+      "gt_int64" -> boolInt64 (>)
+      "le_int64" -> boolInt64 (<=)
+      "ge_int64" -> boolInt64 (>=)
+      "eq_int64" -> boolInt64 (==)
+      "ne_int64" -> boolInt64 (/=)
+
+      "add_uint8" -> binaryUInt8 (+)
+      "sub_uint8" -> binaryUInt8 (-)
+      "mul_uint8" -> binaryUInt8 (*)
+      "div_uint8" -> binaryUInt8 div
+      "mod_uint8" -> binaryUInt8 mod
+
+      "add_uint16" -> binaryUInt16 (+)
+      "sub_uint16" -> binaryUInt16 (-)
+      "mul_uint16" -> binaryUInt16 (*)
+      "div_uint16" -> binaryUInt16 div
+      "mod_uint16" -> binaryUInt16 mod
+
+      "add_uint32" -> binaryUInt32 (+)
+      "sub_uint32" -> binaryUInt32 (-)
+      "mul_uint32" -> binaryUInt32 (*)
+      "div_uint32" -> binaryUInt32 div
+      "mod_uint32" -> binaryUInt32 mod
+
+      "add_uint64" -> binaryUInt64 (+)
+      "sub_uint64" -> binaryUInt64 (-)
+      "mul_uint64" -> binaryUInt64 (*)
+      "div_uint64" -> binaryUInt64 div
+      "mod_uint64" -> binaryUInt64 mod
+
+      "lt_uint8" -> boolUInt8 (<)
+      "gt_uint8" -> boolUInt8 (>)
+      "le_uint8" -> boolUInt8 (<=)
+      "ge_uint8" -> boolUInt8 (>=)
+      "eq_uint8" -> boolUInt8 (==)
+      "ne_uint8" -> boolUInt8 (/=)
+
+      "lt_uint16" -> boolUInt16 (<)
+      "gt_uint16" -> boolUInt16 (>)
+      "le_uint16" -> boolUInt16 (<=)
+      "ge_uint16" -> boolUInt16 (>=)
+      "eq_uint16" -> boolUInt16 (==)
+      "ne_uint16" -> boolUInt16 (/=)
+
+      "lt_uint32" -> boolUInt32 (<)
+      "gt_uint32" -> boolUInt32 (>)
+      "le_uint32" -> boolUInt32 (<=)
+      "ge_uint32" -> boolUInt32 (>=)
+      "eq_uint32" -> boolUInt32 (==)
+      "ne_uint32" -> boolUInt32 (/=)
+
+      "lt_uint64" -> boolUInt64 (<)
+      "gt_uint64" -> boolUInt64 (>)
+      "le_uint64" -> boolUInt64 (<=)
+      "ge_uint64" -> boolUInt64 (>=)
+      "eq_uint64" -> boolUInt64 (==)
+      "ne_uint64" -> boolUInt64 (/=)
+
+      "add_float32" -> binaryFloat32 (+)
+      "sub_float32" -> binaryFloat32 (-)
+      "mul_float32" -> binaryFloat32 (*)
+      "div_float32" -> binaryFloat32 (/)
+      "mod_float32" -> binaryFloat32 mod'
+
       "add_float64" -> binaryFloat64 (+)
       "sub_float64" -> binaryFloat64 (-)
       "mul_float64" -> binaryFloat64 (*)
       "div_float64" -> binaryFloat64 (/)
       "mod_float64" -> binaryFloat64 mod'
+
+      "lt_float32" -> boolFloat32 (<)
+      "gt_float32" -> boolFloat32 (>)
+      "le_float32" -> boolFloat32 (<=)
+      "ge_float32" -> boolFloat32 (>=)
+      "eq_float32" -> boolFloat32 (==)
+      "ne_float32" -> boolFloat32 (/=)
 
       "lt_float64" -> boolFloat64 (<)
       "gt_float64" -> boolFloat64 (>)
@@ -218,9 +323,36 @@ interpret dictionary mName mainArgs initialStack = do
             writeIORef stackRef $ x : r
             -- FIXME: Use right args.
             word (Qualified Vocabulary.global "some") []
+      "append" -> do
+        (x : Array xs : r) <- readIORef stackRef
+        writeIORef stackRef $ Array (xs ++ [x]) : r
       "prepend" -> do
         (Array xs : x : r) <- readIORef stackRef
         writeIORef stackRef $ Array (x : xs) : r
+      "cat" -> do
+        (Array ys : Array xs : r) <- readIORef stackRef
+        writeIORef stackRef $ Array (xs ++ ys) : r
+      "get" -> do
+        (Integer i _ : Array xs : r) <- readIORef stackRef
+        if i < 0 || i >= fromIntegral (length xs)
+          then do
+            writeIORef stackRef r
+            word (Qualified Vocabulary.global "none") []
+          else do
+            writeIORef stackRef $ (xs !! fromIntegral i) : r
+            -- FIXME: Use right args.
+            word (Qualified Vocabulary.global "some") []
+      "set" -> do
+        (Integer i _ : x : Array xs : r) <- readIORef stackRef
+        if i < 0 || i >= fromIntegral (length xs)
+          then do
+            writeIORef stackRef r
+            word (Qualified Vocabulary.global "none") []
+          else do
+            let (before, after) = splitAt (fromIntegral i) xs
+            writeIORef stackRef $ Array (before ++ [x] ++ tail after) : r
+            -- FIXME: Use right args.
+            word (Qualified Vocabulary.global "some") []
       "print" -> do
         (Array cs : r) <- readIORef stackRef
         writeIORef stackRef r
@@ -239,30 +371,155 @@ interpret dictionary mName mainArgs initialStack = do
 
       where
 
-      binaryInt32 :: (Int32 -> Int32 -> Int32) -> IO ()
-      binaryInt32 f = do
-        (Integer y : Integer x : r) <- readIORef stackRef
+      binaryInt8 :: (Int8 -> Int8 -> Int8) -> IO ()
+      binaryInt8 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
         writeIORef stackRef
           $ Integer (fromIntegral
-            $ f (fromIntegral x) (fromIntegral y))
+            $ f (fromIntegral x) (fromIntegral y)) Signed8
           : r
 
-      boolInt32 :: (Int32 -> Int32 -> Bool) -> IO ()
-      boolInt32 f = do
-        (Integer y : Integer x : r) <- readIORef stackRef
+      binaryInt16 :: (Int16 -> Int16 -> Int16) -> IO ()
+      binaryInt16 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Integer (fromIntegral
+            $ f (fromIntegral x) (fromIntegral y)) Signed16
+          : r
+
+      binaryInt32 :: (Int32 -> Int32 -> Int32) -> IO ()
+      binaryInt32 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Integer (fromIntegral
+            $ f (fromIntegral x) (fromIntegral y)) Signed32
+          : r
+
+      binaryInt64 :: (Int64 -> Int64 -> Int64) -> IO ()
+      binaryInt64 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Integer (fromIntegral
+            $ f (fromIntegral x) (fromIntegral y)) Signed64
+          : r
+
+      binaryUInt8 :: (Word8 -> Word8 -> Word8) -> IO ()
+      binaryUInt8 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Integer (fromIntegral
+            $ f (fromIntegral x) (fromIntegral y)) Unsigned8
+          : r
+
+      binaryUInt16 :: (Word16 -> Word16 -> Word16) -> IO ()
+      binaryUInt16 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Integer (fromIntegral
+            $ f (fromIntegral x) (fromIntegral y)) Unsigned16
+          : r
+
+      binaryUInt32 :: (Word32 -> Word32 -> Word32) -> IO ()
+      binaryUInt32 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Integer (fromIntegral
+            $ f (fromIntegral x) (fromIntegral y)) Unsigned32
+          : r
+
+      binaryUInt64 :: (Word64 -> Word64 -> Word64) -> IO ()
+      binaryUInt64 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Integer (fromIntegral
+            $ f (fromIntegral x) (fromIntegral y)) Unsigned64
+          : r
+
+      boolInt8 :: (Int8 -> Int8 -> Bool) -> IO ()
+      boolInt8 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
         writeIORef stackRef
           $ Algebraic (ConstructorIndex $ fromEnum
             $ f (fromIntegral x) (fromIntegral y)) []
           : r
 
+      boolInt16 :: (Int16 -> Int16 -> Bool) -> IO ()
+      boolInt16 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Algebraic (ConstructorIndex $ fromEnum
+            $ f (fromIntegral x) (fromIntegral y)) []
+          : r
+
+      boolInt32 :: (Int32 -> Int32 -> Bool) -> IO ()
+      boolInt32 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Algebraic (ConstructorIndex $ fromEnum
+            $ f (fromIntegral x) (fromIntegral y)) []
+          : r
+
+      boolInt64 :: (Int64 -> Int64 -> Bool) -> IO ()
+      boolInt64 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Algebraic (ConstructorIndex $ fromEnum
+            $ f (fromIntegral x) (fromIntegral y)) []
+          : r
+
+      boolUInt8 :: (Word8 -> Word8 -> Bool) -> IO ()
+      boolUInt8 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Algebraic (ConstructorIndex $ fromEnum
+            $ f (fromIntegral x) (fromIntegral y)) []
+          : r
+
+      boolUInt16 :: (Word16 -> Word16 -> Bool) -> IO ()
+      boolUInt16 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Algebraic (ConstructorIndex $ fromEnum
+            $ f (fromIntegral x) (fromIntegral y)) []
+          : r
+
+      boolUInt32 :: (Word32 -> Word32 -> Bool) -> IO ()
+      boolUInt32 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Algebraic (ConstructorIndex $ fromEnum
+            $ f (fromIntegral x) (fromIntegral y)) []
+          : r
+
+      boolUInt64 :: (Word64 -> Word64 -> Bool) -> IO ()
+      boolUInt64 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Algebraic (ConstructorIndex $ fromEnum
+            $ f (fromIntegral x) (fromIntegral y)) []
+          : r
+
+      binaryFloat32 :: (Float -> Float -> Float) -> IO ()
+      binaryFloat32 f = do
+        (Float y _ : Float x _ : r) <- readIORef stackRef
+        writeIORef stackRef $ Float
+          (realToFrac (f (realToFrac x) (realToFrac y))) Float32 : r
+
+      boolFloat32 :: (Float -> Float -> Bool) -> IO ()
+      boolFloat32 f = do
+        (Float y _ : Float x _ : r) <- readIORef stackRef
+        writeIORef stackRef $ Algebraic
+          (ConstructorIndex $ fromEnum $ f (realToFrac x) (realToFrac y))
+          [] : r
+
       binaryFloat64 :: (Double -> Double -> Double) -> IO ()
       binaryFloat64 f = do
-        (Float y : Float x : r) <- readIORef stackRef
-        writeIORef stackRef $ Float (f x y) : r
+        (Float y _ : Float x _ : r) <- readIORef stackRef
+        writeIORef stackRef $ Float (f x y) Float64 : r
 
       boolFloat64 :: (Double -> Double -> Bool) -> IO ()
       boolFloat64 f = do
-        (Float y : Float x : r) <- readIORef stackRef
+        (Float y _ : Float x _ : r) <- readIORef stackRef
         writeIORef stackRef $ Algebraic
           (ConstructorIndex $ fromEnum $ f x y) [] : r
 

@@ -10,24 +10,148 @@ type UInt32 {}
 type UInt64 {}
 type UInt64 {}
 
+type Char {}
+
+type Float32 {}
+type Float64 {}
+
 vocab kitten {
+
+  // Signed integer arithmetic.
+
+  intrinsic add_int8 (Int8, Int8 -> Int8)
+  intrinsic sub_int8 (Int8, Int8 -> Int8)
+  intrinsic mul_int8 (Int8, Int8 -> Int8)
+  intrinsic div_int8 (Int8, Int8 -> Int8)
+  intrinsic mod_int8 (Int8, Int8 -> Int8)
+
+  intrinsic add_int16 (Int16, Int16 -> Int16)
+  intrinsic sub_int16 (Int16, Int16 -> Int16)
+  intrinsic mul_int16 (Int16, Int16 -> Int16)
+  intrinsic div_int16 (Int16, Int16 -> Int16)
+  intrinsic mod_int16 (Int16, Int16 -> Int16)
 
   intrinsic add_int32 (Int32, Int32 -> Int32)
   intrinsic sub_int32 (Int32, Int32 -> Int32)
   intrinsic mul_int32 (Int32, Int32 -> Int32)
   intrinsic div_int32 (Int32, Int32 -> Int32)
   intrinsic mod_int32 (Int32, Int32 -> Int32)
+
+  intrinsic add_int64 (Int64, Int64 -> Int64)
+  intrinsic sub_int64 (Int64, Int64 -> Int64)
+  intrinsic mul_int64 (Int64, Int64 -> Int64)
+  intrinsic div_int64 (Int64, Int64 -> Int64)
+  intrinsic mod_int64 (Int64, Int64 -> Int64)
+
+  // Signed integer comparisons.
+
+  intrinsic lt_int8 (Int8, Int8 -> Bool)
+  intrinsic gt_int8 (Int8, Int8 -> Bool)
+  intrinsic le_int8 (Int8, Int8 -> Bool)
+  intrinsic ge_int8 (Int8, Int8 -> Bool)
+  intrinsic eq_int8 (Int8, Int8 -> Bool)
+  intrinsic ne_int8 (Int8, Int8 -> Bool)
+
+  intrinsic lt_int16 (Int16, Int16 -> Bool)
+  intrinsic gt_int16 (Int16, Int16 -> Bool)
+  intrinsic le_int16 (Int16, Int16 -> Bool)
+  intrinsic ge_int16 (Int16, Int16 -> Bool)
+  intrinsic eq_int16 (Int16, Int16 -> Bool)
+  intrinsic ne_int16 (Int16, Int16 -> Bool)
+
   intrinsic lt_int32 (Int32, Int32 -> Bool)
   intrinsic gt_int32 (Int32, Int32 -> Bool)
   intrinsic le_int32 (Int32, Int32 -> Bool)
   intrinsic ge_int32 (Int32, Int32 -> Bool)
   intrinsic eq_int32 (Int32, Int32 -> Bool)
   intrinsic ne_int32 (Int32, Int32 -> Bool)
+
+  intrinsic lt_int64 (Int64, Int64 -> Bool)
+  intrinsic gt_int64 (Int64, Int64 -> Bool)
+  intrinsic le_int64 (Int64, Int64 -> Bool)
+  intrinsic ge_int64 (Int64, Int64 -> Bool)
+  intrinsic eq_int64 (Int64, Int64 -> Bool)
+  intrinsic ne_int64 (Int64, Int64 -> Bool)
+
+  // Signed integer arithmetic.
+
+  intrinsic add_uint8 (UInt8, UInt8 -> UInt8)
+  intrinsic sub_uint8 (UInt8, UInt8 -> UInt8)
+  intrinsic mul_uint8 (UInt8, UInt8 -> UInt8)
+  intrinsic div_uint8 (UInt8, UInt8 -> UInt8)
+  intrinsic mod_uint8 (UInt8, UInt8 -> UInt8)
+
+  intrinsic add_uint16 (UInt16, UInt16 -> UInt16)
+  intrinsic sub_uint16 (UInt16, UInt16 -> UInt16)
+  intrinsic mul_uint16 (UInt16, UInt16 -> UInt16)
+  intrinsic div_uint16 (UInt16, UInt16 -> UInt16)
+  intrinsic mod_uint16 (UInt16, UInt16 -> UInt16)
+
+  intrinsic add_uint32 (UInt32, UInt32 -> UInt32)
+  intrinsic sub_uint32 (UInt32, UInt32 -> UInt32)
+  intrinsic mul_uint32 (UInt32, UInt32 -> UInt32)
+  intrinsic div_uint32 (UInt32, UInt32 -> UInt32)
+  intrinsic mod_uint32 (UInt32, UInt32 -> UInt32)
+
+  intrinsic add_uint64 (UInt64, UInt64 -> UInt64)
+  intrinsic sub_uint64 (UInt64, UInt64 -> UInt64)
+  intrinsic mul_uint64 (UInt64, UInt64 -> UInt64)
+  intrinsic div_uint64 (UInt64, UInt64 -> UInt64)
+  intrinsic mod_uint64 (UInt64, UInt64 -> UInt64)
+
+  // Signed integer comparisons.
+
+  intrinsic lt_uint8 (UInt8, UInt8 -> Bool)
+  intrinsic gt_uint8 (UInt8, UInt8 -> Bool)
+  intrinsic le_uint8 (UInt8, UInt8 -> Bool)
+  intrinsic ge_uint8 (UInt8, UInt8 -> Bool)
+  intrinsic eq_uint8 (UInt8, UInt8 -> Bool)
+  intrinsic ne_uint8 (UInt8, UInt8 -> Bool)
+
+  intrinsic lt_uint16 (UInt16, UInt16 -> Bool)
+  intrinsic gt_uint16 (UInt16, UInt16 -> Bool)
+  intrinsic le_uint16 (UInt16, UInt16 -> Bool)
+  intrinsic ge_uint16 (UInt16, UInt16 -> Bool)
+  intrinsic eq_uint16 (UInt16, UInt16 -> Bool)
+  intrinsic ne_uint16 (UInt16, UInt16 -> Bool)
+
+  intrinsic lt_uint32 (UInt32, UInt32 -> Bool)
+  intrinsic gt_uint32 (UInt32, UInt32 -> Bool)
+  intrinsic le_uint32 (UInt32, UInt32 -> Bool)
+  intrinsic ge_uint32 (UInt32, UInt32 -> Bool)
+  intrinsic eq_uint32 (UInt32, UInt32 -> Bool)
+  intrinsic ne_uint32 (UInt32, UInt32 -> Bool)
+
+  intrinsic lt_uint64 (UInt64, UInt64 -> Bool)
+  intrinsic gt_uint64 (UInt64, UInt64 -> Bool)
+  intrinsic le_uint64 (UInt64, UInt64 -> Bool)
+  intrinsic ge_uint64 (UInt64, UInt64 -> Bool)
+  intrinsic eq_uint64 (UInt64, UInt64 -> Bool)
+  intrinsic ne_uint64 (UInt64, UInt64 -> Bool)
+
+  // Floating-point arithmetic.
+
+  intrinsic add_float32 (Float32, Float32 -> Float32)
+  intrinsic sub_float32 (Float32, Float32 -> Float32)
+  intrinsic mul_float32 (Float32, Float32 -> Float32)
+  intrinsic div_float32 (Float32, Float32 -> Float32)
+  intrinsic mod_float32 (Float32, Float32 -> Float32)
+
   intrinsic add_float64 (Float64, Float64 -> Float64)
   intrinsic sub_float64 (Float64, Float64 -> Float64)
   intrinsic mul_float64 (Float64, Float64 -> Float64)
   intrinsic div_float64 (Float64, Float64 -> Float64)
   intrinsic mod_float64 (Float64, Float64 -> Float64)
+
+  // Floating-point comparisons.
+
+  intrinsic lt_float32 (Float32, Float32 -> Bool)
+  intrinsic gt_float32 (Float32, Float32 -> Bool)
+  intrinsic le_float32 (Float32, Float32 -> Bool)
+  intrinsic ge_float32 (Float32, Float32 -> Bool)
+  intrinsic eq_float32 (Float32, Float32 -> Bool)
+  intrinsic ne_float32 (Float32, Float32 -> Bool)
+
   intrinsic lt_float64 (Float64, Float64 -> Bool)
   intrinsic gt_float64 (Float64, Float64 -> Bool)
   intrinsic le_float64 (Float64, Float64 -> Bool)
@@ -43,11 +167,16 @@ about +:
   operator:
     left 6
 
-instance + (Int32, Int32 -> Int32):
-  _::kitten::add_int32
-
-instance + (Float64, Float64 -> Float64):
-  _::kitten::add_float64
+instance + (Int8, Int8 -> Int8) { _::kitten::add_int8 }
+instance + (Int16, Int16 -> Int16) { _::kitten::add_int16 }
+instance + (Int32, Int32 -> Int32) { _::kitten::add_int32 }
+instance + (Int64, Int64 -> Int64) { _::kitten::add_int64 }
+instance + (UInt8, UInt8 -> UInt8) { _::kitten::add_uint8 }
+instance + (UInt16, UInt16 -> UInt16) { _::kitten::add_uint16 }
+instance + (UInt32, UInt32 -> UInt32) { _::kitten::add_uint32 }
+instance + (UInt64, UInt64 -> UInt64) { _::kitten::add_uint64 }
+instance + (Float32, Float32 -> Float32) { _::kitten::add_float32 }
+instance + (Float64, Float64 -> Float64) { _::kitten::add_float64 }
 
 trait - <T> (T, T -> T)
 
@@ -55,11 +184,16 @@ about -:
   operator:
     left 6
 
-instance - (Int32, Int32 -> Int32):
-  _::kitten::sub_int32
-
-instance - (Float64, Float64 -> Float64):
-  _::kitten::sub_float64
+instance - (Int8, Int8 -> Int8) { _::kitten::sub_int8 }
+instance - (Int16, Int16 -> Int16) { _::kitten::sub_int16 }
+instance - (Int32, Int32 -> Int32) { _::kitten::sub_int32 }
+instance - (Int64, Int64 -> Int64) { _::kitten::sub_int64 }
+instance - (UInt8, UInt8 -> UInt8) { _::kitten::sub_uint8 }
+instance - (UInt16, UInt16 -> UInt16) { _::kitten::sub_uint16 }
+instance - (UInt32, UInt32 -> UInt32) { _::kitten::sub_uint32 }
+instance - (UInt64, UInt64 -> UInt64) { _::kitten::sub_uint64 }
+instance - (Float32, Float32 -> Float32) { _::kitten::sub_float32 }
+instance - (Float64, Float64 -> Float64) { _::kitten::sub_float64 }
 
 trait * <T> (T, T -> T)
 
@@ -67,11 +201,16 @@ about *:
   operator:
     left 7
 
-instance * (Int32, Int32 -> Int32):
-  _::kitten::mul_int32
-
-instance * (Float64, Float64 -> Float64):
-  _::kitten::mul_float64
+instance * (Int8, Int8 -> Int8) { _::kitten::mul_int8 }
+instance * (Int16, Int16 -> Int16) { _::kitten::mul_int16 }
+instance * (Int32, Int32 -> Int32) { _::kitten::mul_int32 }
+instance * (Int64, Int64 -> Int64) { _::kitten::mul_int64 }
+instance * (UInt8, UInt8 -> UInt8) { _::kitten::mul_uint8 }
+instance * (UInt16, UInt16 -> UInt16) { _::kitten::mul_uint16 }
+instance * (UInt32, UInt32 -> UInt32) { _::kitten::mul_uint32 }
+instance * (UInt64, UInt64 -> UInt64) { _::kitten::mul_uint64 }
+instance * (Float32, Float32 -> Float32) { _::kitten::mul_float32 }
+instance * (Float64, Float64 -> Float64) { _::kitten::mul_float64 }
 
 trait / <T> (T, T -> T)
 
@@ -79,11 +218,16 @@ about /:
   operator:
     left 7
 
-instance / (Int32, Int32 -> Int32):
-  _::kitten::div_int32
-
-instance / (Float64, Float64 -> Float64):
-  _::kitten::div_float64
+instance / (Int8, Int8 -> Int8) { _::kitten::div_int8 }
+instance / (Int16, Int16 -> Int16) { _::kitten::div_int16 }
+instance / (Int32, Int32 -> Int32) { _::kitten::div_int32 }
+instance / (Int64, Int64 -> Int64) { _::kitten::div_int64 }
+instance / (UInt8, UInt8 -> UInt8) { _::kitten::div_uint8 }
+instance / (UInt16, UInt16 -> UInt16) { _::kitten::div_uint16 }
+instance / (UInt32, UInt32 -> UInt32) { _::kitten::div_uint32 }
+instance / (UInt64, UInt64 -> UInt64) { _::kitten::div_uint64 }
+instance / (Float32, Float32 -> Float32) { _::kitten::div_float32 }
+instance / (Float64, Float64 -> Float64) { _::kitten::div_float64 }
 
 trait % <T> (T, T -> T)
 
@@ -91,11 +235,16 @@ about %:
   operator:
     left 7
 
-instance % (Int32, Int32 -> Int32):
-  _::kitten::mod_int32
-
-instance % (Float64, Float64 -> Float64):
-  _::kitten::mod_float64
+instance % (Int8, Int8 -> Int8) { _::kitten::mod_int8 }
+instance % (Int16, Int16 -> Int16) { _::kitten::mod_int16 }
+instance % (Int32, Int32 -> Int32) { _::kitten::mod_int32 }
+instance % (Int64, Int64 -> Int64) { _::kitten::mod_int64 }
+instance % (UInt8, UInt8 -> UInt8) { _::kitten::mod_uint8 }
+instance % (UInt16, UInt16 -> UInt16) { _::kitten::mod_uint16 }
+instance % (UInt32, UInt32 -> UInt32) { _::kitten::mod_uint32 }
+instance % (UInt64, UInt64 -> UInt64) { _::kitten::mod_uint64 }
+instance % (Float32, Float32 -> Float32) { _::kitten::mod_float32 }
+instance % (Float64, Float64 -> Float64) { _::kitten::mod_float64 }
 
 define div_mod<T> (T, T -> T, T):
   -> x, y;
@@ -137,46 +286,47 @@ about <>:
   operator:
     4
 
-instance < (Int32, Int32 -> Bool):
-  _::kitten::lt_int32
+instance < (Int8, Int8 -> Bool) { _::kitten::lt_int8 }
+instance > (Int8, Int8 -> Bool) { _::kitten::gt_int8 }
+instance <= (Int8, Int8 -> Bool) { _::kitten::le_int8 }
+instance >= (Int8, Int8 -> Bool) { _::kitten::ge_int8 }
+instance = (Int8, Int8 -> Bool) { _::kitten::eq_int8 }
+instance <> (Int8, Int8 -> Bool) { _::kitten::ne_int8 }
 
-instance > (Int32, Int32 -> Bool):
-  _::kitten::gt_int32
+instance < (Int16, Int16 -> Bool) { _::kitten::lt_int16 }
+instance > (Int16, Int16 -> Bool) { _::kitten::gt_int16 }
+instance <= (Int16, Int16 -> Bool) { _::kitten::le_int16 }
+instance >= (Int16, Int16 -> Bool) { _::kitten::ge_int16 }
+instance = (Int16, Int16 -> Bool) { _::kitten::eq_int16 }
+instance <> (Int16, Int16 -> Bool) { _::kitten::ne_int16 }
 
-instance <= (Int32, Int32 -> Bool):
-  _::kitten::le_int32
+instance < (Int32, Int32 -> Bool) { _::kitten::lt_int32 }
+instance > (Int32, Int32 -> Bool) { _::kitten::gt_int32 }
+instance <= (Int32, Int32 -> Bool) { _::kitten::le_int32 }
+instance >= (Int32, Int32 -> Bool) { _::kitten::ge_int32 }
+instance = (Int32, Int32 -> Bool) { _::kitten::eq_int32 }
+instance <> (Int32, Int32 -> Bool) { _::kitten::ne_int32 }
 
-instance >= (Int32, Int32 -> Bool):
-  _::kitten::ge_int32
+instance < (Int64, Int64 -> Bool) { _::kitten::lt_int64 }
+instance > (Int64, Int64 -> Bool) { _::kitten::gt_int64 }
+instance <= (Int64, Int64 -> Bool) { _::kitten::le_int64 }
+instance >= (Int64, Int64 -> Bool) { _::kitten::ge_int64 }
+instance = (Int64, Int64 -> Bool) { _::kitten::eq_int64 }
+instance <> (Int64, Int64 -> Bool) { _::kitten::ne_int64 }
 
-instance = (Int32, Int32 -> Bool):
-  _::kitten::eq_int32
+instance < (Float32, Float32 -> Bool) { _::kitten::lt_float32 }
+instance > (Float32, Float32 -> Bool) { _::kitten::gt_float32 }
+instance <= (Float32, Float32 -> Bool) { _::kitten::le_float32 }
+instance >= (Float32, Float32 -> Bool) { _::kitten::ge_float32 }
+instance = (Float32, Float32 -> Bool) { _::kitten::eq_float32 }
+instance <> (Float32, Float32 -> Bool) { _::kitten::ne_float32 }
 
-instance <> (Int32, Int32 -> Bool):
-  _::kitten::ne_int32
-
-instance < (Float64, Float64 -> Bool):
-  _::kitten::lt_float64
-
-instance > (Float64, Float64 -> Bool):
-  _::kitten::gt_float64
-
-instance <= (Float64, Float64 -> Bool):
-  _::kitten::le_float64
-
-instance >= (Float64, Float64 -> Bool):
-  _::kitten::ge_float64
-
-instance = (Float64, Float64 -> Bool):
-  _::kitten::eq_float64
-
-instance <> (Float64, Float64 -> Bool):
-  _::kitten::ne_float64
-
-type Char {}
-
-type Float32 {}
-type Float64 {}
+instance < (Float64, Float64 -> Bool) { _::kitten::lt_float64 }
+instance > (Float64, Float64 -> Bool) { _::kitten::gt_float64 }
+instance <= (Float64, Float64 -> Bool) { _::kitten::le_float64 }
+instance >= (Float64, Float64 -> Bool) { _::kitten::ge_float64 }
+instance = (Float64, Float64 -> Bool) { _::kitten::eq_float64 }
+instance <> (Float64, Float64 -> Bool) { _::kitten::ne_float64 }
 
 type Bool:
   case false
@@ -273,6 +423,12 @@ type Optional<T>:
   case none
   case some (T)
 
+define from_some<T> (Optional<T> -> T +Fail):
+  match:
+    case some {}
+    else:
+      "from_some: none" fail
+
 type Pair<A, B>:
   case pair (A, B)
 
@@ -286,7 +442,11 @@ vocab kitten {
   intrinsic empty<T> (List<T> -> Bool)
   intrinsic head<T> (List<T> -> Optional<T>)
   intrinsic tail<T> (List<T> -> Optional<List<T>>)
+  intrinsic append<T> (List<T>, T -> List<T>)
   intrinsic prepend<T> (T, List<T> -> List<T>)
+  intrinsic cat<T> (List<T>, List<T> -> List<T>)
+  intrinsic get<T> (List<T>, Int32 -> Optional<T>)
+  intrinsic set<T> (List<T>, T, Int32 -> Optional<List<T>>)
 
 }
 
@@ -330,8 +490,20 @@ define head<T> (List<T> -> Optional<T>):
 define tail<T> (List<T> -> Optional<List<T>>):
   _::kitten::tail
 
+define append<T> (List<T>, T -> List<T>):
+  _::kitten::append
+
 define prepend<T> (T, List<T> -> List<T>):
   _::kitten::prepend
+
+define cat<T> (List<T>, List<T> -> List<T>):
+  _::kitten::cat
+
+define get<T> (List<T>, Int32 -> Optional<T>):
+  _::kitten::get
+
+define set<T> (List<T>, T, Int32 -> Optional<List<T>>):
+  _::kitten::set
 
 define head_tail<T> (List<T> -> Optional<Pair<T, List<T>>>):
   -> xs;
@@ -362,9 +534,7 @@ vocab kitten {
 
 }
 
-trait print<T> (T -> +IO)
-
-instance print (List<Char> -> +IO):
+define print (List<Char> -> +IO):
   _::kitten::print
 
 trait show<T> (T -> List<Char>)
@@ -387,12 +557,15 @@ permission Fail<R..., S..., +P> (R..., (R... -> S... +Fail +P) -> S... +P):
 
 vocab kitten {
 
-  intrinsic abort (List<Char> -> +Fail)
+  intrinsic abort<R..., S...> (R..., List<Char> -> S... +Fail)
 
 }
 
-define abort (-> +Fail):
+define abort<R..., S...> (R... -> S... +Fail):
   "abort called" _::kitten::abort
+
+define fail<R..., S...> (R..., List<Char> -> S... +Fail):
+  _::kitten::abort
 
 define assert (List<Char>, (-> Bool) -> +Fail):
   -> message, test;

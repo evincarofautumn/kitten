@@ -38,6 +38,7 @@ library
 
     Kitten
     Kitten.Base
+    Kitten.Bits
     Kitten.Definition
     Kitten.Desugar.Data
     Kitten.Desugar.Infix

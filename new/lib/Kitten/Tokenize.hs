@@ -11,6 +11,7 @@ import Data.Functor.Identity (Identity)
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Text (Text)
 import Kitten.Base (Base(..))
+import Kitten.Bits
 import Kitten.Indent (Indent(..))
 import Kitten.Informer (Informer(..))
 import Kitten.Located (Located(..))
@@ -112,15 +113,30 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
       base prefix digits readBase hint desc = (,) hint . readBase
         <$> (Parsec.char prefix
           *> Parsec.many1 (Parsec.oneOf digits <?> (desc ++ " digit")))
-    Parsec.choice
-      [ Parsec.try
-        $ fmap (\ (hint, value) -> Integer (applySign sign value) hint)
-        $ Parsec.char '0' *> Parsec.choice
-        [ base 'b' "01" readBin Binary "binary"
-        , base 'o' ['0'..'7'] (fst . head . readOct) Octal "octal"
-        , base 'x' (['0'..'9'] ++ ['A'..'F'])
-          (fst . head . readHex) Hexadecimal "hexadecimal"
+      integerBits = Parsec.option Signed32 $ Parsec.choice
+        [ Parsec.char 'i' *> Parsec.choice
+          [ Signed8 <$ Parsec.string "8"
+          , Signed16 <$ Parsec.string "16"
+          , Signed32 <$ Parsec.string "32"
+          , Signed64 <$ Parsec.string "64"
+          ]
+        , Parsec.char 'u' *> Parsec.choice
+          [ Unsigned8 <$ Parsec.string "8"
+          , Unsigned16 <$ Parsec.string "16"
+          , Unsigned32 <$ Parsec.string "32"
+          , Unsigned64 <$ Parsec.string "64"
+          ]
         ]
+    Parsec.choice
+      [ Parsec.try $ do
+        (hint, value) <- Parsec.char '0' *> Parsec.choice
+          [ base 'b' "01" readBin Binary "binary"
+          , base 'o' ['0'..'7'] (fst . head . readOct) Octal "octal"
+          , base 'x' (['0'..'9'] ++ ['A'..'F'])
+            (fst . head . readHex) Hexadecimal "hexadecimal"
+          ]
+        bits <- integerBits
+        return $ Integer (applySign sign value) hint bits
       , do
         integer <- Parsec.many1 Parsec.digit
         mFraction <- Parsec.optionMaybe
@@ -128,12 +144,23 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
         mPower <- Parsec.optionMaybe $ Parsec.oneOf "Ee" *> ((,)
           <$> Parsec.optionMaybe (Parsec.oneOf "+-")
           <*> Parsec.many1 Parsec.digit)
-        return $ case (mFraction, mPower) of
-          (Nothing, Nothing) -> Integer (applySign sign (read integer)) Decimal
-          _ -> Float
-            (applySign sign (read (integer ++ fromMaybe "" mFraction)))
-            (fromMaybe 0 (fmap length mFraction))
-            (fromMaybe 0 (fmap (\ (s, p) -> applySign s $ read p) mPower))
+        case (mFraction, mPower) of
+          (Nothing, Nothing) -> do
+            bits <- integerBits
+            return $ Integer
+              (applySign sign (read integer))
+              Decimal
+              bits
+          _ -> do
+            bits <- Parsec.option Float64 $ Parsec.char 'f' *> Parsec.choice
+              [ Float32 <$ Parsec.string "32"
+              , Float64 <$ Parsec.string "64"
+              ]
+            return $ Float
+              (applySign sign (read (integer ++ fromMaybe "" mFraction)))
+              (fromMaybe 0 (fmap length mFraction))
+              (fromMaybe 0 (fmap (\ (s, p) -> applySign s $ read p) mPower))
+              bits
       ] <* Parsec.notFollowedBy Parsec.digit
   , Parsec.try (Arrow <$ Parsec.string "->" <* Parsec.notFollowedBy symbol)
   , let

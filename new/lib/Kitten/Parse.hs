@@ -525,8 +525,8 @@ termParser = (<?> "expression") $ do
   toLiteral :: Located Token -> Maybe (Value (), Origin)
   toLiteral token = case Located.item token of
     Token.Character x -> Just (Character x, origin)
-    Token.Float a b c -> Just (Float $ Token.float a b c, origin)
-    Token.Integer x _ -> Just (Integer x, origin)
+    Token.Float a b c bits -> Just (Float (Token.float a b c) bits, origin)
+    Token.Integer x _ bits -> Just (Integer x bits, origin)
     Token.Text x -> Just (Text x, origin)
     _ -> Nothing
     where
