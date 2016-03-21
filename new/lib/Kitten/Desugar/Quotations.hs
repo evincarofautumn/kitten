@@ -4,13 +4,15 @@ module Kitten.Desugar.Quotations
 
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State (StateT, gets, modify, runStateT)
+import Data.Foldable (foldrM)
 import Data.Traversable (forM)
 import Kitten.Dictionary (Dictionary)
-import Kitten.Infer (typecheck)
+import Kitten.Infer (inferType0, typecheck)
 import Kitten.Monad (K)
 import Kitten.Name (Closed(..), Qualified(..), Qualifier, Unqualified(..))
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Kitten.Type (Type(..), Var(..))
+import Kitten.TypeEnv (TypeEnv)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Kitten.Dictionary as Dictionary
@@ -20,6 +22,7 @@ import qualified Kitten.Entry.Merge as Merge
 import qualified Kitten.Free as Free
 import qualified Kitten.Signature as Signature
 import qualified Kitten.Term as Term
+import qualified Kitten.TypeEnv as TypeEnv
 
 newtype LambdaIndex = LambdaIndex Int
 
@@ -29,49 +32,59 @@ desugar
   -> Term Type
   -> K (Term Type, Dictionary)
 desugar dictionary qualifier term0 = do
-  (term', (_, dictionary')) <- flip runStateT (LambdaIndex 0, dictionary)
-    $ go term0
+  ((term', _), (_, dictionary')) <- flip runStateT (LambdaIndex 0, dictionary)
+    $ go TypeEnv.empty term0
   return (term', dictionary')
   where
 
   go
-    :: Term Type
-    -> StateT (LambdaIndex, Dictionary) K (Term Type)
-  go term = case term of
+    :: TypeEnv
+    -> Term Type
+    -> StateT (LambdaIndex, Dictionary) K (Term Type, TypeEnv)
+  go tenv0 term = case term of
     Call{} -> done
     Compose type_ a b -> do
-      a' <- go a
-      b' <- go b
-      return $ Compose type_ a' b'
+      (a', tenv1) <- go tenv0 a
+      (b', tenv2) <- go tenv1 b
+      return (Compose type_ a' b', tenv2)
     Drop{} -> done
     Generic type_ a origin -> do
-      a' <- go a
-      return $ Generic type_ a' origin
+      (a', tenv1) <- go tenv0 a
+      return (Generic type_ a' origin, tenv1)
     Group{} -> error "group should not appear after infix desugaring"
     Identity{} -> done
     If type_ a b origin -> do
-      a' <- go a
-      b' <- go b
-      return $ If type_ a' b' origin
+      (a', tenv1) <- go tenv0 a
+      (b', tenv2) <- go tenv1 b
+      return (If type_ a' b' origin, tenv2)
     Lambda type_ name varType a origin -> do
-      a' <- go a
-      return $ Lambda type_ name varType a' origin
+      let
+        oldLocals = TypeEnv.vs tenv0
+        localEnv = tenv0 { TypeEnv.vs = varType : TypeEnv.vs tenv0 }
+      (a', tenv1) <- go localEnv a
+      let tenv2 = tenv1 { TypeEnv.vs = oldLocals }
+      return (Lambda type_ name varType a' origin, tenv2)
     Match type_ cases mElse origin -> do
-      cases' <- forM cases
-        $ \ (Case name a caseOrigin) -> do
-          a' <- go a
-          return $ Case name a' caseOrigin
-      mElse' <- case mElse of
+      (cases', tenv1) <- foldrM
+        (\ (Case name a caseOrigin) (acc, tenv) -> do
+          (a', tenv') <- go tenv a
+          return (Case name a' caseOrigin : acc, tenv')) ([], tenv0) cases
+      (mElse', tenv2) <- case mElse of
         Just (Else a elseOrigin) -> do
-          a' <- go a
-          return $ Just $ Else a' elseOrigin
-        Nothing -> return Nothing
-      return $ Match type_ cases' mElse' origin
+          (a', tenv') <- go tenv1 a
+          return $ (Just $ Else a' elseOrigin, tenv')
+        Nothing -> return (Nothing, tenv1)
+      return (Match type_ cases' mElse' origin, tenv2)
     New{} -> done
     NewClosure{} -> done
     NewVector{} -> done
     Push _type (Capture closed a) origin -> do
-      a' <- go a
+      let
+        types = map (TypeEnv.getClosed tenv0) closed
+        oldClosure = TypeEnv.closure tenv0
+        localEnv = tenv0 { TypeEnv.closure = types }
+      (a', tenv1) <- go localEnv a
+      let tenv2 = tenv1 { TypeEnv.closure = oldClosure }
       LambdaIndex index <- gets fst
       let
         name = Qualified qualifier
@@ -91,12 +104,12 @@ desugar dictionary qualifier term0 = do
           (Just a')
         in (l, Dictionary.insert name entry d)
       dict <- gets snd
-      (typechecked, _) <- lift $ typecheck dict Nothing
+      (typechecked, _) <- lift $ inferType0 dict tenv2 Nothing
         $ Term.compose () origin $ map pushClosed closed ++
           [ Push () (Name name) origin
           , NewClosure () (length closed) origin
           ]
-      return typechecked
+      return (typechecked, tenv2)
       where
 
       pushClosed :: Closed -> Term ()
@@ -109,4 +122,4 @@ desugar dictionary qualifier term0 = do
     With{} -> done
     Word{} -> done
     where
-    done = return term
+    done = return (term, tenv0)

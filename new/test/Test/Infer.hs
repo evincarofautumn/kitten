@@ -84,6 +84,35 @@ spec = do
         \1 + 1"
         $ Type.funType o r (Type.prodType o r int) e
 
+    it "typechecks nested scopes" $ do
+      testTypecheck
+        "intrinsic add (Int32, Int32 -> Int32)\n\
+        \1000 -> x1;\n\
+        \100 -> y1;\n\
+        \10\n\
+        \{\n\
+        \  -> a1;\n\
+        \  a1 x1 add\n\
+        \  {\n\
+        \    -> b1;\n\
+        \    b1 y1 add\n\
+        \  } call\n\
+        \} call\n\
+        \\n\
+        \1000 -> x2;\n\
+        \100 -> y2;\n\
+        \10\n\
+        \{\n\
+        \  -> a2;\n\
+        \  a2 y2 add\n\
+        \  {\n\
+        \    -> b2;\n\
+        \    b2 x2 add\n\
+        \  } call\n\
+        \} call\n\
+        \\&"
+        $ Type.funType o r (Type.prodType o (Type.prodType o r int) int) e
+
   where
   o = Origin.point "" 0 0
   r = TypeVar o $ Var (TypeId 0) Stack
