@@ -31,7 +31,20 @@ executable kitten
   main-is: Main.hs
 
 library
-  build-depends: base >=4.8, bytestring, containers, hashable, parsec, pretty, text, transformers, unordered-containers, vector
+
+  build-depends:
+
+    base >=4.8,
+    bytestring,
+    containers,
+    hashable,
+    parsec,
+    pretty,
+    text,
+    transformers,
+    unordered-containers,
+    vector
+
   default-language: Haskell2010
 
   exposed-modules:
