@@ -528,6 +528,24 @@ define map<A, B, +P> (List<A>, (A -> B +P) -> List<B> +P):
       ys f map -> zs;
       z zs prepend
 
+define map_index<A, B, +P> (List<A>, (A, Int32 -> B +P) -> List<B> +P):
+  0 map_index::helper
+
+vocab map_index {
+
+  define helper<A, B, +P> (List<A>, (A, Int32 -> B +P), Int32 -> List<B> +P):
+    -> xs, f, i;
+    match (xs head_tail):
+      case none:
+        []
+      case some:
+        unpair -> y, ys;
+        y i f call -> z;
+        ys f (i + 1) helper -> zs;
+        z zs prepend
+
+}
+
 vocab kitten {
 
   intrinsic print (List<Char> -> +IO)
@@ -585,3 +603,29 @@ define dup<T> (T -> T, T):
 define swap<A, B> (A, B -> B, A):
   -> x, y;
   y x
+
+vocab kitten {
+
+  intrinsic draw (List<List<RGBA>> -> +IO)
+
+}
+
+type RGBA:
+  case rgba (UInt8, UInt8, UInt8, UInt8)
+
+define draw (List<List<RGBA>> -> +IO):
+  _::kitten::draw
+
+define circle (Int32 -> List<List<RGBA>>):
+  -> r;
+  0u8 0u8 0u8 0u8 rgba
+  (2 * r) replicate
+  (2 * r) replicate
+  do (map_index) -> row, y:
+    row do (map_index) -> pixel, x:
+      x - r -> dx;
+      y - r -> dy;
+      if (dx * dx + dy * dy - r * r <= 0):
+        255u8 0u8 0u8 255u8 rgba
+      else:
+        pixel

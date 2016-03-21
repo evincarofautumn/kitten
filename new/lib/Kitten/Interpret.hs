@@ -7,6 +7,7 @@ module Kitten.Interpret
 
 import Control.Exception (Exception, throwIO)
 import Data.Fixed (mod')
+import Data.Foldable (forM_)
 import Data.IORef (newIORef, modifyIORef', readIORef, writeIORef)
 import Data.Int
 import Data.Maybe (fromMaybe)
@@ -367,6 +368,18 @@ interpret dictionary mName mainArgs initialStack = do
             writeIORef stackRef $ Array x : r
             -- FIXME: Use right args.
             word (Qualified Vocabulary.global "some") []
+
+      "draw" -> do
+        (Array xs : r) <- readIORef stackRef
+        writeIORef stackRef r
+        forM_ xs $ \ (Array row) -> do
+          forM_ row $ \ (Algebraic _ channels) -> do
+            case channels of
+              [Integer 0 _, Integer 0 _, Integer 0 _, Integer 0 _] -> do
+                putChar ' '
+              _ -> putChar '#'
+          putChar '\n'
+
       _ -> error "no such intrinsic"
 
       where
