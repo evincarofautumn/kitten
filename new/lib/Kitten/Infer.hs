@@ -2,7 +2,8 @@
 {-# LANGUAGE RecursiveDo #-}
 
 module Kitten.Infer
-  ( mangleInstance
+  ( inferType0
+  , mangleInstance
   , typecheck
   , typeFromSignature
   ) where
@@ -430,7 +431,7 @@ inferValue dictionary tenvFinal tenv0 origin value = case value of
   Algebraic{} -> error "adt should not appear before runtime"
   Array{} -> error "array should not appear before runtime"
   Capture names term -> do
-    let types = map (getClosed tenv0) names
+    let types = map (TypeEnv.getClosed tenv0) names
     let oldClosure = TypeEnv.closure tenv0
     let localEnv = tenv0 { TypeEnv.closure = types }
     (term', t1, tenv1) <- inferType dictionary tenvFinal localEnv term
@@ -473,12 +474,6 @@ inferValue dictionary tenvFinal tenv0 origin value = case value of
     , TypeConstructor origin "List" :@ TypeConstructor origin "Char"
     , tenv0
     )
-  where
-
-  getClosed :: TypeEnv -> Closed -> Type
-  getClosed tenv name = case name of
-    ClosedLocal (LocalIndex index) -> TypeEnv.vs tenv !! index
-    ClosedClosure (ClosureIndex index) -> TypeEnv.closure tenv !! index
 
 inferCall
   :: Dictionary

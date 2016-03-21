@@ -5,6 +5,7 @@ module Kitten.TypeEnv
   , empty
   , freshTv
   , freshTypeId
+  , getClosed
   ) where
 
 import Control.Monad.IO.Class (liftIO)
@@ -12,7 +13,7 @@ import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Map (Map)
 import Kitten.Kind (Kind)
 import Kitten.Monad (K)
-import Kitten.Name (Qualified)
+import Kitten.Name
 import Kitten.Origin (Origin)
 import Kitten.Type (Type(..), TypeId(..), Var(..))
 import System.IO.Unsafe (unsafePerformIO)
@@ -64,3 +65,8 @@ instance Pretty TypeEnv where
   pPrint tenv = Pretty.vcat
     $ map (\ (v, t) -> Pretty.hsep [pPrint v, "~", pPrint t])
     $ Map.toList $ tvs tenv
+
+getClosed :: TypeEnv -> Closed -> Type
+getClosed tenv name = case name of
+  ClosedLocal (LocalIndex index) -> vs tenv !! index
+  ClosedClosure (ClosureIndex index) -> closure tenv !! index
