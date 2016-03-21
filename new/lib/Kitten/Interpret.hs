@@ -20,6 +20,12 @@ import Kitten.Monad (runKitten)
 import Kitten.Name
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Kitten.Type (Type(..))
+import Text.Printf (printf)
+import qualified Codec.Picture.Png as Png
+import qualified Codec.Picture.Types as Picture
+import qualified Data.ByteString as ByteString
+import qualified Data.ByteString.Base64 as Base64
+import qualified Data.ByteString.Lazy as LazyByteString
 import qualified Data.Text as Text
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
@@ -370,16 +376,29 @@ interpret dictionary mName mainArgs initialStack = do
             word (Qualified Vocabulary.global "some") []
 
       "draw" -> do
-        (Array xs : r) <- readIORef stackRef
-        writeIORef stackRef r
-        forM_ xs $ \ (Array row) -> do
-          forM_ row $ \ (Algebraic _ channels) -> do
-            case channels of
-              [Integer 0 _, Integer 0 _, Integer 0 _, Integer 0 _] -> do
-                putChar ' '
-              _ -> putChar '#'
-          putChar '\n'
-
+        (Array ys : rest) <- readIORef stackRef
+        writeIORef stackRef rest
+        let
+          height = length ys
+          width = if null ys
+            then 0
+            else case ys of
+              Array xs : _ -> length xs
+        printf "\ESC]1337;File=width=%dpx;height=%dpx;inline=1:%s\BEL"
+          width height
+          $ map ((toEnum :: Int -> Char) . fromIntegral)
+          $ ByteString.unpack $ Base64.encode
+          $ LazyByteString.toStrict $ Png.encodePng
+          $ Picture.generateImage (\ x y -> case (ys !! y) of
+            Array xs -> case xs !! x of
+              Algebraic _ channels -> case channels of
+                [Integer r _, Integer g _, Integer b _, Integer a _]
+                  -> Picture.PixelRGBA8
+                    (fromIntegral r)
+                    (fromIntegral g)
+                    (fromIntegral b)
+                    (fromIntegral a))
+            width height
       _ -> error "no such intrinsic"
 
       where
