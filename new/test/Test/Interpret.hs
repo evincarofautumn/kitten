@@ -6,6 +6,7 @@ module Test.Interpret
 
 import Data.Text (Text)
 import Kitten (fragmentFromSource)
+import Kitten.Bits
 import Kitten.Dictionary (Dictionary)
 import Kitten.Interpret (interpret)
 import Kitten.Monad (runKitten)
@@ -34,11 +35,11 @@ spec = do
       Right dictionary -> return $ testInterpret dictionary
   describe "with trivial programs" $ do
     it "interprets literals" $ do
-     testInterpret' "0" [Integer 0]
-     testInterpret' "0.0" [Float 0.0]
+     testInterpret' "0" [Integer 0 Signed32]
+     testInterpret' "0.0" [Float 0.0 Float64]
      testInterpret' "1 2"
-       [ Integer 2
-       , Integer 1
+       [ Integer 2 Signed32
+       , Integer 1 Signed32
        ]
      testInterpret' "\"meow\""
        [Array [Character 'm', Character 'e', Character 'o', Character 'w']]
@@ -46,25 +47,25 @@ spec = do
      testInterpret' "\"meow\" say" []
   describe "with operators" $ do
     it "interprets Int32 operators" $ do
-      testInterpret' "2 + 3" [Integer 5]
-      testInterpret' "2 - 3" [Integer (-1)]
-      testInterpret' "2 * 3" [Integer 6]
-      testInterpret' "2 / 3" [Integer 0]
-      testInterpret' "2 % 3" [Integer 2]
+      testInterpret' "2 + 3" [Integer 5 Signed32]
+      testInterpret' "2 - 3" [Integer (-1) Signed32]
+      testInterpret' "2 * 3" [Integer 6 Signed32]
+      testInterpret' "2 / 3" [Integer 0 Signed32]
+      testInterpret' "2 % 3" [Integer 2 Signed32]
     it "interprets chains of Int32 operators" $ do
-      testInterpret' "2 + 3 + 4" [Integer 9]
-      testInterpret' "2 + 3 * 4" [Integer 14]
-      testInterpret' "2 * 3 + 4" [Integer 10]
-      testInterpret' "2 * 3 * 4" [Integer 24]
+      testInterpret' "2 + 3 + 4" [Integer 9 Signed32]
+      testInterpret' "2 + 3 * 4" [Integer 14 Signed32]
+      testInterpret' "2 * 3 + 4" [Integer 10 Signed32]
+      testInterpret' "2 * 3 * 4" [Integer 24 Signed32]
     it "wraps Int32" $ do
-      testInterpret' "2147483647 + 1" [Integer (-2147483648)]
-      testInterpret' "-2147483648 - 1" [Integer 2147483647]
+      testInterpret' "2147483647 + 1" [Integer (-2147483648) Signed32]
+      testInterpret' "-2147483648 - 1" [Integer 2147483647 Signed32]
     it "interprets Float64 operators" $ do
-      testInterpret' "2.0 + 3.0" [Float 5]
-      testInterpret' "2.0 - 3.0" [Float (-1)]
-      testInterpret' "2.0 * 3.0" [Float 6]
-      testInterpret' "2.0 / 4.0" [Float 0.5]
-      testInterpret' "2.0 % 3.0" [Float 2]
+      testInterpret' "2.0 + 3.0" [Float 5 Float64]
+      testInterpret' "2.0 - 3.0" [Float (-1) Float64]
+      testInterpret' "2.0 * 3.0" [Float 6 Float64]
+      testInterpret' "2.0 / 4.0" [Float 0.5 Float64]
+      testInterpret' "2.0 % 3.0" [Float 2 Float64]
     it "interprets Bool operators" $ do
       let
         false = Algebraic (ConstructorIndex 0) []

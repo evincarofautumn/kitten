@@ -99,7 +99,7 @@ operatorMetadata dictionary = HashMap.fromList $ map getMetadata
         -> yield associativity defaultPrecedence
 
         -- Just precedence.
-        | [Term.Push _ (Term.Integer prec) _]
+        | [Term.Push _ (Term.Integer prec _bits) _]
           <- Term.decompose term
         , validPrecedence prec
         -> yield defaultAssociativity
@@ -107,7 +107,7 @@ operatorMetadata dictionary = HashMap.fromList $ map getMetadata
 
         -- Associativity and precedence.
         | [ Term.Word _ _ (UnqualifiedName (Unqualified assoc)) _ _
-          , Term.Push _ (Term.Integer prec) _
+          , Term.Push _ (Term.Integer prec _bits) _
           ] <- Term.decompose term
         , Just associativity <- associativityFromName assoc
         , validPrecedence prec

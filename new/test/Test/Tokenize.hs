@@ -7,6 +7,7 @@ module Test.Tokenize
 import Data.Functor.Identity (runIdentity)
 import Data.Text (Text)
 import Kitten.Base (Base(..))
+import Kitten.Bits
 import Kitten.Monad (runKitten)
 import Kitten.Report (Report)
 import Kitten.Token (Token(..))
@@ -63,25 +64,25 @@ spec = do
   -- FIXME: Base hints are ignored in token comparisons.
   describe "with integer literals" $ do
     it "parses decimal integer literals" $ do
-      testTokenize "0" `shouldBe` Right [Integer 0 Decimal]
-      testTokenize "1" `shouldBe` Right [Integer 1 Decimal]
-      testTokenize "10" `shouldBe` Right [Integer 10 Decimal]
-      testTokenize "123456789" `shouldBe` Right [Integer 123456789 Decimal]
-      testTokenize "01" `shouldBe` Right [Integer 1 Decimal]
+      testTokenize "0" `shouldBe` Right [Integer 0 Decimal Signed32]
+      testTokenize "1" `shouldBe` Right [Integer 1 Decimal Signed32]
+      testTokenize "10" `shouldBe` Right [Integer 10 Decimal Signed32]
+      testTokenize "123456789" `shouldBe` Right [Integer 123456789 Decimal Signed32]
+      testTokenize "01" `shouldBe` Right [Integer 1 Decimal Signed32]
     it "parses non-decimal integer literals" $ do
-      testTokenize "0xFF" `shouldBe` Right [Integer 0xFF Hexadecimal]
-      testTokenize "0o777" `shouldBe` Right [Integer 0o777 Octal]
-      testTokenize "0b1010" `shouldBe` Right [Integer 10 Binary]
+      testTokenize "0xFF" `shouldBe` Right [Integer 0xFF Hexadecimal Signed32]
+      testTokenize "0o777" `shouldBe` Right [Integer 0o777 Octal Signed32]
+      testTokenize "0b1010" `shouldBe` Right [Integer 10 Binary Signed32]
   describe "with floating-point literals" $ do
     it "parses normal float literals" $ do
-      testTokenize "1.0" `shouldBe` Right [Float 10 1 0]
-      testTokenize "1." `shouldBe` Right [Float 1 0 0]
+      testTokenize "1.0" `shouldBe` Right [Float 10 1 0 Float64]
+      testTokenize "1." `shouldBe` Right [Float 1 0 0 Float64]
     it "parses float literals in scientific notation" $ do
-      testTokenize "1.0e1" `shouldBe` Right [Float 10 1 1]
-      testTokenize "1.e1" `shouldBe` Right [Float 1 0 1]
-      testTokenize "1e1" `shouldBe` Right [Float 1 0 1]
-      testTokenize "1e+1" `shouldBe` Right [Float 1 0 1]
-      testTokenize "1e-1" `shouldBe` Right [Float 1 0 (-1)]
+      testTokenize "1.0e1" `shouldBe` Right [Float 10 1 1 Float64]
+      testTokenize "1.e1" `shouldBe` Right [Float 1 0 1 Float64]
+      testTokenize "1e1" `shouldBe` Right [Float 1 0 1 Float64]
+      testTokenize "1e+1" `shouldBe` Right [Float 1 0 1 Float64]
+      testTokenize "1e-1" `shouldBe` Right [Float 1 0 (-1) Float64]
 
 testTokenize :: Text -> Either [Report] [Token]
 testTokenize = fmap (map Located.item) . runIdentity . runKitten

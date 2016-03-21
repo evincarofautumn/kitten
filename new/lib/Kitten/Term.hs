@@ -18,6 +18,7 @@ module Kitten.Term
 
 import Data.List (intersperse)
 import Data.Text (Text)
+import Kitten.Bits
 import Kitten.Name
 import Kitten.Operator (Fixity)
 import Kitten.Origin (Origin)
@@ -76,8 +77,8 @@ data Value a
   | Character !Char
   | Closed !ClosureIndex
   | Closure !Qualified [Value a]
-  | Float !Double
-  | Integer !Integer
+  | Float !Double !FloatBits
+  | Integer !Integer !IntegerBits
   | Local !LocalIndex
   | Name !Qualified
   | Quotation !(Term a)
@@ -180,8 +181,8 @@ stripValue v = case v of
   Character a -> Character a
   Closed a -> Closed a
   Closure a b -> Closure a (map stripValue b)
-  Float a -> Float a
-  Integer a -> Integer a
+  Float a b -> Float a b
+  Integer a b -> Integer a b
   Local a -> Local a
   Name a -> Name a
   Quotation a -> Quotation (stripMetadata a)
@@ -248,8 +249,10 @@ instance Pretty (Value a) where
     Character c -> Pretty.quotes $ Pretty.char c
     Closed (ClosureIndex index) -> "closure." Pretty.<> Pretty.int index
     Closure{} -> "<closure>"
-    Float f -> Pretty.double f
-    Integer i -> Pretty.integer i
+    -- TODO: Incorporate bits?
+    Float f _bits -> Pretty.double f
+    -- TODO: Incorporate bits?
+    Integer i _ -> Pretty.integer i
     Local (LocalIndex index) -> "local." Pretty.<> Pretty.int index
     Name n -> Pretty.hcat ["\\", pPrint n]
     Quotation body -> Pretty.braces $ pPrint body
