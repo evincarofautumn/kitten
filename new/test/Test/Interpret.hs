@@ -15,6 +15,7 @@ import Kitten.Term (Value(..))
 import Test.HUnit (assertEqual, assertFailure)
 import Test.Hspec (Spec, describe, it, runIO)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
+import qualified Data.Vector as Vector
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Enter as Enter
 import qualified Kitten.IO as IO
@@ -42,7 +43,8 @@ spec = do
        , Integer 1 Signed32
        ]
      testInterpret' "\"meow\""
-       [Array [Character 'm', Character 'e', Character 'o', Character 'w']]
+       [Array $ Vector.fromList
+         [Character 'm', Character 'e', Character 'o', Character 'w']]
     it "interprets 'hello world'" $ do
      testInterpret' "\"meow\" say" []
   describe "with operators" $ do

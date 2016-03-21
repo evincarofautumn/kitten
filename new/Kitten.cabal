@@ -121,7 +121,20 @@ library
   hs-source-dirs: lib
 
 test-suite test
-  build-depends: base >=4.8, containers, Kitten, hspec, HUnit, parsec, pretty, text, transformers, unordered-containers
+  build-depends:
+
+    base >=4.8,
+    HUnit,
+    Kitten,
+    containers,
+    hspec,
+    parsec,
+    pretty,
+    text,
+    transformers,
+    unordered-containers,
+    vector
+
   default-language: Haskell2010
   ghc-options: -Wall
   hs-source-dirs: test
