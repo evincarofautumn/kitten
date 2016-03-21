@@ -249,10 +249,8 @@ instance Pretty (Value a) where
     Character c -> Pretty.quotes $ Pretty.char c
     Closed (ClosureIndex index) -> "closure." Pretty.<> Pretty.int index
     Closure{} -> "<closure>"
-    -- TODO: Incorporate bits?
-    Float f _bits -> Pretty.double f
-    -- TODO: Incorporate bits?
-    Integer i _ -> Pretty.integer i
+    Float f bits -> Pretty.hcat [Pretty.double f, pPrint bits]
+    Integer i bits -> Pretty.hcat [Pretty.integer i, pPrint bits]
     Local (LocalIndex index) -> "local." Pretty.<> Pretty.int index
     Name n -> Pretty.hcat ["\\", pPrint n]
     Quotation body -> Pretty.braces $ pPrint body
