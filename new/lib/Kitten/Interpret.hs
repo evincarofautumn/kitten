@@ -401,7 +401,7 @@ interpret dictionary mName mainArgs initialStack = do
             then 0
             else case ys ! 0 of
               Array xs -> Vector.length xs
-        printf "\ESC]1337;File=width=%dpx;height=%dpx;inline=1:%s\BEL"
+        printf "\ESC]1337;File=width=%dpx;height=%dpx;inline=1:%s\BEL\n"
           width height
           $ map ((toEnum :: Int -> Char) . fromIntegral)
           $ ByteString.unpack $ Base64.encode
