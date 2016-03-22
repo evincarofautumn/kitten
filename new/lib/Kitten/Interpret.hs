@@ -319,6 +319,15 @@ interpret dictionary mName mainArgs initialStack = do
       "eq_float64" -> boolFloat64 (==)
       "ne_float64" -> boolFloat64 (/=)
 
+      "show_int8" -> showInteger (show :: Int8 -> String)
+      "show_int16" -> showInteger (show :: Int16 -> String)
+      "show_int32" -> showInteger (show :: Int32 -> String)
+      "show_int64" -> showInteger (show :: Int64 -> String)
+      "show_uint8" -> showInteger (show :: Word8 -> String)
+      "show_uint16" -> showInteger (show :: Word16 -> String)
+      "show_uint32" -> showInteger (show :: Word32 -> String)
+      "show_uint64" -> showInteger (show :: Word64 -> String)
+
       "empty" -> do
         (Array xs : r) <- readIORef stackRef
         writeIORef stackRef r
@@ -562,6 +571,12 @@ interpret dictionary mName mainArgs initialStack = do
         (Float y _ : Float x _ : r) <- readIORef stackRef
         writeIORef stackRef $ Algebraic
           (ConstructorIndex $ fromEnum $ f x y) [] : r
+
+      showInteger :: Num a => (a -> String) -> IO ()
+      showInteger f = do
+        (Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef $ Array
+          (Vector.fromList $ map Character $ f (fromIntegral x)) : r
 
   word (fromMaybe mainName mName) mainArgs
   readIORef stackRef
