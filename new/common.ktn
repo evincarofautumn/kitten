@@ -582,6 +582,43 @@ instance show (Char -> List<Char>):
 instance show (Bool -> List<Char>):
   if { "true" } else { "false" }
 
+vocab kitten {
+
+  intrinsic show_int8 (Int8 -> List<Char>)
+  intrinsic show_int16 (Int16 -> List<Char>)
+  intrinsic show_int32 (Int32 -> List<Char>)
+  intrinsic show_int64 (Int64 -> List<Char>)
+  intrinsic show_uint8 (UInt8 -> List<Char>)
+  intrinsic show_uint16 (UInt16 -> List<Char>)
+  intrinsic show_uint32 (UInt32 -> List<Char>)
+  intrinsic show_uint64 (UInt64 -> List<Char>)
+
+}
+
+instance show (Int8 -> List<Char>):
+  _::kitten::show_int8
+
+instance show (Int16 -> List<Char>):
+  _::kitten::show_int16
+
+instance show (Int32 -> List<Char>):
+  _::kitten::show_int32
+
+instance show (Int64 -> List<Char>):
+  _::kitten::show_int64
+
+instance show (UInt8 -> List<Char>):
+  _::kitten::show_uint8
+
+instance show (UInt16 -> List<Char>):
+  _::kitten::show_uint16
+
+instance show (UInt32 -> List<Char>):
+  _::kitten::show_uint32
+
+instance show (UInt64 -> List<Char>):
+  _::kitten::show_uint64
+
 define say<T> (T -> +IO):
   show print
   "\n" print
