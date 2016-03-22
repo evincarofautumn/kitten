@@ -26,7 +26,7 @@ executable kitten
     vector
 
   default-language: Haskell2010
-  ghc-options: -Wall
+  ghc-options: -Wall -O2
   hs-source-dirs: src
   main-is: Main.hs
 
@@ -116,7 +116,7 @@ library
     Kitten.Synonym
     Kitten.TypeDefinition
 
-  ghc-options: -Wall
+  ghc-options: -Wall -O2
 
   hs-source-dirs: lib
 
