@@ -672,8 +672,8 @@ define draw (List<List<RGBA>> -> +IO):
 define circle (Int32 -> List<List<RGBA>>):
   -> r;
   0u8 0u8 0u8 0u8 rgba
-  (2 * r) replicate
-  (2 * r) replicate
+  (2 * r + 1) replicate
+  (2 * r + 1) replicate
   do (map_index) -> row, y:
     row do (map_index) -> pixel, x:
       x - r -> dx;
