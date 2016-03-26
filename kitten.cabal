@@ -115,6 +115,10 @@ executable kitten
   main-is:
     Main.hs
 
+  other-modules:
+    Arguments
+    Interactive
+
   ghc-options:
     -Wall
 
@@ -147,6 +151,12 @@ test-suite test
 
   main-is:
     Test.hs
+
+  other-modules:
+    Test.Scope
+    Test.Term
+    Test.Token
+    Test.Util
 
   build-depends:
     kitten,
