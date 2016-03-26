@@ -21,8 +21,7 @@ import Kitten.Kind (Kind(..))
 import Kitten.Name
 import Report
 import System.Exit (exitFailure)
-import System.IO (hFlush, stdout)
-import System.IO (hPutStrLn, stderr)
+import System.IO (hFlush, hPutStrLn, stdin, stdout, stderr)
 import System.IO.Error (isEOFError)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import Text.Printf (printf)
@@ -165,6 +164,7 @@ run = do
                     (do
                       stack <- interpret dictionary'
                         (Just entryName) args
+                        stdin stdout stderr
                         =<< readIORef stackRef
                       writeIORef stackRef stack
                       renderStack stackRef)
