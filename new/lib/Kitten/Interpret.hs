@@ -22,7 +22,8 @@ import Kitten.Monad (runKitten)
 import Kitten.Name
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Kitten.Type (Type(..))
-import Text.Printf (printf)
+import System.IO (Handle, hPutChar, hPutStrLn)
+import Text.Printf (hPrintf)
 import qualified Codec.Picture.Png as Png
 import qualified Codec.Picture.Types as Picture
 import qualified Data.ByteString as ByteString
@@ -46,9 +47,12 @@ interpret
   :: Dictionary
   -> Maybe Qualified
   -> [Type]
+  -> Handle
+  -> Handle
+  -> Handle
   -> [Value Type]
   -> IO [Value Type]
-interpret dictionary mName mainArgs initialStack = do
+interpret dictionary mName mainArgs stdin stdout stderr initialStack = do
   -- TODO: Types.
   stackRef <- newIORef initialStack
   localsRef <- newIORef []
@@ -71,7 +75,7 @@ interpret dictionary mName mainArgs initialStack = do
             case mBody' of
               Right body' -> term body'
               Left reports -> do
-                putStrLn $ Pretty.render $ Pretty.vcat
+                hPutStrLn stdout $ Pretty.render $ Pretty.vcat
                   $ Pretty.hcat
                     [ "Could not instantiate generic word "
                     , Pretty.quote name
@@ -379,7 +383,7 @@ interpret dictionary mName mainArgs initialStack = do
       "print" -> do
         (Array cs : r) <- readIORef stackRef
         writeIORef stackRef r
-        mapM_ (\ (Character c) -> putChar c) cs
+        mapM_ (\ (Character c) -> hPutChar stdout c) cs
       "tail" -> do
         (Array xs : r) <- readIORef stackRef
         if Vector.null xs
@@ -401,7 +405,7 @@ interpret dictionary mName mainArgs initialStack = do
             then 0
             else case ys ! 0 of
               Array xs -> Vector.length xs
-        printf "\ESC]1337;File=width=%dpx;height=%dpx;inline=1:%s\BEL\n"
+        hPrintf stdout "\ESC]1337;File=width=%dpx;height=%dpx;inline=1:%s\BEL\n"
           width height
           $ map ((toEnum :: Int -> Char) . fromIntegral)
           $ ByteString.unpack $ Base64.encode
