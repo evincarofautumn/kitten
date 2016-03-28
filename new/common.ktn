@@ -19,24 +19,28 @@ vocab kitten {
 
   // Signed integer arithmetic.
 
+  intrinsic neg_int8 (Int8 -> Int8)
   intrinsic add_int8 (Int8, Int8 -> Int8)
   intrinsic sub_int8 (Int8, Int8 -> Int8)
   intrinsic mul_int8 (Int8, Int8 -> Int8)
   intrinsic div_int8 (Int8, Int8 -> Int8)
   intrinsic mod_int8 (Int8, Int8 -> Int8)
 
+  intrinsic neg_int16 (Int16 -> Int16)
   intrinsic add_int16 (Int16, Int16 -> Int16)
   intrinsic sub_int16 (Int16, Int16 -> Int16)
   intrinsic mul_int16 (Int16, Int16 -> Int16)
   intrinsic div_int16 (Int16, Int16 -> Int16)
   intrinsic mod_int16 (Int16, Int16 -> Int16)
 
+  intrinsic neg_int32 (Int32 -> Int32)
   intrinsic add_int32 (Int32, Int32 -> Int32)
   intrinsic sub_int32 (Int32, Int32 -> Int32)
   intrinsic mul_int32 (Int32, Int32 -> Int32)
   intrinsic div_int32 (Int32, Int32 -> Int32)
   intrinsic mod_int32 (Int32, Int32 -> Int32)
 
+  intrinsic neg_int64 (Int64 -> Int64)
   intrinsic add_int64 (Int64, Int64 -> Int64)
   intrinsic sub_int64 (Int64, Int64 -> Int64)
   intrinsic mul_int64 (Int64, Int64 -> Int64)
@@ -75,24 +79,28 @@ vocab kitten {
 
   // Signed integer arithmetic.
 
+  intrinsic neg_uint8 (UInt8 -> UInt8)
   intrinsic add_uint8 (UInt8, UInt8 -> UInt8)
   intrinsic sub_uint8 (UInt8, UInt8 -> UInt8)
   intrinsic mul_uint8 (UInt8, UInt8 -> UInt8)
   intrinsic div_uint8 (UInt8, UInt8 -> UInt8)
   intrinsic mod_uint8 (UInt8, UInt8 -> UInt8)
 
+  intrinsic neg_uint16 (UInt16 -> UInt16)
   intrinsic add_uint16 (UInt16, UInt16 -> UInt16)
   intrinsic sub_uint16 (UInt16, UInt16 -> UInt16)
   intrinsic mul_uint16 (UInt16, UInt16 -> UInt16)
   intrinsic div_uint16 (UInt16, UInt16 -> UInt16)
   intrinsic mod_uint16 (UInt16, UInt16 -> UInt16)
 
+  intrinsic neg_uint32 (UInt32 -> UInt32)
   intrinsic add_uint32 (UInt32, UInt32 -> UInt32)
   intrinsic sub_uint32 (UInt32, UInt32 -> UInt32)
   intrinsic mul_uint32 (UInt32, UInt32 -> UInt32)
   intrinsic div_uint32 (UInt32, UInt32 -> UInt32)
   intrinsic mod_uint32 (UInt32, UInt32 -> UInt32)
 
+  intrinsic neg_uint64 (UInt64 -> UInt64)
   intrinsic add_uint64 (UInt64, UInt64 -> UInt64)
   intrinsic sub_uint64 (UInt64, UInt64 -> UInt64)
   intrinsic mul_uint64 (UInt64, UInt64 -> UInt64)
@@ -131,12 +139,14 @@ vocab kitten {
 
   // Floating-point arithmetic.
 
+  intrinsic neg_float32 (Float32 -> Float32)
   intrinsic add_float32 (Float32, Float32 -> Float32)
   intrinsic sub_float32 (Float32, Float32 -> Float32)
   intrinsic mul_float32 (Float32, Float32 -> Float32)
   intrinsic div_float32 (Float32, Float32 -> Float32)
   intrinsic mod_float32 (Float32, Float32 -> Float32)
 
+  intrinsic neg_float64 (Float64 -> Float64)
   intrinsic add_float64 (Float64, Float64 -> Float64)
   intrinsic sub_float64 (Float64, Float64 -> Float64)
   intrinsic mul_float64 (Float64, Float64 -> Float64)
@@ -160,6 +170,19 @@ vocab kitten {
   intrinsic ne_float64 (Float64, Float64 -> Bool)
 
 }
+
+trait neg<T> (T -> T)
+
+instance neg (Int8 -> Int8) { _::kitten::neg_int8 }
+instance neg (Int16 -> Int16) { _::kitten::neg_int16 }
+instance neg (Int32 -> Int32) { _::kitten::neg_int32 }
+instance neg (Int64 -> Int64) { _::kitten::neg_int64 }
+instance neg (UInt8 -> UInt8) { _::kitten::neg_uint8 }
+instance neg (UInt16 -> UInt16) { _::kitten::neg_uint16 }
+instance neg (UInt32 -> UInt32) { _::kitten::neg_uint32 }
+instance neg (UInt64 -> UInt64) { _::kitten::neg_uint64 }
+instance neg (Float32 -> Float32) { _::kitten::neg_float32 }
+instance neg (Float64 -> Float64) { _::kitten::neg_float64 }
 
 trait + <T> (T, T -> T)
 
