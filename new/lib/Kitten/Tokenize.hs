@@ -10,6 +10,7 @@ import Data.Char (isLetter, isPunctuation, isSymbol)
 import Data.Functor.Identity (Identity)
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Text (Text)
+import Data.Traversable (forM)
 import Kitten.Base (Base(..))
 import Kitten.Bits
 import Kitten.Indent (Indent(..))
@@ -100,6 +101,7 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
   , VectorBegin <$ Parsec.char '['
   , VectorEnd <$ Parsec.char ']'
   , Reference <$ Parsec.char '\\'
+  , Text <$> paragraph
   , Text <$> Parsec.between (Parsec.char '"') (Parsec.char '"') text
   , Parsec.try $ do
     sign <- Parsec.optionMaybe (Parsec.oneOf "+-")
@@ -246,3 +248,38 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
 
   text :: Tokenizer Text
   text = Text.pack . catMaybes <$> many (character '"')
+
+  paragraph :: Tokenizer Text
+  paragraph = (<?> "paragraph") $ do
+    _ <- Parsec.try $ Parsec.string "\"\"\""
+    _ <- Parsec.char '\n' <?> "newline before paragraph body"
+    (prefix, body) <- untilLeft paragraphLine
+    body' <- forM body $ \ line -> case Text.stripPrefix prefix line of
+      Nothing -> Parsec.unexpected (Text.unpack line)
+        -- HACK: Relies on formatting of messages to include "expected ...".
+        <?> concat
+        [ "all lines to begin with "
+        , show $ Text.length prefix
+        , " spaces"
+        ]
+      Just line' -> return line'
+    return $ Text.intercalate "\n" body'
+
+  paragraphLine :: Tokenizer (Either Text Text)
+  paragraphLine = Parsec.choice
+    [ (<?> "end of paragraph") $ Parsec.try $ Left . Text.pack
+      <$> Parsec.many (Parsec.char ' ')
+      <* Parsec.string "\"\"\""
+    , (<?> "paragraph line") $ Right . Text.pack . catMaybes <$> Parsec.many
+      (Parsec.choice [Just <$> Parsec.noneOf "\\\n", escape])
+      <* Parsec.char '\n'
+    ]
+
+untilLeft :: (Monad m) => m (Either a b) -> m (a, [b])
+untilLeft p = go []
+  where
+  go acc = do
+    mx <- p
+    case mx of
+      Left a -> return (a, reverse acc)
+      Right b -> go (b : acc)
