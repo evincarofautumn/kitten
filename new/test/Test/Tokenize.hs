@@ -61,6 +61,54 @@ spec = do
       testTokenize "\"\\\n\t x\"" `shouldBe` Right [Text "\nx"]
     it "parses correct text escapes" $ do
       testTokenize "\"\\a\\b\\f\\n\\r\\t\\v\"" `shouldBe` Right [Text "\a\b\f\n\r\t\v"]
+  describe "with paragraph literals" $ do
+    it "parses well-formed paragraph literals" $ do
+      testTokenize
+        "\"\"\"\n\
+        \test\n\
+        \\&\"\"\""
+        `shouldBe` Right [Text "test"]
+      testTokenize
+        "\"\"\"\n\
+        \  test\n\
+        \  \"\"\""
+        `shouldBe` Right [Text "test"]
+      testTokenize
+        "\"\"\"\n\
+        \test\n\
+        \test\n\
+        \\&\"\"\""
+        `shouldBe` Right [Text "test\ntest"]
+      testTokenize
+        "\"\"\"\n\
+        \  test\n\
+        \  test\n\
+        \  \"\"\""
+        `shouldBe` Right [Text "test\ntest"]
+      testTokenize
+        "\"\"\"\n\
+        \  test\n\
+        \  test\n\
+        \\&\"\"\""
+        `shouldBe` Right [Text "  test\n  test"]
+      testTokenize
+        "\"\"\"\n\
+        \  This is a \"test\"  \n\
+        \\&\"\"\""
+        `shouldBe` Right [Text "  This is a \"test\"  "]
+    it "rejects ill-formed paragraph literals" $ do
+      let origin = Origin.point "" 4 6
+      testTokenize
+        "\"\"\"\n\
+        \  foo\n\
+        \ bar\n\
+        \  \"\"\""
+        `shouldBe` Left
+        [ Report.ParseError origin
+          ["unexpected ' bar'"]
+          "expected all lines to begin with 2 spaces"
+        ]
+    -- TODO: Add more negative tests for paragraph literals.
   -- FIXME: Base hints are ignored in token comparisons.
   describe "with integer literals" $ do
     it "parses decimal integer literals" $ do
