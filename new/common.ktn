@@ -187,6 +187,9 @@ instance neg (Float64 -> Float64) { _::kitten::neg_float64 }
 trait + <T> (T, T -> T)
 
 about +:
+  docs: """
+    Operation of an additive monoid with `zero` as the identity.
+    """
   operator:
     left 6
 
@@ -200,6 +203,19 @@ instance + (UInt32, UInt32 -> UInt32) { _::kitten::add_uint32 }
 instance + (UInt64, UInt64 -> UInt64) { _::kitten::add_uint64 }
 instance + (Float32, Float32 -> Float32) { _::kitten::add_float32 }
 instance + (Float64, Float64 -> Float64) { _::kitten::add_float64 }
+
+trait zero<T> (-> T)
+
+instance zero (-> Int8) { 0i8 }
+instance zero (-> Int16) { 0i16 }
+instance zero (-> Int32) { 0i32 }
+instance zero (-> Int64) { 0i64 }
+instance zero (-> UInt8) { 0u8 }
+instance zero (-> UInt16) { 0u16 }
+instance zero (-> UInt32) { 0u32 }
+instance zero (-> UInt64) { 0u64 }
+instance zero (-> Float32) { 0.0f32 }
+instance zero (-> Float64) { 0.0f64 }
 
 trait - <T> (T, T -> T)
 
@@ -350,6 +366,11 @@ instance <= (Float64, Float64 -> Bool) { _::kitten::le_float64 }
 instance >= (Float64, Float64 -> Bool) { _::kitten::ge_float64 }
 instance = (Float64, Float64 -> Bool) { _::kitten::eq_float64 }
 instance <> (Float64, Float64 -> Bool) { _::kitten::ne_float64 }
+
+define abs<T> (T -> T):
+  dup
+  if ((< zero)):
+    neg
 
 type Bool:
   case false
