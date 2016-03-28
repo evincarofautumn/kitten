@@ -33,10 +33,11 @@ spec = do
   testInterpretWithHandles <- runIO $ do
     commonSource <- IO.readFileUtf8 "common.ktn"
     mDictionary <- runKitten $ do
-      common <- fragmentFromSource io Nothing 1 "<common>" commonSource
+      common <- fragmentFromSource io Nothing 1 "common.ktn" commonSource
       Enter.fragment common Dictionary.empty
     case mDictionary of
-      Left{} -> error "unable to set up interpreter tests"
+      Left reports -> error $ Pretty.render $ Pretty.vcat
+        $ "unable to set up interpreter tests:" : map Report.human reports
       Right dictionary -> return $ testInterpretFull dictionary
 
   let testInterpret = testInterpretWithHandles "" Nothing Nothing
