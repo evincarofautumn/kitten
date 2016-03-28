@@ -130,6 +130,19 @@ spec = do
         \\&"
         []
 
+  describe "with common math words" $ do
+    it "computes absolute values" $ do
+      testInterpret "0 abs" [Integer 0 Signed32]
+      testInterpret "+0 abs" [Integer 0 Signed32]
+      testInterpret "-0 abs" [Integer 0 Signed32]
+      testInterpret "1 abs" [Integer 1 Signed32]
+      testInterpret "+1 abs" [Integer 1 Signed32]
+      testInterpret "1000 abs" [Integer 1000 Signed32]
+      testInterpret "+1000 abs" [Integer 1000 Signed32]
+      testInterpret "-1000 abs" [Integer 1000 Signed32]
+      testInterpret "2147483647 abs" [Integer 2147483647 Signed32]
+      testInterpret "-2147483648 abs" [Integer (-2147483648) Signed32]
+
 testInterpretFull
   :: Dictionary
   -> ByteString
