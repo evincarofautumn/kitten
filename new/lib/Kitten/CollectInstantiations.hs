@@ -13,6 +13,7 @@ import Kitten.Queue (Queue)
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Kitten.Type (Type)
 import Kitten.TypeEnv (TypeEnv)
+import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
 import qualified Kitten.Instantiate as Instantiate
@@ -37,10 +38,11 @@ collectInstantiations tenv0 dictionary0 = do
 
   (entries, q0) <- foldrM
     (\ original@(name, entry) (acc, q) -> case entry of
-      Entry.Word{} -> do
-        let term = error "term"
+      Entry.Word category merge origin parent signature (Just term) -> do
         (term', q') <- go q term
-        let entry' = error "entry'"
+        let
+          entry' = Entry.Word
+            category merge origin parent signature $ Just term'
         return ((name, entry') : acc, q')
       -- FIXME: Not sure if right. We might need to generate instantiations of
       -- types as well.
@@ -124,15 +126,24 @@ collectInstantiations tenv0 dictionary0 = do
         Nothing -> case Dictionary.lookup name dictionary of
           -- The name is not user-defined, so it doesn't need to be mangled.
           Nothing -> processQueue q' dictionary
-          Just (Entry.Word category merge origin parent signature (Just term)) -> do
-            term' <- while origin
-              (Pretty.hsep ["instantiating", Pretty.quote name])
-              $ Instantiate.term tenv0 term args
-            (term'', q'') <- go q' term'
-            processQueue q'' $ Dictionary.insert
-              (Qualified Vocabulary.global $ Unqualified mangled)
-              (Entry.Word category merge origin parent signature (Just term''))
-              dictionary
-          Just{} -> fail "attempt to instantiate non-word"
+          Just (Entry.Word category merge origin parent signature mTerm)
+            -> case mTerm of
+              Just term -> do
+                term' <- while origin
+                  (Pretty.hsep ["instantiating", Pretty.quote name])
+                  $ Instantiate.term tenv0 term args
+                (term'', q'') <- go q' term'
+                let
+                  entry' = Entry.Word category merge origin parent signature
+                    $ Just term''
+                processQueue q'' $ Dictionary.insert
+                  (Qualified Vocabulary.global $ Unqualified mangled)
+                  entry'
+                  dictionary
+              -- There should be no need to instantiate declarations, as they
+              -- should only refer to intrinsics.
+              Nothing -> processQueue q' dictionary
+          Just entry -> error $ Pretty.render $ Pretty.hcat
+            ["attempt to instantiate non-word ", Pretty.quote name, ":", pPrint entry]
 
 type InstantiationQueue = Queue (Qualified, [Type])
