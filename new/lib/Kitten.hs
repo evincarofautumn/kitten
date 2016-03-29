@@ -11,6 +11,7 @@ module Kitten
 
 import Control.Monad
 import Control.Monad.IO.Class
+import Kitten.CollectInstantiations (collectInstantiations)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Monad (K, runKitten)
 import Kitten.Name
@@ -19,6 +20,7 @@ import Text.Parsec.Text ()
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Enter as Enter
 import qualified Kitten.IO as IO
+import qualified Kitten.TypeEnv as TypeEnv
 
 -- The compiler is a straightforward pipeline. At each stage, errors and
 -- warnings ("reports") are accumulated, and reported to the programmer at the
@@ -37,4 +39,5 @@ compile mainPermissions mainName paths = do
   parsed <- mconcat <$> zipWithM
     (Enter.fragmentFromSource mainPermissions mainName 1)
     paths sources
-  Enter.fragment parsed Dictionary.empty
+  dictionary <- Enter.fragment parsed Dictionary.empty
+  collectInstantiations TypeEnv.empty dictionary

@@ -29,7 +29,9 @@ runBatch paths = do
   result <- runKitten
     $ compile
     [QualifiedName $ Qualified Vocabulary.global "IO"]
-    Nothing paths
+    Nothing
+    -- FIXME: Use proper library path lookup.
+    ("common.ktn" : paths)
   case result of
     Left reports -> do
       reportAll reports
