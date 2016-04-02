@@ -8,6 +8,7 @@ import Data.Foldable (foldrM)
 import Data.Traversable (forM)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Infer (inferType0, typecheck)
+import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Monad (K)
 import Kitten.Name (Closed(..), Qualified(..), Qualifier, Unqualified(..))
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
@@ -102,7 +103,7 @@ desugar dictionary qualifier term0 = do
           Nothing
           (Just (Signature.Type type_))
           (Just a')
-        in (l, Dictionary.insert name entry d)
+        in (l, Dictionary.insert (Instantiated name []) entry d)
       dict <- gets snd
       (typechecked, _) <- lift $ inferType0 dict tenv2 Nothing
         $ Term.compose () origin $ map pushClosed closed ++

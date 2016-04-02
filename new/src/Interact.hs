@@ -16,6 +16,7 @@ import Kitten.Entry (Entry)
 import Kitten.Entry.Parameter (Parameter(..))
 import Kitten.Infer (typeFromSignature)
 import Kitten.Informer (checkpoint)
+import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Interpret (Failure, interpret)
 import Kitten.Kind (Kind(..))
 import Kitten.Name
@@ -32,6 +33,7 @@ import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Enter as Enter
 import qualified Kitten.Entry as Entry
 import qualified Kitten.IO as IO
+import qualified Kitten.Instantiated as Instantiated
 import qualified Kitten.Name as Name
 import qualified Kitten.Origin as Origin
 import qualified Kitten.Parse as Parse
@@ -127,7 +129,7 @@ run = do
               checkpoint
               let tenv = TypeEnv.empty
               (mainScheme, mainBody) <- case Dictionary.lookup
-                Definition.mainName dictionary'' of
+                (Instantiated Definition.mainName []) dictionary'' of
                 Just (Entry.Word _ _ _ _ (Just signature) (Just body))
                   -> do
                     type_ <- typeFromSignature tenv signature
@@ -181,7 +183,7 @@ run = do
 
 renderDictionary :: IORef Dictionary -> IO ()
 renderDictionary dictionaryRef = do
-  names <- sort . map (Name.toParts . fst) . Dictionary.toList
+  names <- sort . map (Name.toParts . Instantiated.name . fst) . Dictionary.toList
     <$> readIORef dictionaryRef
   let
     loop :: Int -> [[Text]] -> IO ()
@@ -231,7 +233,7 @@ nameCommand lineNumber dictionaryRef name loop action = do
         -- TODO: Use 'WordOrTypeName' or something as the category.
         Report.WordName
         (\ _ index -> return $ LocalName index)
-        (`Dictionary.member` dictionary)
+        (\ name -> Instantiated name [] `Dictionary.member` dictionary)
         -- TODO: Keep a notion of current vocabulary?
         Vocabulary.global
         unresolved
@@ -242,7 +244,8 @@ nameCommand lineNumber dictionaryRef name loop action = do
           reportAll reports
           loop
         Right (QualifiedName resolved)
-          | Just entry <- Dictionary.lookup resolved dictionary
+          | Just entry <- Dictionary.lookup
+            (Instantiated resolved []) dictionary
           -> do
             action resolved entry
             loop

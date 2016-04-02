@@ -7,6 +7,7 @@ module Kitten.CollectInstantiations
 import Data.Foldable (foldrM)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Informer (Informer(..))
+import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Monad (K)
 import Kitten.Name (GeneralName(..), Qualified(..), Unqualified(..))
 import Kitten.Queue (Queue)
@@ -104,7 +105,8 @@ collectInstantiations tenv0 dictionary0 = do
     With{} -> proceed
     Word type_ fixity (QualifiedName name) args origin -> return
       ( Word type_ fixity
-        (UnqualifiedName (Unqualified (Mangle.name name args))) [] origin
+        (UnqualifiedName $ Unqualified $ Mangle.name $ Instantiated name args)
+        [] origin
       , Queue.enqueue (name, args) q0
       )
     -- FIXME: Should calls to non-qualified names even be around at this point?
@@ -118,12 +120,10 @@ collectInstantiations tenv0 dictionary0 = do
   processQueue :: InstantiationQueue -> Dictionary -> K Dictionary
   processQueue q dictionary = case Queue.dequeue q of
     Nothing -> return dictionary
-    Just ((name, args), q') -> let
-      mangled = Mangle.name name args
-      name' = Qualified Vocabulary.global $ Unqualified mangled
-      in case Dictionary.lookup name' dictionary of
+    Just ((name, args), q')
+      -> case Dictionary.lookup (Instantiated name args) dictionary of
         Just{} -> processQueue q' dictionary
-        Nothing -> case Dictionary.lookup name dictionary of
+        Nothing -> case Dictionary.lookup (Instantiated name []) dictionary of
           -- The name is not user-defined, so it doesn't need to be mangled.
           Nothing -> processQueue q' dictionary
           Just (Entry.Word category merge origin parent signature mTerm)
@@ -137,7 +137,7 @@ collectInstantiations tenv0 dictionary0 = do
                   entry' = Entry.Word category merge origin parent signature
                     $ Just term''
                 processQueue q'' $ Dictionary.insert
-                  (Qualified Vocabulary.global $ Unqualified mangled)
+                  (Instantiated name args)
                   entry'
                   dictionary
               -- There should be no need to instantiate declarations, as they

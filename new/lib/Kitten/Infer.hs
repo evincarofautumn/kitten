@@ -15,11 +15,12 @@ import Data.Either (partitionEithers)
 import Data.Foldable (foldrM)
 import Data.List (find, foldl')
 import Data.Map (Map)
-import Kitten.Dictionary (Dictionary)
 import Kitten.Bits
+import Kitten.Dictionary (Dictionary)
 import Kitten.Entry.Parameter (Parameter(Parameter))
 import Kitten.Informer (Informer(..))
 import Kitten.InstanceCheck (instanceCheck)
+import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Kind (Kind(..))
 import Kitten.Monad (K)
 import Kitten.Name (Closed(..), ClosureIndex(..), GeneralName(..), LocalIndex(..), Qualified(..), Unqualified(..))
@@ -111,7 +112,7 @@ typecheck dictionary mDeclaredSignature term = do
 -}
 
 mangleInstance
-  :: Dictionary -> Qualified -> Signature -> Signature -> K Qualified
+  :: Dictionary -> Qualified -> Signature -> Signature -> K Instantiated
 mangleInstance dictionary name instanceSignature traitSignature = do
   let tenv0 = TypeEnv.empty
   instanceType <- typeFromSignature tenv0 instanceSignature
@@ -120,8 +121,7 @@ mangleInstance dictionary name instanceSignature traitSignature = do
   (traitType', args, tenv1) <- Instantiate.prenex tenv0 traitType
   tenv2 <- Unify.type_ tenv1 instanceType traitType'
   args' <- valueKinded dictionary $ map (Zonk.type_ tenv2) args
-  let mangled = Mangle.name name args'
-  return $ Qualified Vocabulary.global $ Unqualified mangled
+  return $ Instantiated name args'
 
 -- Since type variables can be generalized if they do not depend on the initial
 -- state of the typing environment, the type of a single definition is inferred
@@ -460,7 +460,7 @@ inferValue dictionary tenvFinal tenv0 origin value = case value of
   Local (LocalIndex index) -> return
     (Local $ LocalIndex index, TypeEnv.vs tenv0 !! index, tenv0)
   Quotation{} -> error "quotation should not appear during type inference"
-  Name name -> case Dictionary.lookup name dictionary of
+  Name name -> case Dictionary.lookup (Instantiated name []) dictionary of
     Just (Entry.Word _ _ _ _ (Just signature) _) -> do
       type_ <- typeFromSignature tenv0 signature
       return (Name name, type_, tenv0)
@@ -642,7 +642,7 @@ typeKind dictionary = go
   go :: Type -> K Kind
   go t = case t of
     TypeConstructor _origin (Constructor qualified)
-      -> case Dictionary.lookup qualified dictionary of
+      -> case Dictionary.lookup (Instantiated qualified []) dictionary of
       Just (Entry.Type _origin parameters) -> case parameters of
         [] -> return Value
         _ -> return $ foldr (:->) Value

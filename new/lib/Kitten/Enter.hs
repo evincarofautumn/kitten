@@ -14,6 +14,7 @@ import Kitten.Dictionary (Dictionary)
 import Kitten.Fragment (Fragment)
 import Kitten.Infer (mangleInstance, typecheck)
 import Kitten.Informer (checkpoint, report)
+import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Layout (layout)
 import Kitten.Metadata (Metadata)
 import Kitten.Monad (K)
@@ -81,7 +82,7 @@ enterDeclaration dictionary declaration = do
     name = Declaration.name declaration
     signature = Declaration.signature declaration
     origin = Declaration.origin declaration
-  case Dictionary.lookup name dictionary of
+  case Dictionary.lookup (Instantiated name []) dictionary of
     Just _existing -> do
       -- TODO: Check signatures.
       return dictionary
@@ -95,23 +96,23 @@ enterDeclaration dictionary declaration = do
             Nothing
             (Just signature)
             Nothing
-        return $ Dictionary.insert name entry dictionary
+        return $ Dictionary.insert (Instantiated name []) entry dictionary
       Declaration.Trait -> do
         let entry = Entry.Trait origin signature
-        return $ Dictionary.insert name entry dictionary
+        return $ Dictionary.insert (Instantiated name []) entry dictionary
 
 -- declare type, declare & define constructors
 declareType :: Dictionary -> TypeDefinition -> K Dictionary
 declareType dictionary type_ = let
   name = TypeDefinition.name type_
-  in case Dictionary.lookup name dictionary of
+  in case Dictionary.lookup (Instantiated name []) dictionary of
     -- Not previously declared.
     Nothing -> do
       let
         entry = Entry.Type
           (TypeDefinition.origin type_)
           (TypeDefinition.parameters type_)
-      return $ Dictionary.insert name entry dictionary
+      return $ Dictionary.insert (Instantiated name []) entry dictionary
     -- Previously declared with the same parameters.
     Just (Entry.Type _ parameters)
       | parameters == TypeDefinition.parameters type_
@@ -128,7 +129,7 @@ declareWord
 declareWord dictionary definition = let
   name = Definition.name definition
   signature = Definition.signature definition
-  in case Dictionary.lookup name dictionary of
+  in case Dictionary.lookup (Instantiated name []) dictionary of
     -- Not previously declared or defined.
     Nothing -> do
       let
@@ -139,7 +140,7 @@ declareWord dictionary definition = let
           Nothing
           (Just signature)
           Nothing
-      return $ Dictionary.insert name entry dictionary
+      return $ Dictionary.insert (Instantiated name []) entry dictionary
     -- Already declared with the same signature.
     Just (Entry.Word _ _ originalOrigin _ (Just signature') _)
       | Definition.inferSignature definition || signature' == signature
@@ -188,24 +189,25 @@ addMetadata dictionary0 metadata = do
   addField :: Dictionary -> (Unqualified, Term ()) -> K Dictionary
   addField dictionary (unqualified, term) = do
     let name = Qualified qualifier unqualified
-    case Dictionary.lookup name dictionary of
+    case Dictionary.lookup (Instantiated name []) dictionary of
       Just{} -> return dictionary  -- TODO: Report duplicates or merge?
       Nothing -> return
-        $ Dictionary.insert name (Entry.Metadata origin term) dictionary
+        $ Dictionary.insert (Instantiated name [])
+        (Entry.Metadata origin term) dictionary
 
 resolveSignature :: Dictionary -> Qualified -> K Dictionary
 resolveSignature dictionary name = do
   let qualifier = qualifierName name
-  case Dictionary.lookup name dictionary of
+  case Dictionary.lookup (Instantiated name []) dictionary of
     Just (Entry.Word category merge origin parent (Just signature) body) -> do
       signature' <- Resolve.run $ Resolve.signature dictionary qualifier signature
       let
         entry = Entry.Word category merge origin parent (Just signature') body
-      return $ Dictionary.insert name entry dictionary
+      return $ Dictionary.insert (Instantiated name []) entry dictionary
     Just (Entry.Trait origin signature) -> do
       signature' <- Resolve.run $ Resolve.signature dictionary qualifier signature
       let entry = Entry.Trait origin signature'
-      return $ Dictionary.insert name entry dictionary
+      return $ Dictionary.insert (Instantiated name []) entry dictionary
     _ -> return dictionary
 
 -- typecheck and define user-defined words
@@ -224,7 +226,7 @@ defineWord dictionary definition = do
     (Just resolvedSignature)
     $ Definition.body resolved
   checkpoint
-  case Dictionary.lookup name dictionary of
+  case Dictionary.lookup (Instantiated name []) dictionary of
     -- Already declared or defined as a trait.
     Just (Entry.Trait _origin traitSignature)
       | Definition.category definition == Category.Instance
@@ -258,7 +260,7 @@ defineWord dictionary definition = do
             then Signature.Type type_
             else resolvedSignature)
           $ Just flattenedBody
-      return $ Dictionary.insert name entry dictionary'
+      return $ Dictionary.insert (Instantiated name []) entry dictionary'
     -- Already defined as concatenable.
     Just (Entry.Word category merge@Merge.Compose
       origin' parent mSignature@(Just signature') body)
@@ -281,7 +283,7 @@ defineWord dictionary definition = do
             then Just (Signature.Type composedType)
             else mSignature)
           $ Just flattenedBody
-      return $ Dictionary.insert name entry dictionary'
+      return $ Dictionary.insert (Instantiated name []) entry dictionary'
     -- Already defined, not concatenable.
     Just (Entry.Word _ Merge.Deny originalOrigin _ (Just sig) _) -> do
       report $ Report.WordRedefinition (Definition.origin definition)

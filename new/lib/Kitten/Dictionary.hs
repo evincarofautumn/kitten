@@ -19,6 +19,7 @@ import Control.Applicative (liftA2)
 import Data.HashMap.Strict (HashMap)
 import Data.Maybe (mapMaybe)
 import Kitten.Entry (Entry)
+import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Name
 import Kitten.Operator (Operator(Operator))
 import Kitten.Signature (Signature)
@@ -27,11 +28,12 @@ import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Kitten.Entry as Entry
 import qualified Kitten.Entry.Category as Category
+import qualified Kitten.Instantiated as Instantiated
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Term as Term
 
 data Dictionary = Dictionary
-  { entries :: !(HashMap Qualified Entry)
+  { entries :: !(HashMap Instantiated Entry)
   } deriving (Show)
 
 instance Pretty Dictionary where
@@ -42,20 +44,20 @@ empty = Dictionary
   { entries = HashMap.empty
   }
 
-fromList :: [(Qualified, Entry)] -> Dictionary
+fromList :: [(Instantiated, Entry)] -> Dictionary
 fromList = Dictionary . HashMap.fromList
 
 -- Directly inserts into the dictionary. This is somewhat unsafe, as it can lead
 -- to an invalid dictionary state.
 
-insert ::  Qualified -> Entry -> Dictionary -> Dictionary
+insert :: Instantiated -> Entry -> Dictionary -> Dictionary
 insert name entry dictionary = dictionary
   { entries = HashMap.insert name entry $ entries dictionary }
 
-lookup :: Qualified -> Dictionary -> Maybe Entry
+lookup :: Instantiated -> Dictionary -> Maybe Entry
 lookup name = HashMap.lookup name . entries
 
-member :: Qualified -> Dictionary -> Bool
+member :: Instantiated -> Dictionary -> Bool
 member name = (name `HashMap.member`) . entries
 
 -- The dictionary should generally be monotonically increasing in size and
@@ -87,7 +89,7 @@ operatorMetadata dictionary = HashMap.fromList $ map getMetadata
   getMetadata :: Qualified -> (Qualified, Operator)
   getMetadata name = let
     key = Qualified (qualifierFromName name) (Unqualified "operator")
-    in case HashMap.lookup key $ entries dictionary of
+    in case HashMap.lookup (Instantiated key []) $ entries dictionary of
       -- TODO: Report invalid metadata.
       -- TODO: Avoid redundant decomposition.
       Just (Entry.Metadata _ term)
@@ -139,27 +141,28 @@ operatorMetadata dictionary = HashMap.fromList $ map getMetadata
 signatures :: Dictionary -> [(Qualified, Signature)]
 signatures = mapMaybe getSignature . HashMap.toList . entries
   where
-  getSignature :: (Qualified, Entry) -> Maybe (Qualified, Signature)
-  getSignature (name, Entry.Word _ _ _ _ (Just signature) _)
+  getSignature :: (Instantiated, Entry) -> Maybe (Qualified, Signature)
+  getSignature (Instantiated name [], Entry.Word _ _ _ _ (Just signature) _)
     = Just (name, signature)
-  getSignature (name, Entry.Trait _ signature)
+  getSignature (Instantiated name [], Entry.Trait _ signature)
     = Just (name, signature)
   getSignature _ = Nothing
 
-toList :: Dictionary -> [(Qualified, Entry)]
+toList :: Dictionary -> [(Instantiated, Entry)]
 toList = HashMap.toList . entries
 
 typeNames :: Dictionary -> [Qualified]
 typeNames = mapMaybe typeName . HashMap.toList . entries
   where
-  typeName (name, Entry.Word Category.Permission _ _ _ _ _) = Just name
-  typeName (name, Entry.Type{}) = Just name
+  typeName (Instantiated name _, Entry.Word Category.Permission _ _ _ _ _)
+    = Just name
+  typeName (Instantiated name _, Entry.Type{}) = Just name
   typeName _ = Nothing
 
 wordNames :: Dictionary -> [Qualified]
 wordNames = mapMaybe wordName . HashMap.toList . entries
   where
-  wordName (name, Entry.Word{}) = Just name
+  wordName (Instantiated name [], Entry.Word{}) = Just name
   -- TODO: Figure out how to get mangled names out of this...
-  wordName (name, Entry.Trait{}) = Just name
+  wordName (Instantiated name _, Entry.Trait{}) = Just name
   wordName _ = Nothing
