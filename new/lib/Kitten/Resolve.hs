@@ -14,6 +14,7 @@ import Kitten.Definition (Definition)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Entry.Parameter (Parameter(Parameter))
 import Kitten.Informer (Informer(..))
+import Kitten.Instantiated (Instantiated)
 import Kitten.Monad (K)
 import Kitten.Name (GeneralName(..), LocalIndex(..), Qualified(..), Qualifier(..), Unqualified(..))
 import Kitten.Origin (Origin)
@@ -22,6 +23,7 @@ import Kitten.Term (Case(..), Else(..), Term(..), Permit(Permit), Value(..))
 import qualified Data.Set as Set
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Dictionary as Dictionary
+import qualified Kitten.Mangle as Mangle
 import qualified Kitten.Report as Report
 import qualified Kitten.Signature as Signature
 import qualified Kitten.Vocabulary as Vocabulary

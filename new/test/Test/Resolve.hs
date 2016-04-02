@@ -9,6 +9,7 @@ import Data.Text (Text)
 import Kitten (fragmentFromSource)
 import Kitten.Definition (Definition(Definition))
 import Kitten.Entry.Parameter (Parameter(..))
+import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Kind (Kind(..))
 import Kitten.Monad (runKitten)
 import Kitten.Name (GeneralName(..), Qualified(..), Qualifier(..))
@@ -185,7 +186,9 @@ testWord contextSource viewpoint name expected = do
       _ -> assertFailure $ Pretty.render $ Pretty.hsep
         ["missing test word definition:", pPrint definitions]
       where
-      matching (Qualified v "test", _) | v == viewpoint = True
+      matching (Instantiated (Qualified v "test") _, _)
+        | v == viewpoint
+        = True
       matching _ = False
     Left reports -> assertFailure $ unlines
       $ map (Pretty.render . Report.human) reports

@@ -18,6 +18,7 @@ import Data.Word
 import Kitten.Bits
 import Kitten.Definition (mainName)
 import Kitten.Dictionary (Dictionary)
+import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Monad (runKitten)
 import Kitten.Name
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
@@ -61,14 +62,12 @@ interpret dictionary mName mainArgs stdin stdout stderr initialStack = do
 
     word :: Qualified -> [Type] -> IO ()
     word name args = do
-      let
-        mangled = Qualified Vocabulary.global
-          $ Unqualified $ Mangle.name name args
+      let mangled = Instantiated name args
       case Dictionary.lookup mangled dictionary of
         -- An entry in the dictionary should already be instantiated, so we
         -- shouldn't need to instantiate it again here.
         Just (Entry.Word _ _ _ _ _ (Just body)) -> term body
-        _ -> case Dictionary.lookup name dictionary of
+        _ -> case Dictionary.lookup (Instantiated name []) dictionary of
           -- A regular word.
           Just (Entry.Word _ _ _ _ _ (Just body)) -> do
             mBody' <- runKitten $ Instantiate.term TypeEnv.empty body args
@@ -128,7 +127,7 @@ interpret dictionary mName mainArgs stdin stdout stderr initialStack = do
             -- FIXME: Embed this information during name resolution, rather than
             -- looking it up.
             | Just (Entry.Word _ _ _ _ _ (Just ctorBody))
-              <- Dictionary.lookup name dictionary
+              <- Dictionary.lookup (Instantiated name []) dictionary
             , [New _ (ConstructorIndex index') _ _] <- Term.decompose ctorBody
             , Algebraic (ConstructorIndex index) fields <- x
             , index == index'

@@ -10,6 +10,7 @@ import Data.Text (Text)
 import Kitten (fragmentFromSource)
 import Kitten.Informer (checkpoint)
 import Kitten.InstanceCheck (instanceCheck)
+import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Kind (Kind(..))
 import Kitten.Monad (runKitten)
 import Kitten.Name (GeneralName(..), Qualified(..))
@@ -150,7 +151,9 @@ testTypecheck input expected = do
       _ -> assertFailure $ Pretty.render $ Pretty.hsep
         ["missing main word definition:", pPrint definitions]
       where
-      matching (Qualified v "main", _) | v == Vocabulary.global = True
+      matching (Instantiated (Qualified v "main") _, _)
+        | v == Vocabulary.global
+        = True
       matching _ = False
     Left reports -> assertFailure $ unlines
       $ map (Pretty.render . Report.human) reports

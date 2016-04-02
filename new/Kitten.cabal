@@ -69,6 +69,7 @@ library
     Kitten.Infer
     Kitten.Informer
     Kitten.InstanceCheck
+    Kitten.Instantiated
     Kitten.Interpret
     Kitten.Kind
     Kitten.Layout
