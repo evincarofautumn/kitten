@@ -66,8 +66,8 @@ term tenv0 = go
       -> New (zonk tref) index size origin
     NewClosure tref index origin
       -> NewClosure (zonk tref) index origin
-    NewVector tref size origin
-      -> NewVector (zonk tref) size origin
+    NewVector tref size elemType origin
+      -> NewVector (zonk tref) size (zonk elemType) origin
     Push tref value' origin
       -> Push (zonk tref) (value tenv0 value') origin
     Swap tref origin

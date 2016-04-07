@@ -54,7 +54,7 @@ data Term a
   | Match a [Case a] !(Maybe (Else a)) !Origin  -- match { case C {...}... else {...} }
   | New a !ConstructorIndex !Int !Origin        -- new.n
   | NewClosure a !Int !Origin                   -- new.closure.n
-  | NewVector a !Int !Origin                    -- new.vec.n
+  | NewVector a !Int a !Origin                  -- new.vec.n
   | Push a !(Value a) !Origin                   -- push v
   | Swap a !Origin                              -- swap
   | With a [Permit] !Origin                     -- with (+foo -bar)
@@ -110,7 +110,7 @@ origin term = case term of
   Lambda _ _ _ _ o -> o
   New _ _ _ o -> o
   NewClosure _ _ o -> o
-  NewVector _ _ o -> o
+  NewVector _ _ _ o -> o
   Match _ _ _ o -> o
   Push _ _ o -> o
   Swap _ o -> o
@@ -141,7 +141,7 @@ metadata term = case term of
   Match t _ _ _ -> t
   New t _ _ _ -> t
   NewClosure t _ _ -> t
-  NewVector t _ _ -> t
+  NewVector t _ _ _ -> t
   Push t _ _ -> t
   Swap t _ -> t
   With t _ _ -> t
@@ -160,7 +160,7 @@ stripMetadata term = case term of
   Match _ a b c -> Match () (map stripCase a) (fmap stripElse b) c
   New _ a b c -> New () a b c
   NewClosure _ a b -> NewClosure () a b
-  NewVector _ a b -> NewVector () a b
+  NewVector _ a _ b -> NewVector () a () b
   Push _ a b -> Push () (stripValue a) b
   Swap _ a -> Swap () a
   With _ a b -> With () a b
@@ -214,7 +214,7 @@ instance Pretty (Term a) where
       ]
     New _ (ConstructorIndex index) _size _ -> "new." Pretty.<> Pretty.int index
     NewClosure _ size _ -> "new.closure." Pretty.<> pPrint size
-    NewVector _ size _ -> "new.vec." Pretty.<> pPrint size
+    NewVector _ size _ _ -> "new.vec." Pretty.<> pPrint size
     Push _ value _ -> pPrint value
     Swap{} -> "swap"
     With _ permits _ -> Pretty.hcat $ concat

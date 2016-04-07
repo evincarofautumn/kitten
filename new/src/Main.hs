@@ -5,16 +5,16 @@
 module Main where
 
 import Kitten (compile, runKitten)
+import Kitten.Amd64 (amd64)
 import Kitten.Name (GeneralName(..), Qualified(..))
 import Report
 import System.Environment
 import System.Exit
 import System.IO
-import Text.Parsec.Text ()
-import Text.PrettyPrint.HughesPJClass (Pretty(..))
+import qualified Data.Text as Text
 import qualified Interact
+import qualified Kitten.Platform as Platform
 import qualified Kitten.Vocabulary as Vocabulary
-import qualified Text.PrettyPrint as Pretty
 
 main :: IO ()
 main = do
@@ -36,4 +36,4 @@ runBatch paths = do
     Left reports -> do
       reportAll reports
       exitFailure
-    Right program -> putStrLn $ Pretty.render $ pPrint program
+    Right program -> putStrLn $ Text.unpack $ amd64 program Platform.OSX

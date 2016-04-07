@@ -162,6 +162,7 @@ testWord contextSource viewpoint name expected = do
           , Definition.merge = Merge.Deny
           , Definition.name = Qualified viewpoint "test"
           , Definition.origin = origin
+          , Definition.parent = Nothing
           , Definition.signature = Signature.Quantified
             [Parameter origin "R" Stack, Parameter origin "S" Stack]
             (Signature.StackFunction

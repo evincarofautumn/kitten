@@ -42,6 +42,7 @@ import qualified Kitten.Definition as Definition
 import qualified Kitten.Element as Element
 import qualified Kitten.Entry.Category as Category
 import qualified Kitten.Entry.Merge as Merge
+import qualified Kitten.Entry.Parent as Parent
 import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Layoutness as Layoutness
 import qualified Kitten.Located as Located
@@ -484,6 +485,10 @@ definitionParser keyword category = do
     , Definition.merge = Merge.Deny
     , Definition.name = name
     , Definition.origin = origin
+    -- HACK: Should be passed in from outside?
+    , Definition.parent = case keyword of
+      Token.Instance -> Just $ Parent.Type name
+      _ -> Nothing
     , Definition.signature = signature
     }
 
@@ -567,7 +572,7 @@ termParser = (<?> "expression") $ do
     elements <- bracketedParser
       $ termParser `Parsec.sepEndBy` parserMatch Token.Comma
     return $ compose () vectorOrigin $ elements
-      ++ [NewVector () (length elements) vectorOrigin]
+      ++ [NewVector () (length elements) () vectorOrigin]
 
   lambdaParser :: Parser (Term ())
   lambdaParser = (<?> "variable introduction") $ Parsec.choice

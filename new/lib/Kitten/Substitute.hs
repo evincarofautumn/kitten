@@ -63,8 +63,8 @@ term tenv x a = recur
       <$> go tref <*> pure index <*> pure size <*> pure origin
     NewClosure tref size origin -> NewClosure <$> go tref
       <*> pure size <*> pure origin
-    NewVector tref size origin -> NewVector <$> go tref
-      <*> pure size <*> pure origin
+    NewVector tref size elemType origin -> NewVector <$> go tref
+      <*> pure size <*> go elemType <*> pure origin
     Push tref value origin -> Push <$> go tref <*> pure value <*> pure origin
     Swap tref origin -> Swap <$> go tref <*> pure origin
     With tref permits origin -> With <$> go tref
