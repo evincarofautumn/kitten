@@ -5,6 +5,7 @@ module Kitten.Entry
   ) where
 
 import Data.List (intersperse)
+import Kitten.DataConstructor (DataConstructor)
 import Kitten.Entry.Category (Category)
 import Kitten.Entry.Merge (Merge)
 import Kitten.Entry.Parameter (Parameter)
@@ -47,13 +48,13 @@ data Entry
 
 -- A data type with some generic parameters.
 
-  | Type !Origin [Parameter]
+  | Type !Origin [Parameter] [DataConstructor]
 
   deriving (Show)
 
 instance Pretty Entry where
   pPrint entry = case entry of
-    Word category _merge origin _parent mSignature _body -> Pretty.vcat
+    Word category _merge origin mParent mSignature _body -> Pretty.vcat
       [ case category of
         Category.Constructor -> "constructor"  -- of type
         Category.Instance -> "instance"  -- of trait
@@ -64,11 +65,16 @@ instance Pretty Entry where
         Just signature -> Pretty.hsep
           ["with signature", Pretty.quote signature]
         Nothing -> "with no signature"
+      , case mParent of
+        Just parent -> Pretty.hsep
+          ["with parent", pPrint parent]
+        Nothing -> "with no parent"
       ]
     Metadata _origin _term -> "<metadata>"
     Synonym _origin _name -> "<synonym>"
     Trait _origin _signature -> "<signature>"
-    Type origin parameters -> Pretty.vcat
+    -- TODO: Print constructors.
+    Type origin parameters _ctors -> Pretty.vcat
       [ "type"
       , Pretty.hsep ["defined at", pPrint origin]
       , Pretty.hcat $ "with parameters <"

@@ -4,7 +4,9 @@ module Kitten.CollectInstantiations
   ( collectInstantiations
   ) where
 
+import Control.Monad.IO.Class (liftIO)
 import Data.Foldable (foldrM)
+import Data.List (unfoldr)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Informer (Informer(..))
 import Kitten.Instantiated (Instantiated(Instantiated))
@@ -12,12 +14,15 @@ import Kitten.Monad (K)
 import Kitten.Name (GeneralName(..), Qualified(..), Unqualified(..))
 import Kitten.Queue (Queue)
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
-import Kitten.Type (Type)
+import Kitten.Type (Constructor(..), Type(..))
 import Kitten.TypeEnv (TypeEnv)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
+import qualified Kitten.Entry.Parent as Parent
+import qualified Kitten.Infer as Infer
 import qualified Kitten.Instantiate as Instantiate
+import qualified Kitten.Kind as Kind
 import qualified Kitten.Mangle as Mangle
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Queue as Queue
@@ -30,6 +35,11 @@ import qualified Text.PrettyPrint as Pretty
 -- arguments. This is transitive: if a generic definition calls another generic
 -- definition with one of its own generic type parameters as a type argument,
 -- then an instantiation must also be generated of the called definition.
+--
+-- For generic types, we also generate specializations; this is mainly to have
+-- the size and alignment requirements on hand during code generation. A generic
+-- type is instantiated if it's mentioned in the signature of any instantiated
+-- word definition.
 
 collectInstantiations :: TypeEnv -> Dictionary -> K Dictionary
 collectInstantiations tenv0 dictionary0 = do
@@ -45,8 +55,6 @@ collectInstantiations tenv0 dictionary0 = do
           entry' = Entry.Word
             category merge origin parent signature $ Just term'
         return ((name, entry') : acc, q')
-      -- FIXME: Not sure if right. We might need to generate instantiations of
-      -- types as well.
       _ -> return (original : acc, q))
     ([], Queue.empty)
     $ Dictionary.toList dictionary0
@@ -97,18 +105,29 @@ collectInstantiations tenv0 dictionary0 = do
       return (Match type_ cases' mElse' origin, q2)
     New{} -> proceed
     NewClosure{} -> proceed
-    NewVector{} -> proceed
+    NewVector _ _size elementType _origin -> do
+      q1 <- instantiateTypes dictionary0 elementType q0
+      return (term, q1)
     Push _ Quotation{} _ -> error
       "quotation should not appear after quotation desugaring"
     Push{} -> proceed
     Swap{} -> proceed
     With{} -> proceed
-    Word type_ fixity (QualifiedName name) args origin -> return
-      ( Word type_ fixity
-        (UnqualifiedName $ Unqualified $ Mangle.name $ Instantiated name args)
-        [] origin
-      , Queue.enqueue (name, args) q0
-      )
+    Word type_ fixity (QualifiedName name) args origin -> do
+      let
+        types = case Dictionary.lookup (Instantiated name []) dictionary0 of
+          -- If this is a constructor call, generate an instantiation of the
+          -- type it's constructing.
+          Just (Entry.Word _ _ _ (Just (Parent.Type typeName)) _ _)
+            -> Just (typeName, args)
+          _ -> Nothing
+        q1 = foldr Queue.enqueue q0 types
+      return
+        ( Word type_ fixity
+          (UnqualifiedName $ Unqualified $ Mangle.name $ Instantiated name args)
+          [] origin
+        , Queue.enqueue (name, args) q1
+        )
     -- FIXME: Should calls to non-qualified names even be around at this point?
     Word{} -> proceed
     where
@@ -143,7 +162,41 @@ collectInstantiations tenv0 dictionary0 = do
               -- There should be no need to instantiate declarations, as they
               -- should only refer to intrinsics.
               Nothing -> processQueue q' dictionary
+          Just (Entry.Type origin params ctors) -> do
+            q'' <- foldrM (instantiateTypes dictionary0) q' args
+            let
+              entry' = Entry.Type origin params ctors
+            -- Maybe generate instantiations for constructors?
+            processQueue q'' $ Dictionary.insert
+              (Instantiated name args)
+              entry'
+              dictionary
           Just entry -> error $ Pretty.render $ Pretty.hcat
             ["attempt to instantiate non-word ", Pretty.quote name, ":", pPrint entry]
 
-type InstantiationQueue = Queue (Qualified, [Type])
+type InstantiationQueue = Queue Instantiation
+
+type Instantiation = (Qualified, [Type])
+
+instantiateTypes
+  :: Dictionary -> Type -> InstantiationQueue -> K InstantiationQueue
+instantiateTypes dictionary type0 q0 = go type0
+  where
+  go type_ = do
+    kind <- Infer.typeKind dictionary type_
+    case kind of
+      Kind.Value -> case type_ of
+        (:@){} -> do
+          instantiation <- collect [] type_
+          return $ Queue.enqueue instantiation q0
+        -- TODO: Forall.
+        _ -> return q0
+      _ -> return q0
+  collect args t = case t of
+    a :@ b -> do
+      -- go b
+      collect (b : args) a
+    TypeConstructor _ (Constructor name) -> do
+      -- go a
+      return (name, args)
+    _ -> error "non-constructor in type application (requires HKTs)"

@@ -15,6 +15,7 @@ import qualified Kitten.DataConstructor as DataConstructor
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Entry.Category as Category
 import qualified Kitten.Entry.Merge as Merge
+import qualified Kitten.Entry.Parent as Parent
 import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Signature as Signature
@@ -52,13 +53,15 @@ desugar fragment = do
           (ConstructorIndex index)
           (length $ DataConstructor.fields constructor)
           $ DataConstructor.origin constructor
-        , Definition.category = Category.Word
+        , Definition.category = Category.Constructor
         , Definition.fixity = Operator.Postfix
         , Definition.inferSignature = False
         , Definition.merge = Merge.Deny
         , Definition.name = Qualified qualifier
           $ DataConstructor.name constructor
         , Definition.origin = origin
+        , Definition.parent = Just $ Parent.Type
+          $ TypeDefinition.name definition
         , Definition.signature = constructorSignature
         }
       where

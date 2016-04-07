@@ -11,6 +11,7 @@ import Data.Maybe (fromMaybe)
 import Kitten.Entry.Category (Category)
 import Kitten.Entry.Merge (Merge)
 import Kitten.Entry.Parameter (Parameter(..))
+import Kitten.Entry.Parent (Parent)
 import Kitten.Kind (Kind(..))
 import Kitten.Name (GeneralName(..), Qualified(..))
 import Kitten.Operator (Fixity)
@@ -35,6 +36,7 @@ data Definition a = Definition
   , merge :: !Merge
   , name :: !Qualified
   , origin :: !Origin
+  , parent :: !(Maybe Parent)
   , signature :: !Signature
   } deriving (Show)
 
@@ -57,6 +59,7 @@ main permissions mName term = Definition
   , merge = Merge.Compose
   , name = fromMaybe mainName mName
   , origin = o
+  , parent = Nothing
   , signature = Signature.Quantified
     [Parameter o "R" Stack, Parameter o "S" Stack]
     (Signature.StackFunction

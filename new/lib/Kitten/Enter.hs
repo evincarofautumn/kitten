@@ -93,6 +93,7 @@ enterDeclaration dictionary declaration = do
             Category.Word
             Merge.Deny
             origin
+            -- FIXME: Does a declaration ever need a parent?
             Nothing
             (Just signature)
             Nothing
@@ -112,9 +113,10 @@ declareType dictionary type_ = let
         entry = Entry.Type
           (TypeDefinition.origin type_)
           (TypeDefinition.parameters type_)
+          (TypeDefinition.constructors type_)
       return $ Dictionary.insert (Instantiated name []) entry dictionary
     -- Previously declared with the same parameters.
-    Just (Entry.Type _ parameters)
+    Just (Entry.Type _origin parameters _ctors)
       | parameters == TypeDefinition.parameters type_
       -> return dictionary
     -- Already declared or defined differently.
@@ -137,7 +139,7 @@ declareWord dictionary definition = let
           (Definition.category definition)
           (Definition.merge definition)
           (Definition.origin definition)
-          Nothing
+          (Definition.parent definition)
           (Just signature)
           Nothing
       return $ Dictionary.insert (Instantiated name []) entry dictionary
@@ -166,7 +168,7 @@ declareWord dictionary definition = let
           (Definition.category definition)
           (Definition.merge definition)
           (Definition.origin definition)
-          (Just (Parent.Trait name))
+          (Definition.parent definition)
           (Just resolvedSignature)
           Nothing
       return $ Dictionary.insert mangledName entry dictionary
@@ -243,7 +245,7 @@ defineWord dictionary definition = do
           (Definition.category definition)
           (Definition.merge definition)
           (Definition.origin definition)
-          (Just (Parent.Trait name))
+          (Definition.parent definition)
           (Just resolvedSignature)
           (Just flattenedBody)
       return $ Dictionary.insert mangledName entry dictionary'

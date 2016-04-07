@@ -4,8 +4,9 @@
 module Kitten.Infer
   ( inferType0
   , mangleInstance
-  , typecheck
   , typeFromSignature
+  , typeKind
+  , typecheck
   ) where
 
 import Control.Monad (filterM)
@@ -306,7 +307,7 @@ inferType dictionary tenvFinal tenv0 term0
 --     ∀ρα. ρ × α₀ × … × αₓ → ρ × vector<α>
 --
 
-    NewVector _ size origin -> do
+    NewVector _ size _ origin -> do
       [a, b, e] <- fresh origin [Stack, Value, Permission]
       let
         type_ = funType origin
@@ -314,7 +315,8 @@ inferType dictionary tenvFinal tenv0 term0
           (prodType origin a (TypeConstructor origin "List" :@ b))
           e
         type' = Zonk.type_ tenvFinal type_
-      return (NewVector type' size origin, type_, tenv0)
+        b' = Zonk.type_ tenvFinal b
+      return (NewVector type' size b' origin, type_, tenv0)
 
 -- Pushing a value results in a stack with that value on top.
 
@@ -643,7 +645,7 @@ typeKind dictionary = go
   go t = case t of
     TypeConstructor _origin (Constructor qualified)
       -> case Dictionary.lookup (Instantiated qualified []) dictionary of
-      Just (Entry.Type _origin parameters) -> case parameters of
+      Just (Entry.Type _origin parameters _ctors) -> case parameters of
         [] -> return Value
         _ -> return $ foldr (:->) Value
           $ map (\ (Parameter _ _ k) -> k) parameters

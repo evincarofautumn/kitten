@@ -53,6 +53,7 @@ library
   exposed-modules:
 
     Kitten
+    Kitten.Amd64
     Kitten.Base
     Kitten.Bits
     Kitten.Definition
@@ -79,6 +80,7 @@ library
     Kitten.Operator
     Kitten.Origin
     Kitten.Parse
+    Kitten.Platform
     Kitten.Pretty
     Kitten.Report
     Kitten.Resolve
