@@ -15,11 +15,12 @@ import qualified Kitten.Layoutness as Layoutness
 import qualified Kitten.Located as Located
 import qualified Kitten.Origin as Origin
 import qualified Kitten.Report as Report
+import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.Parsec as Parsec
 
 layout :: FilePath -> [Located Token] -> K [Located Token]
 layout path tokens
-  = case Parsec.runParser insertBraces (Qualifier []) path tokens of
+  = case Parsec.runParser insertBraces Vocabulary.global path tokens of
     Left parseError -> do
       report $ Report.parseError parseError
       halt

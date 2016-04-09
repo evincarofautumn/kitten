@@ -2,22 +2,18 @@
 
 module Kitten.Vocabulary
   ( global
-  , globalName
   , intrinsic
   , intrinsicName
   ) where
 
 import Data.Text (Text)
-import Kitten.Name (Qualifier(..))
+import Kitten.Name (Qualifier(..), Root(..))
 
 global :: Qualifier
-global = Qualifier [globalName]
-
-globalName :: Text
-globalName = ""
+global = Qualifier Absolute []
 
 intrinsic :: Qualifier
-intrinsic = Qualifier [globalName, intrinsicName]
+intrinsic = Qualifier Absolute [intrinsicName]
 
 intrinsicName :: Text
 intrinsicName = "kitten"

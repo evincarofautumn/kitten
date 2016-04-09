@@ -16,7 +16,7 @@ import Kitten.Entry.Parameter (Parameter(Parameter))
 import Kitten.Informer (Informer(..))
 import Kitten.Instantiated (Instantiated)
 import Kitten.Monad (K)
-import Kitten.Name (GeneralName(..), LocalIndex(..), Qualified(..), Qualifier(..), Unqualified(..))
+import Kitten.Name
 import Kitten.Origin (Origin)
 import Kitten.Signature (Signature)
 import Kitten.Term (Case(..), Else(..), Term(..), Permit(Permit), Value(..))
@@ -176,14 +176,13 @@ generalName dictionary category resolveLocal isDefined vocabulary name origin
               lift $ report $ Report.CannotResolveName origin category name
               return name
 
--- A qualified name must be fully qualified, and may refer to an intrinsic or a
--- definition, respectively.
+-- A qualified name may refer to an intrinsic or a definition.
 
     QualifiedName qualified -> if isDefined qualified then return name else do
       let
         qualified' = case (vocabulary, qualifierName qualified) of
-          (Qualifier prefix, Qualifier suffix)
-            -> Qualified (Qualifier (prefix ++ suffix))
+          (Qualifier _root1 prefix, Qualifier _root2 suffix)
+            -> Qualified (Qualifier Absolute (prefix ++ suffix))
               $ unqualifiedName qualified
       if isDefined qualified'
         then return $ QualifiedName qualified'

@@ -12,7 +12,7 @@ import Kitten.Entry.Parameter (Parameter(..))
 import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Kind (Kind(..))
 import Kitten.Monad (runKitten)
-import Kitten.Name (GeneralName(..), Qualified(..), Qualifier(..))
+import Kitten.Name
 import Test.HUnit (assertEqual, assertFailure)
 import Test.Hspec (Spec, it)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
@@ -44,48 +44,48 @@ spec = do
       (Qualified Vocabulary.global "f")
     testWord
       "define f (->) {}"
-      (Qualifier ["v"])
+      (Qualifier Absolute ["v"])
       (UnqualifiedName "f")
       (Qualified Vocabulary.global "f")
     testWord
       "define f (->) {}"
-      (Qualifier ["v1", "v2"])
+      (Qualifier Absolute ["v1", "v2"])
       (UnqualifiedName "f")
       (Qualified Vocabulary.global "f")
 
   it "resolves words in the same vocabulary" $ do
     testWord
       "vocab v { define f (->) {} }"
-      (Qualifier [Vocabulary.globalName, "v"])
+      (Qualifier Absolute ["v"])
       (UnqualifiedName "f")
-      (Qualified (Qualifier [Vocabulary.globalName, "v"]) "f")
+      (Qualified (Qualifier Absolute ["v"]) "f")
     testWord
       "vocab v1 { vocab v2 { define f (->) {} } }"
-      (Qualifier [Vocabulary.globalName, "v1", "v2"])
+      (Qualifier Absolute ["v1", "v2"])
       (UnqualifiedName "f")
-      (Qualified (Qualifier [Vocabulary.globalName, "v1", "v2"]) "f")
+      (Qualified (Qualifier Absolute ["v1", "v2"]) "f")
     testWord
       "vocab v1::v2 { define f (->) {} }"
-      (Qualifier [Vocabulary.globalName, "v1", "v2"])
+      (Qualifier Absolute ["v1", "v2"])
       (UnqualifiedName "f")
-      (Qualified (Qualifier [Vocabulary.globalName, "v1", "v2"]) "f")
+      (Qualified (Qualifier Absolute ["v1", "v2"]) "f")
 
   it "resolves words in nested vocabularies" $ do
     testWord
       "vocab v1::v2 { define f (->) {} }"
-      (Qualifier [Vocabulary.globalName, "v1"])
-      (QualifiedName (Qualified (Qualifier ["v2"]) "f"))
-      (Qualified (Qualifier [Vocabulary.globalName, "v1", "v2"]) "f")
+      (Qualifier Absolute ["v1"])
+      (QualifiedName (Qualified (Qualifier Relative ["v2"]) "f"))
+      (Qualified (Qualifier Absolute ["v1", "v2"]) "f")
     testWord
       "vocab v1::v2::v3 { define f (->) {} }"
-      (Qualifier [Vocabulary.globalName, "v1"])
-      (QualifiedName (Qualified (Qualifier ["v2", "v3"]) "f"))
-      (Qualified (Qualifier [Vocabulary.globalName, "v1", "v2", "v3"]) "f")
+      (Qualifier Absolute ["v1"])
+      (QualifiedName (Qualified (Qualifier Relative ["v2", "v3"]) "f"))
+      (Qualified (Qualifier Absolute ["v1", "v2", "v3"]) "f")
     testWord
       "vocab v1::v2::v3 { define f (->) {} }"
-      (Qualifier [Vocabulary.globalName, "v1", "v2"])
-      (QualifiedName (Qualified (Qualifier ["v3"]) "f"))
-      (Qualified (Qualifier [Vocabulary.globalName, "v1", "v2", "v3"]) "f")
+      (Qualifier Absolute ["v1", "v2"])
+      (QualifiedName (Qualified (Qualifier Relative ["v3"]) "f"))
+      (Qualified (Qualifier Absolute ["v1", "v2", "v3"]) "f")
 
   it "resolves global types" $ do
     testType
@@ -95,48 +95,48 @@ spec = do
       (Qualified Vocabulary.global "T")
     testType
       "type T {}"
-      (Qualifier ["v"])
+      (Qualifier Absolute ["v"])
       (UnqualifiedName "T")
       (Qualified Vocabulary.global "T")
     testType
       "type T {}"
-      (Qualifier ["v1", "v2"])
+      (Qualifier Absolute ["v1", "v2"])
       (UnqualifiedName "T")
       (Qualified Vocabulary.global "T")
 
   it "resolves types in the same vocabulary" $ do
     testType
       "vocab v { type T {} }"
-      (Qualifier [Vocabulary.globalName, "v"])
+      (Qualifier Absolute ["v"])
       (UnqualifiedName "T")
-      (Qualified (Qualifier [Vocabulary.globalName, "v"]) "T")
+      (Qualified (Qualifier Absolute ["v"]) "T")
     testType
       "vocab v1 { vocab v2 { type T {} } }"
-      (Qualifier [Vocabulary.globalName, "v1", "v2"])
+      (Qualifier Absolute ["v1", "v2"])
       (UnqualifiedName "T")
-      (Qualified (Qualifier [Vocabulary.globalName, "v1", "v2"]) "T")
+      (Qualified (Qualifier Absolute ["v1", "v2"]) "T")
     testType
       "vocab v1::v2 { type T {} }"
-      (Qualifier [Vocabulary.globalName, "v1", "v2"])
+      (Qualifier Absolute ["v1", "v2"])
       (UnqualifiedName "T")
-      (Qualified (Qualifier [Vocabulary.globalName, "v1", "v2"]) "T")
+      (Qualified (Qualifier Absolute ["v1", "v2"]) "T")
 
   it "resolves types in nested vocabularies" $ do
     testType
       "vocab v1::v2 { type T {} }"
-      (Qualifier [Vocabulary.globalName, "v1"])
-      (QualifiedName (Qualified (Qualifier ["v2"]) "T"))
-      (Qualified (Qualifier [Vocabulary.globalName, "v1", "v2"]) "T")
+      (Qualifier Absolute ["v1"])
+      (QualifiedName (Qualified (Qualifier Relative ["v2"]) "T"))
+      (Qualified (Qualifier Absolute ["v1", "v2"]) "T")
     testType
       "vocab v1::v2::v3 { type T {} }"
-      (Qualifier [Vocabulary.globalName, "v1"])
-      (QualifiedName (Qualified (Qualifier ["v2", "v3"]) "T"))
-      (Qualified (Qualifier [Vocabulary.globalName, "v1", "v2", "v3"]) "T")
+      (Qualifier Absolute ["v1"])
+      (QualifiedName (Qualified (Qualifier Relative ["v2", "v3"]) "T"))
+      (Qualified (Qualifier Absolute ["v1", "v2", "v3"]) "T")
     testType
       "vocab v1::v2::v3 { type T {} }"
-      (Qualifier [Vocabulary.globalName, "v1", "v2"])
-      (QualifiedName (Qualified (Qualifier ["v3"]) "T"))
-      (Qualified (Qualifier [Vocabulary.globalName, "v1", "v2", "v3"]) "T")
+      (Qualifier Absolute ["v1", "v2"])
+      (QualifiedName (Qualified (Qualifier Relative ["v3"]) "T"))
+      (Qualified (Qualifier Absolute ["v1", "v2", "v3"]) "T")
 
   it "resolves types in trait signatures" $ do
     testType

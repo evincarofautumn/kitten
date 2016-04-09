@@ -109,7 +109,7 @@ run = do
             let
               entryNameUnqualified = Text.pack $ "entry" ++ show lineNumber
               entryName = Qualified
-                (Qualifier [Vocabulary.globalName, "interactive"])
+                (Qualifier Absolute ["interactive"])
                 $ Unqualified entryNameUnqualified
             mResults <- runKitten $ do
               -- Each entry gets its own definition in the dictionary, so it can
