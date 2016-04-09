@@ -9,6 +9,7 @@ module Kitten.Name
   , LocalIndex(..)
   , Qualified(..)
   , Qualifier(..)
+  , Root(..)
   , Unqualified(..)
   , isOperatorName
   , toParts
@@ -43,7 +44,10 @@ data Qualified = Qualified
   , unqualifiedName :: !Unqualified
   } deriving (Eq, Ord, Show)
 
-data Qualifier = Qualifier [Text]
+data Qualifier = Qualifier !Root [Text]
+  deriving (Eq, Ord, Show)
+
+data Root = Relative | Absolute
   deriving (Eq, Ord, Show)
 
 data Unqualified = Unqualified Text
@@ -70,26 +74,31 @@ isOperatorName = match . unqualifiedName
     $ Text.take 1 name
 
 toParts :: Qualified -> [Text]
-toParts (Qualified (Qualifier parts) (Unqualified part))
+toParts (Qualified (Qualifier _root parts) (Unqualified part))
   = parts ++ [part]
 
 qualifiedFromQualifier :: Qualifier -> Qualified
 qualifiedFromQualifier qualifier = case qualifier of
-  Qualifier [] -> error "qualifiedFromQualifier: empty qualifier"
-  Qualifier parts -> Qualified
-    (Qualifier $ init parts) $ Unqualified $ last parts
+  Qualifier _ [] -> error "qualifiedFromQualifier: empty qualifier"
+  Qualifier root parts -> Qualified
+    (Qualifier root $ init parts) $ Unqualified $ last parts
 
 qualifierFromName :: Qualified -> Qualifier
-qualifierFromName (Qualified (Qualifier parts) (Unqualified name))
-  = Qualifier (parts ++ [name])
+qualifierFromName (Qualified (Qualifier root parts) (Unqualified name))
+  = Qualifier root (parts ++ [name])
 
 instance Hashable Qualified where
   hashWithSalt s (Qualified qualifier unqualified)
     = hashWithSalt s (0 :: Int, qualifier, unqualified)
 
 instance Hashable Qualifier where
-  hashWithSalt s (Qualifier parts)
-    = hashWithSalt s (0 :: Int, Text.concat parts)
+  hashWithSalt s (Qualifier root parts)
+    = hashWithSalt s (0 :: Int, root, Text.concat parts)
+
+instance Hashable Root where
+  hashWithSalt s root = hashWithSalt s $ case root of
+    Relative -> 0 :: Int
+    Absolute -> 1 :: Int
 
 instance Hashable Unqualified where
   hashWithSalt s (Unqualified name) = hashWithSalt s (0 :: Int, name)
@@ -102,8 +111,8 @@ instance Pretty Qualified where
     Pretty.<> "::" Pretty.<> pPrint (unqualifiedName qualified)
 
 instance Pretty Qualifier where
-  pPrint (Qualifier ("" : parts)) = pPrint $ Qualifier $ "_" : parts
-  pPrint (Qualifier parts) = Pretty.text
+  pPrint (Qualifier Absolute parts) = pPrint $ Qualifier Relative $ "_" : parts
+  pPrint (Qualifier Relative parts) = Pretty.text
     $ Text.unpack $ Text.intercalate "::" parts
 
 instance Pretty Unqualified where

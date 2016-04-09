@@ -28,8 +28,9 @@ name (Instantiated n args) = Text.concat
       -- end
       ++ ["_E"]
 
+-- TODO: Use root.
 qualified :: Qualified -> Text
-qualified (Qualified (Qualifier parts) (Unqualified unqualified))
+qualified (Qualified (Qualifier _root parts) (Unqualified unqualified))
   = Text.concat
     -- nested
     $ "_N" : (map lengthPrefix

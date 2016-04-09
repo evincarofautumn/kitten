@@ -22,7 +22,7 @@ import Kitten.Kind (Kind(..))
 import Kitten.Located (Located)
 import Kitten.Metadata (Metadata(Metadata))
 import Kitten.Monad (K)
-import Kitten.Name (GeneralName(..), Qualified(..), Qualifier(..), Unqualified(..))
+import Kitten.Name
 import Kitten.Origin (Origin)
 import Kitten.Parser (Parser, getTokenOrigin)
 import Kitten.Parser (parserMatch, parserMatch_)
@@ -165,15 +165,16 @@ partitionElements mainPermissions mainName = rev . foldr go mempty
 vocabularyParser :: Parser [Element ()]
 vocabularyParser = (<?> "vocabulary definition") $ do
   parserMatch_ Token.Vocab
-  original@(Qualifier outer) <- Parsec.getState
+  original@(Qualifier _ outer) <- Parsec.getState
   (vocabularyName, _) <- nameParser
   let
     (inner, name) = case vocabularyName of
-      QualifiedName (Qualified (Qualifier qualifier) (Unqualified unqualified))
+      QualifiedName
+        (Qualified (Qualifier _root qualifier) (Unqualified unqualified))
         -> (qualifier, unqualified)
       UnqualifiedName (Unqualified unqualified) -> ([], unqualified)
       LocalName{} -> error "local name should not appear as vocabulary name"
-  Parsec.putState (Qualifier (outer ++ inner ++ [name]))
+  Parsec.putState (Qualifier Absolute (outer ++ inner ++ [name]))
   Parsec.choice
     [ [] <$ parserMatchOperator ";"
     , do
@@ -225,10 +226,13 @@ nameParser = (<?> "name") $ do
       parts' = map ((\ (Unqualified part) -> part) . snd) parts
       qualifier = init parts'
       (fixity, unqualified) = last parts
-      in (QualifiedName (Qualified
-        (Qualifier
-          ((if global then (Vocabulary.globalName :) else id) qualifier))
-        unqualified), fixity)
+      in
+        ( QualifiedName
+          (Qualified
+            (Qualifier (if global then Absolute else Relative) qualifier)
+            unqualified)
+        , fixity
+        )
 
 unqualifiedNameParser :: Parser Unqualified
 unqualifiedNameParser = (<?> "unqualified name")

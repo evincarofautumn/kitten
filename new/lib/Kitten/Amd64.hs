@@ -176,340 +176,338 @@ term t = case t of
   Term.Push _ v origin -> value origin v
   Term.Swap{} -> comment ["swap"]
   Term.With{} -> return ()
-  Term.Word _ _ (QualifiedName name) args _
-    -> kittenCall $ Mangle.name $ Instantiated name args
-  Term.Word _ _ (UnqualifiedName (Unqualified name)) _ _
+  Term.Word _ _ (UnqualifiedName (Unqualified name)) args _
     -> case name of
 
-      "_K_N06kitten10add__int16_E" -> do
+      "_K_N6kitten10add__int16_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten10add__int32_E" -> do
+      "_K_N6kitten10add__int32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten10add__int64_E" -> do
+      "_K_N6kitten10add__int64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten10add__uint8_E" -> do
+      "_K_N6kitten10add__uint8_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten10div__int16_E" -> do
+      "_K_N6kitten10div__int16_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten10div__int32_E" -> do
+      "_K_N6kitten10div__int32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten10div__int64_E" -> do
+      "_K_N6kitten10div__int64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten10div__uint8_E" -> do
+      "_K_N6kitten10div__uint8_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten10mod__int16_E" -> do
+      "_K_N6kitten10mod__int16_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten10mod__int32_E" -> do
+      "_K_N6kitten10mod__int32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten10mod__int64_E" -> do
+      "_K_N6kitten10mod__int64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten10mod__uint8_E" -> do
+      "_K_N6kitten10mod__uint8_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten10mul__int16_E" -> do
+      "_K_N6kitten10mul__int16_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten10mul__int32_E" -> do
+      "_K_N6kitten10mul__int32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten10mul__int64_E" -> do
+      "_K_N6kitten10mul__int64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten10mul__uint8_E" -> do
+      "_K_N6kitten10mul__uint8_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten10neg__int16_E" -> do
+      "_K_N6kitten10neg__int16_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten10neg__int32_E" -> do
+      "_K_N6kitten10neg__int32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten10neg__int64_E" -> do
+      "_K_N6kitten10neg__int64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten10neg__uint8_E" -> do
+      "_K_N6kitten10neg__uint8_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten10show__int8_E" -> do
+      "_K_N6kitten10show__int8_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten10sub__int16_E" -> do
+      "_K_N6kitten10sub__int16_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten10sub__int32_E" -> do
+      "_K_N6kitten10sub__int32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten10sub__int64_E" -> do
+      "_K_N6kitten10sub__int64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten10sub__uint8_E" -> do
+      "_K_N6kitten10sub__uint8_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11add__uint16_E" -> do
+      "_K_N6kitten11add__uint16_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11add__uint32_E" -> do
+      "_K_N6kitten11add__uint32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11add__uint64_E" -> do
+      "_K_N6kitten11add__uint64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11div__uint16_E" -> do
+      "_K_N6kitten11div__uint16_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11div__uint32_E" -> do
+      "_K_N6kitten11div__uint32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11div__uint64_E" -> do
+      "_K_N6kitten11div__uint64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11eq__float32_E" -> do
+      "_K_N6kitten11eq__float32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11eq__float64_E" -> do
+      "_K_N6kitten11eq__float64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11ge__float32_E" -> do
+      "_K_N6kitten11ge__float32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11ge__float64_E" -> do
+      "_K_N6kitten11ge__float64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11gt__float32_E" -> do
+      "_K_N6kitten11gt__float32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11gt__float64_E" -> do
+      "_K_N6kitten11gt__float64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11le__float32_E" -> do
+      "_K_N6kitten11le__float32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11le__float64_E" -> do
+      "_K_N6kitten11le__float64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11lt__float32_E" -> do
+      "_K_N6kitten11lt__float32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11lt__float64_E" -> do
+      "_K_N6kitten11lt__float64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11mod__uint16_E" -> do
+      "_K_N6kitten11mod__uint16_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11mod__uint32_E" -> do
+      "_K_N6kitten11mod__uint32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11mod__uint64_E" -> do
+      "_K_N6kitten11mod__uint64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11mul__uint16_E" -> do
+      "_K_N6kitten11mul__uint16_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11mul__uint32_E" -> do
+      "_K_N6kitten11mul__uint32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11mul__uint64_E" -> do
+      "_K_N6kitten11mul__uint64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11ne__float32_E" -> do
+      "_K_N6kitten11ne__float32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11ne__float64_E" -> do
+      "_K_N6kitten11ne__float64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11neg__uint16_E" -> do
+      "_K_N6kitten11neg__uint16_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11neg__uint32_E" -> do
+      "_K_N6kitten11neg__uint32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11neg__uint64_E" -> do
+      "_K_N6kitten11neg__uint64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11show__int16_E" -> do
+      "_K_N6kitten11show__int16_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11show__int32_E" -> do
+      "_K_N6kitten11show__int32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11show__int64_E" -> do
+      "_K_N6kitten11show__int64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11show__uint8_E" -> do
+      "_K_N6kitten11show__uint8_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11sub__uint16_E" -> do
+      "_K_N6kitten11sub__uint16_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11sub__uint32_E" -> do
+      "_K_N6kitten11sub__uint32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten11sub__uint64_E" -> do
+      "_K_N6kitten11sub__uint64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten12add__float32_E" -> do
+      "_K_N6kitten12add__float32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten12add__float64_E" -> do
+      "_K_N6kitten12add__float64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten12div__float32_E" -> do
+      "_K_N6kitten12div__float32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten12div__float64_E" -> do
+      "_K_N6kitten12div__float64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten12mod__float32_E" -> do
+      "_K_N6kitten12mod__float32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten12mod__float64_E" -> do
+      "_K_N6kitten12mod__float64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten12mul__float32_E" -> do
+      "_K_N6kitten12mul__float32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten12mul__float64_E" -> do
+      "_K_N6kitten12mul__float64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten12neg__float32_E" -> do
+      "_K_N6kitten12neg__float32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten12neg__float64_E" -> do
+      "_K_N6kitten12neg__float64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten12show__uint16_E" -> do
+      "_K_N6kitten12show__uint16_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten12show__uint32_E" -> do
+      "_K_N6kitten12show__uint32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten12show__uint64_E" -> do
+      "_K_N6kitten12show__uint64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten12sub__float32_E" -> do
+      "_K_N6kitten12sub__float32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten12sub__float64_E" -> do
+      "_K_N6kitten12sub__float64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten4draw_E" -> do
+      "_K_N6kitten4draw_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten4head_E_I_A_L_N04RGBA_E_E" -> do
+      "_K_N6kitten4head_E_I_A_L_N4RGBA_E_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten4head_E_I_I4_E" -> do
+      "_K_N6kitten4head_E_I_I4_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten4head_E_I_N04RGBA_E_E" -> do
+      "_K_N6kitten4head_E_I_N4RGBA_E_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten4tail_E_I_A_L_N04RGBA_E_E" -> do
+      "_K_N6kitten4tail_E_I_A_L_N4RGBA_E_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten4tail_E_I_I4_E" -> do
+      "_K_N6kitten4tail_E_I_I4_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten4tail_E_I_N04RGBA_E_E" -> do
+      "_K_N6kitten4tail_E_I_N4RGBA_E_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten5abort_E" -> do
+      "_K_N6kitten5abort_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten5print_E" -> do
+      "_K_N6kitten5print_E" -> do
         line ["pushq %rdi"]
 
         line ["movq (%rdi), %rbx"]
@@ -538,139 +536,139 @@ term t = case t of
           { genSizes = tail $ genSizes state }
         -- TODO: Repopulate TOS cache.
 
-      "_K_N06kitten6append_E_I_A_L_N04RGBA_E_E" -> do
+      "_K_N6kitten6append_E_I_A_L_N4RGBA_E_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten6append_E_I_N04RGBA_E_E" -> do
+      "_K_N6kitten6append_E_I_N4RGBA_E_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten7prepend_E_I_A_L_N04RGBA_E_E" -> do
+      "_K_N6kitten7prepend_E_I_A_L_N4RGBA_E_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten7prepend_E_I_N04RGBA_E_E" -> do
+      "_K_N6kitten7prepend_E_I_N4RGBA_E_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten8eq__int8_E" -> do
+      "_K_N6kitten8eq__int8_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten8ge__int8_E" -> do
+      "_K_N6kitten8ge__int8_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten8gt__int8_E" -> do
+      "_K_N6kitten8gt__int8_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten8le__int8_E" -> do
+      "_K_N6kitten8le__int8_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten8lt__int8_E" -> do
+      "_K_N6kitten8lt__int8_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten8ne__int8_E" -> do
+      "_K_N6kitten8ne__int8_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten9add__int8_E" -> do
+      "_K_N6kitten9add__int8_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten9div__int8_E" -> do
+      "_K_N6kitten9div__int8_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten9eq__int16_E" -> do
+      "_K_N6kitten9eq__int16_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten9eq__int32_E" -> do
+      "_K_N6kitten9eq__int32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten9eq__int64_E" -> do
+      "_K_N6kitten9eq__int64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten9ge__int16_E" -> do
+      "_K_N6kitten9ge__int16_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten9ge__int32_E" -> do
+      "_K_N6kitten9ge__int32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten9ge__int64_E" -> do
+      "_K_N6kitten9ge__int64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten9gt__int16_E" -> do
+      "_K_N6kitten9gt__int16_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten9gt__int32_E" -> do
+      "_K_N6kitten9gt__int32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten9gt__int64_E" -> do
+      "_K_N6kitten9gt__int64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten9le__int16_E" -> do
+      "_K_N6kitten9le__int16_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten9le__int32_E" -> do
+      "_K_N6kitten9le__int32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten9le__int64_E" -> do
+      "_K_N6kitten9le__int64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten9lt__int16_E" -> do
+      "_K_N6kitten9lt__int16_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten9lt__int32_E" -> do
+      "_K_N6kitten9lt__int32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten9lt__int64_E" -> do
+      "_K_N6kitten9lt__int64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten9mod__int8_E" -> do
+      "_K_N6kitten9mod__int8_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten9mul__int8_E" -> do
+      "_K_N6kitten9mul__int8_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten9ne__int16_E" -> do
+      "_K_N6kitten9ne__int16_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten9ne__int32_E" -> do
+      "_K_N6kitten9ne__int32_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten9ne__int64_E" -> do
+      "_K_N6kitten9ne__int64_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten9neg__int8_E" -> do
+      "_K_N6kitten9neg__int8_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
-      "_K_N06kitten9sub__int8_E" -> do
+      "_K_N6kitten9sub__int8_E" -> do
         comment ["TODO: intrinsic ", Text.pack $ show name]
         debugger
 
