@@ -2,10 +2,12 @@
 {-# LANGUAGE RecursiveDo #-}
 
 module Kitten.Infer
-  ( inferType0
+  ( dataType
+  , inferType0
   , mangleInstance
   , typeFromSignature
   , typeKind
+  , typeSize
   , typecheck
   ) where
 
@@ -17,6 +19,7 @@ import Data.Foldable (foldrM)
 import Data.List (find, foldl')
 import Data.Map (Map)
 import Kitten.Bits
+import Kitten.DataConstructor (DataConstructor)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Entry.Parameter (Parameter(Parameter))
 import Kitten.Informer (Informer(..))
@@ -29,10 +32,11 @@ import Kitten.Origin (Origin)
 import Kitten.Regeneralize (regeneralize)
 import Kitten.Signature (Signature)
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
-import Kitten.Type (Constructor(..), Type(..), Var(..), funType, joinType, prodType)
+import Kitten.Type (Constructor(..), Type(..), Var(..))
 import Kitten.TypeEnv (TypeEnv, freshTypeId)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.Map as Map
+import qualified Kitten.DataConstructor as DataConstructor
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
 import qualified Kitten.Instantiate as Instantiate
@@ -40,7 +44,9 @@ import qualified Kitten.Mangle as Mangle
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Report as Report
+import qualified Kitten.Resolve as Resolve
 import qualified Kitten.Signature as Signature
+import qualified Kitten.Substitute as Substitute
 import qualified Kitten.Term as Term
 import qualified Kitten.Type as Type
 import qualified Kitten.TypeEnv as TypeEnv
@@ -173,7 +179,7 @@ inferType dictionary tenvFinal tenv0 term0
 
     Call _ origin -> do
       [a, b, e] <- fresh origin [Stack, Stack, Permission]
-      let type_ = funType origin (prodType origin a (funType origin a b e)) b e
+      let type_ = Type.fun origin (Type.prod origin a (Type.fun origin a b e)) b e
       let type' = Zonk.type_ tenvFinal type_
       return (Call type' origin, type_, tenv0)
 
@@ -189,13 +195,13 @@ inferType dictionary tenvFinal tenv0 term0
       tenv6 <- Unify.type_ tenv5 e1 e2
       -- FIXME: Use range origin over whole composition?
       let origin = Term.origin term1
-      let type_ = funType origin a d e1
+      let type_ = Type.fun origin a d e1
       let type' = Zonk.type_ tenvFinal type_
       return (Compose type' term1' term2', type_, tenv6)
 
     Drop _ origin -> do
       [a, b, e] <- fresh origin [Stack, Value, Permission]
-      let type_ = funType origin (prodType origin a b) a e
+      let type_ = Type.fun origin (Type.prod origin a b) a e
       let type' = Zonk.type_ tenvFinal type_
       return (Drop type' origin, type_, tenv0)
 
@@ -208,7 +214,7 @@ inferType dictionary tenvFinal tenv0 term0
 
     Identity _ origin -> do
       [a, e] <- fresh origin [Stack, Permission]
-      let type_ = funType origin a a e
+      let type_ = Type.fun origin a a e
       let type' = Zonk.type_ tenvFinal type_
       return (Identity type' origin, type_, tenv0)
 
@@ -223,11 +229,11 @@ inferType dictionary tenvFinal tenv0 term0
         $ inferType' tenv0 true
       (false', t2, tenv2) <- while origin "checking false branch"
         $ inferType' tenv1 false
-      tenv3 <- Unify.type_ tenv2 t1 $ funType origin a b e
-      tenv4 <- Unify.type_ tenv3 t2 $ funType origin a b e
+      tenv3 <- Unify.type_ tenv2 t1 $ Type.fun origin a b e
+      tenv4 <- Unify.type_ tenv3 t2 $ Type.fun origin a b e
       let
-        type_ = funType origin
-          (prodType origin a $ TypeConstructor origin "Bool") b e
+        type_ = Type.fun origin
+          (Type.prod origin a $ TypeConstructor origin "Bool") b e
         type' = Zonk.type_ tenvFinal type_
       return (If type' true' false' origin, type_, tenv4)
 
@@ -242,7 +248,7 @@ inferType dictionary tenvFinal tenv0 term0
       let tenv2 = tenv1 { TypeEnv.vs = oldLocals }
       (b, c, e, tenv3) <- Unify.function tenv2 t1
       let
-        type_ = funType origin (prodType origin b a) c e
+        type_ = Type.fun origin (Type.prod origin b a) c e
         type' = Zonk.type_ tenvFinal type_
         varType' = Zonk.type_ tenvFinal a
       return
@@ -259,8 +265,8 @@ inferType dictionary tenvFinal tenv0 term0
           return (Just (Else body' elseOrigin), bodyType, tenv')
         Nothing -> do
           [a, b, e] <- fresh origin [Stack, Stack, Permission]
-          let permission = joinType origin (TypeConstructor origin "Fail") e
-          return (Nothing, funType origin a b permission, tenv1)
+          let permission = Type.join origin (TypeConstructor origin "Fail") e
+          return (Nothing, Type.fun origin a b permission, tenv1)
       tenv3 <- foldrM (\ type_ tenv -> Unify.type_ tenv elseType type_)
         tenv2 caseTypes
       let type_ = Type.setOrigin origin elseType
@@ -279,7 +285,7 @@ inferType dictionary tenvFinal tenv0 term0
 
     New _ constructor size origin -> do
       [a, b, e] <- fresh origin [Stack, Stack, Permission]
-      let type_ = funType origin a b e
+      let type_ = Type.fun origin a b e
       let type' = Zonk.type_ tenvFinal type_
       return (New type' constructor size origin, type_, tenv0)
 
@@ -294,10 +300,10 @@ inferType dictionary tenvFinal tenv0 term0
       [a, b, c, d, e1, e2] <- fresh origin
         [Stack, Value, Stack, Stack, Permission, Permission]
       let
-        f = funType origin c d e1
-        type_ = funType origin
-          (foldl' (prodType origin) a (replicate size b ++ [f]))
-          (prodType origin a f)
+        f = Type.fun origin c d e1
+        type_ = Type.fun origin
+          (foldl' (Type.prod origin) a (replicate size b ++ [f]))
+          (Type.prod origin a f)
           e2
         type' = Zonk.type_ tenvFinal type_
       return (NewClosure type' size origin, type_, tenv0)
@@ -310,9 +316,9 @@ inferType dictionary tenvFinal tenv0 term0
     NewVector _ size _ origin -> do
       [a, b, e] <- fresh origin [Stack, Value, Permission]
       let
-        type_ = funType origin
-          (foldl' (prodType origin) a (replicate size b))
-          (prodType origin a (TypeConstructor origin "List" :@ b))
+        type_ = Type.fun origin
+          (foldl' (Type.prod origin) a (replicate size b))
+          (Type.prod origin a (TypeConstructor origin "List" :@ b))
           e
         type' = Zonk.type_ tenvFinal type_
         b' = Zonk.type_ tenvFinal b
@@ -323,16 +329,16 @@ inferType dictionary tenvFinal tenv0 term0
     Push _ value origin -> do
       [a, e] <- fresh origin [Stack, Permission]
       (value', t, tenv1) <- inferValue dictionary tenvFinal tenv0 origin value
-      let type_ = funType origin a (prodType origin a t) e
+      let type_ = Type.fun origin a (Type.prod origin a t) e
       let type' = Zonk.type_ tenvFinal type_
       return (Push type' value' origin, type_, tenv1)
 
     Swap _ origin -> do
       [a, b, c, e] <- fresh origin [Stack, Value, Value, Permission]
       let
-        type_ = funType origin
-          (prodType origin (prodType origin a b) c)
-          (prodType origin (prodType origin a c) b)
+        type_ = Type.fun origin
+          (Type.prod origin (Type.prod origin a b) c)
+          (Type.prod origin (Type.prod origin a c) b)
           e
       let type' = Zonk.type_ tenvFinal type_
       return (Swap type' origin, type_, tenv0)
@@ -374,11 +380,11 @@ inferType dictionary tenvFinal tenv0 term0
             $ TypeConstructor origin $ Constructor name)
           permits
       let
-        type_ = funType origin
-          (prodType origin a
-            (funType origin a b (foldr (joinType origin) e es)))
+        type_ = Type.fun origin
+          (Type.prod origin a
+            (Type.fun origin a b (foldr (Type.join origin) e es)))
           b
-          (foldr (joinType origin) e es')
+          (foldr (Type.join origin) e es')
         type' = Zonk.type_ tenvFinal type_
       return (With type' permits origin, type_, tenv0)
 
@@ -414,7 +420,7 @@ inferCase dictionary tenvFinal tenv0
       -- to get the type of the deconstructor. The body consumes the fields.
       tenv4 <- Unify.type_ tenv3 a1 a2
       tenv5 <- Unify.type_ tenv4 e1 e2
-      let type_ = funType origin b2 b1 e1
+      let type_ = Type.fun origin b2 b1 e1
       -- FIXME: Should a case be annotated with a type?
       -- let type' = Zonk.type_ tenvFinal type_
       return (Case qualified body' origin, type_, tenv5)
@@ -536,7 +542,7 @@ typeFromSignature tenv signature0 = do
   go :: Signature -> StateT SignatureEnv K Type
   go signature = case signature of
     Signature.Application a b _ -> (:@) <$> go a <*> go b
-    Signature.Bottom origin -> return $ Type.bottomType origin
+    Signature.Bottom origin -> return $ Type.bottom origin
     Signature.Function as bs es origin -> do
       r <- lift $ freshTypeId tenv
       let var = Var r Stack
@@ -614,12 +620,12 @@ typeFromSignature tenv signature0 = do
         let var = Var ex Permission
         modify $ \ env -> env { sigEnvAnonymous = var : sigEnvAnonymous env }
         return $ TypeVar origin var
-    return $ funType origin (stack r as') (stack s bs')
-      $ foldr (joinType origin) e es
+    return $ Type.fun origin (stack r as') (stack s bs')
+      $ foldr (Type.join origin) e es
     where
 
     stack :: Type -> [Type] -> Type
-    stack = foldl' $ prodType origin
+    stack = foldl' $ Type.prod origin
 
 splitFind :: (Eq a) => (a -> Bool) -> [a] -> Maybe ([a], a, [a])
 splitFind f = go []
@@ -655,7 +661,9 @@ typeKind dictionary = go
             "Bottom" -> return Stack
             "Fun" -> return $ Stack :-> Stack :-> Permission :-> Value
             "Prod" -> return $ Stack :-> Value :-> Stack
+            "Sum" -> return $ Value :-> Value :-> Value
             "Unsafe" -> return Label
+            "Void" -> return Value
             "IO" -> return Label
             "Fail" -> return Label
             "Join" -> return $ Label :-> Permission :-> Permission
@@ -689,3 +697,69 @@ typeKind dictionary = go
           , "to type"
           , Pretty.quote b
           ]
+
+typeSize :: Dictionary -> Type -> K Type
+typeSize dictionary = eval
+  where
+  eval :: Type -> K Type
+  eval (a :@ b) = do
+    a' <- eval a
+    b' <- eval b
+    apply a' b'
+  eval (Type.TypeConstructor origin "Unit") = return $ Type.TypeValue origin 0
+  eval (Type.TypeConstructor origin "Void") = return $ Type.TypeValue origin 0
+  eval (Type.TypeConstructor origin "Int8") = return $ Type.TypeValue origin 1
+  eval (Type.TypeConstructor origin "Int16") = return $ Type.TypeValue origin 1
+  eval (Type.TypeConstructor origin "Int32") = return $ Type.TypeValue origin 1
+  eval (Type.TypeConstructor origin "Int64") = return $ Type.TypeValue origin 1
+  eval (Type.TypeConstructor origin "UInt8") = return $ Type.TypeValue origin 1
+  eval (Type.TypeConstructor origin "UInt16") = return $ Type.TypeValue origin 1
+  eval (Type.TypeConstructor origin "UInt32") = return $ Type.TypeValue origin 1
+  eval (Type.TypeConstructor origin "UInt64") = return $ Type.TypeValue origin 1
+  eval (Type.TypeConstructor origin "Float32") = return $ Type.TypeValue origin 1
+  eval (Type.TypeConstructor origin "Float64") = return $ Type.TypeValue origin 1
+  eval t@(Type.TypeConstructor _ (Type.Constructor name))
+    = case Dictionary.lookup (Instantiated name []) dictionary of
+      Just (Entry.Type origin params ctors) -> do
+        type_ <- dataType origin params ctors dictionary
+        eval type_
+      _ -> return t {- error $ Pretty.render $ Pretty.hsep
+        ["I could not find a type entry for", Pretty.quote name] -}
+  eval t@Type.TypeValue{} = return t
+  eval t@Type.TypeVar{} = return t
+  eval t@Type.TypeConstant{} = return t
+  eval t@Type.Forall{} = return t
+
+  apply (Type.Forall _ (Var typeId _) body) arg = do
+    body' <- Substitute.type_ TypeEnv.empty typeId arg body
+    eval body'
+  apply (Type.TypeConstructor origin "Sum" :@ TypeValue _ a) (TypeValue _ b)
+    = return $ Type.TypeValue origin $ max a b
+  apply (Type.TypeConstructor origin "Product" :@ TypeValue _ a) (TypeValue _ b)
+    = return $ Type.TypeValue origin $ a + b
+  apply (Type.TypeConstructor origin "Fun" :@ _ :@ _) _
+    = return $ Type.TypeValue origin 1
+  apply (Type.TypeConstructor origin "List") _
+    = return $ Type.TypeValue origin 3 -- begin+end+capacity
+  apply t arg = return $ t :@ arg {- error $ Pretty.render $ Pretty.hsep
+    ["cannot apply type", pPrint t, "to argument", pPrint arg] -}
+
+dataType :: Origin -> [Parameter] -> [DataConstructor] -> Dictionary -> K Type
+dataType origin params ctors dictionary = let
+  tag = case ctors of
+    [] -> unary "Void"   -- 0 -> void layout, no tag
+    [_] -> unary "Void"  -- 1 -> struct layout, no tag
+    _ -> unary "UInt64"  -- n -> union layout, tag
+  -- Product of tag and sum of products of fields.
+  sig = Signature.Quantified params
+    (binary "Product" tag
+      $ foldr (binary "Sum") (unary "Void")
+      $ map (foldr (binary "Product") (unary "Unit"))
+      $ map DataConstructor.fields ctors) origin
+  binary name a b = Signature.Application
+    (Signature.Application (unary name) a origin) b origin
+  unary name = (Signature.Variable
+    (QualifiedName (Qualified Vocabulary.global name)) origin)
+  -- FIXME: Use correct vocabulary.
+  in typeFromSignature TypeEnv.empty
+    =<< Resolve.run (Resolve.signature dictionary Vocabulary.global sig)

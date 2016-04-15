@@ -28,7 +28,6 @@ import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Kitten.Entry as Entry
 import qualified Kitten.Entry.Category as Category
-import qualified Kitten.Instantiated as Instantiated
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Term as Term
 

@@ -6,10 +6,12 @@ module Kitten.Type
   , Type(..)
   , TypeId(..)
   , Var(..)
-  , bottomType
-  , funType
-  , joinType
-  , prodType
+  , bottom
+  , fun
+  , join
+  , prod
+  , Kitten.Type.sum
+  , void
   , setOrigin
   , origin
   ) where
@@ -38,6 +40,7 @@ data Type
   | TypeVar !Origin !Var
   | TypeConstant !Origin !Var
   | Forall !Origin !Var !Type
+  | TypeValue !Origin !Int
  deriving (Show)
 
 infixl 1 :@
@@ -48,17 +51,23 @@ newtype Constructor = Constructor Qualified
 data Var = Var !TypeId !Kind
   deriving (Eq, Show)
 
-bottomType :: Origin -> Type
-bottomType o = TypeConstructor o "Bottom"
+bottom :: Origin -> Type
+bottom o = TypeConstructor o "Bottom"
 
-funType :: Origin -> Type -> Type -> Type -> Type
-funType o a b e = TypeConstructor o "Fun" :@ a :@ b :@ e
+fun :: Origin -> Type -> Type -> Type -> Type
+fun o a b e = TypeConstructor o "Fun" :@ a :@ b :@ e
 
-prodType :: Origin -> Type -> Type -> Type
-prodType o a b = TypeConstructor o "Prod" :@ a :@ b
+prod :: Origin -> Type -> Type -> Type
+prod o a b = TypeConstructor o "Prod" :@ a :@ b
 
-joinType :: Origin -> Type -> Type -> Type
-joinType o a b = TypeConstructor o "Join" :@ a :@ b
+sum :: Origin -> Type -> Type -> Type
+sum o a b = TypeConstructor o "Sum" :@ a :@ b
+
+join :: Origin -> Type -> Type -> Type
+join o a b = TypeConstructor o "Join" :@ a :@ b
+
+void :: Origin -> Type
+void o = TypeConstructor o "Void"
 
 origin :: Type -> Origin
 origin type_ = case type_ of
@@ -67,6 +76,7 @@ origin type_ = case type_ of
   TypeVar o _ -> o
   TypeConstant o _ -> o
   Forall o _ _ -> o
+  TypeValue o _ -> o
 
 setOrigin :: Origin -> Type -> Type
 setOrigin o = go
@@ -77,6 +87,7 @@ setOrigin o = go
     TypeVar _ var -> TypeVar o var
     TypeConstant _ var -> TypeConstant o var
     Forall _ var t -> Forall o var $ go t
+    TypeValue _ x -> TypeValue o x
 
 -- Type variables are distinguished by globally unique identifiers. This makes
 -- it easier to support capture-avoiding substitution on types.
@@ -99,6 +110,7 @@ instance Hashable Type where
     TypeVar _ a -> hashWithSalt s (2 :: Int, a)
     TypeConstant _ a -> hashWithSalt s (3 :: Int, a)
     Forall _ a b -> hashWithSalt s (4 :: Int, a, b)
+    TypeValue _ a -> hashWithSalt s (5 :: Int, a)
 
 instance Hashable Var where
   hashWithSalt s (Var a b) = hashWithSalt s (0 :: Int, a, b)
@@ -116,6 +128,8 @@ instance Pretty Type where
       $ Pretty.hsep [pPrint a, "->", pPrint b, pPrint e]
     TypeConstructor _ "Prod" :@ a :@ b
       -> Pretty.hcat [pPrint a, ", ", pPrint b]
+    TypeConstructor _ "Sum" :@ a :@ b
+      -> Pretty.hcat [pPrint a, " | ", pPrint b]
     TypeConstructor _ "Join" :@ a :@ b
       -> Pretty.hcat ["+", pPrint a, " ", pPrint b]
     a :@ b -> Pretty.hcat [pPrint a, Pretty.angles $ pPrint b]
@@ -129,6 +143,7 @@ instance Pretty Type where
         [ Pretty.angles $ Pretty.list $ map pPrint vars
         , Pretty.parens $ pPrint t
         ]
+    TypeValue _ value -> Pretty.int value
 
 instance Pretty TypeId where
   pPrint (TypeId i) = Pretty.hcat [Pretty.char 'T', Pretty.int i]

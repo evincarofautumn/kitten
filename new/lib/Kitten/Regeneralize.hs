@@ -10,7 +10,7 @@ import Data.Function (on)
 import Data.List (deleteBy)
 import Kitten.Kind (Kind)
 import Kitten.Occurrences (occurrences)
-import Kitten.Type (Type(..), TypeId, Var(..), funType)
+import Kitten.Type (Type(..), TypeId, Var(..))
 import Kitten.TypeEnv (TypeEnv)
 import qualified Data.Map as Map
 import qualified Kitten.Free as Free
@@ -53,7 +53,7 @@ regeneralize tenv t = let
         a' <- go a
         b' <- go b
         e' <- go e
-        return $ Forall origin (Var c k) $ funType origin a' b' e'
+        return $ Forall origin (Var c k) $ Type.fun origin a' b' e'
     c@(TypeConstructor _ "Prod") :@ a :@ b -> do
       a' <- go a
       b' <- go b

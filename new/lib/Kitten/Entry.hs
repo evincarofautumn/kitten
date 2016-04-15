@@ -50,6 +50,10 @@ data Entry
 
   | Type !Origin [Parameter] [DataConstructor]
 
+-- An instantiation of a data type, with the given size.
+
+  | InstantiatedType !Origin !Int
+
   deriving (Show)
 
 instance Pretty Entry where
