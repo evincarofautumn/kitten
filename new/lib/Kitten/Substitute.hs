@@ -3,13 +3,13 @@ module Kitten.Substitute
   , type_
   ) where
 
-import qualified Kitten.Free as Free
-import Kitten.Kind (Kind(..))
 import Kitten.Monad (K)
 import Kitten.Term (Case(..), Else(..), Term(..))
 import Kitten.Type (Type(..), TypeId, Var(..))
 import Kitten.TypeEnv (TypeEnv, freshTypeId)
 import qualified Data.Set as Set
+import qualified Kitten.Free as Free
+import qualified Kitten.Kind as Kind
 
 -- Capture-avoiding substitution of a type variable α with a type τ throughout a
 -- type σ, [α ↦ τ]σ.
@@ -38,7 +38,7 @@ term tenv x a = recur
     Drop tref origin -> Drop <$> go tref <*> pure origin
     Generic x' body origin -> do
       -- FIXME: Generics could eventually quantify over non-value kinds.
-      let k = Value
+      let k = Kind.Value
       z <- freshTypeId tenv
       body' <- term tenv x' (TypeVar origin $ Var z k) body
       Generic z <$> recur body' <*> pure origin

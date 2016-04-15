@@ -4,10 +4,10 @@ module Kitten.CollectInstantiations
   ( collectInstantiations
   ) where
 
-import Control.Monad.IO.Class (liftIO)
 import Data.Foldable (foldrM)
-import Data.List (unfoldr)
+import Data.List (foldl')
 import Kitten.Dictionary (Dictionary)
+import Kitten.Infer (typeSize)
 import Kitten.Informer (Informer(..))
 import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Monad (K)
@@ -26,7 +26,6 @@ import qualified Kitten.Kind as Kind
 import qualified Kitten.Mangle as Mangle
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Queue as Queue
-import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.PrettyPrint as Pretty
 
 -- In order to support unboxed generics, for every call site of a generic
@@ -164,8 +163,9 @@ collectInstantiations tenv0 dictionary0 = do
               Nothing -> processQueue q' dictionary
           Just (Entry.Type origin params ctors) -> do
             q'' <- foldrM (instantiateTypes dictionary0) q' args
-            let
-              entry' = Entry.Type origin params ctors
+            type_ <- Infer.dataType origin params ctors dictionary0
+            TypeValue _ size <- typeSize dictionary0 $ foldl' (:@) type_ args
+            let entry' = Entry.InstantiatedType origin size
             -- Maybe generate instantiations for constructors?
             processQueue q'' $ Dictionary.insert
               (Instantiated name args)

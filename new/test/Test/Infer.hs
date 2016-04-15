@@ -32,58 +32,58 @@ spec :: Spec
 spec = do
   describe "with trivial programs" $ do
     it "typechecks empty program" $ do
-      testTypecheck "" $ Type.funType o r r e
+      testTypecheck "" $ Type.fun o r r e
     it "typechecks single literals" $ do
-      testTypecheck "0" $ Type.funType o r (Type.prodType o r int) e
-      testTypecheck "1.0" $ Type.funType o r (Type.prodType o r float) e
+      testTypecheck "0" $ Type.fun o r (Type.prod o r int) e
+      testTypecheck "1.0" $ Type.fun o r (Type.prod o r float) e
     it "typechecks intrinsics" $ do
-      testTypecheck "_::kitten::magic" $ Type.funType o r s e
+      testTypecheck "_::kitten::magic" $ Type.fun o r s e
       testTypecheck "1 2 _::kitten::add_int"
-        $ Type.funType o r (Type.prodType o r int) e
+        $ Type.fun o r (Type.prod o r int) e
     it "typechecks data types" $ do
       testTypecheck "type Unit { case unit } unit"
-        $ Type.funType o r (Type.prodType o r (ctor "Unit")) e
+        $ Type.fun o r (Type.prod o r (ctor "Unit")) e
       testTypecheck "type Unit { case unit () } unit"
-        $ Type.funType o r (Type.prodType o r (ctor "Unit")) e
+        $ Type.fun o r (Type.prod o r (ctor "Unit")) e
     it "typechecks definitions" $ do
       testTypecheck "define one (-> Int32) { 1 } one"
-        $ Type.funType o r (Type.prodType o r int) e
+        $ Type.fun o r (Type.prod o r int) e
       testTypecheck
         "define one (-> Int32) { 1 }\n\
         \define two (-> Int32) { 2 }\n\
         \one two _::kitten::add_int"
-        $ Type.funType o r (Type.prodType o r int) e
+        $ Type.fun o r (Type.prod o r int) e
       testTypecheck
         "define up (Int32 -> Int32) { 1 _::kitten::add_int }\n\
         \define down (Int32 -> Int32) { -1 _::kitten::add_int }\n\
         \1 up 2 down _::kitten::add_int"
-        $ Type.funType o r (Type.prodType o r int) e
+        $ Type.fun o r (Type.prod o r int) e
     it "typechecks operators" $ do
       testTypecheck
         "define + (Int32, Int32 -> Int32) { _::kitten::add_int }\n\
         \1 + 1"
-        $ Type.funType o r (Type.prodType o r int) e
+        $ Type.fun o r (Type.prod o r int) e
       testTypecheck
         "define + (Int32, Int32 -> Int32) { _::kitten::add_int }\n\
         \about +:\n\
         \  operator:\n\
         \    right 5\n\
         \1 + 1"
-        $ Type.funType o r (Type.prodType o r int) e
+        $ Type.fun o r (Type.prod o r int) e
       testTypecheck
         "define + (Int32, Int32 -> Int32) { _::kitten::add_int }\n\
         \about +:\n\
         \  operator:\n\
         \    right\n\
         \1 + 1"
-        $ Type.funType o r (Type.prodType o r int) e
+        $ Type.fun o r (Type.prod o r int) e
       testTypecheck
         "define + (Int32, Int32 -> Int32) { _::kitten::add_int }\n\
         \about +:\n\
         \  operator:\n\
         \    5\n\
         \1 + 1"
-        $ Type.funType o r (Type.prodType o r int) e
+        $ Type.fun o r (Type.prod o r int) e
 
     it "typechecks nested scopes" $ do
       testTypecheck
@@ -112,7 +112,7 @@ spec = do
         \  } call\n\
         \} call\n\
         \\&"
-        $ Type.funType o r (Type.prodType o (Type.prodType o r int) int) e
+        $ Type.fun o r (Type.prod o (Type.prod o r int) int) e
 
   where
   o = Origin.point "" 0 0

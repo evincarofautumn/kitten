@@ -10,7 +10,8 @@ type UInt32 {}
 type UInt64 {}
 type UInt64 {}
 
-type Char {}
+type Char:
+  case _char (UInt32)
 
 type Float32 {}
 type Float64 {}
@@ -479,7 +480,11 @@ type Pair<A, B>:
 define unpair<A, B> (Pair<A, B> -> A, B):
   match: case pair {}
 
-type List<T> {}
+type Pointer<T>:
+  case _pointer (UInt64)
+
+type List<T>:
+  case _list (Pointer<T>, Pointer<T>, Pointer<T>)
 
 vocab kitten {
 

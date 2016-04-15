@@ -10,13 +10,14 @@ import Data.Set (Set)
 import Kitten.Informer (Informer(..))
 import Kitten.Monad (K, attempt)
 import Kitten.Origin (Origin)
-import Kitten.Type (Constructor(..), Type(..), TypeId, Var(..), funType)
+import Kitten.Type (Constructor(..), Type(..), TypeId, Var(..))
 import Kitten.TypeEnv (TypeEnv, freshTypeId)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Kitten.Free as Free
 import qualified Kitten.Instantiate as Instantiate
 import qualified Kitten.Report as Report
+import qualified Kitten.Type as Type
 import qualified Kitten.TypeEnv as TypeEnv
 import qualified Kitten.Unify as Unify
 import qualified Kitten.Zonk as Zonk
@@ -57,7 +58,7 @@ skolemize tenv0 t = case t of
   -- TForall _ t' -> skolemize tenv0 t'
   TypeConstructor origin "Fun" :@ a :@ b :@ e -> do
     (ids, b') <- skolemize tenv0 b
-    return (ids, funType origin a b' e)
+    return (ids, Type.fun origin a b' e)
   _ -> return (Set.empty, t)
 
 -- Subsumption checking is largely the same as unification, except for the fact

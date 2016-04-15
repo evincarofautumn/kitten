@@ -10,7 +10,7 @@ import Kitten.Kind (Kind(..))
 import Kitten.Monad (K)
 import Kitten.Occurrences (occurs)
 import Kitten.Origin (Origin)
-import Kitten.Type (Type(..), TypeId, Var(..), funType, joinType)
+import Kitten.Type (Type(..), TypeId, Var(..))
 import Kitten.TypeEnv (TypeEnv, freshTv)
 import qualified Data.Map as Map
 import qualified Kitten.Instantiate as Instantiate
@@ -109,7 +109,7 @@ function tenv0 t = case t of
     a <- freshTv tenv0 origin Stack
     b <- freshTv tenv0 origin Stack
     e <- freshTv tenv0 origin Permission
-    tenv1 <- type_ tenv0 t $ funType origin a b e
+    tenv1 <- type_ tenv0 t $ Type.fun origin a b e
     return (a, b, e, tenv1)
 
 -- Row unification is essentially unification of sets. The row-isomorphism
@@ -137,7 +137,7 @@ rowIso tenv0 l (TypeConstructor origin "Join" :@ l' :@ r') rt
   ms <- rowIso tenv0 l r' rt
   return $ case ms of
     Just (r'', substitution, tenv1) -> Just
-      (joinType origin l' r'', substitution, tenv1)
+      (Type.join origin l' r'', substitution, tenv1)
     Nothing -> Nothing
 
 -- The "var" rule: no label is present, so we cannot test for equality, and must
@@ -148,7 +148,7 @@ rowIso tenv0 l (TypeConstructor origin "Join" :@ l' :@ r') rt
 rowIso tenv0 l r@(TypeVar origin (Var a _)) rt
   | r /= rt = do
   b <- freshTv tenv0 origin Permission
-  return $ Just (b, Just (a, joinType origin l b), tenv0)
+  return $ Just (b, Just (a, Type.join origin l b), tenv0)
 
 -- In any other case, the rows are not isomorphic.
 

@@ -22,3 +22,4 @@ tvks t = case t of
   TypeConstant{} -> Map.empty
   Forall _ (Var x _) t' -> Map.delete x $ tvks t'
   a :@ b -> Map.union (tvks a) (tvks b)
+  TypeValue{} -> Map.empty
