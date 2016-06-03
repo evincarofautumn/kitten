@@ -4,7 +4,6 @@ module Test.Infer
   ( spec
   ) where
 
-import Control.Monad.IO.Class (liftIO)
 import Data.List (find)
 import Data.Text (Text)
 import Kitten (fragmentFromSource)
@@ -128,12 +127,9 @@ testTypecheck :: Text -> Type -> IO ()
 testTypecheck input expected = do
   result <- runKitten $ do
     let io = [QualifiedName $ Qualified Vocabulary.global "IO"]
-    liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Input:", Pretty.text $ show input]
     fragment <- fragmentFromSource io Nothing 1 "<test>" input
-    liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Parsed:", pPrint fragment]
     -- FIXME: Avoid redundantly reparsing common vocabulary.
     common <- fragmentFromSource io Nothing 1 "<common>" commonSource
-    liftIO $ putStrLn $ Pretty.render $ Pretty.hsep ["Common frag:", pPrint common]
     commonDictionary <- Enter.fragment common Dictionary.empty
     Enter.fragment fragment commonDictionary
   case Dictionary.toList <$> result of
