@@ -7,13 +7,12 @@ module Kitten.Interpret
 
 import Control.Exception (Exception, throwIO)
 import Data.Fixed (mod')
-import Data.Foldable (forM_)
 import Data.IORef (newIORef, modifyIORef', readIORef, writeIORef)
 import Data.Int
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Data.Typeable (Typeable)
-import Data.Vector (Vector, (!))
+import Data.Vector ((!))
 import Data.Word
 import Kitten.Bits
 import Kitten.Definition (mainName)
@@ -24,6 +23,7 @@ import Kitten.Name
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Kitten.Type (Type(..))
 import System.IO (Handle, hPutChar, hPutStrLn)
+import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import Text.Printf (hPrintf)
 import qualified Codec.Picture.Png as Png
 import qualified Codec.Picture.Types as Picture
@@ -32,11 +32,9 @@ import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LazyByteString
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
-import qualified Data.Vector as Vector
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
 import qualified Kitten.Instantiate as Instantiate
-import qualified Kitten.Mangle as Mangle
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Report as Report
 import qualified Kitten.Term as Term
@@ -53,7 +51,7 @@ interpret
   -> Handle
   -> [Value Type]
   -> IO [Value Type]
-interpret dictionary mName mainArgs stdin stdout stderr initialStack = do
+interpret dictionary mName mainArgs _stdin stdout _stderr initialStack = do
   -- TODO: Types.
   stackRef <- newIORef initialStack
   localsRef <- newIORef []
@@ -158,7 +156,9 @@ interpret dictionary mName mainArgs stdin stdout stderr initialStack = do
         writeIORef stackRef (b : a : r)
       With _ _ _ -> call
       Word _ _ (QualifiedName name) args _ -> word name args
-      Word _ _ name _ _ -> error "unresolved word name"
+      -- FIXME: Use proper reporting. (Internal error?)
+      Word _ _ name _ _ -> error $ Pretty.render $ Pretty.hsep
+        ["unresolved word name", pPrint name]
 
     call :: IO ()
     call = do
@@ -414,6 +414,7 @@ interpret dictionary mName mainArgs stdin stdout stderr initialStack = do
             then 0
             else case ys ! 0 of
               Array xs -> Vector.length xs
+              _ -> error "draw: the typechecker has failed us (rows)"
         hPrintf stdout "\ESC]1337;File=width=%dpx;height=%dpx;inline=1:%s\BEL\n"
           width height
           $ map ((toEnum :: Int -> Char) . fromIntegral)
@@ -427,7 +428,10 @@ interpret dictionary mName mainArgs stdin stdout stderr initialStack = do
                     (fromIntegral r)
                     (fromIntegral g)
                     (fromIntegral b)
-                    (fromIntegral a))
+                    (fromIntegral a)
+                _ -> error "draw: the typechecker has failed us (channel)"
+              _ -> error "draw: the typechecker has failed us (column)"
+            _ -> error "draw: the typechecker has failed us (row)")
             width height
       _ -> error "no such intrinsic"
 

@@ -1,8 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Report
-  ( Category(..)
-  , NameCategory(..)
+  ( NameCategory(..)
   , Report(..)
   , human
   , parseError
@@ -17,7 +16,6 @@ import Kitten.Signature (Signature)
 import Kitten.Term (Term)
 import Kitten.Type (Constructor, Type)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
-import qualified Data.Text as Text
 import qualified Kitten.Origin as Origin
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Term as Term
@@ -33,9 +31,6 @@ instance Pretty NameCategory where
   pPrint category = case category of
     WordName -> "word"
     TypeName -> "type"
-
-data Category = Note | Warning | Error | InternalError
-  deriving (Eq)
 
 data Report
   = MissingTypeSignature !Origin !Qualified
@@ -115,18 +110,29 @@ human report = case report of
       WordName -> "word"
       TypeName -> "type"
 
-  MultipleDefinitions origin name duplicates -> Pretty.hsep
-    [ showOriginPrefix origin
-    , "I found multiple definitions of"
-    , Pretty.quote name
-    , "(did you mean to declare it as a trait?)"
-    ]
+  MultipleDefinitions origin name duplicates -> Pretty.vcat
+    $ Pretty.hsep
+      [ showOriginPrefix origin
+      , "I found multiple definitions of"
+      , Pretty.quote name
+      , "(did you mean to declare it as a trait?)"
+      ]
+    : map
+      (\ duplicateOrigin -> Pretty.hsep
+        ["also defined at", pPrint duplicateOrigin])
+      duplicates
 
-  WordRedefinition origin name originalOrigin -> Pretty.hsep
-    [ showOriginPrefix origin
-    , "I can't redefine the word"
-    , Pretty.quote name
-    , "because it already exists (did you mean to declare it as a trait?)"
+  WordRedefinition origin name originalOrigin -> Pretty.vcat
+    [ Pretty.hsep
+      [ showOriginPrefix origin
+      , "I can't redefine the word"
+      , Pretty.quote name
+      , "because it already exists (did you mean to declare it as a trait?)"
+      ]
+    , Pretty.hsep
+      [ showOriginPrefix originalOrigin
+      , "it was originally defined here"
+      ]
     ]
 
   WordRedeclaration origin name signature
@@ -227,10 +233,3 @@ parseError parsecError = ParseError origin unexpected' expected'
       , if null string then "end of input"
         else Pretty.quotes $ Pretty.text string
       ]
-
-categoryPrefix :: Category -> Pretty.Doc
-categoryPrefix category = case category of
-  Note -> "note: "
-  Warning -> "warning: "
-  Error -> "error: "
-  InternalError -> "internal error: "

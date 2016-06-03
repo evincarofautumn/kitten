@@ -10,6 +10,7 @@ import Control.Monad (void)
 import Data.Functor.Identity (Identity)
 import Kitten.Located (Located)
 import Kitten.Name (Qualifier)
+import Kitten.Origin (Origin)
 import Kitten.Token (Token)
 import Text.Parsec ((<?>), ParsecT)
 import Text.Parsec.Pos (SourcePos)
@@ -19,6 +20,7 @@ import qualified Text.Parsec as Parsec
 
 type Parser a = ParsecT [Located Token] Qualifier Identity a
 
+getTokenOrigin :: Parser Origin
 getTokenOrigin = Located.origin
   <$> Parsec.lookAhead (tokenSatisfy (const True))
 
