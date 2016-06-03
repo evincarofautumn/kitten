@@ -6,8 +6,7 @@ module Kitten.Amd64
   ) where
 
 import Control.Arrow ((&&&))
-import Control.Monad (replicateM_)
-import Control.Monad.Trans.State (State, gets, modify, runState, withState)
+import Control.Monad.Trans.State (State, gets, modify, runState)
 import Data.Text (Text)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Entry (Entry)
@@ -23,9 +22,7 @@ import qualified Kitten.Definition as Definition
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
 import qualified Kitten.Mangle as Mangle
-import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Term as Term
-import qualified Kitten.Type as Type
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.PrettyPrint as Pretty
 
@@ -176,7 +173,7 @@ term t = case t of
   Term.Push _ v origin -> value origin v
   Term.Swap{} -> comment ["swap"]
   Term.With{} -> return ()
-  Term.Word _ _ (UnqualifiedName (Unqualified name)) args _
+  Term.Word _ _ (UnqualifiedName (Unqualified name)) _args _
     -> case name of
 
       "_K_N6kitten10add__int16_E" -> do
@@ -674,7 +671,7 @@ term t = case t of
 
       _ -> kittenCall name
 
-  Term.Word _ _ name args _ -> error $ Pretty.render $ Pretty.hsep
+  Term.Word _ _ name _args _ -> error $ Pretty.render $ Pretty.hsep
     ["cannot generate call to name", Pretty.text $ show name]
 
 value :: Origin -> Term.Value Type -> CodeGen ()
@@ -695,7 +692,7 @@ value origin v = case v of
   Term.Float f _bits -> do
     comment ["push float ", Text.pack $ show f]
     -- TODO: Use FPU stack.
-    indented $ pushSmall $ fromIntegral $ floor f
+    indented $ pushSmall $ floor f
   Term.Integer i _bits -> do
     comment ["push int ", Text.pack $ show i]
     -- TODO: Handle different bit sizes.
@@ -846,7 +843,7 @@ pop = do
       Large type_ : _ -> do
         comment ["pop large value"]
         -- TODO: sizeOf type_
-        let size = 4
+        let size = 4 :: Int
         line ["addq $", Text.pack $ show $ 8 * size, ", %rdi"]
       _ -> return ()
     let sizes' = tail sizes

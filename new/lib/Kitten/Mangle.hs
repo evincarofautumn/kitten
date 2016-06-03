@@ -5,16 +5,13 @@ module Kitten.Mangle
   ) where
 
 import Data.Char (ord)
-import Data.List (intersperse)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Name (Qualified(..), Qualifier(..), Unqualified(..))
 import Kitten.Type (Constructor(..), Type(..), Var(..))
-import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.Text as Text
 import qualified Kitten.Vocabulary as Vocabulary
-import qualified Text.PrettyPrint as Pretty
 
 name :: Instantiated -> Text
 name (Instantiated n args) = Text.concat
@@ -88,9 +85,9 @@ type_ t = case t of
   a :@ b -> Text.concat
     -- apply
     ["_A", type_ a, type_ b]
-  TypeConstructor _ (Constructor name)
-    | qualifierName name == Vocabulary.global
-    -> case unqualifiedName name of
+  TypeConstructor _ (Constructor constructor)
+    | qualifierName constructor == Vocabulary.global
+    -> case unqualifiedName constructor of
       "Bool" -> "_B"  -- bool
       "Char" -> "_C"  -- char
       "Float32" -> "_F4"  -- float
@@ -104,15 +101,16 @@ type_ t = case t of
       "UInt16" -> "_U2"
       "UInt32" -> "_U4"
       "UInt64" -> "_U8"
-      _ -> qualified name
+      _ -> qualified constructor
     | otherwise
-    -> qualified name
+    -> qualified constructor
   TypeVar _ (Var n _)
     -- variable
     -> Text.concat ["_V", Text.pack $ show n]
+  TypeValue{} -> error "TODO: mangle type value"
   TypeConstant _ (Var n _)
     -- constant
     -> Text.concat ["_K", Text.pack $ show n]
-  Forall _ (Var n _) t
+  Forall _ (Var n _) t'
     -- quantified
-    -> Text.concat ["_Q", Text.pack $ show n, type_ t, "_E"]
+    -> Text.concat ["_Q", Text.pack $ show n, type_ t', "_E"]

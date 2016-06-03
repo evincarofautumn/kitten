@@ -85,3 +85,8 @@ instance Pretty Entry where
         : intersperse ", " (map pPrint parameters)
         ++ [">"]
       ]
+    InstantiatedType origin size -> Pretty.vcat
+      [ "instantiated type"
+      , Pretty.hsep ["defined at", pPrint origin]
+      , Pretty.hcat ["with size", pPrint size]
+      ]

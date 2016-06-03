@@ -157,7 +157,7 @@ testInterpretFull commonDictionary standardInput
   result <- runKitten $ do
     fragment <- fragmentFromSource io Nothing 1 "<test>" input
     Enter.fragment fragment commonDictionary
-  (stdinKnob, stdin) <- do
+  (_stdinKnob, stdin) <- do
     knob <- Knob.newKnob standardInput
     (,) knob <$> Knob.newFileHandle knob "stdin" ReadMode
   (stdoutKnob, stdout) <- do

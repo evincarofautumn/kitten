@@ -14,7 +14,6 @@ import Kitten.Definition (Definition)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Entry.Parameter (Parameter(Parameter))
 import Kitten.Informer (Informer(..))
-import Kitten.Instantiated (Instantiated)
 import Kitten.Monad (K)
 import Kitten.Name
 import Kitten.Origin (Origin)
@@ -23,7 +22,6 @@ import Kitten.Term (Case(..), Else(..), Term(..), Permit(Permit), Value(..))
 import qualified Data.Set as Set
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Dictionary as Dictionary
-import qualified Kitten.Mangle as Mangle
 import qualified Kitten.Report as Report
 import qualified Kitten.Signature as Signature
 import qualified Kitten.Vocabulary as Vocabulary
@@ -137,7 +135,7 @@ definitionName, typeName
   :: Dictionary -> Qualifier -> GeneralName -> Origin -> Resolved GeneralName
 
 definitionName dictionary qualifier name origin
-  = generalName dictionary Report.WordName resolveLocal isDefined qualifier
+  = generalName Report.WordName resolveLocal isDefined qualifier
     name origin
   where
   isDefined = flip Set.member defined
@@ -145,7 +143,7 @@ definitionName dictionary qualifier name origin
   resolveLocal _ index = return $ LocalName index
 
 typeName dictionary qualifier name origin
-  = generalName dictionary Report.TypeName resolveLocal isDefined qualifier
+  = generalName Report.TypeName resolveLocal isDefined qualifier
     name origin
   where
   isDefined = flip Set.member defined
@@ -153,12 +151,11 @@ typeName dictionary qualifier name origin
   resolveLocal local _ = return $ UnqualifiedName local
 
 generalName
-  :: Dictionary
-  -> Report.NameCategory
+  :: Report.NameCategory
   -> (Unqualified -> LocalIndex -> Resolved GeneralName)
   -> (Qualified -> Bool) -> Qualifier -> GeneralName -> Origin
   -> Resolved GeneralName
-generalName dictionary category resolveLocal isDefined vocabulary name origin
+generalName category resolveLocal isDefined vocabulary name origin
   = case name of
 
 -- An unqualified name may refer to a local, a name in the current vocabulary,

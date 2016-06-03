@@ -27,7 +27,7 @@ import Kitten.InstanceCheck (instanceCheck)
 import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Kind (Kind(..))
 import Kitten.Monad (K)
-import Kitten.Name (Closed(..), ClosureIndex(..), GeneralName(..), LocalIndex(..), Qualified(..), Unqualified(..))
+import Kitten.Name (ClosureIndex(..), GeneralName(..), LocalIndex(..), Qualified(..), Unqualified(..))
 import Kitten.Origin (Origin)
 import Kitten.Regeneralize (regeneralize)
 import Kitten.Signature (Signature)
@@ -40,7 +40,6 @@ import qualified Kitten.DataConstructor as DataConstructor
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
 import qualified Kitten.Instantiate as Instantiate
-import qualified Kitten.Mangle as Mangle
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Report as Report
@@ -517,6 +516,7 @@ inferCall dictionary tenvFinal tenv0 (QualifiedName name) origin
       halt
 
 inferCall _dictionary _tenvFinal _tenv0 name origin
+  -- FIXME: Use proper reporting. (Internal error?)
   = error $ Pretty.render $ Pretty.hsep
     ["cannot infer type of non-qualified name", Pretty.quote name]
 
@@ -681,6 +681,7 @@ typeKind dictionary = go
           , "in dictionary"
           , pPrint dictionary
           ]
+    TypeValue{} -> error "TODO: infer kind of type value"
     TypeVar _origin (Var _ k) -> return k
     TypeConstant _origin (Var _ k) -> return k
     Forall _origin _ t' -> go t'

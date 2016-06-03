@@ -229,11 +229,10 @@ nameCommand lineNumber dictionaryRef name loop action = do
     Right unresolved -> do
       dictionary <- readIORef dictionaryRef
       mResolved <- runKitten $ Resolve.run $ Resolve.generalName
-        dictionary
         -- TODO: Use 'WordOrTypeName' or something as the category.
         Report.WordName
         (\ _ index -> return $ LocalName index)
-        (\ name -> Instantiated name [] `Dictionary.member` dictionary)
+        (\ name' -> Instantiated name' [] `Dictionary.member` dictionary)
         -- TODO: Keep a notion of current vocabulary?
         Vocabulary.global
         unresolved

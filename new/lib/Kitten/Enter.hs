@@ -33,7 +33,6 @@ import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
 import qualified Kitten.Entry.Category as Category
 import qualified Kitten.Entry.Merge as Merge
-import qualified Kitten.Entry.Parent as Parent
 import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Metadata as Metadata
 import qualified Kitten.Origin as Origin
@@ -150,7 +149,7 @@ declareWord dictionary definition = let
       | otherwise
       -> do
          report $ Report.WordRedeclaration (Signature.origin signature)
-           name signature (Signature.origin signature') signature'
+           name signature originalOrigin signature'
          return dictionary
     -- Already declared or defined as a trait.
     Just (Entry.Trait _origin traitSignature)
@@ -287,7 +286,7 @@ defineWord dictionary definition = do
           $ Just flattenedBody
       return $ Dictionary.insert (Instantiated name []) entry dictionary'
     -- Already defined, not concatenable.
-    Just (Entry.Word _ Merge.Deny originalOrigin _ (Just sig) _) -> do
+    Just (Entry.Word _ Merge.Deny originalOrigin _ (Just _sig) _) -> do
       report $ Report.WordRedefinition (Definition.origin definition)
         name originalOrigin
       return dictionary

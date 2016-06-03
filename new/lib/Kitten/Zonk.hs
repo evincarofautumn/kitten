@@ -21,6 +21,7 @@ type_ tenv0 = recur
   where
   recur t = case t of
     TypeConstructor{} -> t
+    TypeValue{} -> error "TODO: zonk type value"
     TypeVar _origin (Var x _k) -> case Map.lookup x (TypeEnv.tvs tenv0) of
       -- FIXME: Is this necessary?
       -- Just (TypeVar _origin (Var x' _)) | x == x' -> TypeVar origin (Var x k)
