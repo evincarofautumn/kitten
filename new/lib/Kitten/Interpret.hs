@@ -51,7 +51,7 @@ interpret
   -> Handle
   -> [Value Type]
   -> IO [Value Type]
-interpret dictionary mName mainArgs _stdin stdout _stderr initialStack = do
+interpret dictionary mName mainArgs _stdin' stdout' _stderr' initialStack = do
   -- TODO: Types.
   stackRef <- newIORef initialStack
   localsRef <- newIORef []
@@ -71,27 +71,25 @@ interpret dictionary mName mainArgs _stdin stdout _stderr initialStack = do
             mBody' <- runKitten $ Instantiate.term TypeEnv.empty body args
             case mBody' of
               Right body' -> term body'
-              Left reports -> do
-                hPutStrLn stdout $ Pretty.render $ Pretty.vcat
-                  $ Pretty.hcat
-                    [ "Could not instantiate generic word "
-                    , Pretty.quote name
-                    , ":"
-                    ]
-                  : map Report.human reports
+              Left reports -> hPutStrLn stdout' $ Pretty.render $ Pretty.vcat
+                $ Pretty.hcat
+                  [ "Could not instantiate generic word "
+                  , Pretty.quote name
+                  , ":"
+                  ]
+                : map Report.human reports
           -- An intrinsic.
           Just (Entry.Word _ _ _ _ _ Nothing) -> case name of
             Qualified v unqualified
               | v == Vocabulary.intrinsic
               -> intrinsic unqualified
             _ -> error "no such intrinsic"
-          _ -> do
-            throwIO $ Failure $ Pretty.hcat
-              [ "I can't find an instantiation of "
-              , Pretty.quote name
-              , ": "
-              , Pretty.quote mangled
-              ]
+          _ -> throwIO $ Failure $ Pretty.hcat
+            [ "I can't find an instantiation of "
+            , Pretty.quote name
+            , ": "
+            , Pretty.quote mangled
+            ]
     term :: Term Type -> IO ()
     term t = case t of
       Call _ _ -> call
@@ -104,9 +102,7 @@ interpret dictionary mName mainArgs _stdin stdout _stderr initialStack = do
       If _ true false _ -> do
         (Algebraic (ConstructorIndex index) [] : r) <- readIORef stackRef
         writeIORef stackRef r
-        term $ case toEnum index of
-          False -> false
-          True -> true
+        term $ if toEnum index then true else false
       Lambda _ _name _ body _ -> do
         (a : r) <- readIORef stackRef
         ls <- readIORef localsRef
@@ -154,7 +150,7 @@ interpret dictionary mName mainArgs _stdin stdout _stderr initialStack = do
       Swap _ _ -> do
         (a : b : r) <- readIORef stackRef
         writeIORef stackRef (b : a : r)
-      With _ _ _ -> call
+      With{} -> call
       Word _ _ (QualifiedName name) args _ -> word name args
       -- FIXME: Use proper reporting. (Internal error?)
       Word _ _ name _ _ -> error $ Pretty.render $ Pretty.hsep
@@ -392,7 +388,7 @@ interpret dictionary mName mainArgs _stdin stdout _stderr initialStack = do
       "print" -> do
         (Array cs : r) <- readIORef stackRef
         writeIORef stackRef r
-        mapM_ (\ (Character c) -> hPutChar stdout c) cs
+        mapM_ (\ (Character c) -> hPutChar stdout' c) cs
       "tail" -> do
         (Array xs : r) <- readIORef stackRef
         if Vector.null xs
@@ -415,12 +411,12 @@ interpret dictionary mName mainArgs _stdin stdout _stderr initialStack = do
             else case ys ! 0 of
               Array xs -> Vector.length xs
               _ -> error "draw: the typechecker has failed us (rows)"
-        hPrintf stdout "\ESC]1337;File=width=%dpx;height=%dpx;inline=1:%s\BEL\n"
+        hPrintf stdout' "\ESC]1337;File=width=%dpx;height=%dpx;inline=1:%s\BEL\n"
           width height
           $ map ((toEnum :: Int -> Char) . fromIntegral)
           $ ByteString.unpack $ Base64.encode
           $ LazyByteString.toStrict $ Png.encodePng
-          $ Picture.generateImage (\ x y -> case (ys ! y) of
+          $ Picture.generateImage (\ x y -> case ys ! y of
             Array xs -> case xs ! x of
               Algebraic _ channels -> case channels of
                 [Integer r _, Integer g _, Integer b _, Integer a _]

@@ -82,9 +82,8 @@ enterDeclaration dictionary declaration = do
     signature = Declaration.signature declaration
     origin = Declaration.origin declaration
   case Dictionary.lookup (Instantiated name []) dictionary of
-    Just _existing -> do
-      -- TODO: Check signatures.
-      return dictionary
+    -- TODO: Check signatures.
+    Just _existing -> return dictionary
     Nothing -> case Declaration.category declaration of
       Declaration.Intrinsic -> do
         let
@@ -179,9 +178,8 @@ declareWord dictionary definition = let
       ]
 
 addMetadata :: Dictionary -> Metadata -> K Dictionary
-addMetadata dictionary0 metadata = do
-  dictionary <- foldlM addField dictionary0 $ HashMap.toList $ Metadata.fields metadata
-  return dictionary
+addMetadata dictionary0 metadata
+  = foldlM addField dictionary0 $ HashMap.toList $ Metadata.fields metadata
   where
   QualifiedName qualified = Metadata.name metadata
   origin = Metadata.origin metadata

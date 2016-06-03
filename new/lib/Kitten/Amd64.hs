@@ -67,7 +67,7 @@ definition (name, Entry.Word _category _ _ _ _ (Just body))
   where
 
   concrete :: Term Type -> Bool
-  concrete (Term.Generic{}) = False
+  concrete Term.Generic{} = False
   concrete _ = True
 
 definition _ = return ()

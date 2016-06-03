@@ -72,4 +72,4 @@ term tenv x a = recur
     Word tref fixity name args origin -> Word <$> go tref
       <*> pure fixity <*> pure name <*> mapM go args <*> pure origin
 
-  go t = type_ tenv x a t
+  go = type_ tenv x a

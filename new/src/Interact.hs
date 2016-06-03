@@ -22,7 +22,7 @@ import Kitten.Kind (Kind(..))
 import Kitten.Name
 import Report
 import System.Exit (exitFailure)
-import System.IO (hFlush, hPutStrLn, stdin, stdout, stderr)
+import System.IO (hFlush, hPrint, hPutStrLn, stdin, stdout, stderr)
 import System.IO.Error (isEOFError)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import Text.Printf (printf)
@@ -87,12 +87,11 @@ run = do
             | "//" `Text.isPrefixOf` line
             -> case Text.break (== ' ') $ Text.drop 2 line of
               ("info", name) -> nameCommand lineNumber dictionaryRef name loop
-                $ \ _name' entry -> do
-                  putStrLn $ Pretty.render $ pPrint entry
+                $ \ _name' entry -> putStrLn $ Pretty.render $ pPrint entry
               ("list", name) -> nameCommand lineNumber dictionaryRef name loop
                 $ \ name' entry -> case entry of
-                  Entry.Word _ _ _ _ _ (Just body) -> do
-                    putStrLn $ Pretty.render $ pPrint body
+                  Entry.Word _ _ _ _ _ (Just body)
+                    -> putStrLn $ Pretty.render $ pPrint body
                   _ -> hPutStrLn stderr $ Pretty.render $ Pretty.hsep
                     [ "I can't find a word entry called"
                     , Pretty.quote name'
@@ -170,8 +169,7 @@ run = do
                         =<< readIORef stackRef
                       writeIORef stackRef stack
                       renderStack stackRef)
-                    $ \ e -> hPutStrLn stderr
-                      $ show (e :: Failure)
+                    $ \ e -> hPrint stderr (e :: Failure)
                   _ -> error $ show lastEntry
                 loop
 
