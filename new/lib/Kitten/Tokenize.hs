@@ -160,8 +160,8 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
               ]
             return $ Float
               (applySign sign (read (integer ++ fromMaybe "" mFraction)))
-              (fromMaybe 0 (fmap length mFraction))
-              (fromMaybe 0 (fmap (\ (s, p) -> applySign s $ read p) mPower))
+              (maybe 0 length mFraction)
+              (maybe 0 (\ (s, p) -> applySign s $ read p) mPower)
               bits
       ] <* Parsec.notFollowedBy Parsec.digit
   , Parsec.try (Arrow <$ Parsec.string "->" <* Parsec.notFollowedBy symbol)
@@ -232,7 +232,7 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
   readBin :: String -> Integer
   readBin = go 0
     where
-    go :: Integer -> [Char] -> Integer
+    go :: Integer -> String -> Integer
     go acc ds = case ds of
       '0' : ds' -> go (2 * acc + 0) ds'
       '1' : ds' -> go (2 * acc + 1) ds'

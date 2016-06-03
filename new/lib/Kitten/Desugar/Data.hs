@@ -2,6 +2,7 @@ module Kitten.Desugar.Data
   ( desugar
   ) where
 
+import Control.Monad (zipWithM)
 import Data.List (foldl')
 import Kitten.DataConstructor (DataConstructor)
 import Kitten.Definition (Definition(Definition))
@@ -30,8 +31,8 @@ desugar fragment = do
   where
 
   desugarTypeDefinition :: TypeDefinition -> K [Definition ()]
-  desugarTypeDefinition definition = mapM (uncurry desugarConstructor)
-    $ zip [0..] $ TypeDefinition.constructors definition
+  desugarTypeDefinition definition = zipWithM desugarConstructor [0..]
+    $ TypeDefinition.constructors definition
     where
     desugarConstructor :: Int -> DataConstructor -> K (Definition ())
     desugarConstructor index constructor = do

@@ -653,8 +653,8 @@ typeKind dictionary = go
       -> case Dictionary.lookup (Instantiated qualified []) dictionary of
       Just (Entry.Type _origin parameters _ctors) -> case parameters of
         [] -> return Value
-        _ -> return $ foldr (:->) Value
-          $ map (\ (Parameter _ _ k) -> k) parameters
+        _ -> return $ foldr
+          ((:->) . (\ (Parameter _ _ k) -> k)) Value parameters
       _ -> case qualified of
         Qualified qualifier unqualified
           | qualifier == Vocabulary.global -> case unqualified of
@@ -755,12 +755,13 @@ dataType origin params ctors dictionary = let
   sig = Signature.Quantified params
     (binary "Product" tag
       $ foldr (binary "Sum") (unary "Void")
-      $ map (foldr (binary "Product") (unary "Unit"))
-      $ map DataConstructor.fields ctors) origin
+      $ map
+        (foldr (binary "Product") (unary "Unit") . DataConstructor.fields)
+        ctors) origin
   binary name a b = Signature.Application
     (Signature.Application (unary name) a origin) b origin
-  unary name = (Signature.Variable
-    (QualifiedName (Qualified Vocabulary.global name)) origin)
+  unary name = Signature.Variable
+    (QualifiedName (Qualified Vocabulary.global name)) origin
   -- FIXME: Use correct vocabulary.
   in typeFromSignature TypeEnv.empty
     =<< Resolve.run (Resolve.signature dictionary Vocabulary.global sig)

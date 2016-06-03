@@ -4,7 +4,7 @@ module Kitten.Mangle
   ( name
   ) where
 
-import Data.Char (ord)
+import Data.Char (ord, isAsciiLower, isAsciiUpper, isDigit)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import Kitten.Instantiated (Instantiated(Instantiated))
@@ -30,8 +30,7 @@ qualified :: Qualified -> Text
 qualified (Qualified (Qualifier _root parts) (Unqualified unqualified))
   = Text.concat
     -- nested
-    $ "_N" : (map lengthPrefix
-    $ map normalize $ parts ++ [unqualified])
+    $ "_N" : (map (lengthPrefix . normalize) $ parts ++ [unqualified])
     -- end
     ++ ["_E"]
 
@@ -72,9 +71,7 @@ normalize = Text.concatMap go
     '_'  -> "__"  -- underscore
 
     _
-      | c >= '0' && c <= '9'
-        || c >= 'a' && c <= 'z'
-        || c >= 'A' && c <= 'Z'
+      | isDigit c || isAsciiLower c || isAsciiUpper c
         -> Text.singleton c
       | otherwise -> Text.concat
         -- unicode

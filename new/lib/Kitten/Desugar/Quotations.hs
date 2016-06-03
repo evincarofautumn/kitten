@@ -72,7 +72,7 @@ desugar dictionary qualifier term0 = do
       (mElse', tenv2) <- case mElse of
         Just (Else a elseOrigin) -> do
           (a', tenv') <- go tenv1 a
-          return $ (Just $ Else a' elseOrigin, tenv')
+          return (Just $ Else a' elseOrigin, tenv')
         Nothing -> return (Nothing, tenv1)
       return (Match type_ cases' mElse' origin, tenv2)
     New{} -> done

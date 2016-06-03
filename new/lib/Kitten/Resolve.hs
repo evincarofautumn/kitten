@@ -7,6 +7,7 @@ module Kitten.Resolve
   , signature
   ) where
 
+import Control.Monad (zipWithM)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State (StateT, evalStateT, gets, modify)
 import Data.List (elemIndex)
@@ -118,33 +119,31 @@ signature dictionary vocabulary = go
     Signature.Bottom{} -> pure sig
     Signature.Function as bs es origin -> Signature.Function
       <$> mapM go as <*> mapM go bs
-      <*> mapM (uncurry (typeName dictionary vocabulary)) (zip es (repeat origin))
+      <*> zipWithM (typeName dictionary vocabulary) es (repeat origin)
       <*> pure origin
     Signature.Quantified vars a origin -> Signature.Quantified vars
-      <$> foldr withLocal (go a) (map (\ (Parameter _ name _) -> name) vars)
+      <$> foldr (withLocal . (\ (Parameter _ name _) -> name)) (go a) vars
       <*> pure origin
     Signature.Variable name origin -> Signature.Variable
       <$> typeName dictionary vocabulary name origin <*> pure origin
     Signature.StackFunction r as s bs es origin -> Signature.StackFunction r
       <$> mapM go as <*> pure s <*> mapM go bs
-      <*> mapM (uncurry (typeName dictionary vocabulary)) (zip es (repeat origin))
+      <*> zipWithM (typeName dictionary vocabulary) es (repeat origin)
       <*> pure origin
     Signature.Type{} -> pure sig
 
 definitionName, typeName
   :: Dictionary -> Qualifier -> GeneralName -> Origin -> Resolved GeneralName
 
-definitionName dictionary qualifier name origin
-  = generalName Report.WordName resolveLocal isDefined qualifier
-    name origin
+definitionName dictionary
+  = generalName Report.WordName resolveLocal isDefined
   where
   isDefined = flip Set.member defined
   defined = Set.fromList $ Dictionary.wordNames dictionary
   resolveLocal _ index = return $ LocalName index
 
-typeName dictionary qualifier name origin
-  = generalName Report.TypeName resolveLocal isDefined qualifier
-    name origin
+typeName dictionary
+  = generalName Report.TypeName resolveLocal isDefined
   where
   isDefined = flip Set.member defined
   defined = Set.fromList $ Dictionary.typeNames dictionary

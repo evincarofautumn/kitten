@@ -61,9 +61,10 @@ instance Pretty Signature where
       , "->"
       , Pretty.list $ map pPrint bs
       ] ++ map ((Pretty.char '+' Pretty.<>) . pPrint) es
-    Quantified names type_ _
-      -> (Pretty.angles $ Pretty.list $ map prettyVar names)
-        Pretty.<+> pPrint type_
+    Quantified names type_ _ -> Pretty.hsep
+      [ Pretty.angles $ Pretty.list $ map prettyVar names
+      , pPrint type_
+      ]
       where
 
       prettyVar :: Parameter -> Pretty.Doc

@@ -24,8 +24,7 @@ import Kitten.Metadata (Metadata(Metadata))
 import Kitten.Monad (K)
 import Kitten.Name
 import Kitten.Origin (Origin)
-import Kitten.Parser (Parser, getTokenOrigin)
-import Kitten.Parser (parserMatch, parserMatch_)
+import Kitten.Parser (Parser, getTokenOrigin, parserMatch, parserMatch_)
 import Kitten.Signature (Signature)
 import Kitten.Synonym (Synonym(Synonym))
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..), compose)
@@ -343,7 +342,7 @@ constructorParser = (<?> "constructor definition") $ do
   origin <- getTokenOrigin <* parserMatch Token.Case
   name <- wordNameParser <?> "constructor name"
   fields <- (<?> "constructor fields") $ Parsec.option []
-    $ groupedParser $ constructorFieldsParser
+    $ groupedParser constructorFieldsParser
   return DataConstructor
     { DataConstructor.fields = fields
     , DataConstructor.name = name
@@ -425,7 +424,7 @@ quantifierParser = typeListParser var
         <$> (parserMatchOperator "+" *> wordNameParser)
       , do
         name <- wordNameParser
-        (\ permission -> Parameter origin name permission)
+        (Parameter origin name)
           <$> Parsec.option Value (Stack <$ parserMatch Token.Ellipsis)
       ]
 
