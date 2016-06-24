@@ -14,7 +14,6 @@ module Kitten.Infer
 import Control.Monad (filterM)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State (StateT, get, gets, modify, put, runStateT)
-import Data.Either (partitionEithers)
 import Data.Foldable (foldrM)
 import Data.List (find, foldl')
 import Data.Map (Map)
@@ -182,6 +181,27 @@ inferType dictionary tenvFinal tenv0 term0
       let type' = Zonk.type_ tenvFinal type_
       return (Call type' origin, type_, tenv0)
 
+-- A coercion is a typed no-op.
+--
+-- An identity coercion is the identity function on stacks. The empty program is
+-- an identity coercion.
+--
+-- A type coercion is the identity function specialised to a certain type. It
+-- may be specialised to the identity function on stacks; to the unary identity
+-- function on a particular type, in order to constrain the type of a value atop
+-- the stack; or to an arbitrary type, in order to unsafely reinterpret-cast
+-- between types, e.g., to grant or revoke permissions.
+
+    Coercion hint@Term.IdentityCoercion _ origin -> do
+      [a, p] <- fresh origin [Stack, Permission]
+      let type_ = Type.fun origin a a p
+      let type' = Zonk.type_ tenvFinal type_
+      return (Coercion hint type' origin, type_, tenv0)
+    Coercion hint@(Term.AnyCoercion sig) _ origin -> do
+      type_ <- typeFromSignature tenv0 sig
+      let type' = Zonk.type_ tenvFinal type_
+      return (Coercion hint type' origin, type_, tenv0)
+
 -- The type of the composition of two expressions is the composition of the
 -- types of those expressions.
 
@@ -209,33 +229,6 @@ inferType dictionary tenvFinal tenv0 term0
     Group{} -> error
       "group expression should not appear during type inference"
 
--- The empty program is the identity function on stacks.
-
-    Identity _ origin -> do
-      [a, e] <- fresh origin [Stack, Permission]
-      let type_ = Type.fun origin a a e
-      let type' = Zonk.type_ tenvFinal type_
-      return (Identity type' origin, type_, tenv0)
-
--- A conditional expression consumes a Boolean and applies one of its two
--- branches to the remainder of the stack. Note that an 'if' without an 'else'
--- is sugar for an 'if' with an empty (i.e., identity) 'else' branch, and this
--- works out neatly in the types.
-
-    If _ true false origin -> do
-      [a, b, e] <- fresh origin [Stack, Stack, Permission]
-      (true', t1, tenv1) <- while origin "checking true branch"
-        $ inferType' tenv0 true
-      (false', t2, tenv2) <- while origin "checking false branch"
-        $ inferType' tenv1 false
-      tenv3 <- Unify.type_ tenv2 t1 $ Type.fun origin a b e
-      tenv4 <- Unify.type_ tenv3 t2 $ Type.fun origin a b e
-      let
-        type_ = Type.fun origin
-          (Type.prod origin a $ TypeConstructor origin "Bool") b e
-        type' = Zonk.type_ tenvFinal type_
-      return (If type' true' false' origin, type_, tenv4)
-
 -- A local variable binding in Kitten is in fact a lambda term in the ordinary
 -- lambda-calculus sense. We infer the type of its body in the
 
@@ -256,21 +249,25 @@ inferType dictionary tenvFinal tenv0 term0
         , tenv3
         )
 
-    Match _ cases mElse origin -> do
+-- A match expression consumes an instance of a data type, pushing its fields
+-- onto the stack, and testing its tag to determine which case to apply, if
+-- any. Note that 'if' is sugar for 'match' on Booleans. An 'if' without an
+-- 'else' is sugar for a 'match' with a present-but-empty (i.e., identity,
+-- modulo permissions) 'else' branch, and this works out neatly in the types. A
+-- 'match' without an else branch raises 'abort', causing the 'match' to require
+-- the +Fail permission.
+
+    Match hint _ cases else_ origin -> do
       (cases', caseTypes, tenv1) <- foldrM inferCase' ([], [], tenv0) cases
-      (mElse', elseType, tenv2) <- case mElse of
-        Just (Else body elseOrigin) -> do
+      (else', elseType, tenv2) <- case else_ of
+        Else body elseOrigin -> do
           (body', bodyType, tenv') <- inferType' tenv1 body
-          return (Just (Else body' elseOrigin), bodyType, tenv')
-        Nothing -> do
-          [a, b, e] <- fresh origin [Stack, Stack, Permission]
-          let permission = Type.join origin (TypeConstructor origin "Fail") e
-          return (Nothing, Type.fun origin a b permission, tenv1)
+          return (Else body' elseOrigin, bodyType, tenv')
       tenv3 <- foldrM (\ type_ tenv -> Unify.type_ tenv elseType type_)
         tenv2 caseTypes
       let type_ = Type.setOrigin origin elseType
       let type' = Zonk.type_ tenvFinal type_
-      return (Match type' cases' mElse' origin, type_, tenv3)
+      return (Match hint type' cases' else' origin, type_, tenv3)
 
       where
       inferCase' case_ (cases', types, tenv) = do
@@ -341,51 +338,6 @@ inferType dictionary tenvFinal tenv0 term0
           e
       let type' = Zonk.type_ tenvFinal type_
       return (Swap type' origin, type_, tenv0)
-
--- The 'with' operator evaluates a closure with altered permissions. It can be
--- used safely to add permissions, enabling a restricted function to be used in
--- a more permissive context:
---
---     define call_optional<R..., S..., +E>
---       (R..., optional<(R... -> S... +E)> -> S... +fail +E):
---       match:
---         case none:
---           abort
---         case some -> f:
---           f with (-fail)
---
--- Here, 'call_optional' has the '+fail' permission, but we want to restrict 'f'
--- from gaining access to that permission, so we remove it using 'with (-fail)'.
---
--- 'with' can also be used unsafely, to grant permissions that the caller
--- doesn't necessarily have. This is typically used inside permission handlers,
--- to remove the permission when it's been successfully evaluated:
---
---     permission io<R..., S..., +E> (R..., (R... -> S... +io +E) -> S... +E):
---       with (+io)
---
--- FIXME: We should probably issue a warning when a permission is granted
--- outside its permission handler, because that's a Highly Suspicious Thing.
-
-    With _ permits origin -> do
-      [a, b, e] <- fresh origin [Stack, Stack, Permission]
-      let
-        (es, es') = partitionEithers $ map (\p -> let
-          name = case Term.permitName p of
-            QualifiedName qualified -> qualified
-            _ -> error
-              "unqualified name should not appear after name resolution"
-          in (if Term.permitted p then Left else Right)
-            $ TypeConstructor origin $ Constructor name)
-          permits
-      let
-        type_ = Type.fun origin
-          (Type.prod origin a
-            (Type.fun origin a b (foldr (Type.join origin) e es)))
-          b
-          (foldr (Type.join origin) e es')
-        type' = Zonk.type_ tenvFinal type_
-      return (With type' permits origin, type_, tenv0)
 
     -- FIXME: Should generic parameters be restricted to none?
     Word _ _fixity name _ origin -> inferCall dictionary tenvFinal tenv0 name origin

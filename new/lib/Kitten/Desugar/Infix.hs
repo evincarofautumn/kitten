@@ -58,18 +58,16 @@ desugar dictionary definition = do
   desugarTerm :: Term () -> K (Term ())
   desugarTerm term = case term of
     Call{} -> return term
+    Coercion{} -> return term
     Compose _ a b -> desugarTerms (Term.decompose a ++ Term.decompose b)
     Drop{} -> return term
     Generic{} -> error
       "generic expression should not appear before infix desugaring"
     Group a -> desugarTerms' a
-    Identity{} -> return term
-    If _ a b origin -> If ()
-      <$> desugarTerms' a <*> desugarTerms' b <*> pure origin
     Lambda _ name _ body origin -> Lambda () name ()
       <$> desugarTerms' body <*> pure origin
-    Match _ cases mElse origin -> Match ()
-      <$> mapM desugarCase cases <*> traverse desugarElse mElse <*> pure origin
+    Match hint _ cases else_ origin -> Match hint ()
+      <$> mapM desugarCase cases <*> desugarElse else_ <*> pure origin
       where
 
       desugarCase :: Case () -> K (Case ())
@@ -85,7 +83,6 @@ desugar dictionary definition = do
     NewVector{} -> return term
     Push _ value origin -> Push () <$> desugarValue value <*> pure origin
     Swap{} -> return term
-    With{} -> return term
     Word{} -> return term
 
   desugarValue :: Value () -> K (Value ())

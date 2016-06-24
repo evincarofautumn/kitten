@@ -266,7 +266,7 @@ defineWord dictionary definition = do
       | Definition.inferSignature definition
         || resolvedSignature == signature' -> do
       let
-        strippedBody = maybe (Term.Identity () (Origin.point "<implicit>" 1 1))
+        strippedBody = maybe (Term.identityCoercion () (Origin.point "<implicit>" 1 1))
           Term.stripMetadata body
       (composed, composedType) <- typecheck dictionary
         (if Definition.inferSignature definition

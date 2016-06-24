@@ -93,16 +93,12 @@ interpret dictionary mName mainArgs _stdin' stdout' _stderr' initialStack = do
     term :: Term Type -> IO ()
     term t = case t of
       Call _ _ -> call
+      Coercion _ _ _ -> return ()
       Compose _ a b -> term a >> term b
       Drop _ _ -> modifyIORef' stackRef tail
       -- TODO: Verify that this is correct.
       Generic _ t' _ -> term t'
       Group t' -> term t'
-      Identity _ _ -> return ()
-      If _ true false _ -> do
-        (Algebraic (ConstructorIndex index) [] : r) <- readIORef stackRef
-        writeIORef stackRef r
-        term $ if toEnum index then true else false
       Lambda _ _name _ body _ -> do
         (a : r) <- readIORef stackRef
         ls <- readIORef localsRef
@@ -110,7 +106,7 @@ interpret dictionary mName mainArgs _stdin' stdout' _stderr' initialStack = do
         writeIORef localsRef (a : ls)
         term body
         modifyIORef' localsRef tail
-      Match _ cases mElse _ -> do
+      Match _ _ cases else_ _ -> do
         -- We delay matching on the value here because it may not be an ADT at
         -- all. For example, "1 match { else { 2 } }" is perfectly valid,
         -- because we are matching on all (0) of Int32's constructors.
@@ -129,9 +125,8 @@ interpret dictionary mName mainArgs _stdin' stdout' _stderr' initialStack = do
               writeIORef stackRef (fields ++ r)
               term caseBody
           go (_ : rest) = go rest
-          go [] = case mElse of
-            Just (Else body _) -> term body
-            Nothing -> error "pattern match failure"
+          go [] = case else_ of
+            Else body _ -> term body
         go cases
       New _ index size _ -> do
         r <- readIORef stackRef
@@ -150,7 +145,6 @@ interpret dictionary mName mainArgs _stdin' stdout' _stderr' initialStack = do
       Swap _ _ -> do
         (a : b : r) <- readIORef stackRef
         writeIORef stackRef (b : a : r)
-      With{} -> call
       Word _ _ (QualifiedName name) args _ -> word name args
       -- FIXME: Use proper reporting. (Internal error?)
       Word _ _ name _ _ -> error $ Pretty.render $ Pretty.hsep

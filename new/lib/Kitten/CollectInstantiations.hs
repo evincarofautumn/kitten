@@ -72,6 +72,7 @@ collectInstantiations tenv0 dictionary0 = do
   go :: InstantiationQueue -> Term Type -> K (Term Type, InstantiationQueue)
   go q0 term = case term of
     Call{} -> proceed
+    Coercion{} -> proceed
     Compose type_ a b -> do
       (a', q1) <- go q0 a
       (b', q2) <- go q1 b
@@ -83,25 +84,19 @@ collectInstantiations tenv0 dictionary0 = do
 
     Generic{} -> proceed
     Group{} -> error "group should not appear after linearization"
-    Identity{} -> proceed
-    If type_ true false origin -> do
-      (true', q1) <- go q0 true
-      (false', q2) <- go q1 false
-      return (If type_ true' false' origin, q2)
     Lambda type_ name varType body origin -> do
       (body', q1) <- go q0 body
       return (Lambda type_ name varType body' origin, q1)
-    Match type_ cases mElse origin -> do
+    Match hint type_ cases else_ origin -> do
       (cases', q1) <- foldrM (\ (Case name body caseOrigin) (bodies, q) -> do
         (body', q') <- go q body
         return (Case name body' caseOrigin : bodies, q'))
         ([], q0) cases
-      (mElse', q2) <- case mElse of
-        Just (Else body elseOrigin) -> do
+      (else', q2) <- case else_ of
+        Else body elseOrigin -> do
           (body', q') <- go q1 body
-          return (Just (Else body' elseOrigin), q')
-        Nothing -> return (Nothing, q1)
-      return (Match type_ cases' mElse' origin, q2)
+          return (Else body' elseOrigin, q')
+      return (Match hint type_ cases' else' origin, q2)
     New{} -> proceed
     NewClosure{} -> proceed
     NewVector _ _size elementType _origin -> do
@@ -111,7 +106,6 @@ collectInstantiations tenv0 dictionary0 = do
       "quotation should not appear after quotation desugaring"
     Push{} -> proceed
     Swap{} -> proceed
-    With{} -> proceed
     Word type_ fixity (QualifiedName name) args origin -> do
       let
         types = case Dictionary.lookup (Instantiated name []) dictionary0 of

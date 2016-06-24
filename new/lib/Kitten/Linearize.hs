@@ -27,6 +27,7 @@ linearize = snd . go []
   go :: [Int] -> Term Type -> ([Int], Term Type)
   go counts0 term = case term of
     Call{} -> (counts0, term)
+    Coercion{} -> (counts0, term)
     Compose type_ a b -> let
       (counts1, a') = go counts0 a
       (counts2, b') = go counts1 b
@@ -36,11 +37,6 @@ linearize = snd . go []
       (counts1, body') = go counts0 body
       in (counts1, Generic x body' origin)
     Group{} -> error "group should not appear after desugaring"
-    Identity{} -> (counts0, term)
-    If type_ a b origin -> let
-      (counts1, a') = go counts0 a
-      (counts2, b') = go counts0 b
-      in (zipWith max counts1 counts2, If type_ a' b' origin)
     Lambda type_ x varType body origin -> let
       (n : counts1, body') = go (0 : counts0) body
       body'' = case n of
@@ -49,12 +45,12 @@ linearize = snd . go []
         _ -> instrumentCopy varType body'
       in (counts1, Lambda type_ x varType body'' origin)
     -- FIXME: count usages for each branch & take maximum
-    Match type_ cases mElse origin -> let
+    Match hint type_ cases else_ origin -> let
 
-      (counts1, mElse') = goElse counts0 mElse
+      (counts1, mElse') = goElse counts0 else_
       (counts2, cases') = first (map maximum . transpose)
         $ unzip $ map (goCase counts0) cases
-      in (zipWith max counts1 counts2, Match type_ cases' mElse' origin)
+      in (zipWith max counts1 counts2, Match hint type_ cases' mElse' origin)
       where
 
       goCase :: [Int] -> Case Type -> ([Int], Case Type)
@@ -62,11 +58,10 @@ linearize = snd . go []
         (counts1, body') = go counts body
         in (counts1, Case name body' caseOrigin)
 
-      goElse :: [Int] -> Maybe (Else Type) -> ([Int], Maybe (Else Type))
-      goElse counts (Just (Else body elseOrigin)) = let
+      goElse :: [Int] -> Else Type -> ([Int], Else Type)
+      goElse counts (Else body elseOrigin) = let
         (counts1, body') = go counts body
-        in (counts1, Just (Else body' elseOrigin))
-      goElse counts Nothing = (counts, Nothing)
+        in (counts1, Else body' elseOrigin)
 
     New{} -> (counts0, term)
     NewClosure{} -> (counts0, term)
@@ -80,7 +75,6 @@ linearize = snd . go []
       "pushing of quotation should not appear after desugaring"
     Push{} -> (counts0, term)
     Swap{} -> (counts0, term)
-    With{} -> (counts0, term)
     Word{} -> (counts0, term)
 
 instrumentDrop :: Origin -> Type -> Term Type -> Term Type
@@ -98,16 +92,15 @@ instrumentCopy varType = go 0
   go :: Int -> Term Type -> Term Type
   go n term = case term of
     Call{} -> term
+    Coercion{} -> term
     Compose type_ a b -> Compose type_ (go n a) (go n b)
     Drop{} -> term
     Generic x body origin -> Generic x (go n body) origin
     Group{} -> error "group should not appear after desugaring"
-    Identity{} -> term
-    If type_ a b origin -> If type_ (go n a) (go n b) origin
     Lambda type_ name varType' body origin
       -> Lambda type_ name varType' (go (succ n) body) origin
-    Match type_ cases mElse origin
-      -> Match type_ (map goCase cases) (goElse <$> mElse) origin
+    Match hint type_ cases else_ origin
+      -> Match hint type_ (map goCase cases) (goElse else_) origin
       where
 
       goCase :: Case Type -> Case Type
@@ -125,7 +118,6 @@ instrumentCopy varType = go 0
         (QualifiedName (Qualified Vocabulary.global "copy")) [varType] origin
     Push{} -> term
     Swap{} -> term
-    With{} -> term
     Word{} -> term
 
 todoTyped :: a

@@ -26,28 +26,26 @@ scope = scopeTerm [0]
     recur :: Term () -> Term ()
     recur term = case term of
       Call{} -> term
+      Coercion{} -> term
       Compose _ a b -> Compose () (recur a) (recur b)
       Drop{} -> term
       Generic{} -> error
         "generic expression should not appear before scope resolution"
       Group{} -> error
         "group expression should not appear after infix desugaring"
-      Identity{} -> term
-      If _ a b origin -> If () (recur a) (recur b) origin
       Lambda _ name _ a origin -> Lambda () name ()
         (scopeTerm (mapHead succ stack) a) origin
-      Match _ cases mElse origin -> Match ()
+      Match hint _ cases else_ origin -> Match hint ()
         (map (\ (Case name a caseOrigin)
           -> Case name (recur a) caseOrigin) cases)
-        (fmap (\ (Else a elseOrigin)
-          -> Else (recur a) elseOrigin) mElse)
+        ((\ (Else a elseOrigin)
+          -> Else (recur a) elseOrigin) else_)
         origin
       New{} -> term
       NewClosure{} -> term
       NewVector{} -> term
       Push _ value origin -> Push () (scopeValue stack value) origin
       Swap{} -> term
-      With{} -> term
       Word _ _ (LocalName index) _ origin
         -> Push () (scopeValue stack (Local index)) origin
       Word{} -> term
@@ -95,15 +93,13 @@ runCapture stack = flip runState []
 captureTerm :: Term () -> Captured (Term ())
 captureTerm term = case term of
   Call{} -> return term
+  Coercion{} -> return term
   Compose _ a b -> Compose () <$> captureTerm a <*> captureTerm b
   Drop{} -> return term
   Generic{} -> error
     "generic expression should not appear before scope resolution"
   Group{} -> error
     "group expression should not appear after infix desugaring"
-  Identity{} -> return term
-  If _ a b origin -> If ()
-    <$> captureTerm a <*> captureTerm b <*> pure origin
   Lambda _ name _ a origin -> let
     inside env = env
       { scopeStack = mapHead succ (scopeStack env)
@@ -111,8 +107,8 @@ captureTerm term = case term of
       }
     in Lambda () name ()
       <$> local inside (captureTerm a) <*> pure origin
-  Match _ cases mElse origin -> Match ()
-    <$> mapM captureCase cases <*> traverse captureElse mElse <*> pure origin
+  Match hint _ cases else_ origin -> Match hint ()
+    <$> mapM captureCase cases <*> captureElse else_ <*> pure origin
     where
 
     captureCase :: Case () -> Captured (Case ())
@@ -128,7 +124,6 @@ captureTerm term = case term of
   NewVector{} -> return term
   Push _ value origin -> Push () <$> captureValue value <*> pure origin
   Swap{} -> return term
-  With{} -> return term
   Word{} -> return term
 
 captureValue :: Value () -> Captured (Value ())
