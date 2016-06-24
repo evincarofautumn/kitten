@@ -42,6 +42,8 @@ term tenv0 = go
   zonk = type_ tenv0
   go t = case t of
     Call tref origin -> Call (zonk tref) origin
+    Coercion hint tref origin
+      -> Coercion hint (zonk tref) origin
     Compose tref a b
       -> Compose (zonk tref) (go a) (go b)
     Drop tref origin
@@ -50,14 +52,10 @@ term tenv0 = go
       -> Generic x (go a) origin
     Group a
       -> go a
-    Identity tref origin
-      -> Identity (zonk tref) origin
-    If tref true false origin
-      -> If (zonk tref) (go true) (go false) origin
     Lambda tref name varType body origin
       -> Lambda (zonk tref) name (zonk varType) (go body) origin
-    Match tref cases mElse origin
-      -> Match (zonk tref) (map goCase cases) (fmap goElse mElse) origin
+    Match hint tref cases else_ origin
+      -> Match hint (zonk tref) (map goCase cases) (goElse else_) origin
       where
       goCase (Case name body caseOrigin)
         = Case name (go body) caseOrigin
@@ -73,8 +71,6 @@ term tenv0 = go
       -> Push (zonk tref) (value tenv0 value') origin
     Swap tref origin
       -> Swap (zonk tref) origin
-    With tref permits origin
-      -> With (zonk tref) permits origin
     Word tref fixity name params origin
       -> Word (zonk tref) fixity name params origin
 

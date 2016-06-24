@@ -34,6 +34,7 @@ term tenv x a = recur
   where
   recur t = case t of
     Call tref origin -> Call <$> go tref <*> pure origin
+    Coercion hint tref origin -> Coercion hint <$> go tref <*> pure origin
     Compose tref t1 t2 -> Compose <$> go tref <*> recur t1 <*> recur t2
     Drop tref origin -> Drop <$> go tref <*> pure origin
     Generic x' body origin -> do
@@ -43,13 +44,10 @@ term tenv x a = recur
       body' <- term tenv x' (TypeVar origin $ Var z k) body
       Generic z <$> recur body' <*> pure origin
     Group body -> recur body
-    Identity tref origin -> Identity <$> go tref <*> pure origin
-    If tref true false origin -> If <$> go tref
-      <*> recur true <*> recur false <*> pure origin
     Lambda tref name varType body origin -> Lambda <$> go tref
       <*> pure name <*> go varType <*> recur body <*> pure origin
-    Match tref cases mElse origin -> Match <$> go tref
-      <*> mapM goCase cases <*> traverse goElse mElse <*> pure origin
+    Match hint tref cases else_ origin -> Match hint <$> go tref
+      <*> mapM goCase cases <*> goElse else_ <*> pure origin
       where
 
       goCase :: Case Type -> K (Case Type)
@@ -67,8 +65,6 @@ term tenv x a = recur
       <*> pure size <*> go elemType <*> pure origin
     Push tref value origin -> Push <$> go tref <*> pure value <*> pure origin
     Swap tref origin -> Swap <$> go tref <*> pure origin
-    With tref permits origin -> With <$> go tref
-      <*> pure permits <*> pure origin
     Word tref fixity name args origin -> Word <$> go tref
       <*> pure fixity <*> pure name <*> mapM go args <*> pure origin
 

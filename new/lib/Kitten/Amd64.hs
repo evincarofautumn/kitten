@@ -75,6 +75,7 @@ definition _ = return ()
 term :: Term Type -> CodeGen ()
 term t = case t of
   Term.Call{} -> comment ["call"]
+  Term.Coercion{} -> return ()
   Term.Compose _ a b -> do
     term a
     term b
@@ -82,14 +83,6 @@ term t = case t of
   Term.Generic{} -> error
     "uninstantiated term appeared during code generation"
   Term.Group a -> term a
-  Term.Identity{} -> return ()
-  Term.If _ a b _ -> do
-    comment ["if"]
-    indented $ do
-      term a
-      comment ["else"]
-      term b
-      comment ["then"]
   Term.Lambda _ _ type_ a _ -> do
     -- TODO: Use actual size class.
     let size = Large type_
@@ -98,7 +91,7 @@ term t = case t of
     term a
     CodeGen $ modify $ \ state -> state
       { genLocalSizes = tail $ genLocalSizes state }
-  Term.Match _ _cases _mElse _ -> comment ["match"]
+  Term.Match _ _ _cases _mElse _ -> comment ["match"]
   Term.New _ (ConstructorIndex index) _size _
     -> comment ["new.", Text.pack $ show index]
   Term.NewClosure _ size _
@@ -172,7 +165,6 @@ term t = case t of
 
   Term.Push _ v origin -> value origin v
   Term.Swap{} -> comment ["swap"]
-  Term.With{} -> return ()
   Term.Word _ _ (UnqualifiedName (Unqualified name)) _args _
     -> case name of
 

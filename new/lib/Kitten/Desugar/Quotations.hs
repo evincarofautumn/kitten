@@ -43,6 +43,7 @@ desugar dictionary qualifier term0 = do
     -> StateT (LambdaIndex, Dictionary) K (Term Type, TypeEnv)
   go tenv0 term = case term of
     Call{} -> done
+    Coercion{} -> done
     Compose type_ a b -> do
       (a', tenv1) <- go tenv0 a
       (b', tenv2) <- go tenv1 b
@@ -52,11 +53,6 @@ desugar dictionary qualifier term0 = do
       (a', tenv1) <- go tenv0 a
       return (Generic type_ a' origin, tenv1)
     Group{} -> error "group should not appear after infix desugaring"
-    Identity{} -> done
-    If type_ a b origin -> do
-      (a', tenv1) <- go tenv0 a
-      (b', tenv2) <- go tenv1 b
-      return (If type_ a' b' origin, tenv2)
     Lambda type_ name varType a origin -> do
       let
         oldLocals = TypeEnv.vs tenv0
@@ -64,17 +60,16 @@ desugar dictionary qualifier term0 = do
       (a', tenv1) <- go localEnv a
       let tenv2 = tenv1 { TypeEnv.vs = oldLocals }
       return (Lambda type_ name varType a' origin, tenv2)
-    Match type_ cases mElse origin -> do
+    Match hint type_ cases else_ origin -> do
       (cases', tenv1) <- foldrM
         (\ (Case name a caseOrigin) (acc, tenv) -> do
           (a', tenv') <- go tenv a
           return (Case name a' caseOrigin : acc, tenv')) ([], tenv0) cases
-      (mElse', tenv2) <- case mElse of
-        Just (Else a elseOrigin) -> do
+      (else', tenv2) <- case else_ of
+        Else a elseOrigin -> do
           (a', tenv') <- go tenv1 a
-          return (Just $ Else a' elseOrigin, tenv')
-        Nothing -> return (Nothing, tenv1)
-      return (Match type_ cases' mElse' origin, tenv2)
+          return (Else a' elseOrigin, tenv')
+      return (Match hint type_ cases' else' origin, tenv2)
     New{} -> done
     NewClosure{} -> done
     NewVector{} -> done
@@ -119,7 +114,6 @@ desugar dictionary qualifier term0 = do
 
     Push{} -> done
     Swap{} -> done
-    With{} -> done
     Word{} -> done
     where
     done = return (term, tenv0)

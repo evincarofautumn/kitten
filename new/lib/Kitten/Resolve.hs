@@ -19,12 +19,13 @@ import Kitten.Monad (K)
 import Kitten.Name
 import Kitten.Origin (Origin)
 import Kitten.Signature (Signature)
-import Kitten.Term (Case(..), Else(..), Term(..), Permit(Permit), Value(..))
+import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import qualified Data.Set as Set
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Report as Report
 import qualified Kitten.Signature as Signature
+import qualified Kitten.Term as Term
 import qualified Kitten.Vocabulary as Vocabulary
 
 type Resolved a = StateT [Unqualified] K a
@@ -53,18 +54,21 @@ term dictionary vocabulary = recur
   recur :: Term () -> Resolved (Term ())
   recur unresolved = case unresolved of
     Call{} -> return unresolved
+    Coercion (Term.AnyCoercion sig) a b
+      -> Coercion
+      <$> (Term.AnyCoercion <$> signature dictionary vocabulary sig)
+      <*> pure a
+      <*> pure b
+    Coercion{} -> return unresolved
     Compose _ a b -> Compose () <$> recur a <*> recur b
     Drop{} -> return unresolved
     Generic{} -> error
       "generic expression should not appear before name resolution"
     Group a -> Group <$> recur a
-    Identity{} -> return unresolved
-    If _ a b origin -> If ()
-      <$> recur a <*> recur b <*> pure origin
     Lambda _ name _ t origin -> withLocal name
       $ Lambda () name () <$> recur t <*> pure origin
-    Match _ cases mElse origin -> Match ()
-      <$> mapM resolveCase cases <*> traverse resolveElse mElse
+    Match hint _ cases else_ origin -> Match hint ()
+      <$> mapM resolveCase cases <*> resolveElse else_
       <*> pure origin
       where
 
@@ -83,11 +87,6 @@ term dictionary vocabulary = recur
     Push _ v origin -> Push ()
       <$> value dictionary vocabulary v <*> pure origin
     Swap{} -> return unresolved
-    With _ permits origin -> With () <$> mapM permit permits
-      <*> pure origin
-      where
-      permit (Permit allow name)
-        = Permit allow <$> typeName dictionary vocabulary name origin
     Word _ fixity name params origin -> Word () fixity
       <$> definitionName dictionary vocabulary name origin
       <*> pure params <*> pure origin

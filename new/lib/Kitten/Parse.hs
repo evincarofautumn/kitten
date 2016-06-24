@@ -27,7 +27,7 @@ import Kitten.Origin (Origin)
 import Kitten.Parser (Parser, getTokenOrigin, parserMatch, parserMatch_)
 import Kitten.Signature (Signature)
 import Kitten.Synonym (Synonym(Synonym))
-import Kitten.Term (Case(..), Else(..), Term(..), Value(..), compose)
+import Kitten.Term (Case(..), Else(..), MatchHint(..), Term(..), Value(..), compose)
 import Kitten.Token (Token)
 import Kitten.Tokenize (tokenize)
 import Kitten.TypeDefinition (TypeDefinition(TypeDefinition))
@@ -79,7 +79,7 @@ program line path mainPermissions mainName tokens = let
         Nothing -> result
           { Fragment.definitions = Definition.main mainPermissions
             mainName
-            (Identity () (Origin.point "<implicit>" line 1))
+            (Term.identityCoercion () (Origin.point "<implicit>" line 1))
             : Fragment.definitions result
           }
 
@@ -507,7 +507,7 @@ blockContentsParser = do
   origin <- getTokenOrigin
   terms <- many termParser
   let origin' = case terms of { x : _ -> Term.origin x; _ -> origin }
-  return $ foldr (Compose ()) (Identity () origin') terms
+  return $ foldr (Compose ()) (Term.identityCoercion () origin') terms
 
 termParser :: Parser (Term ())
 termParser = (<?> "expression") $ do
@@ -595,7 +595,7 @@ termParser = (<?> "expression") $ do
     matchOrigin <- getTokenOrigin <* parserMatch Token.Match
     scrutineeOrigin <- getTokenOrigin
     mScrutinee <- Parsec.optionMaybe groupParser <?> "scrutinee"
-    (cases, mElse) <- blockedParser $ do
+    (cases, else_) <- blockedParser $ do
       cases' <- many $ (<?> "case") $ parserMatch Token.Case *> do
         origin <- getTokenOrigin
         (name, _) <- nameParser
@@ -605,11 +605,17 @@ termParser = (<?> "expression") $ do
         origin <- getTokenOrigin <* parserMatch Token.Else
         body <- blockParser
         return $ Else body origin
-      return (cases', mElse')
-    let match = Match () cases mElse matchOrigin
+      return $ (,) cases' $ fromMaybe
+        (Else (defaultMatchElse matchOrigin) matchOrigin) mElse'
+    let match = Match AnyMatch () cases else_ matchOrigin
     return $ case mScrutinee of
       Just scrutinee -> compose () scrutineeOrigin [scrutinee, match]
       Nothing -> match
+
+  defaultMatchElse :: Origin -> Term ()
+  defaultMatchElse matchOrigin = Word () Operator.Postfix
+    (QualifiedName (Qualified Vocabulary.global "abort"))
+    [] matchOrigin
 
   ifParser :: Parser (Term ())
   ifParser = (<?> "if-else expression") $ do
@@ -621,14 +627,21 @@ termParser = (<?> "expression") $ do
       condition <- groupParser <?> "condition"
       body <- blockParser
       return (condition, body, origin)
-    else_ <- Parsec.option (Identity () ifOrigin)
+    elseBody <- Parsec.option (Term.identityCoercion () ifOrigin)
       $ parserMatch Token.Else *> blockParser
     let
-      desugarCondition (condition, body, origin) acc
-        = compose () ifOrigin [condition, If () body acc origin]
-    return $ foldr desugarCondition else_
-      $ (fromMaybe (Identity () ifOrigin) mCondition, ifBody, ifOrigin)
-      : elifs
+      desugarCondition :: (Term (), Term (), Origin) -> Term () -> Term ()
+      desugarCondition (condition, body, origin) acc = let
+        match = Match BooleanMatch ()
+          [ Case "true" body origin
+          , Case "false" acc (Term.origin acc)
+          ] (Else (defaultMatchElse ifOrigin) ifOrigin) origin
+        in compose () ifOrigin [condition, match]
+    return $ foldr desugarCondition elseBody $ 
+      ( fromMaybe (Term.identityCoercion () ifOrigin) mCondition
+      , ifBody
+      , ifOrigin
+      ) : elifs
 
   doParser :: Parser (Term ())
   doParser = (<?> "do expression") $ do
@@ -648,11 +661,15 @@ termParser = (<?> "expression") $ do
         <*> pure origin
     Quotation <$> (blockParser <|> reference)
 
+  -- A 'with' term is parsed as a coercion followed by a call.
   withParser :: Parser (Term ())
   withParser = (<?> "'with' expression") $ do
     origin <- getTokenOrigin <* parserMatch_ Token.With
     permits <- groupedParser $ Parsec.many1 permitParser
-    return $ With () permits origin
+    return $ Term.compose () origin
+      [ Term.permissionCoercion permits () origin
+      , Call () origin
+      ]
     where
 
     permitParser :: Parser Term.Permit
