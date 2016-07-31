@@ -469,16 +469,16 @@ type Optional<T>:
   case some (T)
 
 define from_some<T> (Optional<T> -> T +Fail):
-  match:
-    case some {}
-    else:
-      "from_some: none" fail
+  match
+  case some {}
+  else:
+    "from_some: none" fail
 
 type Pair<A, B>:
   case pair (A, B)
 
 define unpair<A, B> (Pair<A, B> -> A, B):
-  match: case pair {}
+  match case pair {}
 
 type Pointer<T>:
   case _pointer (UInt64)
@@ -504,11 +504,11 @@ define empty<T> (List<T> -> Bool):
 
 // TODO: Use Size, not Int32.
 define length<T> (List<T> -> Int32):
-  match (tail):
-    case none:
-      0
-    case some:
-      length (+ 1)
+  match (tail)
+  case none:
+    0
+  case some:
+    length (+ 1)
 
 // TODO: Partial instances.
 trait == <T> (List<T>, List<T> -> Bool)
@@ -518,20 +518,20 @@ instance == (List<Int32>, List<Int32> -> Bool):
   if (xs length <> ys length):
     false
   else:
-    match (xs head_tail):
+    match (xs head_tail)
+    case some:
+      unpair -> x, xs_;
+      match (ys head_tail)
       case some:
-        unpair -> x, xs_;
-        match (ys head_tail):
-          case some:
-            unpair -> y, ys_;
-            if (x <> y):
-              false
-            else:
-              xs_ == ys_
-          case none:
-            true
+        unpair -> y, ys_;
+        if (x <> y):
+          false
+        else:
+          xs_ == ys_
       case none:
         true
+    case none:
+      true
 
 define head<T> (List<T> -> Optional<T>):
   _::kitten::head
@@ -556,11 +556,11 @@ define set<T> (List<T>, T, Int32 -> Optional<List<T>>):
 
 define modify<T> (List<T>, (T -> T), Int32 -> Optional<List<T>>):
   -> xs, f, i;
-  match (xs i get):
-    case none:
-      none
-    case some -> x:
-      xs (x f call) i set
+  match (xs i get)
+  case none:
+    none
+  case some -> x:
+    xs (x f call) i set
 
 define replicate<T> (T, Int32 -> List<T>):
   -> value, count;
@@ -572,26 +572,26 @@ define replicate<T> (T, Int32 -> List<T>):
 
 define head_tail<T> (List<T> -> Optional<Pair<T, List<T>>>):
   -> xs;
-  match (xs head):
+  match (xs head)
+  case none:
+    none
+  case some -> y:
+    match (xs tail)
     case none:
       none
-    case some -> y:
-      match (xs tail):
-        case none:
-          none
-        case some -> ys:
-          y ys pair some
+    case some -> ys:
+      y ys pair some
 
 define map<A, B, +P> (List<A>, (A -> B +P) -> List<B> +P):
   -> xs, f;
-  match (xs head_tail):
-    case none:
-      []
-    case some:
-      unpair -> y, ys;
-      y f call -> z;
-      ys f map -> zs;
-      z zs prepend
+  match (xs head_tail)
+  case none:
+    []
+  case some:
+    unpair -> y, ys;
+    y f call -> z;
+    ys f map -> zs;
+    z zs prepend
 
 define map_index<A, B, +P> (List<A>, (A, Int32 -> B +P) -> List<B> +P):
   0 map_index::helper
@@ -600,14 +600,14 @@ vocab map_index {
 
   define helper<A, B, +P> (List<A>, (A, Int32 -> B +P), Int32 -> List<B> +P):
     -> xs, f, i;
-    match (xs head_tail):
-      case none:
-        []
-      case some:
-        unpair -> y, ys;
-        y i f call -> z;
-        ys f (i + 1) helper -> zs;
-        z zs prepend
+    match (xs head_tail)
+    case none:
+      []
+    case some:
+      unpair -> y, ys;
+      y i f call -> z;
+      ys f (i + 1) helper -> zs;
+      z zs prepend
 
 }
 

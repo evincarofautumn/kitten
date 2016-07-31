@@ -595,7 +595,7 @@ termParser = (<?> "expression") $ do
     matchOrigin <- getTokenOrigin <* parserMatch Token.Match
     scrutineeOrigin <- getTokenOrigin
     mScrutinee <- Parsec.optionMaybe groupParser <?> "scrutinee"
-    (cases, else_) <- blockedParser $ do
+    (cases, else_) <- do
       cases' <- many $ (<?> "case") $ parserMatch Token.Case *> do
         origin <- getTokenOrigin
         (name, _) <- nameParser
