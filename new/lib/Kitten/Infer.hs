@@ -14,7 +14,7 @@ module Kitten.Infer
 import Control.Monad (filterM)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State (StateT, get, gets, modify, put, runStateT)
-import Data.Foldable (foldrM)
+import Data.Foldable (foldlM, foldrM)
 import Data.List (find, foldl', partition)
 import Data.Map (Map)
 import Kitten.Bits
@@ -276,7 +276,7 @@ inferType dictionary tenvFinal tenv0 term0
               _ -> error "constructor not found after name resolution"
           _ -> error "unqualified constructor after name resolution"
       (cases', caseTypes, constructors', tenv1)
-        <- foldrM inferCase' ([], [], constructors, tenv0) cases
+        <- foldlM inferCase' ([], [], constructors, tenv0) cases
       -- Checkpoint to halt after redundant cases are reported.
       checkpoint
       (else', elseType, tenv2) <- case else_ of
@@ -316,7 +316,7 @@ inferType dictionary tenvFinal tenv0 term0
       return (Match hint type' cases' else' origin, type_, tenv3)
 
       where
-      inferCase' case_ (cases', types, remaining, tenv) = do
+      inferCase' (cases', types, remaining, tenv) case_ = do
         (case', type_, remaining', tenv')
           <- inferCase dictionary tenvFinal tenv remaining case_
         return (case' : cases', type_ : types, remaining', tenv')
