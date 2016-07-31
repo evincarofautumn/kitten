@@ -113,6 +113,23 @@ spec = do
         \\&"
         $ Type.fun o r (Type.prod o (Type.prod o r int) int) e
 
+  describe "with higher-order functions" $ do
+
+    it "typechecks curried functions" $ do
+      testTypecheck
+        "define curried_add (Int32 -> Int32 -> Int32) {\n\
+        \  -> x; { -> y; x y _::kitten::add_int }\n\
+        \}\n\
+        \1 2 curried_add call"
+        $ Type.fun o r (Type.prod o r int) e
+
+    it "typechecks permissions of higher-order functions" $ do
+      testTypecheck
+        "intrinsic launch_missiles (-> +IO)\n\
+        \intrinsic map<A, B, +P> (List<A>, (A -> B +P) -> List<B> +P)\n\
+        \[1, 2, 3] \\launch_missiles map"
+        $ Type.fun o r (Type.prod o r (ctor "List" :@ int)) (Type.join o io e)
+
   where
   o = Origin.point "" 0 0
   r = TypeVar o $ Var (TypeId 0) Stack
@@ -121,6 +138,7 @@ spec = do
   ctor = TypeConstructor o . Type.Constructor
     . Qualified Vocabulary.global
   int = ctor "Int32"
+  io = ctor "IO"
   float = ctor "Float64"
 
 testTypecheck :: Text -> Type -> IO ()
@@ -185,6 +203,7 @@ commonSource = "\
 \}\
 \type Float {}\n\
 \type Int32 {}\n\
+\type List<T> {}\n\
 \permission IO<R..., S..., +E> (R..., (R... -> S... +IO +E) -> S... +E) {\n\
 \  with (+IO)\n\
 \}\n"

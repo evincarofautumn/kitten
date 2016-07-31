@@ -15,7 +15,7 @@ import Control.Monad (filterM)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State (StateT, get, gets, modify, put, runStateT)
 import Data.Foldable (foldrM)
-import Data.List (find, foldl')
+import Data.List (find, foldl', partition)
 import Data.Map (Map)
 import Kitten.Bits
 import Kitten.DataConstructor (DataConstructor)
@@ -38,6 +38,7 @@ import qualified Data.Map as Map
 import qualified Kitten.DataConstructor as DataConstructor
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
+import qualified Kitten.Entry.Parent as Parent
 import qualified Kitten.Instantiate as Instantiate
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Pretty as Pretty
@@ -258,21 +259,67 @@ inferType dictionary tenvFinal tenv0 term0
 -- the +Fail permission.
 
     Match hint _ cases else_ origin -> do
-      (cases', caseTypes, tenv1) <- foldrM inferCase' ([], [], tenv0) cases
+      let
+        constructors = case cases of
+          -- Curiously, because an empty match works on any type, no
+          -- constructors are actually permitted.
+          [] -> []
+          Case (QualifiedName ctorName) _ _ : _
+            -> case Dictionary.lookup (Instantiated ctorName []) dictionary of
+              Just (Entry.Word _ _ _ (Just (Parent.Type typeName)) _ _)
+                -> case Dictionary.lookup (Instantiated typeName []) dictionary of
+                  Just (Entry.Type _ _ ctors) -> ctors
+                  -- TODO: Check whether this can happen if a non-constructor
+                  -- word is erroneously used in a case; if this is possible, we
+                  -- should generate a report rather than an error.
+                  _ -> error "constructor not linked to type"
+              _ -> error "constructor not found after name resolution"
+          _ -> error "unqualified constructor after name resolution"
+      (cases', caseTypes, constructors', tenv1)
+        <- foldrM inferCase' ([], [], constructors, tenv0) cases
+      -- Checkpoint to halt after redundant cases are reported.
+      checkpoint
       (else', elseType, tenv2) <- case else_ of
         Else body elseOrigin -> do
           (body', bodyType, tenv') <- inferType' tenv1 body
-          return (Else body' elseOrigin, bodyType, tenv')
-      tenv3 <- foldrM (\ type_ tenv -> Unify.type_ tenv elseType type_)
-        tenv2 caseTypes
-      let type_ = Type.setOrigin origin elseType
+          -- The type of a match is the union of the types of the cases, and
+          -- since the cases consume the scrutinee, the 'else' branch must have
+          -- a dummy (fully polymorphic) type for the scrutinee. This may be
+          -- easier to see when considering the type of an expression like:
+          --
+          --     match { else { ... } }
+          --
+          -- Which consumes a value of any type and always executes the 'else'
+          -- branch.
+          --
+          -- TODO: This should be considered a drop.
+          unusedScrutinee <- TypeEnv.freshTv tenv1 origin Value
+          (a, b, e, tenv'') <- Unify.function tenv' bodyType
+          let
+            elseType = Type.fun elseOrigin
+              (Type.prod elseOrigin a unusedScrutinee) b e
+          return (Else body' elseOrigin, elseType, tenv'')
+      (type_, tenv3) <- case constructors' of
+        -- FIXME: Assumes caseTypes is non-empty.
+        [] -> do
+          let firstCase : remainingCases = caseTypes
+          tenv' <- foldrM
+            (\ type_ tenv -> Unify.type_ tenv firstCase type_)
+            tenv2 remainingCases
+          return (Type.setOrigin origin firstCase, tenv')
+        -- Only include 'else' branch if there are unhandled cases.
+        _ -> do
+          tenv' <- foldrM (\ type_ tenv -> Unify.type_ tenv elseType type_)
+            tenv2 caseTypes
+          return (Type.setOrigin origin elseType, tenv')
       let type' = Zonk.type_ tenvFinal type_
       return (Match hint type' cases' else' origin, type_, tenv3)
 
       where
-      inferCase' case_ (cases', types, tenv) = do
-        (case', type_, tenv') <- inferCase dictionary tenvFinal tenv case_
-        return (case' : cases', type_ : types, tenv')
+      inferCase' case_ (cases', types, remaining, tenv) = do
+        (case', type_, remaining', tenv')
+          <- inferCase dictionary tenvFinal tenv remaining case_
+        return (case' : cases', type_ : types, remaining', tenv')
 
 -- A 'new' expression simply tags some fields on the stack, so the most
 -- straightforward way to type it is as an unsafe cast. For now, we can rely on
@@ -358,9 +405,10 @@ inferCase
   :: Dictionary
   -> TypeEnv
   -> TypeEnv
+  -> [DataConstructor]
   -> Case a
-  -> K (Case Type, Type, TypeEnv)
-inferCase dictionary tenvFinal tenv0
+  -> K (Case Type, Type, [DataConstructor], TypeEnv)
+inferCase dictionary tenvFinal tenv0 dataConstructors
   (Case qualified@(QualifiedName name) body origin) = do
   (body', bodyType, tenv1) <- inferType dictionary tenvFinal tenv0 body
   (a1, b1, e1, tenv2) <- Unify.function tenv1 bodyType
@@ -374,10 +422,16 @@ inferCase dictionary tenvFinal tenv0
       let type_ = Type.fun origin b2 b1 e1
       -- FIXME: Should a case be annotated with a type?
       -- let type' = Zonk.type_ tenvFinal type_
-      return (Case qualified body' origin, type_, tenv5)
+      let matching ctor = DataConstructor.name ctor == unqualifiedName name
+      dataConstructors' <- case partition matching dataConstructors of
+        ([], remaining) -> do
+          report $ Report.RedundantCase origin
+          return remaining
+        (_covered, remaining) -> return remaining
+      return (Case qualified body' origin, type_, dataConstructors', tenv5)
     Nothing -> error
       "case constructor missing signature after name resolution"
-inferCase _ _ _ _ = error "case of non-qualified name after name resolution"
+inferCase _ _ _ _ _ = error "case of non-qualified name after name resolution"
 
 inferValue
   :: Dictionary
