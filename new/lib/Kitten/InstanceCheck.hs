@@ -84,7 +84,7 @@ subsumptionCheckFun tenv0 a b e a' b' e' = do
   let
     labels = permissionList $ Zonk.type_ tenv2 e
     labels' = permissionList $ Zonk.type_ tenv2 e'
-  forM_ labels $ \ (origin, label) -> case find ((label ==) . snd) labels' of
+  forM_ labels' $ \ (origin, label) -> case find ((label ==) . snd) labels of
     Just{} -> return ()
     Nothing -> report $ Report.MissingPermissionLabel e e' origin label
   return tenv2
