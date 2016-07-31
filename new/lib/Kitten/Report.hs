@@ -44,6 +44,7 @@ data Report
   | WordRedefinition !Origin !Qualified !Origin
   | WordRedeclaration !Origin !Qualified !Signature !Origin !Signature
   | TypeMismatch !Type !Type
+  | RedundantCase !Origin
   | Chain [Report]
   | OccursCheckFailure !Type !Type
   | StackDepthMismatch !Origin
@@ -162,6 +163,11 @@ human report = case report of
       [ showOriginPrefix $ Type.origin b
       , "with the type", Pretty.quote b
       ]
+    ]
+
+  RedundantCase origin -> Pretty.hcat
+    [ showOriginPrefix origin
+    , "this case is redundant and will never match"
     ]
 
   Chain reports -> Pretty.vsep $ map human reports
