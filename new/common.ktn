@@ -513,11 +513,43 @@ type Optional<T>:
   case none
   case some (T)
 
+define from_optional<T> (Optional<T>, T -> T):
+  -> default;
+  match
+  case some {}
+  else:
+    default
+
 define from_some<T> (Optional<T> -> T +Fail):
   match
   case some {}
   else:
     "from_some: none" fail
+
+define is_none<T> (Optional<T> -> Bool):
+  match
+  case none:
+    true
+  else:
+    false
+
+define is_some<T> (Optional<T> -> Bool):
+  match
+  case some:
+    drop true
+  else:
+    false
+
+define optional<R..., S..., A>
+(R..., Optional<A>, (R..., A -> S...), (R... -> S...) -> S...):
+  -> f, g;
+  match
+  case some:
+    f call
+  case none:
+    g call
+
+// TODO: map Optional
 
 type Pair<A, B>:
   case pair (A, B)
@@ -525,8 +557,80 @@ type Pair<A, B>:
 define unpair<A, B> (Pair<A, B> -> A, B):
   match case pair {}
 
+define flip<A, B> (Pair<A, B> -> Pair<B, A>):
+  unpair swap pair
+
+// TODO: map Pair
+
+type Either<A, B>:
+  case left (A)
+  case right (B)
+
+define from_left<A, B> (Either<A, B> -> A +Fail):
+  match
+  case left {}
+  else:
+    "from_left: right" fail
+
+define from_right<A, B> (Either<A, B> -> B +Fail):
+  match
+  case right {}
+  else:
+    "from_right: left" fail
+
+define get_left<A, B> (Either<A, B> -> Optional<A>):
+  match
+  case left:
+    some
+  else:
+    none
+
+define get_right<A, B> (Either<A, B> -> Optional<B>):
+  match
+  case right:
+    some
+  else:
+    none
+
+define is_left<A, B> (Either<A, B> -> Bool):
+  match
+  case left:
+    drop true
+  else:
+    false
+
+define is_right<A, B> (Either<A, B> -> Bool):
+  match
+  case right:
+    drop true
+  else:
+    false
+
+define either<R..., S..., A, B>
+(R..., Either<A, B>, (R..., A -> S...), (R..., B -> S...) -> S...):
+  -> f, g;
+  match
+  case left:
+    f call
+  case right:
+    g call
+
+// TODO: map Either
+
 type Pointer<T>:
   case _pointer (UInt64)
+
+// do (until) { ... }
+define until<R...> (R..., (R... -> R..., Bool) -> R...):
+  -> f;
+  if (f call not):
+    f until
+
+// do (while) { ... }
+define while<R...> (R..., (R... -> R..., Bool) -> R...):
+  -> f;
+  if (f call):
+    f while
 
 type List<T>:
   case _list (Pointer<T>, Pointer<T>, Pointer<T>)
@@ -750,6 +854,33 @@ define dup<T> (T -> T, T):
 define swap<A, B> (A, B -> B, A):
   -> x, y;
   y x
+
+define compose<R..., S..., T...>
+((R... -> S...), (S... -> T...) -> (R... -> T...)):
+  -> f, g;
+  { f call g call }
+
+define function<T> (T -> (-> T)):
+  -> x;
+  { x }
+
+define both<A, B, C, D> (A, B, (A -> C), (B -> D) -> C, D):
+  -> x, y, f, g;
+  x f call -> a;
+  y g call -> b;
+  a b
+
+define both_to<A, B, C> (A, (A -> B), (A -> C) -> B, C):
+  -> x, f, g;
+  x f call -> a;
+  x g call -> b;
+  a b
+
+define to_both<A, B> (A, A, (A -> B) -> B, B):
+  -> x, y, f;
+  x f call -> a;
+  y f call -> b;
+  a b
 
 vocab kitten {
 
