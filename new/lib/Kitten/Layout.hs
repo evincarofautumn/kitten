@@ -75,7 +75,7 @@ insertBraces = (concat <$> many unit) <* Parsec.eof
       colonIndent = Located.indent colon
       validFirst token = let
         column = Located.indent token
-        in column > Indent (Just 1) && column >= colonIndent
+        in column > Indent 1 && column >= colonIndent
     firstToken <- Parsec.lookAhead (tokenSatisfy validFirst)
       <?> "token indented no less than start of layout block"
     let
