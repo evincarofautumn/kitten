@@ -79,7 +79,7 @@ rangedTokenizer parser = do
   begin <- Parsec.getPosition
   result <- parser
   end <- Parsec.getPosition
-  return $ At (Origin.range begin end) (Indent (Just column)) result
+  return $ At (Origin.range begin end) (Indent column) result
 
 tokenTokenizer :: Tokenizer (Located Token)
 tokenTokenizer = rangedTokenizer $ Parsec.choice

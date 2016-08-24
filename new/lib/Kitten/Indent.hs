@@ -6,5 +6,5 @@ module Kitten.Indent
 
 import Text.Parsec (Column)
 
-newtype Indent = Indent (Maybe Column)
+newtype Indent = Indent Column
   deriving (Eq, Ord, Show)
