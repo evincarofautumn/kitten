@@ -255,14 +255,15 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
     _ <- Parsec.char '\n' <?> "newline before paragraph body"
     (prefix, body) <- untilLeft paragraphLine
     body' <- forM body $ \ line -> case Text.stripPrefix prefix line of
-      Nothing -> Parsec.unexpected (Text.unpack line)
+      Just line' -> return line'
+      Nothing | Text.null line -> return ""
+      _ -> Parsec.unexpected (Text.unpack line)
         -- HACK: Relies on formatting of messages to include "expected ...".
         <?> concat
-        [ "all lines to begin with "
+        [ "all lines to be empty or begin with "
         , show $ Text.length prefix
         , " spaces"
         ]
-      Just line' -> return line'
     return $ Text.intercalate "\n" body'
 
   paragraphLine :: Tokenizer (Either Text Text)

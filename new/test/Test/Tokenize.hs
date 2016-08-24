@@ -106,7 +106,7 @@ spec = do
         `shouldBe` Left
         [ Report.ParseError origin
           ["unexpected ' bar'"]
-          "expected all lines to begin with 2 spaces"
+          "expected all lines to be empty or begin with 2 spaces"
         ]
     -- TODO: Add more negative tests for paragraph literals.
   -- FIXME: Base hints are ignored in token comparisons.
