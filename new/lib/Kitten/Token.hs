@@ -21,6 +21,7 @@ data Token
   | AngleBegin                           -- < See note [Angle Brackets].
   | AngleEnd                             -- > See note [Angle Brackets].
   | Arrow                                -- ->
+  | As                                   -- as
   | BlockBegin !Layoutness               -- { :
   | BlockEnd                             -- }
   | Call                                 -- call
@@ -63,6 +64,7 @@ instance Eq Token where
   AngleBegin              == AngleBegin              = True
   AngleEnd                == AngleEnd                = True
   Arrow                   == Arrow                   = True
+  As                      == As                      = True
   -- Block begin tokens are equal regardless of layoutness.
   BlockBegin _layoutnessA == BlockBegin _layoutnessB = True
   BlockEnd                == BlockEnd                = True
@@ -112,6 +114,7 @@ instance Pretty Token where
     AngleBegin -> "<"
     AngleEnd -> ">"
     Arrow -> "->"
+    As -> "as"
     BlockBegin{} -> "{"
     BlockEnd -> "}"
     Call -> "call"

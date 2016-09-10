@@ -351,7 +351,7 @@ constructorParser = (<?> "constructor definition") $ do
     }
 
 constructorFieldsParser :: Parser [Signature]
-constructorFieldsParser = typeParser `Parsec.sepEndBy` parserMatch Token.Comma
+constructorFieldsParser = typeParser `Parsec.sepEndBy` commaParser
 
 typeParser :: Parser Signature
 typeParser = Parsec.try functionTypeParser <|> basicTypeParser <?> "type"
@@ -361,10 +361,10 @@ functionTypeParser = (<?> "function type") $ do
   (effect, origin) <- Parsec.choice
     [ do
       leftVar <- stack
-      leftTypes <- Parsec.option [] (parserMatch Token.Comma *> left)
+      leftTypes <- Parsec.option [] (commaParser *> left)
       origin <- arrow
       rightVar <- stack
-      rightTypes <- Parsec.option [] (parserMatch Token.Comma *> right)
+      rightTypes <- Parsec.option [] (commaParser *> right)
       return
         ( Signature.StackFunction
           (Signature.Variable (UnqualifiedName leftVar) origin) leftTypes
@@ -385,14 +385,14 @@ functionTypeParser = (<?> "function type") $ do
   stack = Parsec.try $ wordNameParser <* parserMatch Token.Ellipsis
 
   left, right :: Parser [Signature]
-  left = basicTypeParser `Parsec.sepEndBy` comma
-  right = typeParser `Parsec.sepEndBy` comma
-
-  comma :: Parser ()
-  comma = void $ parserMatch Token.Comma
+  left = basicTypeParser `Parsec.sepEndBy` commaParser
+  right = typeParser `Parsec.sepEndBy` commaParser
 
   arrow :: Parser Origin
   arrow = getTokenOrigin <* parserMatch Token.Arrow
+
+commaParser :: Parser ()
+commaParser = void $ parserMatch Token.Comma
 
 basicTypeParser :: Parser Signature
 basicTypeParser = (<?> "basic type") $ do
@@ -431,7 +431,7 @@ quantifierParser = typeListParser var
 
 typeListParser :: Parser a -> Parser [a]
 typeListParser element = angledParser
-  $ element `Parsec.sepEndBy1` parserMatch Token.Comma
+  $ element `Parsec.sepEndBy1` commaParser
 
 quantifiedParser :: Parser Signature -> Parser Signature
 quantifiedParser thing = do
@@ -528,6 +528,7 @@ termParser = (<?> "expression") $ do
     , doParser
     , Push () <$> blockValue <*> pure origin
     , withParser
+    , asParser
     ]
   where
 
@@ -574,7 +575,7 @@ termParser = (<?> "expression") $ do
   vectorParser = (<?> "vector literal") $ do
     vectorOrigin <- getTokenOrigin
     elements <- bracketedParser
-      $ termParser `Parsec.sepEndBy` parserMatch Token.Comma
+      $ termParser `Parsec.sepEndBy` commaParser
     return $ compose () vectorOrigin $ elements
       ++ [NewVector () (length elements) () vectorOrigin]
 
@@ -662,6 +663,12 @@ termParser = (<?> "expression") $ do
         <*> pure origin
     Quotation <$> (blockParser <|> reference)
 
+  asParser :: Parser (Term ())
+  asParser = (<?> "'as' expression") $ do
+    origin <- getTokenOrigin <* parserMatch_ Token.As
+    signatures <- groupedParser $ basicTypeParser `Parsec.sepEndBy` commaParser
+    return $ Term.asCoercion () origin signatures
+
   -- A 'with' term is parsed as a coercion followed by a call.
   withParser :: Parser (Term ())
   withParser = (<?> "'with' expression") $ do
@@ -690,7 +697,7 @@ lambdaBlockParser = parserMatch Token.Arrow *> do
   return (names, body, origin)
 
 lambdaNamesParser :: Parser [(Maybe Unqualified, Origin)]
-lambdaNamesParser = lambdaName `Parsec.sepEndBy1` parserMatch Token.Comma
+lambdaNamesParser = lambdaName `Parsec.sepEndBy1` commaParser
   where
   lambdaName = do
     origin <- getTokenOrigin

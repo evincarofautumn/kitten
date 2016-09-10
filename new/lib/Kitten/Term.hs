@@ -9,6 +9,7 @@ module Kitten.Term
   , Permit(..)
   , Term(..)
   , Value(..)
+  , asCoercion
   , compose
   , decompose
   , identityCoercion
@@ -121,6 +122,11 @@ data Value a
 -- FIXME: 'compose' should work on 'Term ()'.
 compose :: a -> Origin -> [Term a] -> Term a
 compose x o = foldr (Compose x) (identityCoercion x o)
+
+asCoercion :: a -> Origin -> [Signature] -> Term a
+asCoercion x o ts = Coercion (AnyCoercion signature) x o
+  where
+  signature = Signature.Quantified [] (Signature.Function ts ts [] o) o
 
 identityCoercion :: a -> Origin -> Term a
 identityCoercion x o = Coercion IdentityCoercion x o

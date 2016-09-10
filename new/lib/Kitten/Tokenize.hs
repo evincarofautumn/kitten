@@ -175,6 +175,7 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
         name <- alphanumeric
         return $ case name of
           "about" -> About
+          "as" -> As
           "call" -> Call
           "case" -> Case
           "define" -> Define
