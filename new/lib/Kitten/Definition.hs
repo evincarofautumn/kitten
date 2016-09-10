@@ -61,10 +61,10 @@ main permissions mName term = Definition
   , origin = o
   , parent = Nothing
   , signature = Signature.Quantified
-    [Parameter o "R" Stack, Parameter o "S" Stack]
+    [Parameter o "R" Stack]
     (Signature.StackFunction
       (Signature.Variable "R" o) []
-      (Signature.Variable "S" o) []
+      (Signature.Variable "R" o) []
       permissions o) o
   }
   where o = Term.origin term

@@ -14,6 +14,7 @@ import Kitten.Kind (Kind(..))
 import Kitten.Monad (runKitten)
 import Kitten.Name (GeneralName(..), Qualified(..))
 import Kitten.Type (Type(..), TypeId(..), Var(..))
+import Test.Common
 import Test.HUnit (assertBool, assertFailure)
 import Test.Hspec (Spec, describe, it)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
@@ -29,105 +30,157 @@ import qualified Text.PrettyPrint as Pretty
 
 spec :: Spec
 spec = do
+
   describe "with trivial programs" $ do
+
     it "typechecks empty program" $ do
-      testTypecheck "" $ Type.fun o r r e
+
+      testTypecheck Positive
+        "define test (->) {}"
+        $ Type.fun o r r e
+
     it "typechecks single literals" $ do
-      testTypecheck "0" $ Type.fun o r (Type.prod o r int) e
-      testTypecheck "1.0" $ Type.fun o r (Type.prod o r float) e
+
+      testTypecheck Positive
+        "define test (-> Int32) { 0 }"
+        $ Type.fun o r (Type.prod o r int) e
+
+      testTypecheck Positive
+        "define test (-> Float64) { 1.0 }"
+        $ Type.fun o r (Type.prod o r float) e
+
     it "typechecks intrinsics" $ do
-      testTypecheck "_::kitten::magic" $ Type.fun o r s e
-      testTypecheck "1 2 _::kitten::add_int"
+
+      testTypecheck Positive
+        "define test <R..., S..., +P> (R... -> S... +P) { _::kitten::magic }"
+        $ Type.fun o r s e
+
+      testTypecheck Positive
+        "define test (-> Int32) { 1 2 _::kitten::add_int }"
         $ Type.fun o r (Type.prod o r int) e
+
     it "typechecks data types" $ do
-      testTypecheck "type Unit { case unit } unit"
+
+      testTypecheck Positive
+        "type Unit { case unit }\n\
+        \define test (-> Unit) { unit }"
         $ Type.fun o r (Type.prod o r (ctor "Unit")) e
-      testTypecheck "type Unit { case unit () } unit"
+
+      testTypecheck Positive
+        "type Unit { case unit () }\n\
+        \define test (-> Unit) { unit }"
         $ Type.fun o r (Type.prod o r (ctor "Unit")) e
+
     it "typechecks definitions" $ do
-      testTypecheck "define one (-> Int32) { 1 } one"
+
+      testTypecheck Positive
+        "define one (-> Int32) { 1 }\n\
+        \define test (-> Int32) { one }"
         $ Type.fun o r (Type.prod o r int) e
-      testTypecheck
+
+      testTypecheck Positive
         "define one (-> Int32) { 1 }\n\
         \define two (-> Int32) { 2 }\n\
-        \one two _::kitten::add_int"
+        \define test (-> Int32) { one two _::kitten::add_int }"
         $ Type.fun o r (Type.prod o r int) e
-      testTypecheck
+
+      testTypecheck Positive
         "define up (Int32 -> Int32) { 1 _::kitten::add_int }\n\
         \define down (Int32 -> Int32) { -1 _::kitten::add_int }\n\
-        \1 up 2 down _::kitten::add_int"
+        \define test (-> Int32) { 1 up 2 down _::kitten::add_int }"
         $ Type.fun o r (Type.prod o r int) e
+
     it "typechecks operators" $ do
-      testTypecheck
+
+      testTypecheck Positive
         "define + (Int32, Int32 -> Int32) { _::kitten::add_int }\n\
-        \1 + 1"
+        \define test (-> Int32) { 1 + 1 }"
         $ Type.fun o r (Type.prod o r int) e
-      testTypecheck
+
+      testTypecheck Positive
         "define + (Int32, Int32 -> Int32) { _::kitten::add_int }\n\
         \about +:\n\
         \  operator:\n\
         \    right 5\n\
-        \1 + 1"
+        \define test (-> Int32) { 1 + 1 }"
         $ Type.fun o r (Type.prod o r int) e
-      testTypecheck
+
+      testTypecheck Positive
         "define + (Int32, Int32 -> Int32) { _::kitten::add_int }\n\
         \about +:\n\
         \  operator:\n\
         \    right\n\
-        \1 + 1"
+        \define test (-> Int32) { 1 + 1 }"
         $ Type.fun o r (Type.prod o r int) e
-      testTypecheck
+
+      testTypecheck Positive
         "define + (Int32, Int32 -> Int32) { _::kitten::add_int }\n\
         \about +:\n\
         \  operator:\n\
         \    5\n\
-        \1 + 1"
+        \define test (-> Int32) { 1 + 1 }"
         $ Type.fun o r (Type.prod o r int) e
 
     it "typechecks nested scopes" $ do
-      testTypecheck
+
+      testTypecheck Positive
         "intrinsic add (Int32, Int32 -> Int32)\n\
-        \1000 -> x1;\n\
-        \100 -> y1;\n\
-        \10\n\
-        \{\n\
-        \  -> a1;\n\
-        \  a1 x1 add\n\
+        \define test (-> Int32, Int32) {\n\
+        \  1000 -> x1;\n\
+        \  100 -> y1;\n\
+        \  10\n\
         \  {\n\
-        \    -> b1;\n\
-        \    b1 y1 add\n\
+        \    -> a1;\n\
+        \    a1 x1 add\n\
+        \    {\n\
+        \      -> b1;\n\
+        \      b1 y1 add\n\
+        \    } call\n\
         \  } call\n\
-        \} call\n\
-        \\n\
-        \1000 -> x2;\n\
-        \100 -> y2;\n\
-        \10\n\
-        \{\n\
-        \  -> a2;\n\
-        \  a2 y2 add\n\
+        \  \n\
+        \  1000 -> x2;\n\
+        \  100 -> y2;\n\
+        \  10\n\
         \  {\n\
-        \    -> b2;\n\
-        \    b2 x2 add\n\
+        \    -> a2;\n\
+        \    a2 y2 add\n\
+        \    {\n\
+        \      -> b2;\n\
+        \      b2 x2 add\n\
+        \    } call\n\
         \  } call\n\
-        \} call\n\
-        \\&"
+        \}"
         $ Type.fun o r (Type.prod o (Type.prod o r int) int) e
+
+  describe "with instance checking" $ do
+
+    it "rejects invalid signature" $ do
+
+      testTypecheck Negative
+        "type Pair<A, B> { case pair (A, B) }\n\
+        \define flip<A, B> (Pair<A, B> -> Pair<A, B>) {\n\
+        \  match case pair -> x, y { y x pair }\n\
+        \}\n\
+        \define test (-> Pair<Char, Int32>) { 1 '1' pair flip }"
+        $ Type.fun o r (Type.prod o r (ctor "Pair" :@ char :@ int)) e
 
   describe "with higher-order functions" $ do
 
     it "typechecks curried functions" $ do
-      testTypecheck
+
+      testTypecheck Positive
         "define curried_add (Int32 -> Int32 -> Int32) {\n\
         \  -> x; { -> y; x y _::kitten::add_int }\n\
         \}\n\
-        \1 2 curried_add call"
+        \define test (-> Int32) { 1 2 curried_add call }"
         $ Type.fun o r (Type.prod o r int) e
 
     it "typechecks permissions of higher-order functions" $ do
-      testTypecheck
+
+      testTypecheck Positive
         "intrinsic launch_missiles (-> +IO)\n\
         \intrinsic map<A, B, +P> (List<A>, (A -> B +P) -> List<B> +P)\n\
-        \[1, 2, 3] \\launch_missiles map"
+        \define test (-> List<Int32> +IO) { [1, 2, 3] \\launch_missiles map }"
         $ Type.fun o r (Type.prod o r (ctor "List" :@ int)) (Type.join o io e)
 
   where
@@ -137,12 +190,13 @@ spec = do
   e = TypeVar o $ Var (TypeId 2) Permission
   ctor = TypeConstructor o . Type.Constructor
     . Qualified Vocabulary.global
+  char = ctor "Char"
   int = ctor "Int32"
   io = ctor "IO"
   float = ctor "Float64"
 
-testTypecheck :: Text -> Type -> IO ()
-testTypecheck input expected = do
+testTypecheck :: Sign -> Text -> Type -> IO ()
+testTypecheck sign input expected = do
   result <- runKitten $ do
     let io = [QualifiedName $ Qualified Vocabulary.global "IO"]
     fragment <- fragmentFromSource io Nothing 1 "<test>" input
@@ -156,21 +210,28 @@ testTypecheck input expected = do
         let
           actual = Term.type_ term
         check <- runKitten $ do
-          instanceCheck "declared" expected "inferred" actual
+          instanceCheck "inferred" actual "declared" expected
           checkpoint
-        assertBool
-          (Pretty.render
-            $ Pretty.hsep [pPrint actual, "unifies with", pPrint expected])
-          $ either (const False) (const True) check
+        case sign of
+          Positive -> assertBool
+            (Pretty.render $ Pretty.hsep [pPrint actual, "<:", pPrint expected])
+            $ either (const False) (const True) check
+          Negative -> assertBool
+            (Pretty.render $ Pretty.hsep [pPrint actual, "</:", pPrint expected])
+            $ either (const True) (const False) check
       _ -> assertFailure $ Pretty.render $ Pretty.hsep
         ["missing main word definition:", pPrint definitions]
       where
-      matching (Instantiated (Qualified v "main") _, _)
+      matching (Instantiated (Qualified v "test") _, _)
         | v == Vocabulary.global
         = True
       matching _ = False
-    Left reports -> assertFailure $ unlines
-      $ map (Pretty.render . Report.human) reports
+    Left reports -> case sign of
+      Positive -> assertFailure $ unlines
+        $ map (Pretty.render . Report.human) reports
+      -- FIXME: This might accept a negative test for the wrong
+      -- reason.
+      Negative -> return ()
 
 -- FIXME: Avoid redundancy with 'Kitten.compile'.
 {-
@@ -201,9 +262,15 @@ commonSource = "\
 \  intrinsic magic<R..., S...> (R... -> S...)\
 \  intrinsic add_int (_::Int32, _::Int32 -> _::Int32)\
 \}\
-\type Float {}\n\
+\intrinsic abort<R..., S...> (R... -> S... +Fail)\n\
+\type Char {}\n\
+\type Float64 {}\n\
 \type Int32 {}\n\
 \type List<T> {}\n\
 \permission IO<R..., S..., +E> (R..., (R... -> S... +IO +E) -> S... +E) {\n\
 \  with (+IO)\n\
-\}\n"
+\}\n\
+\permission Fail<R..., S..., +E> (R..., (R... -> S... +Fail +E) -> S... +E) {\n\
+\  with (+Fail)\n\
+\}\n\
+\\&"

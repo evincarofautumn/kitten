@@ -86,7 +86,7 @@ unifyTv :: TypeEnv -> Origin -> Var -> Type -> K TypeEnv
 unifyTv tenv0 origin v@(Var x _) t = case t of
   TypeVar _origin (Var y _) | x == y -> return tenv0
   TypeVar{} -> declare
-  _ -> if occurs tenv0 x t
+  _ -> if occurs tenv0 x (Zonk.type_ tenv0 t)
     then let t' = Zonk.type_ tenv0 t in do
       report $ Report.Chain $
         [ Report.TypeMismatch (TypeVar origin v) t'

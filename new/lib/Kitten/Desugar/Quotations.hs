@@ -88,7 +88,7 @@ desugar dictionary qualifier term0 = do
       let
         deducedType = Term.type_ a
         type_ = foldr (uncurry ((Forall origin .) . Var)) deducedType
-          $ Map.toList $ Free.tvks deducedType
+          $ Map.toList $ Free.tvks tenv2 deducedType
       modify $ \ (l, d) -> let
         entry = Entry.Word
           Category.Word

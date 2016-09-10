@@ -17,6 +17,7 @@ import qualified Data.Set as Set
 import qualified Kitten.Free as Free
 import qualified Kitten.Instantiate as Instantiate
 import qualified Kitten.Report as Report
+import qualified Kitten.Substitute as Substitute
 import qualified Kitten.Type as Type
 import qualified Kitten.TypeEnv as TypeEnv
 import qualified Kitten.Unify as Unify
@@ -34,11 +35,13 @@ import qualified Text.PrettyPrint as Pretty
 instanceCheck :: Pretty.Doc -> Type -> Pretty.Doc -> Type -> K ()
 instanceCheck aSort aScheme bSort bScheme = do
   let tenv0 = TypeEnv.empty
-  (aType, _, tenv1) <- Instantiate.prenex tenv0 aScheme
-  (ids, bType) <- skolemize tenv1 bScheme
-  success <- attempt $ subsumptionCheck tenv1 aType bType
+  let aType = aScheme
+  (ids, bType) <- skolemize tenv0 bScheme
+  let envTypes = Map.elems (TypeEnv.tvs tenv0)
+  success <- attempt $ subsumptionCheck tenv0 aType bType
   unless success failure
-  let escaped = Free.tvs aScheme `Set.union` Free.tvs bScheme
+  let escaped = Set.unions $ map (Free.tvs tenv0) (aScheme : bScheme : envTypes)
+  -- Free.tvs tenv0 aScheme `Set.union` Free.tvs tenv0 bScheme
   let bad = Set.filter (`Set.member` escaped) ids
   unless (Set.null bad) failure
   return ()
@@ -51,9 +54,8 @@ skolemize :: TypeEnv -> Type -> K (Set TypeId, Type)
 skolemize tenv0 t = case t of
   Forall origin (Var x k) t' -> do
     c <- freshTypeId tenv0
-    let tenv1 = tenv0 { TypeEnv.tvs = Map.insert x (TypeConstant origin $ Var c k)
-        $ TypeEnv.tvs tenv0 }
-    (c', t'') <- skolemize tenv1 $ Zonk.type_ tenv1 t'
+    substituted <- Substitute.type_ tenv0 x (TypeConstant origin $ Var c k) t'
+    (c', t'') <- skolemize tenv0 substituted
     return (Set.insert c c', t'')
   -- TForall _ t' -> skolemize tenv0 t'
   TypeConstructor origin "Fun" :@ a :@ b :@ e -> do

@@ -135,7 +135,7 @@ instance Pretty Type where
     a :@ b -> Pretty.hcat [pPrint a, Pretty.angles $ pPrint b]
     TypeConstructor _ constructor -> pPrint constructor
     TypeVar _ var -> pPrint var
-    TypeConstant _ var -> pPrint var
+    TypeConstant _ var -> Pretty.hcat ["∃", pPrint var]
     Forall{} -> prettyForall type_ []
       where
       prettyForall (Forall _ x t) vars = prettyForall t (x : vars)

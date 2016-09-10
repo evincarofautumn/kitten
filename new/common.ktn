@@ -836,9 +836,11 @@ define abort<R..., S...> (R... -> S... +Fail):
 define fail<R..., S...> (R..., List<Char> -> S... +Fail):
   _::kitten::abort
 
-define assert (List<Char>, (-> Bool) -> +Fail):
+define assert<+P> (List<Char>, (-> Bool +P) -> +Fail +P):
   -> message, test;
-  if (test call not):
+  do (with (-Fail)):
+    test call
+  if (not):
     message _::kitten::abort
 
 permission IO<R..., S..., +P> (R..., (R... -> S... +IO +P) -> S... +P):
