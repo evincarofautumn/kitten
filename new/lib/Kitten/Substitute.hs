@@ -20,7 +20,7 @@ type_ tenv0 x a = recur
   recur t = case t of
     Forall origin (Var x' k) t'
       | x == x' -> return t
-      | x' `Set.notMember` Free.tvs t' -> Forall origin (Var x' k) <$> recur t'
+      | x' `Set.notMember` Free.tvs tenv0 t' -> Forall origin (Var x' k) <$> recur t'
       | otherwise -> do
         z <- freshTypeId tenv0
         t'' <- type_ tenv0 x' (TypeVar origin $ Var z k) t'

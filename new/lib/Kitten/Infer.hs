@@ -148,8 +148,9 @@ inferType0 dictionary tenv mDeclared term
     let zonked = Zonk.type_ tenvFinal' t
     let regeneralized = regeneralize tenvFinal' zonked
     case mDeclared of
+      -- The inferred type must be at least as polymorphic as the declared type.
       Just declared -> instanceCheck
-        "declared" declared "inferred" regeneralized
+        "inferred" regeneralized "declared" declared
       Nothing -> return ()
     return (Zonk.term tenvFinal' term', regeneralized)
   where

@@ -42,7 +42,7 @@ data Report
   | CannotResolveName !Origin !NameCategory !GeneralName
   | MultipleDefinitions !Origin !Qualified [Origin]
   | WordRedefinition !Origin !Qualified !Origin
-  | WordRedeclaration !Origin !Qualified !Signature !Origin !Signature
+  | WordRedeclaration !Origin !Qualified !Signature !Origin !(Maybe Signature)
   | TypeMismatch !Type !Type
   | RedundantCase !Origin
   | Chain [Report]
@@ -78,7 +78,7 @@ human report = case report of
     -- TODO: Show type kind.
     [ "I expected"
     , Pretty.quote a
-    , "to be an instance of the type"
+    , "to be at least as polymorphic as"
     , Pretty.quote b
     , "but it isn't"
     ]
@@ -137,20 +137,24 @@ human report = case report of
     ]
 
   WordRedeclaration origin name signature
-    originalOrigin originalSignature -> Pretty.vcat
-    [ Pretty.hsep
+    originalOrigin mOriginalSignature -> Pretty.vcat
+    $ Pretty.hsep
       [ showOriginPrefix origin
       , "I can't redeclare the word"
       , Pretty.quote name
       , "with the signature"
       , Pretty.quote signature
       ]
-    , Pretty.hsep
+    : Pretty.hsep
       [ showOriginPrefix originalOrigin
-      , "because it was declared or defined already with the signature"
-      , Pretty.quote originalSignature
+      , "because it was declared or defined already"
       ]
-    ]
+    : [ Pretty.hsep
+        [ "with the signature"
+        , Pretty.quote originalSignature
+        ]
+      | Just originalSignature <- [mOriginalSignature]
+      ]
 
   -- TODO: Report type kind.
   TypeMismatch a b -> Pretty.vcat

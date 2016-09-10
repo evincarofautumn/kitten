@@ -79,7 +79,7 @@ program line path mainPermissions mainName tokens = let
         Nothing -> result
           { Fragment.definitions = Definition.main mainPermissions
             mainName
-            (Term.identityCoercion () (Origin.point "<implicit>" line 1))
+            (Term.identityCoercion () (Origin.point path line 1))
             : Fragment.definitions result
           }
 

@@ -40,7 +40,7 @@ regeneralize :: TypeEnv -> Type -> Type
 regeneralize tenv t = let
   (t', vars) = runWriter $ go t
   in foldr (uncurry ((Forall (Type.origin t) .) . Var)) t'
-    $ foldr (deleteBy ((==) `on` fst)) (Map.toList (Free.tvks t')) vars
+    $ foldr (deleteBy ((==) `on` fst)) (Map.toList (Free.tvks tenv t')) vars
   where
   go :: Type -> Writer [(TypeId, Kind)] Type
   go t' = case t' of

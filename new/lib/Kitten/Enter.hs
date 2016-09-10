@@ -142,13 +142,13 @@ declareWord dictionary definition = let
           Nothing
       return $ Dictionary.insert (Instantiated name []) entry dictionary
     -- Already declared with the same signature.
-    Just (Entry.Word _ _ originalOrigin _ (Just signature') _)
-      | Definition.inferSignature definition || signature' == signature
+    Just (Entry.Word _ _ originalOrigin _ mSignature _)
+      | Definition.inferSignature definition || mSignature == Just signature
       -> return dictionary
       | otherwise
       -> do
          report $ Report.WordRedeclaration (Signature.origin signature)
-           name signature originalOrigin signature'
+           name signature originalOrigin mSignature
          return dictionary
     -- Already declared or defined as a trait.
     Just (Entry.Trait _origin traitSignature)
@@ -262,24 +262,26 @@ defineWord dictionary definition = do
       return $ Dictionary.insert (Instantiated name []) entry dictionary'
     -- Already defined as concatenable.
     Just (Entry.Word category merge@Merge.Compose
-      origin' parent mSignature@(Just signature') body)
+      origin' parent mSignature body)
       | Definition.inferSignature definition
-        || resolvedSignature == signature' -> do
-      let
-        strippedBody = maybe (Term.identityCoercion () (Origin.point "<implicit>" 1 1))
-          Term.stripMetadata body
+        || Just resolvedSignature == mSignature -> do
+      composedBody <- case body of
+        Just existing -> do
+          let strippedBody = Term.stripMetadata existing
+          return $ Term.Compose () strippedBody $ Definition.body resolved
+        Nothing -> return $ Definition.body resolved
       (composed, composedType) <- typecheck dictionary
         (if Definition.inferSignature definition
           then Nothing
           else Just resolvedSignature)
-        $ Term.Compose () strippedBody $ Definition.body resolved
+        composedBody
       (flattenedBody, dictionary') <- Quotations.desugar
         dictionary (qualifierFromName name)
         $ Quantify.term composedType composed
       let
         entry = Entry.Word category merge origin' parent
           (if Definition.inferSignature definition
-            then Just (Signature.Type composedType)
+            then Nothing -- Just (Signature.Type composedType)
             else mSignature)
           $ Just flattenedBody
       return $ Dictionary.insert (Instantiated name []) entry dictionary'
