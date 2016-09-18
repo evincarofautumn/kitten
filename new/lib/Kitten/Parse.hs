@@ -501,7 +501,16 @@ signatureParser = quantifiedParser signature <|> signature <?> "type signature"
   where signature = groupedParser functionTypeParser
 
 blockParser :: Parser (Term ())
-blockParser = blockedParser blockContentsParser <?> "block"
+blockParser = (blockedParser blockContentsParser <|> reference)
+  <?> "block or reference"
+  where
+  reference = parserMatch_ Token.Reference *> Parsec.choice
+    [ do
+      origin <- getTokenOrigin
+      Word () Operator.Postfix
+        <$> (fst <$> nameParser) <*> pure [] <*> pure origin
+    , termParser
+    ]
 
 blockContentsParser :: Parser (Term ())
 blockContentsParser = do
@@ -654,14 +663,7 @@ termParser = (<?> "expression") $ do
       [Push () (Quotation body) (Term.origin body), term]
 
   blockValue :: Parser (Value ())
-  blockValue = (<?> "quotation") $ do
-    origin <- getTokenOrigin
-    let
-      reference = Word () Operator.Postfix
-        <$> (parserMatch Token.Reference *> (fst <$> nameParser))
-        <*> pure []
-        <*> pure origin
-    Quotation <$> (blockParser <|> reference)
+  blockValue = (<?> "quotation") $ Quotation <$> blockParser
 
   asParser :: Parser (Term ())
   asParser = (<?> "'as' expression") $ do
