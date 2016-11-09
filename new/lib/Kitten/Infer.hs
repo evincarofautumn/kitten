@@ -232,7 +232,9 @@ inferType dictionary tenvFinal tenv0 term0
       "group expression should not appear during type inference"
 
 -- A local variable binding in Kitten is in fact a lambda term in the ordinary
--- lambda-calculus sense. We infer the type of its body in the
+-- lambda-calculus sense. We infer the type of its body in the environment
+-- extended with a fresh local bound to a fresh type variable, and produce a
+-- type of the form 'R..., A -> S... +P'.
 
     Lambda _ name _ term origin -> do
       a <- TypeEnv.freshTv tenv0 origin Value
