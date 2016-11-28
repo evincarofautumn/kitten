@@ -15,6 +15,7 @@ import Kitten.Base (Base(..))
 import Kitten.Bits
 import Kitten.Indent (Indent(..))
 import Kitten.Informer (Informer(..))
+import Kitten.Layout (layout)
 import Kitten.Located (Located(..))
 import Kitten.Name (Unqualified(..))
 import Kitten.Token (Token(..))
@@ -33,7 +34,7 @@ tokenize line path text = case Parsec.runParser
   Left parseError -> do
     report $ Report.parseError parseError
     halt
-  Right result -> return result
+  Right result -> layout path result
   where
   setPos = Parsec.setPosition $ Parsec.newPos path line 1
 

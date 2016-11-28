@@ -6,7 +6,6 @@ import Control.Applicative
 import Kitten.Indent (Indent(..))
 import Kitten.Informer (Informer(..))
 import Kitten.Located (Located(..))
-import Kitten.Monad (K)
 import Kitten.Parser (Parser, parserMatch, tokenSatisfy)
 import Kitten.Token (Token(..))
 import Text.Parsec ((<?>))
@@ -17,7 +16,7 @@ import qualified Kitten.Report as Report
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.Parsec as Parsec
 
-layout :: FilePath -> [Located Token] -> K [Located Token]
+layout :: (Informer m) => FilePath -> [Located Token] -> m [Located Token]
 layout path tokens
   = case Parsec.runParser insertBraces Vocabulary.global path tokens of
     Left parseError -> do
@@ -40,7 +39,7 @@ insertBraces = (concat <$> many unit) <* Parsec.eof
       , bracket VectorBegin VectorEnd
       , layoutBlock
       , (:[]) <$> tokenSatisfy nonbracket
-      ]
+      ] <?> "layout item"
 
   bracket :: Token -> Token -> Parser [Located Token]
   bracket open close = do
