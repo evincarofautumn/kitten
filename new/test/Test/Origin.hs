@@ -93,7 +93,7 @@ spec = do
 testOrigin :: [String] -> Expectation
 testOrigin test = let
   (input, origins) = deinterleave test
-  in (fmap (map Located.origin) $ runIdentity $ runKitten $ tokenize 1 ""
+  in (fmap (map Located.origin) $ runIdentity $ runKitten $ tokenize 1 "test"
       $ Text.unlines $ map Text.pack input)
     `shouldBe` Right (parseOrigins origins)
 
@@ -123,7 +123,7 @@ parseOrigins = concatMap (uncurry goLine) . zip [1..]
 
   toOrigin :: Line -> Span -> Origin
   toOrigin line (Span begin end) = Origin
-    { Origin.name = ""
+    { Origin.name = "test"
     , Origin.beginLine = line
     , Origin.beginColumn = begin
     , Origin.endLine = line
