@@ -233,28 +233,6 @@ testTypecheck sign input expected = do
       -- reason.
       Negative -> return ()
 
--- FIXME: Avoid redundancy with 'Kitten.compile'.
-{-
-typecheck :: Text -> IO (Either [Report] (Program Type))
-typecheck input = runKitten $ do
-  tokenized <- tokenize "" $ Text.concat [common, input]
-  checkpoint
-  laidout <- layout "" tokenized
-  checkpoint
-  parsed <- parse "" laidout
-  checkpoint
-  dataDesugared <- Data.desugar parsed
-  resolved <- resolveNames dataDesugared
-  checkpoint
-  postfix <- Infix.desugar resolved
-  checkpoint
-  let scoped = scope postfix
-  inferred <- inferTypes scoped
-  checkpoint
-  return inferred
-  where
--}
-
 -- FIXME: Avoid redundantly re-parsing common vocabulary.
 commonSource :: Text
 commonSource = "\
