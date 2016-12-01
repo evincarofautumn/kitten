@@ -15,7 +15,6 @@ import Kitten.Name (GeneralName(..), Qualified(..), Unqualified(..))
 import Kitten.Queue (Queue)
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Kitten.Type (Constructor(..), Type(..))
-import Kitten.TypeEnv (TypeEnv)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
@@ -26,6 +25,7 @@ import qualified Kitten.Kind as Kind
 import qualified Kitten.Mangle as Mangle
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Queue as Queue
+import qualified Kitten.TypeEnv as TypeEnv
 import qualified Text.PrettyPrint as Pretty
 
 -- In order to support unboxed generics, for every call site of a generic
@@ -40,8 +40,8 @@ import qualified Text.PrettyPrint as Pretty
 -- type is instantiated if it's mentioned in the signature of any instantiated
 -- word definition.
 
-collectInstantiations :: TypeEnv -> Dictionary -> K Dictionary
-collectInstantiations tenv0 dictionary0 = do
+collectInstantiations :: Dictionary -> K Dictionary
+collectInstantiations dictionary0 = do
 
 -- We enqueue all the instantiation sites reachable from the top level of the
 -- program, and any non-generic definitions.
@@ -143,7 +143,7 @@ collectInstantiations tenv0 dictionary0 = do
               Just term -> do
                 term' <- while origin
                   (Pretty.hsep ["instantiating", Pretty.quote name])
-                  $ Instantiate.term tenv0 term args
+                  $ Instantiate.term TypeEnv.empty term args
                 (term'', q'') <- go q' term'
                 let
                   entry' = Entry.Word category merge origin parent signature
