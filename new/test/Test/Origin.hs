@@ -102,7 +102,7 @@ deinterleave = go ([], [])
   where
   go (as, bs) (a : b : xs) = go (a : as, b : bs) xs
   go _ [_] = error "deinterleave: uneven input"
-  go acc [] = acc
+  go (as, bs) [] = (reverse as, reverse bs)
 
 data Span = Span !Column !Column
 
