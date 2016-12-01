@@ -2,7 +2,7 @@
 
 module Kitten.Parse
   ( generalName
-  , program
+  , fragment
   ) where
 
 import Control.Applicative
@@ -38,6 +38,7 @@ import qualified Data.Text as Text
 import qualified Kitten.DataConstructor as DataConstructor
 import qualified Kitten.Declaration as Declaration
 import qualified Kitten.Definition as Definition
+import qualified Kitten.Desugar.Data as Data
 import qualified Kitten.Element as Element
 import qualified Kitten.Entry.Category as Category
 import qualified Kitten.Entry.Merge as Merge
@@ -56,14 +57,14 @@ import qualified Kitten.TypeDefinition as TypeDefinition
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.Parsec as Parsec
 
-program
+fragment
   :: Int
   -> FilePath
   -> [GeneralName]
   -> Maybe Qualified
   -> [Located Token]
   -> K (Fragment ())
-program line path mainPermissions mainName tokens = let
+fragment line path mainPermissions mainName tokens = let
   parsed = Parsec.runParser
     (fragmentParser mainPermissions mainName)
     Vocabulary.global path tokens
@@ -71,17 +72,17 @@ program line path mainPermissions mainName tokens = let
     Left parseError -> do
       report $ Report.parseError parseError
       halt
-    Right result -> return
-      $ case find
-        ((== fromMaybe Definition.mainName mainName) . Definition.name)
-        $ Fragment.definitions result of
-        Just{} -> result
-        Nothing -> result
-          { Fragment.definitions = Definition.main mainPermissions
-            mainName
-            (Term.identityCoercion () (Origin.point path line 1))
-            : Fragment.definitions result
-          }
+    Right result -> return (Data.desugar (insertMain result))
+
+  where
+    isMain = (== fromMaybe Definition.mainName mainName) . Definition.name
+    insertMain f = case find isMain $ Fragment.definitions f of
+      Just{} -> f
+      Nothing -> f
+        { Fragment.definitions = Definition.main mainPermissions mainName
+          (Term.identityCoercion () (Origin.point path line 1))
+          : Fragment.definitions f
+        }
 
 generalName :: (Informer m) => Int -> FilePath -> Text -> m GeneralName
 generalName line path text = do
@@ -112,12 +113,12 @@ partitionElements mainPermissions mainName = rev . foldr go mempty
   where
 
   rev :: Fragment () -> Fragment ()
-  rev fragment = Fragment
-    { Fragment.declarations = reverse $ Fragment.declarations fragment
-    , Fragment.definitions = reverse $ Fragment.definitions fragment
-    , Fragment.metadata = reverse $ Fragment.metadata fragment
-    , Fragment.synonyms = reverse $ Fragment.synonyms fragment
-    , Fragment.types = reverse $ Fragment.types fragment
+  rev f = Fragment
+    { Fragment.declarations = reverse $ Fragment.declarations f
+    , Fragment.definitions = reverse $ Fragment.definitions f
+    , Fragment.metadata = reverse $ Fragment.metadata f
+    , Fragment.synonyms = reverse $ Fragment.synonyms f
+    , Fragment.types = reverse $ Fragment.types f
     }
 
   go :: Element () -> Fragment () -> Fragment ()

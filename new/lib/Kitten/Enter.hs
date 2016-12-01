@@ -25,7 +25,6 @@ import Kitten.TypeDefinition (TypeDefinition)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Kitten.Declaration as Declaration
 import qualified Kitten.Definition as Definition
-import qualified Kitten.Desugar.Data as Data
 import qualified Kitten.Desugar.Infix as Infix
 import qualified Kitten.Desugar.Quotations as Quotations
 import qualified Kitten.Dictionary as Dictionary
@@ -34,7 +33,6 @@ import qualified Kitten.Entry.Category as Category
 import qualified Kitten.Entry.Merge as Merge
 import qualified Kitten.Fragment as Fragment
 import qualified Kitten.Metadata as Metadata
-import qualified Kitten.Origin as Origin
 import qualified Kitten.Parse as Parse
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Quantify as Quantify
@@ -313,14 +311,13 @@ fragmentFromSource mainPermissions mainName line path source = do
   checkpoint
 
 -- We then parse the token stream as a series of top-level program elements.
-
-  parsed <- Parse.program line path mainPermissions mainName tokenized
-  checkpoint
-
 -- Datatype definitions are desugared into regular definitions, so that name
 -- resolution can find their names.
 
-  Data.desugar parsed
+  parsed <- Parse.fragment line path mainPermissions mainName tokenized
+  checkpoint
+
+  return parsed
 
 resolveAndDesugar :: Dictionary -> Definition () -> K (Definition ())
 resolveAndDesugar dictionary definition = do

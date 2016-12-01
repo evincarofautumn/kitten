@@ -2,13 +2,11 @@ module Kitten.Desugar.Data
   ( desugar
   ) where
 
-import Control.Monad (zipWithM)
 import Data.List (foldl')
 import Kitten.DataConstructor (DataConstructor)
 import Kitten.Definition (Definition(Definition))
 import Kitten.Entry.Parameter (Parameter(Parameter))
 import Kitten.Fragment (Fragment)
-import Kitten.Monad (K)
 import Kitten.Name (ConstructorIndex(..), GeneralName(..), Qualified(..))
 import Kitten.Term (Term(..))
 import Kitten.TypeDefinition (TypeDefinition)
@@ -22,49 +20,45 @@ import qualified Kitten.Operator as Operator
 import qualified Kitten.Signature as Signature
 import qualified Kitten.TypeDefinition as TypeDefinition
 
-desugar :: Fragment () -> K (Fragment ())
-desugar fragment = do
-  definitions <- fmap concat $ mapM desugarTypeDefinition
-    $ Fragment.types fragment
-  return fragment { Fragment.definitions
-    = Fragment.definitions fragment ++ definitions }
-  where
+desugar :: Fragment () -> Fragment ()
+desugar fragment = fragment
+  { Fragment.definitions = Fragment.definitions fragment
+    ++ concatMap desugarTypeDefinition (Fragment.types fragment) }
 
-  desugarTypeDefinition :: TypeDefinition -> K [Definition ()]
-  desugarTypeDefinition definition = zipWithM desugarConstructor [0..]
-    $ TypeDefinition.constructors definition
-    where
-    desugarConstructor :: Int -> DataConstructor -> K (Definition ())
-    desugarConstructor index constructor = do
-      let
-        resultSignature = foldl'
-          (\ a b -> Signature.Application a b origin)
-          (Signature.Variable (QualifiedName $ TypeDefinition.name definition)
-            $ TypeDefinition.origin definition)
-          $ map (\ (Parameter parameterOrigin parameter _kind)
-            -> Signature.Variable (UnqualifiedName parameter) parameterOrigin)
-          $ TypeDefinition.parameters definition
-        constructorSignature = Signature.Quantified
-          (TypeDefinition.parameters definition)
-          (Signature.Function
-            (DataConstructor.fields constructor) [resultSignature] [] origin)
-          origin
-      return Definition
-        { Definition.body = New ()
-          (ConstructorIndex index)
-          (length $ DataConstructor.fields constructor)
-          $ DataConstructor.origin constructor
-        , Definition.category = Category.Constructor
-        , Definition.fixity = Operator.Postfix
-        , Definition.inferSignature = False
-        , Definition.merge = Merge.Deny
-        , Definition.name = Qualified qualifier
-          $ DataConstructor.name constructor
-        , Definition.origin = origin
-        , Definition.parent = Just $ Parent.Type
-          $ TypeDefinition.name definition
-        , Definition.signature = constructorSignature
-        }
-      where
-      origin = DataConstructor.origin constructor
-      qualifier = qualifierName $ TypeDefinition.name definition
+desugarTypeDefinition :: TypeDefinition -> [Definition ()]
+desugarTypeDefinition definition
+  = zipWith (desugarConstructor definition) [0..]
+  $ TypeDefinition.constructors definition
+
+desugarConstructor :: TypeDefinition -> Int -> DataConstructor -> Definition ()
+desugarConstructor definition index constructor = Definition
+  { Definition.body = New ()
+    (ConstructorIndex index)
+    (length $ DataConstructor.fields constructor)
+    $ DataConstructor.origin constructor
+  , Definition.category = Category.Constructor
+  , Definition.fixity = Operator.Postfix
+  , Definition.inferSignature = False
+  , Definition.merge = Merge.Deny
+  , Definition.name = Qualified qualifier
+    $ DataConstructor.name constructor
+  , Definition.origin = origin
+  , Definition.parent = Just $ Parent.Type
+    $ TypeDefinition.name definition
+  , Definition.signature = constructorSignature
+  }
+  where
+  resultSignature = foldl'
+    (\ a b -> Signature.Application a b origin)
+    (Signature.Variable (QualifiedName $ TypeDefinition.name definition)
+      $ TypeDefinition.origin definition)
+    $ map (\ (Parameter parameterOrigin parameter _kind)
+      -> Signature.Variable (UnqualifiedName parameter) parameterOrigin)
+    $ TypeDefinition.parameters definition
+  constructorSignature = Signature.Quantified
+    (TypeDefinition.parameters definition)
+    (Signature.Function
+      (DataConstructor.fields constructor) [resultSignature] [] origin)
+    origin
+  origin = DataConstructor.origin constructor
+  qualifier = qualifierName $ TypeDefinition.name definition
