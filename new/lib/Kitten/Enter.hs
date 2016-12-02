@@ -219,7 +219,9 @@ defineWord dictionary definition = do
   let resolvedSignature = Definition.signature resolved
   -- Note that we use the resolved signature here.
   (typecheckedBody, type_) <- typecheck dictionary
-    (Just resolvedSignature)
+    (if Definition.inferSignature definition
+      then Nothing
+      else Just resolvedSignature)
     $ Definition.body resolved
   checkpoint
   case Dictionary.lookup (Instantiated name []) dictionary of
