@@ -5,26 +5,17 @@ module Test.InstanceCheck
   ) where
 
 
-import Data.List (find)
-import Data.Text (Text)
-import Kitten (fragmentFromSource)
 import Kitten.Informer (checkpoint)
 import Kitten.InstanceCheck (instanceCheck)
-import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Kind (Kind(..))
 import Kitten.Monad (runKitten)
-import Kitten.Name (GeneralName(..), Qualified(..))
+import Kitten.Name (Qualified(..))
 import Kitten.Type (Type(..), TypeId(..), Var(..))
 import Test.Common
-import Test.HUnit (assertBool, assertFailure)
-import Test.Hspec (Spec, describe, it)
+import Test.HUnit (assertBool)
+import Test.Hspec (Spec, it)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
-import qualified Kitten.Dictionary as Dictionary
-import qualified Kitten.Enter as Enter
-import qualified Kitten.Entry as Entry
 import qualified Kitten.Origin as Origin
-import qualified Kitten.Report as Report
-import qualified Kitten.Term as Term
 import qualified Kitten.Type as Type
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.PrettyPrint as Pretty
