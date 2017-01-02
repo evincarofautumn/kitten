@@ -126,14 +126,13 @@ run = do
                 (Text.pack $ Pretty.render $ pPrint entryName)
               dictionary'' <- Enter.fragment callFragment dictionary'
               checkpoint
-              let tenv = TypeEnv.empty
-              (mainScheme, mainBody) <- case Dictionary.lookup
-                (Instantiated Definition.mainName []) dictionary'' of
-                Just (Entry.Word _ _ _ _ (Just signature) (Just body))
-                  -> do
-                    type_ <- typeFromSignature tenv signature
-                    return (type_, body)
-                _ -> error "cannot get entry scheme"
+              let
+                tenv = TypeEnv.empty
+                mainBody = case Dictionary.lookup
+                  (Instantiated Definition.mainName []) dictionary'' of
+                  Just (Entry.Word _ _ _ _ _ (Just body))
+                    -> body
+                  _ -> error "cannot get entry point"
               stackScheme <- typeFromSignature tenv $ Signature.Quantified
                 [ Parameter currentOrigin "R" Stack
                 , Parameter currentOrigin "E" Permission
@@ -147,7 +146,7 @@ run = do
               -- empty stack is the same as verifying the last entry against the
               -- current stack state, as long as the state was modified
               -- correctly by the interpreter.
-              _ <- Unify.type_ tenv stackScheme mainScheme
+              _ <- Unify.type_ tenv stackScheme (Term.type_ mainBody)
               checkpoint
               return (dictionary'', mainBody)
             case mResults of
