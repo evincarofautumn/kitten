@@ -183,6 +183,18 @@ spec = do
         \define test (-> List<Int32> +IO) { [1, 2, 3] \\launch_missiles map }"
         $ Type.fun o r (Type.prod o r (ctor "List" :@ int)) (Type.join o io e)
 
+  describe "with coercions" $ do
+
+    it "typechecks identity coercions" $ do
+
+      testTypecheck Positive
+        "define test (-> Int32) { 1i32 as (Int32) }"
+        $ Type.fun o r (Type.prod o r int) e
+
+      testTypecheck Negative
+        "define test (-> Int32) { 1i64 as (Int32) }"
+        $ Type.fun o r (Type.prod o r int) e
+
   where
   o = Origin.point "" 0 0
   r = TypeVar o $ Var (TypeId 0) Stack
