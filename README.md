@@ -10,6 +10,8 @@
 
 # Resources
 
+**Note: these are currently out of date with the new compiler.**
+
  * Visit the [official site][site].
 
  * Browse some [examples][examples].
@@ -20,7 +22,22 @@
 
 # Building [![Build Status](https://travis-ci.org/evincarofautumn/kitten.png?branch=master)](https://travis-ci.org/evincarofautumn/kitten)
 
-To build the compiler, you need GHC 7.10. Simply run:
+To build the latest compiler, you need GHC ≥8.0 and [Stack]:
+
+```
+git clone https://github.com/evincarofautumn/kitten.git
+cd kitten/new
+stack build
+
+stack exec kitten
+# OR
+stack install
+~/.local/bin/kitten
+```
+
+---
+
+To build the old compiler, which will be removed soon, you need GHC ≥7.10:
 
 ```
 git clone https://github.com/evincarofautumn/kitten.git
@@ -35,3 +52,4 @@ You can run the integration tests concurrently with `make -jn`, where `n` is the
 [intro]: http://kittenlang.org/intro/
 [site]: http://kittenlang.org/
 [tutorial]: http://kittenlang.org/tutorial/
+[Stack]: https://docs.haskellstack.org/en/stable/README/
