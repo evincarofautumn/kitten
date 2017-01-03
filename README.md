@@ -22,7 +22,7 @@
 
 # Building [![Build Status](https://travis-ci.org/evincarofautumn/kitten.png?branch=master)](https://travis-ci.org/evincarofautumn/kitten)
 
-To build the latest compiler, you need GHC ≥8.0 and [Stack]:
+To build the latest compiler, you need [Stack]:
 
 ```
 git clone https://github.com/evincarofautumn/kitten.git
