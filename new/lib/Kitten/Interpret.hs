@@ -22,7 +22,7 @@ import Kitten.Monad (runKitten)
 import Kitten.Name
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Kitten.Type (Type(..))
-import System.IO (Handle, hPutChar, hPutStrLn)
+import System.IO (Handle, hGetLine, hFlush, hPutChar, hPutStrLn)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import Text.Printf (hPrintf)
 import qualified Codec.Picture.Png as Png
@@ -51,7 +51,7 @@ interpret
   -> Handle
   -> [Value Type]
   -> IO [Value Type]
-interpret dictionary mName mainArgs _stdin' stdout' _stderr' initialStack = do
+interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
   -- TODO: Types.
   stackRef <- newIORef initialStack
   localsRef <- newIORef []
@@ -383,6 +383,10 @@ interpret dictionary mName mainArgs _stdin' stdout' _stderr' initialStack = do
         (Array cs : r) <- readIORef stackRef
         writeIORef stackRef r
         mapM_ (\ (Character c) -> hPutChar stdout' c) cs
+      "get_line" -> do
+        line <- hGetLine stdin'
+        modifyIORef' stackRef (Array (Vector.fromList (map Character line)) :)
+      "flush_stdout" -> hFlush stdout'
       "tail" -> do
         (Array xs : r) <- readIORef stackRef
         if Vector.null xs

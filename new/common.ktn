@@ -763,11 +763,12 @@ vocab map_index {
 vocab kitten {
 
   intrinsic print (List<Char> -> +IO)
+  intrinsic get_line (-> List<Char> +IO)
+
+  // FIXME: Figure out handles and generalize this.
+  intrinsic flush_stdout (-> +IO)
 
 }
-
-define print (List<Char> -> +IO):
-  _::kitten::print
 
 trait show<T> (T -> List<Char>)
 
@@ -817,9 +818,17 @@ instance show (UInt32 -> List<Char>):
 instance show (UInt64 -> List<Char>):
   _::kitten::show_uint64
 
+define print<T> (T -> +IO) /* where (show<T>) */ :
+  show _::kitten::print
+
 define say<T> (T -> +IO):
-  show print
-  "\n" print
+  print "\n" print
+
+define get_line (-> List<Char> +IO):
+  _::kitten::get_line
+
+define prompt (List<Char> -> List<Char> +IO):
+  print _::kitten::flush_stdout get_line
 
 permission Fail<R..., S..., +P> (R..., (R... -> S... +Fail +P) -> S... +P):
   with (+Fail)
