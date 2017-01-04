@@ -1,0 +1,4 @@
+"What is your name? " prompt -> name;
+"Hello, " print
+name print
+"!" say
