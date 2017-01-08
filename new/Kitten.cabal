@@ -16,6 +16,7 @@ executable kitten
 
     Kitten,
     bytestring,
+    cmdargs,
     containers,
     hashable,
     parsec,

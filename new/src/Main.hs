@@ -2,27 +2,36 @@
 
 module Main where
 
+import Arguments (Arguments, parseArguments)
 import Control.Monad (void)
 import Kitten (compile, runKitten)
 import Kitten.Interpret (interpret)
 import Kitten.Name (GeneralName(..), Qualified(..))
 import Report
-import System.Environment
 import System.Exit
 import System.IO
+import qualified Arguments
 import qualified Interact
 import qualified Kitten.Vocabulary as Vocabulary
 
 main :: IO ()
 main = do
   hSetEncoding stdout utf8
-  paths <- getArgs
-  case paths of
-    [] -> Interact.run
-    _ -> runBatch paths
+  arguments <- parseArguments
+  case Arguments.inputPaths arguments of
+    [] -> case Arguments.compileMode arguments of
+      Arguments.CheckMode -> do
+        hPutStrLn stderr "Cannot run interactively in check mode."
+        exitFailure
+      Arguments.CompileMode{} -> do
+        hPutStrLn stderr "Cannot run interactively in compile mode."
+        exitFailure
+      Arguments.InterpretMode -> Interact.run
+    _ -> runBatch arguments
 
-runBatch :: [FilePath] -> IO ()
-runBatch paths = do
+runBatch :: Arguments -> IO ()
+runBatch arguments = do
+  let paths = Arguments.inputPaths arguments
   result <- runKitten
     $ compile mainPermissions Nothing
     -- FIXME: Use proper library path lookup.
@@ -31,8 +40,11 @@ runBatch paths = do
     Left reports -> do
       reportAll reports
       exitFailure
-    Right program -> void $ interpret program
-      Nothing [] stdin stdout stderr []
+    Right program -> case Arguments.compileMode arguments of
+      Arguments.CheckMode -> return ()
+      Arguments.CompileMode _format -> return ()
+      Arguments.InterpretMode -> void $ interpret program
+        Nothing [] stdin stdout stderr []
   where
     mainPermissions =
       [ QualifiedName $ Qualified Vocabulary.global "IO"
