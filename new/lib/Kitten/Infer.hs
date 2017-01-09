@@ -509,10 +509,11 @@ inferCall dictionary tenvFinal tenv0 (QualifiedName name) origin
         type'' = Zonk.type_ tenvFinal type'
         params'' = map (Zonk.type_ tenvFinal) params'
       let
-        mangled = QualifiedName name {- $ case params'' of
-          [] -> name
-          _ -> Qualified Vocabulary.global
-            $ Unqualified $ Mangle.name name params'' -}
+        mangled = QualifiedName name
+        -- case params'' of
+        --   [] -> name
+        --   _ -> Qualified Vocabulary.global
+        --     $ Unqualified $ Mangle.name name params''
       return
         ( Word type'' Operator.Postfix mangled
           params'' origin
