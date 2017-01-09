@@ -1,3 +1,14 @@
+{-|
+Module      : Kitten.Desugar.Quotations
+Description : Lifting anonymous functions
+Copyright   : (c) Jon Purdy, 2016
+License     : MIT
+Maintainer  : evincarofautumn@gmail.com
+Stability   : experimental
+Portability : GHC
+-}
+
+
 module Kitten.Desugar.Quotations
   ( desugar
   ) where

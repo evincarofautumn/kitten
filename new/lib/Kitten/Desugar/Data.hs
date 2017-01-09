@@ -1,3 +1,13 @@
+{-|
+Module      : Kitten.Desugar.Data
+Description : Desugaring data type constructors
+Copyright   : (c) Jon Purdy, 2016
+License     : MIT
+Maintainer  : evincarofautumn@gmail.com
+Stability   : experimental
+Portability : GHC
+-}
+
 module Kitten.Desugar.Data
   ( desugar
   ) where
