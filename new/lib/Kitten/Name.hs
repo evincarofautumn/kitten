@@ -1,3 +1,13 @@
+{-|
+Module      : Kitten.Name
+Description : Program identifiers
+Copyright   : (c) Jon Purdy, 2016
+License     : MIT
+Maintainer  : evincarofautumn@gmail.com
+Stability   : experimental
+Portability : GHC
+-}
+
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 

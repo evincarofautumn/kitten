@@ -1,3 +1,13 @@
+{-|
+Module      : Kitten.Instantiated
+Description : Fully qualified instantiated names
+Copyright   : (c) Jon Purdy, 2016
+License     : MIT
+Maintainer  : evincarofautumn@gmail.com
+Stability   : experimental
+Portability : GHC
+-}
+
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Instantiated

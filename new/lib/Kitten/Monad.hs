@@ -1,3 +1,13 @@
+{-|
+Module      : Kitten.Monad
+Description : Error-reporting I/O monad
+Copyright   : (c) Jon Purdy, 2016
+License     : MIT
+Maintainer  : evincarofautumn@gmail.com
+Stability   : experimental
+Portability : GHC
+-}
+
 module Kitten.Monad
   ( K
   , KT

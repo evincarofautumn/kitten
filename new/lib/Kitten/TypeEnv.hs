@@ -1,3 +1,13 @@
+{-|
+Module      : Kitten.TypeEnv
+Description : Type inference environment
+Copyright   : (c) Jon Purdy, 2016
+License     : MIT
+Maintainer  : evincarofautumn@gmail.com
+Stability   : experimental
+Portability : GHC
+-}
+
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.TypeEnv

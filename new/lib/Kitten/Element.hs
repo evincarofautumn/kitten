@@ -1,3 +1,13 @@
+{-|
+Module      : Kitten.Element
+Description : Top-level program elements
+Copyright   : (c) Jon Purdy, 2016
+License     : MIT
+Maintainer  : evincarofautumn@gmail.com
+Stability   : experimental
+Portability : GHC
+-}
+
 module Kitten.Element
   ( Element(..)
   ) where

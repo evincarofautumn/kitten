@@ -1,3 +1,13 @@
+{-|
+Module      : Kitten.Occurrences
+Description : Occurrences of a variable in a type
+Copyright   : (c) Jon Purdy, 2016
+License     : MIT
+Maintainer  : evincarofautumn@gmail.com
+Stability   : experimental
+Portability : GHC
+-}
+
 module Kitten.Occurrences
   ( occurrences
   , occurs

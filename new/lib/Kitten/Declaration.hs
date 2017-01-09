@@ -1,3 +1,13 @@
+{-|
+Module      : Kitten.Declaration
+Description : Declarations of intrinsics and traits
+Copyright   : (c) Jon Purdy, 2016
+License     : MIT
+Maintainer  : evincarofautumn@gmail.com
+Stability   : experimental
+Portability : GHC
+-}
+
 module Kitten.Declaration
   ( Category(..)
   , Declaration(..)

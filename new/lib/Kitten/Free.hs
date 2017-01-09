@@ -1,3 +1,13 @@
+{-|
+Module      : Kitten.Free
+Description : Free variables of a type
+Copyright   : (c) Jon Purdy, 2016
+License     : MIT
+Maintainer  : evincarofautumn@gmail.com
+Stability   : experimental
+Portability : GHC
+-}
+
 module Kitten.Free
   ( tvs
   , tvks

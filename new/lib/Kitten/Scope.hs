@@ -1,3 +1,13 @@
+{-|
+Module      : Kitten.Scope
+Description : Scope resolution
+Copyright   : (c) Jon Purdy, 2016
+License     : MIT
+Maintainer  : evincarofautumn@gmail.com
+Stability   : experimental
+Portability : GHC
+-}
+
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Kitten.Scope

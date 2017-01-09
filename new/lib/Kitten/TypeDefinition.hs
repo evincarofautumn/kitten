@@ -1,3 +1,13 @@
+{-|
+Module      : Kitten.TypeDefinition
+Description : Definitions of types
+Copyright   : (c) Jon Purdy, 2016
+License     : MIT
+Maintainer  : evincarofautumn@gmail.com
+Stability   : experimental
+Portability : GHC
+-}
+
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.TypeDefinition

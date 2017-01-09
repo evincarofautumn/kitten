@@ -1,3 +1,13 @@
+{-|
+Module      : Kitten.Definition
+Description : Definitions of words, instances, and permissions
+Copyright   : (c) Jon Purdy, 2016
+License     : MIT
+Maintainer  : evincarofautumn@gmail.com
+Stability   : experimental
+Portability : GHC
+-}
+
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Definition

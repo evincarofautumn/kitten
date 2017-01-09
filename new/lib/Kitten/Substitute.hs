@@ -1,3 +1,13 @@
+{-|
+Module      : Kitten.Substitute
+Description : Substituting type variables
+Copyright   : (c) Jon Purdy, 2016
+License     : MIT
+Maintainer  : evincarofautumn@gmail.com
+Stability   : experimental
+Portability : GHC
+-}
+
 module Kitten.Substitute
   ( term
   , type_

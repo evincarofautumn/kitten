@@ -1,3 +1,13 @@
+{-|
+Module      : Kitten.Layout
+Description : Whitespace-sensitive syntax desugaring
+Copyright   : (c) Jon Purdy, 2016
+License     : MIT
+Maintainer  : evincarofautumn@gmail.com
+Stability   : experimental
+Portability : GHC
+-}
+
 module Kitten.Layout
   ( layout
   ) where

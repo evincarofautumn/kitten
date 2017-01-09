@@ -1,3 +1,13 @@
+{-|
+Module      : Kitten.Quantify
+Description : Quantifying generic terms
+Copyright   : (c) Jon Purdy, 2016
+License     : MIT
+Maintainer  : evincarofautumn@gmail.com
+Stability   : experimental
+Portability : GHC
+-}
+
 module Kitten.Quantify
   ( term
   ) where
