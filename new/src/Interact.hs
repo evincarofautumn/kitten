@@ -4,11 +4,12 @@ module Interact
   ( run
   ) where
 
-import Control.Exception (catch, try)
+import Control.Exception (catch)
 import Control.Monad.IO.Class (liftIO)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
-import Data.List (partition, sort, stripPrefix)
+import Data.List (isPrefixOf, partition, sort, stripPrefix)
 import Data.Maybe (fromJust)
+import Data.Monoid
 import Data.Text (Text)
 import Kitten (runKitten)
 import Kitten.Dictionary (Dictionary)
@@ -21,9 +22,9 @@ import Kitten.Interpret (Failure, interpret)
 import Kitten.Kind (Kind(..))
 import Kitten.Name
 import Report
+import System.Console.Haskeline hiding (catch)
 import System.Exit (exitFailure)
-import System.IO (hFlush, hPrint, hPutStrLn, stdin, stdout, stderr)
-import System.IO.Error (isEOFError)
+import System.IO (hPrint, hPutStrLn, stdin, stdout, stderr)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import Text.Printf (printf)
 import qualified Data.Text as Text
@@ -64,53 +65,63 @@ run = do
     Right result -> return result
   lineNumberRef <- newIORef (1 :: Int)
   stackRef <- newIORef []
-  putStrLn "Welcome to Kitten! Type //help for help or //quit to quit"
-  let
+
+  welcome
+  runInputT (settings dictionaryRef) $ let
+    loop :: InputT IO ()
     loop = do
-      lineNumber <- readIORef lineNumberRef
+      lineNumber <- liftIO $ readIORef lineNumberRef
       let currentOrigin = Origin.point "<interactive>" lineNumber 1
-      mLine <- try $ getEntry lineNumber
+      mLine <- getEntry lineNumber
       case mLine of
-        Left e -> if isEOFError e then putStrLn "" >> bye else ioError e
-        Right (line, lineNumber') -> case line of
+        Nothing -> liftIO $ putStrLn "" >> bye
+        Just (line, lineNumber') -> case line of
+
           "//dict" -> do
-            renderDictionary dictionaryRef
+            liftIO $ renderDictionary dictionaryRef
             loop
+
           "//help" -> do
-            showHelp
+            liftIO showHelp
             loop
+
           "//stack" -> do
-            renderStack stackRef
+            liftIO $ renderStack stackRef
             loop
-          "//quit" -> bye
+
+          "//quit" -> liftIO bye
+
+          -- Commands with arguments.
           _
             | "//" `Text.isPrefixOf` line
             -> case Text.break (== ' ') $ Text.drop 2 line of
               ("info", name) -> nameCommand lineNumber dictionaryRef name loop
-                $ \ _name' entry -> putStrLn $ Pretty.render $ pPrint entry
+                $ \ _name' entry -> liftIO $ putStrLn $ Pretty.render $ pPrint entry
               ("list", name) -> nameCommand lineNumber dictionaryRef name loop
                 $ \ name' entry -> case entry of
                   Entry.Word _ _ _ _ _ (Just body)
-                    -> putStrLn $ Pretty.render $ pPrint body
-                  _ -> hPutStrLn stderr $ Pretty.render $ Pretty.hsep
+                    -> liftIO $ putStrLn $ Pretty.render $ pPrint body
+                  _ -> liftIO $ hPutStrLn stderr $ Pretty.render $ Pretty.hsep
                     [ "I can't find a word entry called"
                     , Pretty.quote name'
                     , "with a body to list"
                     ]
               (command, _) -> do
-                hPutStrLn stderr $ Pretty.render $ Pretty.hsep
+                liftIO $ hPutStrLn stderr $ Pretty.render $ Pretty.hsep
                   [ "I don't know the command"
                   , Pretty.quotes $ Pretty.text $ Text.unpack command
                   ]
                 loop
+
+          -- Kitten code.
           _ -> do
-            dictionary <- readIORef dictionaryRef
+            dictionary <- liftIO $ readIORef dictionaryRef
             let
               entryNameUnqualified = Text.pack $ "entry" ++ show lineNumber
               entryName = Qualified
                 (Qualifier Absolute ["interactive"])
                 $ Unqualified entryNameUnqualified
-            mResults <- runKitten $ do
+            mResults <- liftIO $ runKitten $ do
               -- Each entry gets its own definition in the dictionary, so it can
               -- be executed individually, and later conveniently referred to.
               fragment <- Kitten.fragmentFromSource
@@ -151,16 +162,17 @@ run = do
               return (dictionary'', mainBody)
             case mResults of
               Left reports -> do
-                reportAll reports
+                liftIO $ reportAll reports
                 loop
               Right (dictionary', mainBody) -> do
-                writeIORef dictionaryRef dictionary'
-                writeIORef lineNumberRef lineNumber'
+                liftIO $ do
+                  writeIORef dictionaryRef dictionary'
+                  writeIORef lineNumberRef lineNumber'
                 -- HACK: Get the last entry from the main body so we have the
                 -- right generic args.
                 let lastEntry = last $ Term.decompose mainBody
                 case lastEntry of
-                  (Term.Word _ _ _ args _) -> catch
+                  (Term.Word _ _ _ args _) -> liftIO $ catch
                     (do
                       stack <- interpret dictionary'
                         (Just entryName) args
@@ -171,12 +183,55 @@ run = do
                     $ \ e -> hPrint stderr (e :: Failure)
                   _ -> error $ show lastEntry
                 loop
-
-  loop
+    in loop
   where
+  welcome = putStrLn "Welcome to Kitten! Type //help for help or //quit to quit"
   bye = do
-    liftIO $ putStrLn "Bye!"
+    putStrLn "Bye!"
     return ()
+
+settings :: IORef Dictionary -> Settings IO
+settings dictionaryRef = setComplete (completer dictionaryRef)
+  $ defaultSettings
+  { autoAddHistory = True
+  , historyFile = Nothing
+  }
+
+completer :: IORef Dictionary -> CompletionFunc IO
+completer = completeWord Nothing "\t \"{}[]()\\" . completePrefix
+
+completePrefix :: IORef Dictionary -> String -> IO [Completion]
+completePrefix dictionaryRef prefix
+  | Just rest <- Text.stripPrefix "//" (Text.pack prefix) = let
+  -- TODO: Factor out commands to a central location.
+  matching = filter (rest `Text.isPrefixOf`)
+    ["dict", "help", "info", "list", "quit", "stack", "type"]
+  hasParams = [["info"], ["list"], ["type"]]
+  in return $ map
+    (toCompletion (small matching && matching `elem` hasParams)
+      . Text.unpack . ("//" <>)) matching
+  | otherwise = do
+    dictionary <- readIORef dictionaryRef
+    let
+      matching = filter (prefix `isPrefixOf`)
+        $ map (completionFromName . fst) $ Dictionary.toList dictionary
+    return $ map (toCompletion (small matching)) matching
+    where
+    completionFromName
+      (Instantiated (Qualified (Qualifier _ parts) (Unqualified name)) _)
+      = Text.unpack $ Text.intercalate "::" $ parts ++ [name]
+
+small :: [a] -> Bool
+small [] = True
+small [_] = True
+small _ = False
+
+toCompletion :: Bool -> String -> Completion
+toCompletion finished name = Completion
+  { replacement = name
+  , display = name
+  , isFinished = finished
+  }
 
 renderDictionary :: IORef Dictionary -> IO ()
 renderDictionary dictionaryRef = do
@@ -215,17 +270,17 @@ nameCommand
   :: Int
   -> IORef Dictionary
   -> Text
-  -> IO ()
-  -> (Qualified -> Entry -> IO ())
-  -> IO ()
+  -> InputT IO ()
+  -> (Qualified -> Entry -> InputT IO ())
+  -> InputT IO ()
 nameCommand lineNumber dictionaryRef name loop action = do
   result <- runKitten $ Parse.generalName
     lineNumber "<interactive>" name
   let currentOrigin = Origin.point "<interactive>" lineNumber 1
   case result of
     Right unresolved -> do
-      dictionary <- readIORef dictionaryRef
-      mResolved <- runKitten $ Resolve.run $ Resolve.generalName
+      dictionary <- liftIO $ readIORef dictionaryRef
+      mResolved <- liftIO $ runKitten $ Resolve.run $ Resolve.generalName
         -- TODO: Use 'WordOrTypeName' or something as the category.
         Report.WordName
         (\ _ index -> return $ LocalName index)
@@ -237,7 +292,7 @@ nameCommand lineNumber dictionaryRef name loop action = do
         currentOrigin
       case mResolved of
         Left reports -> do
-          reportAll reports
+          liftIO $ reportAll reports
           loop
         Right (QualifiedName resolved)
           | Just entry <- Dictionary.lookup
@@ -246,13 +301,13 @@ nameCommand lineNumber dictionaryRef name loop action = do
             action resolved entry
             loop
         Right resolved -> do
-          hPutStrLn stderr $ Pretty.render $ Pretty.hsep
+          liftIO $ hPutStrLn stderr $ Pretty.render $ Pretty.hsep
             [ "I can't find an entry in the dictionary for"
             , Pretty.quote resolved
             ]
           loop
     Left reports -> do
-      reportAll reports
+      liftIO $ reportAll reports
       loop
 
 renderStack :: (Pretty a) => IORef [a] -> IO ()
@@ -276,30 +331,35 @@ showHelp = putStrLn "\
 
 data InString = Inside | Outside
 
-getEntry :: Int -> IO (Text, Int)
+getEntry :: Int -> InputT IO (Maybe (Text, Int))
 getEntry lineNumber0 = do
-  printf "\n% 4d: " lineNumber0
-  hFlush stdout
-  line <- getLine
-  (result, lineNumber') <- check lineNumber0 line Nothing
-  return (Text.pack result, lineNumber' + 1)
+  mLine <- getInputLine $ printf "\n% 4d: " lineNumber0
+  -- FIXME: Use MaybeT?
+  case mLine of
+    Nothing -> return Nothing
+    Just line -> do
+      mLine' <- check lineNumber0 line Nothing
+      case mLine' of
+        Nothing -> return Nothing
+        Just (result, lineNumber') -> return
+          $ Just (Text.pack result, lineNumber' + 1)
   where
 
-  check :: Int -> String -> Maybe String -> IO (String, Int)
+  check :: Int -> String -> Maybe String -> InputT IO (Maybe (String, Int))
   check lineNumber line acc
-    | matched acc' = return (acc', lineNumber)
+    | matched acc' = return $ Just (acc', lineNumber)
     | otherwise = continue (succ lineNumber) $ Just acc'
     where
     acc' = case acc of
       Just previous -> concat [previous, "\n", line]
       Nothing -> line
 
-  continue :: Int -> Maybe String -> IO (String, Int)
+  continue :: Int -> Maybe String -> InputT IO (Maybe (String, Int))
   continue lineNumber acc = do
-    printf "\n% 4d| " lineNumber
-    hFlush stdout
-    line <- getLine
-    check lineNumber line acc
+    mLine <- getInputLine $ printf "\n% 4d| " lineNumber
+    case mLine of
+      Nothing -> return Nothing
+      Just line -> check lineNumber line acc
 
   matched :: String -> Bool
   matched = go Outside (0::Int)

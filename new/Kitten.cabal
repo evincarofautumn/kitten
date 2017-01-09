@@ -19,6 +19,7 @@ executable kitten
     cmdargs,
     containers,
     hashable,
+    haskeline,
     parsec,
     pretty,
     text,
