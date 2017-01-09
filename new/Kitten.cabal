@@ -32,6 +32,11 @@ executable kitten
   hs-source-dirs: src
   main-is: Main.hs
 
+  other-modules:
+    Arguments
+    Interact
+    Report
+
 library
 
   build-depends:
@@ -215,6 +220,14 @@ test-suite test
     Kitten.Unify
     Kitten.Vocabulary
     Kitten.Zonk
+    Test.Common
+    Test.Infer
+    Test.InstanceCheck
+    Test.Interpret
+    Test.Origin
+    Test.Resolve
+    Test.Tokenize
+    Test.Zonk
 
   main-is: Main.hs
   type: exitcode-stdio-1.0
