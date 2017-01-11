@@ -28,13 +28,13 @@ import qualified Text.PrettyPrint as Pretty
 -- | A parsed type signature.
 
 data Signature
-  -- | @List<T>@
+  -- | @List\<T\>@
   = Application Signature Signature !Origin
   -- | An empty stack.
   | Bottom !Origin
   -- | @A, B -> C, D +P +Q@
   | Function [Signature] [Signature] [GeneralName] !Origin
-  -- | @<R..., T, +P> (...)@
+  -- | @\<R..., T, +P\> (...)@
   | Quantified [Parameter] !Signature !Origin
   -- | @T@
   | Variable !GeneralName !Origin
