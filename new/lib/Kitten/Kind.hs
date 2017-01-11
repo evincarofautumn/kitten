@@ -18,18 +18,18 @@ import Data.Hashable (Hashable(..))
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Text.PrettyPrint as Pretty
 
--- A kind (κ) is the type of a type. Types with the "value" kind (*) are
+-- | A kind (κ) is the type of a type. Types with the \"value\" kind (@*@) are
 -- inhabited by values; all other types are used only to enforce program
 -- invariants. These include:
 --
---  • The "stack" kind (ρ), used to enforce that the stack cannot contain
+--  • The \"stack\" kind (ρ), used to enforce that the stack cannot contain
 --    other stacks.
 --
---  • The "permission label" kind (λ), used to identify a permission.
+--  • The \"permission label\" kind (λ), used to identify a permission.
 --
---  • The "permission" kind (ε), denoting a set of permissions.
+--  • The \"permission\" kind (ε), denoting a set of permissions.
 --
---  • The "function" kind (κ → κ), used to describe type constructors.
+--  • The \"function\" kind (κ → κ), used to describe type constructors.
 
 data Kind = Value | Stack | Label | Permission | !Kind :-> !Kind
   deriving (Eq, Show)

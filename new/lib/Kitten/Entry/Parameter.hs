@@ -20,11 +20,13 @@ import Kitten.Origin (Origin)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Text.PrettyPrint as Pretty
 
--- A generic type parameter for a data type.
+-- | A generic type parameter for a data type, like @T@ in @List<T>@.
+
 data Parameter = Parameter !Origin !Unqualified !Kind
   deriving (Show)
 
--- Parameters are compared regardless of origin.
+-- | Parameters are compared regardless of origin.
+
 instance Eq Parameter where
   Parameter _ a b == Parameter _ c d = (a, b) == (c, d)
 

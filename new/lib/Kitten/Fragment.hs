@@ -20,6 +20,8 @@ import Kitten.TypeDefinition (TypeDefinition)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Kitten.Pretty as Pretty
 
+-- | A program fragment, consisting of a bag of top-level program elements.
+
 data Fragment a = Fragment
   { declarations :: [Declaration]
   , definitions :: [Definition a]

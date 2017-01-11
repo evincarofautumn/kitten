@@ -22,10 +22,13 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Kitten.Zonk as Zonk
 
--- The free variables of a type are those not bound by any quantifier.
+-- | Just the free variables of a type, without their kinds.
 
 tvs :: TypeEnv -> Type -> Set TypeId
 tvs tenv0 = Set.fromList . Map.keys . tvks tenv0
+
+-- | Finds free variables (those not bound by any quantifier) and returns them
+-- along with their kinds.
 
 tvks :: TypeEnv -> Type -> Map TypeId Kind
 tvks tenv = go . Zonk.type_ tenv

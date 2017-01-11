@@ -30,6 +30,17 @@ import qualified Kitten.Operator as Operator
 import qualified Kitten.Signature as Signature
 import qualified Kitten.TypeDefinition as TypeDefinition
 
+-- | Desugars data type constructors into word definitions, e.g.:
+--
+-- > type Optional<T>:
+-- >   case none
+-- >   case some (T)
+-- >
+-- > // =>
+-- >
+-- > define none<T> (-> Optional<T>) { ... }
+-- > define some<T> (T -> Optional<T>) { ... }
+
 desugar :: Fragment () -> Fragment ()
 desugar fragment = fragment
   { Fragment.definitions = Fragment.definitions fragment

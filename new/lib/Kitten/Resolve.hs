@@ -40,8 +40,8 @@ import qualified Kitten.Vocabulary as Vocabulary
 
 type Resolved a = StateT [Unqualified] K a
 
--- Name resolution is responsible for rewriting unqualified calls to definitions
--- into fully qualified calls.
+-- | Name resolution is responsible for rewriting unqualified calls to
+-- definitions into fully qualified calls.
 
 run :: Resolved a -> K a
 run = flip evalStateT []

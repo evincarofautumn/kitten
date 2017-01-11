@@ -36,9 +36,7 @@ import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.Text as Text
 import qualified Text.PrettyPrint as Pretty
 
--- Names are complex. A qualified name consists of an unqualified name ('x')
--- plus a qualifier ('q::'). Name resolution is necessary because the referent
--- of an unqualified name is ambiguous without non-local knowledge.
+-- | A dynamic name, which might be 'Qualified', 'Unqualified', or local.
 
 data GeneralName
   = QualifiedName !Qualified
@@ -49,28 +47,50 @@ data GeneralName
 instance IsString GeneralName where
   fromString = UnqualifiedName . fromString
 
+-- | A qualified name is an unqualified name (@x@) plus a qualifier (@q::@).
+
 data Qualified = Qualified
   { qualifierName :: !Qualifier
   , unqualifiedName :: !Unqualified
   } deriving (Eq, Ord, Show)
 
+-- | A qualifier is a list of vocabulary names, rooted globally or within the
+-- current vocabulary.
+
 data Qualifier = Qualifier !Root [Text]
   deriving (Eq, Ord, Show)
+
+-- | A 'Relative' qualifier refers to a sub-vocabulary of the current one. An
+-- 'Absolute' qualifier refers to the global vocabulary.
 
 data Root = Relative | Absolute
   deriving (Eq, Ord, Show)
 
+-- | An unqualified name is an ordinary symbol.
+
 data Unqualified = Unqualified Text
   deriving (Eq, Ord, Show)
 
-data Closed = ClosedLocal !LocalIndex | ClosedClosure !ClosureIndex
+-- | A closed name is a local or closure variable that was captured by a
+-- quotation. FIXME: this can be removed if closure variables are rewritten into
+-- implicit locals.
+
+data Closed
+  = ClosedLocal !LocalIndex
+  | ClosedClosure !ClosureIndex
   deriving (Eq, Show)
+
+-- | An index into a closure.
 
 newtype ClosureIndex = ClosureIndex Int
   deriving (Eq, Ord, Show)
 
+-- | The index of a data type constructor.
+
 newtype ConstructorIndex = ConstructorIndex Int
   deriving (Eq, Ord, Show)
+
+-- | The De Bruijn index of a local variable.
 
 newtype LocalIndex = LocalIndex Int
   deriving (Eq, Ord, Show)

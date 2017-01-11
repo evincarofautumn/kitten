@@ -21,8 +21,8 @@ import qualified Data.Set as Set
 import qualified Kitten.Free as Free
 import qualified Kitten.Kind as Kind
 
--- Capture-avoiding substitution of a type variable α with a type τ throughout a
--- type σ, [α ↦ τ]σ.
+-- | Capture-avoiding substitution of a type variable α with a type τ throughout
+-- a type σ, [α ↦ τ]σ.
 
 type_ :: TypeEnv -> TypeId -> Type -> Type -> K Type
 type_ tenv0 x a = recur

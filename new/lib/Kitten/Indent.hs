@@ -16,5 +16,8 @@ module Kitten.Indent
 
 import Text.Parsec (Column)
 
+-- | The indent level of a token, defined as the first column of the first token
+-- in the same line.
+
 newtype Indent = Indent Column
   deriving (Eq, Ord, Show)

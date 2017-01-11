@@ -37,7 +37,7 @@ import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.PrettyPrint as Pretty
 
--- This is the type language. It describes a system of conventional Hindley–
+-- | This is the type language. It describes a system of conventional Hindley–
 -- Milner types, with type constructors joined by type application, as well as
 -- type variables and constants for constraint solving and instance checking,
 -- respectively. It syntactically permits higher-ranked quantification, though
@@ -99,7 +99,7 @@ setOrigin o = go
     Forall _ var t -> Forall o var $ go t
     TypeValue _ x -> TypeValue o x
 
--- Type variables are distinguished by globally unique identifiers. This makes
+-- | Type variables are distinguished by globally unique identifiers. This makes
 -- it easier to support capture-avoiding substitution on types.
 
 newtype TypeId = TypeId Int

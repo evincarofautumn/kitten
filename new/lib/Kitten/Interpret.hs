@@ -52,15 +52,25 @@ import qualified Kitten.TypeEnv as TypeEnv
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.PrettyPrint as Pretty
 
+-- | Interprets a program dictionary.
+
 interpret
   :: Dictionary
+  -- ^ The program.
   -> Maybe Qualified
+  -- ^ The name of the entry point, if overriding @main@.
   -> [Type]
+  -- ^ Arguments passed to @main@.
   -> Handle
+  -- ^ Standard input handle.
   -> Handle
+  -- ^ Standard output handle.
   -> Handle
+  -- ^ Standard error handle.
   -> [Value Type]
+  -- ^ Initial stack state.
   -> IO [Value Type]
+  -- ^ Final stack state.
 interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
   -- TODO: Types.
   stackRef <- newIORef initialStack

@@ -57,10 +57,17 @@ instance Pretty (Definition a) where
     (pPrint $ body definition)
     (pPrint Token.Define)
 
--- The main definition, created implicitly from top-level code in program
--- fragments. The list of permissions are those granted by the runtime.
+-- | The main definition, created implicitly from top-level code in program
+-- fragments.
 
-main :: [GeneralName] -> Maybe Qualified -> Term a -> Definition a
+main
+  :: [GeneralName]
+  -- ^ List of permissions implicitly granted.
+  -> Maybe Qualified
+  -- ^ Override default name.
+  -> Term a
+  -- ^ Body.
+  -> Definition a
 main permissions mName term = Definition
   { body = term
   , category = Category.Word
@@ -79,8 +86,12 @@ main permissions mName term = Definition
   }
   where o = Term.origin term
 
+-- | Default name of main definition.
+
 mainName :: Qualified
 mainName = Qualified Vocabulary.global "main"
+
+-- | Whether a given definition refers to (the default-named) @main@.
 
 isMain :: Definition a -> Bool
 isMain = (== Qualified Vocabulary.global "main") . name

@@ -19,6 +19,8 @@ import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Kitten.Pretty as Pretty
 import qualified Text.PrettyPrint as Pretty
 
+-- | A parent trait (of an instance) or data type (of a constructor).
+
 data Parent
   = Trait !Qualified
   | Type !Qualified

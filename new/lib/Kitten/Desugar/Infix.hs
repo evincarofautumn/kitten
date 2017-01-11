@@ -38,6 +38,9 @@ import qualified Text.Parsec.Expr as Expr
 
 type Rewriter a = ParsecT [Term ()] () Identity a
 
+-- | Desugars infix operators into postfix calls in the body of a 'Definition',
+-- according to the definitions and operator metadata in the 'Dictionary'.
+
 desugar :: Dictionary -> Definition () -> K (Definition ())
 desugar dictionary definition = do
   desugared <- desugarTerms' $ Definition.body definition

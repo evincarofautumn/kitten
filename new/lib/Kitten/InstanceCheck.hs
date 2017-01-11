@@ -34,13 +34,10 @@ import qualified Kitten.Unify as Unify
 import qualified Kitten.Zonk as Zonk
 import qualified Text.PrettyPrint as Pretty
 
--- Since skolem constants only unify with type variables and themselves,
--- unifying a skolemized scheme with a type tells you whether one is a generic
--- instance of the other. This is used to check the signatures of definitions.
---
--- Take care when using this function that you remember which way the subtyping
--- relation goes: ∀α. α → α is a generic instance of int → int, not the other
--- way around!
+-- | Checks whether one type is a generic instance of another, used for checking
+-- type signatures. Remember, when using this function, which way the subtyping
+-- relation goes: @∀α. α → α@ is a generic instance of @int → int@, not the
+-- other way around!
 
 instanceCheck :: Pretty.Doc -> Type -> Pretty.Doc -> Type -> K ()
 instanceCheck aSort aScheme bSort bScheme = do
@@ -58,7 +55,8 @@ instanceCheck aSort aScheme bSort bScheme = do
   where
   failure = report $ Report.FailedInstanceCheck aScheme bScheme
 
--- Skolemization replaces quantified type variables with type constants.
+-- | Skolemization replaces each quantified type variable with a type constant
+-- that unifies only with itself.
 
 skolemize :: TypeEnv -> Type -> K (Set TypeId, Type)
 skolemize tenv0 t = case t of
@@ -73,8 +71,9 @@ skolemize tenv0 t = case t of
     return (ids, Type.fun origin a b' e)
   _ -> return (Set.empty, t)
 
--- Subsumption checking is largely the same as unification, except for the fact
--- that a function type is contravariant in its input type.
+-- | Subsumption checking is largely the same as unification, accounting for
+-- function type variance: if @(a -> b) <: (c -> d)@ then @b <: d@ (covariant)
+-- but @c <: a@ (contravariant).
 
 subsumptionCheck :: TypeEnv -> Type -> Type -> K TypeEnv
 subsumptionCheck tenv0 (Forall origin (Var x k) t) t2 = do

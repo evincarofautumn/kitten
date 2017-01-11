@@ -38,7 +38,7 @@ import qualified Kitten.Queue as Queue
 import qualified Kitten.TypeEnv as TypeEnv
 import qualified Text.PrettyPrint as Pretty
 
--- In order to support unboxed generics, for every call site of a generic
+-- | In order to support unboxed generics, for every call site of a generic
 -- definition in a program, we produce a specialized instantiation of the
 -- definition with the value-kinded type parameters set to the given type
 -- arguments. This is transitive: if a generic definition calls another generic

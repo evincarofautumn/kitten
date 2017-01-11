@@ -30,8 +30,8 @@ import qualified Kitten.Substitute as Substitute
 import qualified Kitten.Zonk as Zonk
 import qualified Text.PrettyPrint as Pretty
 
--- To instantiate a type scheme, we simply replace all quantified variables with
--- fresh ones and remove the quantifier, returning the types with which the
+-- | To instantiate a type scheme, we simply replace all quantified variables
+-- with fresh ones and remove the quantifier, returning the types with which the
 -- variables were instantiated, in order. Because type identifiers are globally
 -- unique, we know a fresh type variable will never be erroneously captured.
 
@@ -42,7 +42,7 @@ type_ tenv0 origin x k t = do
   replaced <- Substitute.type_ tenv0 x a t
   return (replaced, a, tenv0)
 
--- When generating an instantiation of a generic definition, we only want to
+-- | When generating an instantiation of a generic definition, we only want to
 -- instantiate the rank-1 quantifiers; all other quantifiers are irrelevant.
 
 prenex :: TypeEnv -> Type -> K (Type, [Type], TypeEnv)
@@ -53,7 +53,7 @@ prenex tenv0 q@(Forall origin (Var x k) t)
     return (t'', a : as, tenv2)
 prenex tenv0 t = return (t, [], tenv0)
 
--- Instantiates a generic expression with the given type arguments.
+-- | Instantiates a generic expression with the given type arguments.
 
 term :: TypeEnv -> Term Type -> [Type] -> K (Term Type)
 term tenv t args = foldlM go t args

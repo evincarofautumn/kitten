@@ -24,11 +24,13 @@ import qualified Kitten.Operator as Operator
 import qualified Kitten.Term as Term
 import qualified Kitten.Vocabulary as Vocabulary
 
--- Linearization replaces all copies and drops with explicit invocations of the
--- '_::copy' and '_::drop' words. A value is copied if it appears twice or more
--- in its scope; it's dropped if it doesn't appear at all, or if an explicit
--- 'drop' is present due to an ignored local (_). If it only appears once, it is
--- moved, and no special word is invoked.
+-- | Linearization replaces all copies and drops with explicit invocations of
+-- the @_::copy@ and @_::drop@ words. A value is copied if it appears twice or
+-- more in its scope; it's dropped if it doesn't appear at all, or if an
+-- explicit @drop@ is present due to an ignored local (@_@). If it only appears
+-- once, it is moved, and no special word is invoked.
+--
+-- FIXME: This is experimental and subject to change.
 
 linearize :: Term Type -> Term Type
 linearize = snd . go []

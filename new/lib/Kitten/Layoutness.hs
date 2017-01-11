@@ -12,5 +12,8 @@ module Kitten.Layoutness
   ( Layoutness(..)
   ) where
 
+-- | A display hint for whether a block was originally written with 'Layout'
+-- (@:@) or 'Nonlayout' (@{}@) syntax.
+
 data Layoutness = Layout | Nonlayout
   deriving (Show)

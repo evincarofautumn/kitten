@@ -18,10 +18,10 @@ import Kitten.TypeEnv (TypeEnv)
 import qualified Data.Map as Map
 import qualified Kitten.TypeEnv as TypeEnv
 
--- We need to be able to count occurrences of a type variable in a type, not
+-- | We need to be able to count occurrences of a type variable in a type, not
 -- just check for its presence. This is for two reasons: to prevent infinite
--- types (the "occurs check"), and to determine whether a stack variable can be
--- generalized to a higher rank.
+-- types (the \"occurs check\"), and to determine whether a stack variable can
+-- be generalized to a higher rank. (See "Kitten.Regeneralize".)
 
 occurrences :: TypeEnv -> TypeId -> Type -> Int
 occurrences tenv0 x = recur

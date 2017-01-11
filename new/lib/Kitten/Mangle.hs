@@ -23,6 +23,10 @@ import Kitten.Type (Constructor(..), Type(..), Var(..))
 import qualified Data.Text as Text
 import qualified Kitten.Vocabulary as Vocabulary
 
+-- | Mangles a fully qualified, fully saturated name into a linker symbol.
+--
+-- FIXME: This should use the platform C++ name mangling scheme, if possible.
+
 name :: Instantiated -> Text
 name (Instantiated n args) = Text.concat
   -- kitten

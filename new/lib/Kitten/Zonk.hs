@@ -19,12 +19,12 @@ import Kitten.TypeEnv (TypeEnv)
 import qualified Data.Map as Map
 import qualified Kitten.TypeEnv as TypeEnv
 
--- Zonking a type fully substitutes all type variables. That is, if you have:
+-- | Zonking a type fully substitutes all type variables. That is, if you have:
 --
---     t0 ~ t1
---     t1 ~ Int32
+-- > t0 ~ t1
+-- > t1 ~ Int32
 --
--- Then zonking "t0" gives you "Int32".
+-- Then zonking @t0@ gives you @Int32@.
 
 type_ :: TypeEnv -> Type -> Type
 type_ tenv0 = recur
@@ -42,7 +42,7 @@ type_ tenv0 = recur
       $ type_ tenv0 { TypeEnv.tvs = Map.delete x $ TypeEnv.tvs tenv0 } t'
     a :@ b -> recur a :@ recur b
 
--- Zonking a term zonks all the annotated types of its subterms. This could be
+-- | Zonking a term zonks all the annotated types of its subterms. This could be
 -- done more efficiently by sharing type references and updating them impurely,
 -- but this implementation is easier to get right and understand.
 

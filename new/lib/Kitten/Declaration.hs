@@ -17,8 +17,12 @@ import Kitten.Name (Qualified)
 import Kitten.Origin (Origin)
 import Kitten.Signature (Signature)
 
+-- | The type of declaration.
+
 data Category
+  -- | @intrinsic@, a built-in/external function.
   = Intrinsic
+  -- | @trait@, a generic function.
   | Trait
   deriving (Eq, Show)
 

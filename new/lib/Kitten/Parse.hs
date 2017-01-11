@@ -67,13 +67,21 @@ import qualified Kitten.TypeDefinition as TypeDefinition
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.Parsec as Parsec
 
+-- | Parses a program fragment.
+
 fragment
   :: Int
+  -- ^ Initial source line (e.g. for REPL offset).
   -> FilePath
+  -- ^ Source file path.
   -> [GeneralName]
+  -- ^ List of permissions granted to @main@.
   -> Maybe Qualified
+  -- ^ Override name of @main@.
   -> [Located Token]
+  -- ^ Input tokens.
   -> K (Fragment ())
+  -- ^ Parsed program fragment.
 fragment line path mainPermissions mainName tokens = let
   parsed = Parsec.runParser
     (fragmentParser mainPermissions mainName)
@@ -93,6 +101,8 @@ fragment line path mainPermissions mainName tokens = let
           (Term.identityCoercion () (Origin.point path line 1))
           : Fragment.definitions f
         }
+
+-- | Parses only a name.
 
 generalName :: (Informer m) => Int -> FilePath -> Text -> m GeneralName
 generalName line path text = do

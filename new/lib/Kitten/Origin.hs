@@ -25,6 +25,9 @@ import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.Text as Text
 import qualified Text.PrettyPrint as Pretty
 
+-- | A source location, in the form of an origin name (typically a file path)
+-- and source span between two ('Line', 'Column') pairs.
+
 data Origin = Origin
   { name :: !Text
   , beginLine :: !Line
@@ -33,11 +36,17 @@ data Origin = Origin
   , endColumn :: !Column
   } deriving (Eq, Show)
 
+-- | The starting 'SourcePos' of an 'Origin'.
+
 begin :: Origin -> SourcePos
 begin = newPos <$> Text.unpack . name <*> beginLine <*> beginColumn
 
+-- | The ending 'SourcePos' of an 'Origin'.
+
 end :: Origin -> SourcePos
 end = newPos <$> Text.unpack . name <*> endLine <*> endColumn
+
+-- | A zero-width 'Origin' at the given 'Line' and 'Column'.
 
 point :: SourceName -> Line -> Column -> Origin
 point path line column = Origin
@@ -48,8 +57,12 @@ point path line column = Origin
   , endColumn = column
   }
 
+-- | Makes a zero-width 'Origin' from a 'SourcePos'.
+
 pos :: SourcePos -> Origin
 pos = point <$> sourceName <*> sourceLine <*> sourceColumn
+
+-- | Makes a range between two 'SourcePos' points.
 
 range :: SourcePos -> SourcePos -> Origin
 range a b = Origin

@@ -26,7 +26,7 @@ import qualified Data.Map as Map
 import qualified Kitten.Free as Free
 import qualified Kitten.Type as Type
 
--- Because all functions are polymorphic with respect to the part of the stack
+-- | Because all functions are polymorphic with respect to the part of the stack
 -- they don't touch, all words of order n can be regeneralized to words of rank
 -- n with respect to the stack-kinded type variables.
 --
@@ -34,14 +34,14 @@ import qualified Kitten.Type as Type
 -- type, in the bottommost position on both sides of a function arrow, then its
 -- scope can be reduced to only that function arrow by introducing a
 -- higher-ranked quantifier. This is a more conservative rule than used in
--- "Simple type inference for higher-order stack languages". For example, the
--- type of "map":
+-- \"Simple type inference for higher-order stack languages\". For example, the
+-- type of @map@:
 --
---     map :: ∀ρσαβ. ρ × vector α × (σ × α → σ × β) → ρ × vector β
+-- > map :: ∀ρσαβ. ρ × List α × (σ × α → σ × β) → ρ × List β
 --
 -- Can be regeneralized like so:
 --
---     map :: ∀ραβ. ρ × vector α × (∀σ. σ × α → σ × β) → ρ × vector β
+-- > map :: ∀ραβ. ρ × List α × (∀σ. σ × α → σ × β) → ρ × List β
 --
 -- In order to correctly regeneralize a type, it needs to contain no
 -- higher-ranked quantifiers.

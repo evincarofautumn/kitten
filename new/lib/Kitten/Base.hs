@@ -12,5 +12,15 @@ module Kitten.Base
   ( Base(..)
   ) where
 
-data Base = Binary | Octal | Decimal | Hexadecimal
+-- | The radix of an integer literal.
+
+data Base
+  -- | @0b@
+  = Binary
+  -- | @0o@
+  | Octal
+  -- | No prefix.
+  | Decimal
+  -- | @0x@
+  | Hexadecimal
   deriving (Show)

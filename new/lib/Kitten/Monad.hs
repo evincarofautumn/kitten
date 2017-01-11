@@ -24,6 +24,9 @@ import Kitten.Report (Report(..))
 import System.IO.Unsafe (unsafeInterleaveIO)
 import qualified Text.PrettyPrint as Pretty
 
+-- | A Kitten action atop a 'Monad' 'm', returning a result of type 'a', which
+-- maintains a 'Context' stack and can fail with a list of 'Reports'.
+
 newtype KT m a = KT
   { unKT :: Context -> Reports -> m (Either Reports (a, Reports)) }
 
@@ -33,12 +36,17 @@ type Reports = [Report]
 
 type K = KT IO
 
+-- | Runs a nested action, returning whether it completed successfully, that is,
+-- without generating any reports.
+
 attempt :: (Monad m) => KT m a -> KT m Bool
 attempt action = KT $ \ context reports -> do
   mr <- unKT action context reports
   return $ Right $ case mr of
     Left reports' -> (False, reports')
     Right (_, reports') -> (True, reports')
+
+-- | Runs an action, returning the accumulated reports (if any) or final result.
 
 runKitten :: (Monad m) => KT m a -> m (Either [Report] a)
 runKitten (KT m) = do

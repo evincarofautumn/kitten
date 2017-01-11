@@ -17,12 +17,19 @@ module Kitten.Bits
 
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 
+-- | Standard sizes of fixed-precision floating-point numbers.
+
 data FloatBits
+  -- | @f32@
   = Float32
+  -- | @f64@
   | Float64
   deriving (Eq, Show)
 
+-- | Standard sizes of fixed-precision integer numbers.
+
 data IntegerBits
+  -- | @i8@
   = Signed8
   | Signed16
   | Signed32

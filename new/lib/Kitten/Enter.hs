@@ -53,6 +53,8 @@ import qualified Kitten.Term as Term
 import qualified Kitten.TypeDefinition as TypeDefinition
 import qualified Text.PrettyPrint as Pretty
 
+-- | Enters a program fragment into a dictionary.
+
 fragment :: Fragment () -> Dictionary -> K Dictionary
 fragment f
   -- TODO: Link constructors to parent type.
@@ -306,13 +308,21 @@ defineWord dictionary definition = do
       , "not previously declared"
       ]
 
+-- | Parses a source file into a program fragment.
+
 fragmentFromSource
   :: [GeneralName]
+  -- ^ List of permissions granted to @main@.
   -> Maybe Qualified
+  -- ^ Override name of @main@.
   -> Int
+  -- ^ Initial source line (e.g. for REPL offset).
   -> FilePath
+  -- ^ Source file path for error reporting.
   -> Text
+  -- ^ Source itself.
   -> K (Fragment ())
+  -- ^ Parsed program fragment.
 fragmentFromSource mainPermissions mainName line path source = do
 
 -- Sources are lexed into a stream of tokens. The layout rule is applied to

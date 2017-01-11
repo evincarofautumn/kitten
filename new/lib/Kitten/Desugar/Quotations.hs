@@ -37,6 +37,9 @@ import qualified Kitten.TypeEnv as TypeEnv
 
 newtype LambdaIndex = LambdaIndex Int
 
+-- | Lifts quotations in a 'Term' into top-level definitions, within the
+-- vocabulary referenced by a 'Qualifier', adding them to the 'Dictionary'.
+
 desugar
   :: Dictionary
   -> Qualifier

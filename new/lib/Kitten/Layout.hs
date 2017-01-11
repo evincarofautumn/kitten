@@ -26,6 +26,14 @@ import qualified Kitten.Report as Report
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.Parsec as Parsec
 
+-- | Desugars layout-based syntax into explicit brace-delimited blocks according
+-- to the *layout rule*:
+--
+-- A layout block begins with a colon followed by a token whose source column is
+-- greater than the indent level of the colon token, and contains all tokens
+-- (and bracket-delimited groups of tokens) whose source column is greater than
+-- or equal to that of the first token.
+
 layout :: (Informer m) => FilePath -> [Located Token] -> m [Located Token]
 layout path tokens
   = case Parsec.runParser insertBraces Vocabulary.global path tokens of

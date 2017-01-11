@@ -15,6 +15,8 @@ module Kitten.Located
 import Kitten.Indent (Indent)
 import Kitten.Origin (Origin)
 
+-- | Imbues a value (such as a 'Token') with an origin and indent level.
+
 data Located a = At
   { origin :: !Origin
   , indent :: !Indent

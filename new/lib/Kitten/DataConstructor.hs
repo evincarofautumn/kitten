@@ -20,6 +20,8 @@ import Kitten.Signature (Signature)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Text.PrettyPrint as Pretty
 
+-- | A single data constructor case, e.g., @case some (T)@.
+
 data DataConstructor = DataConstructor
   { fields :: [Signature]
   , name :: !Unqualified

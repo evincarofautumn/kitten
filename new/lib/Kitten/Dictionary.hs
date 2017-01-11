@@ -41,6 +41,8 @@ import qualified Kitten.Entry.Category as Category
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Term as Term
 
+-- | A key-value store mapping an 'Instantiated' name to a dictionary 'Entry'.
+
 data Dictionary = Dictionary
   { entries :: !(HashMap Instantiated Entry)
   } deriving (Show)
@@ -56,8 +58,8 @@ empty = Dictionary
 fromList :: [(Instantiated, Entry)] -> Dictionary
 fromList = Dictionary . HashMap.fromList
 
--- Directly inserts into the dictionary. This is somewhat unsafe, as it can lead
--- to an invalid dictionary state.
+-- | Directly inserts into the dictionary. This is somewhat unsafe, as it can
+-- lead to an invalid dictionary state.
 
 insert :: Instantiated -> Entry -> Dictionary -> Dictionary
 insert name entry dictionary = dictionary
@@ -66,29 +68,12 @@ insert name entry dictionary = dictionary
 lookup :: Instantiated -> Dictionary -> Maybe Entry
 lookup name = HashMap.lookup name . entries
 
+-- | Whether a name is present in the dictionary.
+
 member :: Instantiated -> Dictionary -> Bool
 member name = (name `HashMap.member`) . entries
 
--- The dictionary should generally be monotonically increasing in size and
--- specificity. We never remove definitions and we never remove data from
--- definitions.
---
--- words:
---   makeOperator -> + precedence associativity, fail if not operator name
---   declareTrait = declareWord + category
---   defineDefault = defineWord (define default instance of trait)
---   defineInstance = defineWord + trait
---   declareInstance = declareWord + trait
---   addMetadata = + metadata
---   declareConstructor = declareWord + type
---   defineConstructor = defineWord
---   declarePermission = declareWord + category
---   definePermission = defineWord
---   export = + export
---
--- types:
---   declareType = + origin parameters
---   export = + export
+-- | Compiles all operator metadata for infix desugaring.
 
 operatorMetadata :: Dictionary -> HashMap Qualified Operator
 operatorMetadata dictionary = HashMap.fromList $ map getMetadata
@@ -147,6 +132,8 @@ operatorMetadata dictionary = HashMap.fromList $ map getMetadata
         , Operator.precedence = precedence
         })
 
+-- | All type signatures (for words or traits) in the dictionary.
+
 signatures :: Dictionary -> [(Qualified, Signature)]
 signatures = mapMaybe getSignature . HashMap.toList . entries
   where
@@ -160,6 +147,8 @@ signatures = mapMaybe getSignature . HashMap.toList . entries
 toList :: Dictionary -> [(Instantiated, Entry)]
 toList = HashMap.toList . entries
 
+-- | All type names (for data types or permissions) in the dictionary.
+
 typeNames :: Dictionary -> [Qualified]
 typeNames = mapMaybe typeName . HashMap.toList . entries
   where
@@ -167,6 +156,8 @@ typeNames = mapMaybe typeName . HashMap.toList . entries
     = Just name
   typeName (Instantiated name _, Entry.Type{}) = Just name
   typeName _ = Nothing
+
+-- | All word names (for words or traits) in the dictionary.
 
 wordNames :: Dictionary -> [Qualified]
 wordNames = mapMaybe wordName . HashMap.toList . entries

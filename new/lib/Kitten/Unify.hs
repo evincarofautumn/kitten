@@ -29,7 +29,7 @@ import qualified Kitten.Type as Type
 import qualified Kitten.TypeEnv as TypeEnv
 import qualified Kitten.Zonk as Zonk
 
--- There are two kinds of unification going on here: basic logical unification
+-- | There are two kinds of unification going on here: basic logical unification
 -- for value types, and row unification for permission types.
 
 type_ :: TypeEnv -> Type -> Type -> K TypeEnv
@@ -109,7 +109,7 @@ unifyTv tenv0 origin v@(Var x _) t = case t of
   where
   declare = return tenv0 { TypeEnv.tvs = Map.insert x t $ TypeEnv.tvs tenv0 }
 
--- A convenience function for unifying a type with a function type.
+-- | A convenience function for unifying a type with a function type.
 
 function :: TypeEnv -> Type -> K (Type, Type, Type, TypeEnv)
 function tenv0 t = case t of

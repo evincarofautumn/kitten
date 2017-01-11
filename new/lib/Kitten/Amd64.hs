@@ -36,6 +36,10 @@ import qualified Kitten.Term as Term
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.PrettyPrint as Pretty
 
+-- | Serializes a 'Dictionary' into x86-64 code 'Text' for the given 'Platform'.
+--
+-- This is experimental and may be removed.
+
 amd64 :: Dictionary -> Platform -> Text
 amd64 dictionary platform = case platform of
   OSX -> runCodeGen $ do

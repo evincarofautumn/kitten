@@ -38,7 +38,19 @@ import qualified Kitten.Report as Report
 import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Pos as Parsec
 
-tokenize :: (Informer m) => Int -> FilePath -> Text -> m [Located Token]
+-- | Lexes a source fragment into a list of tokens, annotated with their source
+-- locations and indent levels.
+
+tokenize
+  :: (Informer m)
+  => Int
+  -- ^ Initial source line.
+  -> FilePath
+  -- ^ Source file path.
+  -> Text
+  -- ^ Source text.
+  -> m [Located Token]
+  -- ^ Lexed tokens.
 tokenize line path text = case Parsec.runParser
   (setPos *> fileTokenizer) 1 path text of
   Left parseError -> do

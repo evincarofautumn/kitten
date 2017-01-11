@@ -22,17 +22,36 @@ import Kitten.Name (Qualified)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Text.PrettyPrint as Pretty
 
+-- | Operator metadata for infix desugaring.
+
 data Operator = Operator
   { associativity :: !Associativity
   , name :: !Qualified
   , precedence :: !Precedence
   } deriving (Show)
 
+-- | Whether a word was declared infix (@+@) or postfix (@plus@).
+
 data Fixity = Infix | Postfix
   deriving (Eq, Show)
 
+-- | Whether an operator associates leftward:
+--
+-- > a + b + c = (a + b) + c
+--
+-- Rightward:
+--
+-- > a + b + c = a + (b + c)
+--
+-- Or not at all:
+--
+-- > a + b + c  // error
+
 data Associativity = Nonassociative | Leftward | Rightward
   deriving (Show)
+
+-- | The precedence level (from 0 to 9) of an operator; higher-precedence
+-- operators bind more tightly than lower-precedence operators.
 
 newtype Precedence = Precedence Int
   deriving (Enum, Eq, Ord, Show, Pretty)

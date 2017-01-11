@@ -21,9 +21,9 @@ import Data.List (elemIndex)
 import Kitten.Name (Closed(..), ClosureIndex(..), GeneralName(..), LocalIndex(..))
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 
--- Whereas name resolution is concerned with resolving references to
+-- | Whereas name resolution is concerned with resolving references to
 -- definitions, scope resolution resolves local names to relative (De Bruijn)
--- indices, and converts quotations to use explicit closures.
+-- indices, and converts 'Quotation's to explicit 'Capture's.
 
 scope :: Term () -> Term ()
 scope = scopeTerm [0]

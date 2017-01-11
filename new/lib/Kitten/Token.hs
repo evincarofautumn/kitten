@@ -27,47 +27,47 @@ import qualified Data.Text as Text
 import qualified Text.PrettyPrint as Pretty
 
 data Token
-  = About                                -- about
-  | AngleBegin                           -- < See note [Angle Brackets].
-  | AngleEnd                             -- > See note [Angle Brackets].
-  | Arrow                                -- ->
-  | As                                   -- as
-  | BlockBegin !Layoutness               -- { :
-  | BlockEnd                             -- }
-  | Call                                 -- call
-  | Case                                 -- case
-  | Character !Char                      -- 'x'
-  | Comma                                -- ,
-  | Define                               -- define
-  | Do                                   -- do
-  | Ellipsis                             -- ...
-  | Elif                                 -- elif
-  | Else                                 -- else
-  | Float !Integer !Int !Int !FloatBits  -- See note [Float Literals].
-  | GroupBegin                           -- (
-  | GroupEnd                             -- )
-  | If                                   -- if
-  | Ignore                               -- _
-  | Instance                             -- instance
-  | Integer !Integer !Base !IntegerBits  -- 1 0b1 0o1 0x1 1i64 1u16
-  | Intrinsic                            -- intrinsic
-  | Jump                                 -- jump
-  | Layout                               -- :
-  | Match                                -- match
-  | Operator !Unqualified                -- +
-  | Permission                           -- permission
-  | Reference                            -- \
-  | Return                               -- return
-  | Synonym                              -- synonym
-  | Text !Text                           -- "..."
-  | Trait                                -- trait
-  | Type                                 -- type
-  | VectorBegin                          -- [
-  | VectorEnd                            -- ]
-  | Vocab                                -- vocab
-  | VocabLookup                          -- ::
-  | With                                 -- with
-  | Word !Unqualified                    -- word
+  = About                                -- ^ @about@
+  | AngleBegin                           -- ^ @<@ See note [Angle Brackets].
+  | AngleEnd                             -- ^ @>@ See note [Angle Brackets].
+  | Arrow                                -- ^ @->@
+  | As                                   -- ^ @as@
+  | BlockBegin !Layoutness               -- ^ @{@, @:@
+  | BlockEnd                             -- ^ @}@
+  | Call                                 -- ^ @call@
+  | Case                                 -- ^ @case@
+  | Character !Char                      -- ^ @'x'@
+  | Comma                                -- ^ @,@
+  | Define                               -- ^ @define@
+  | Do                                   -- ^ @do@
+  | Ellipsis                             -- ^ @...@
+  | Elif                                 -- ^ @elif@
+  | Else                                 -- ^ @else@
+  | Float !Integer !Int !Int !FloatBits  -- ^ See note [Float Literals].
+  | GroupBegin                           -- ^ @(@
+  | GroupEnd                             -- ^ @)@
+  | If                                   -- ^ @if@
+  | Ignore                               -- ^ @_@
+  | Instance                             -- ^ @instance@
+  | Integer !Integer !Base !IntegerBits  -- ^ @1@, 0b1@, @0o1@, @0x1@, @1i64, @1u16@
+  | Intrinsic                            -- ^ @intrinsic@
+  | Jump                                 -- ^ @jump@
+  | Layout                               -- ^ @:@
+  | Match                                -- ^ @match@
+  | Operator !Unqualified                -- ^ @+@
+  | Permission                           -- ^ @permission@
+  | Reference                            -- ^ @\@
+  | Return                               -- ^ @return@
+  | Synonym                              -- ^ @synonym@
+  | Text !Text                           -- ^ @"..."@
+  | Trait                                -- ^ @trait@
+  | Type                                 -- ^ @type@
+  | VectorBegin                          -- ^ @[@
+  | VectorEnd                            -- ^ @]@
+  | Vocab                                -- ^ @vocab@
+  | VocabLookup                          -- ^ @::@
+  | With                                 -- ^ @with@
+  | Word !Unqualified                    -- ^ @word@
 
 instance Eq Token where
   About                   == About                   = True

@@ -64,15 +64,19 @@ import qualified Kitten.Vocabulary as Vocabulary
 import qualified Kitten.Zonk as Zonk
 import qualified Text.PrettyPrint as Pretty
 
--- Type inference takes a program fragment and produces a program with every
+-- | Type inference takes a program fragment and produces a program with every
 -- term annotated with its inferred type. It's polymorphic in the annotation
 -- type of its input so that it can't depend on those annotations.
 
 typecheck
   :: Dictionary
+  -- ^ Current dictionary, for context.
   -> Maybe Signature
+  -- ^ Optional signature to check inferred type against.
   -> Term a
+  -- ^ Term to infer.
   -> K (Term Type, Type)
+  -- ^ Type-annotated term and its inferred type.
 typecheck dictionary mDeclaredSignature term = do
 
 -- We begin by converting instance definitions into ordinary word definitions.
@@ -127,6 +131,8 @@ typecheck dictionary mDeclaredSignature term = do
     }
 -}
 
+-- | Mangles an instance name according to its trait signature.
+
 mangleInstance
   :: Dictionary -> Qualified -> Signature -> Signature -> K Instantiated
 mangleInstance dictionary name instanceSignature traitSignature = do
@@ -139,17 +145,22 @@ mangleInstance dictionary name instanceSignature traitSignature = do
   args' <- valueKinded dictionary $ map (Zonk.type_ tenv2) args
   return $ Instantiated name args'
 
--- Since type variables can be generalized if they do not depend on the initial
--- state of the typing environment, the type of a single definition is inferred
--- in an empty environment so that it can be trivially generalized. It is then
--- regeneralized to increase stack polymorphism.
+-- | Since type variables can be generalized if they do not depend on the
+-- initial state of the typing environment, the type of a single definition is
+-- inferred in an empty environment so that it can be trivially generalized. It
+-- is then regeneralized to increase stack polymorphism.
 
 inferType0
   :: Dictionary
+  -- ^ Current dictionary, for context.
   -> TypeEnv
+  -- ^ Current typing environment.
   -> Maybe Type
+  -- ^ Optional type to check inferred type against.
   -> Term a
+  -- ^ Term to infer.
   -> K (Term Type, Type)
+  -- ^ Type-annotated term and its inferred type.
 inferType0 dictionary tenv mDeclared term
   = while (Term.origin term) context $ do
     rec
@@ -540,8 +551,8 @@ inferCall _dictionary _tenvFinal _tenv0 name origin
   = error $ Pretty.render $ Pretty.hsep
     ["cannot infer type of non-qualified name", Pretty.quote name]
 
--- Here we desugar a parsed signature into an actual type. We resolve whether
--- names refer to quantified type variables or data definitions, and make stack
+-- | Desugars a parsed signature into an actual type. We resolve whether names
+-- refer to quantified type variables or data definitions, and make stack
 -- polymorphism explicit.
 
 typeFromSignature :: TypeEnv -> Signature -> K Type
@@ -664,6 +675,8 @@ valueKinded :: Dictionary -> [Type] -> K [Type]
 valueKinded dictionary = filterM
   $ fmap (Value ==) . typeKind dictionary
 
+-- | Infers the kind of a type.
+
 typeKind :: Dictionary -> Type -> K Kind
 typeKind dictionary = go
   where
@@ -719,6 +732,8 @@ typeKind dictionary = go
           , Pretty.quote b
           ]
 
+-- | Calculates the size of a type.
+
 typeSize :: Dictionary -> Type -> K Type
 typeSize dictionary = eval
   where
@@ -764,6 +779,9 @@ typeSize dictionary = eval
     = return $ Type.TypeValue origin 3 -- begin+end+capacity
   apply t arg = return $ t :@ arg {- error $ Pretty.render $ Pretty.hsep
     ["cannot apply type", pPrint t, "to argument", pPrint arg] -}
+
+-- | Converts a data type definition into a generic sum of products, for
+-- 'typeSize' calculation.
 
 dataType :: Origin -> [Parameter] -> [DataConstructor] -> Dictionary -> K Type
 dataType origin params ctors dictionary = let

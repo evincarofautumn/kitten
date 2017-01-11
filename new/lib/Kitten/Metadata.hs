@@ -22,6 +22,8 @@ import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Text.PrettyPrint as Pretty
 
+-- | Untyped metadata from @about@ blocks.
+
 data Metadata = Metadata
   { fields :: !(HashMap Unqualified (Term ()))
   , name :: !GeneralName

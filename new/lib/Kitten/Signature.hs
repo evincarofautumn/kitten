@@ -25,23 +25,32 @@ import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Type as Type
 import qualified Text.PrettyPrint as Pretty
 
+-- | A parsed type signature.
+
 data Signature
+  -- | @List<T>@
   = Application Signature Signature !Origin
+  -- | An empty stack.
   | Bottom !Origin
+  -- | @A, B -> C, D +P +Q@
   | Function [Signature] [Signature] [GeneralName] !Origin
+  -- | @<R..., T, +P> (...)@
   | Quantified [Parameter] !Signature !Origin
+  -- | @T@
   | Variable !GeneralName !Origin
+  -- | @R..., A, B -> S..., C, D +P +Q@
   | StackFunction
     Signature [Signature]
     Signature [Signature]
     [GeneralName]
     !Origin
-  -- Produced when generating signatures for lifted quotations after
+  -- | Produced when generating signatures for lifted quotations after
   -- typechecking.
   | Type !Type
   deriving (Show)
 
--- Signatures are compared regardless of origin.
+-- | Signatures are compared regardless of origin.
+
 instance Eq Signature where
   Application a b _ == Application c d _ = (a, b) == (c, d)
   Function a b c _ == Function d e f _ = (a, b, c) == (d, e, f)

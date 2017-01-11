@@ -16,7 +16,7 @@ module Kitten.Queue
   , fromList
   ) where
 
--- A generic queue with amortized O(1) enqueue/dequeue.
+-- | A generic queue with amortized O(1) enqueue/dequeue.
 
 data Queue a = Queue [a] [a]
 
