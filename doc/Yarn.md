@@ -1,3 +1,5 @@
+> **Note:** this document applies to an older version of the compiler; this IR is no longer used.
+
 # Yarn
 
 Yarn is the name for Kitten’s virtual machine and the assembly language for that machine. It is a low-level assembly language designed to be produced and consumed primarily by machines, not humans.
