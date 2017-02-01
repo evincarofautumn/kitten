@@ -215,7 +215,17 @@ groupedParser = Parsec.between
 groupParser :: Parser (Term ())
 groupParser = do
   origin <- getTokenOrigin
-  groupedParser $ Group . compose () origin <$> Parsec.many1 termParser
+  groupedParser $ compose () origin <$> Parsec.many1 termParser
+
+groupTermParser :: Parser (Term ())
+groupTermParser = do
+  origin <- getTokenOrigin
+  body <- groupedParser $ compose () origin <$> Parsec.many1 termParser
+  return $ compose () origin
+    [ Push () (Quotation body) origin
+    , Word () Operator.Postfix
+      (QualifiedName (Qualified Vocabulary.intrinsic "call")) [] origin
+    ]
 
 -- See note [Angle Brackets].
 
@@ -548,7 +558,7 @@ termParser = (<?> "expression") $ do
       (name, fixity) <- nameParser
       return (Word () fixity name [] origin)
     , Parsec.try sectionParser
-    , Parsec.try groupParser <?> "parenthesized expression"
+    , Parsec.try groupTermParser <?> "parenthesized expression"
     , vectorParser
     , lambdaParser
     , matchParser
@@ -625,7 +635,7 @@ termParser = (<?> "expression") $ do
   matchParser = (<?> "match") $ do
     matchOrigin <- getTokenOrigin <* parserMatch Token.Match
     scrutineeOrigin <- getTokenOrigin
-    mScrutinee <- Parsec.optionMaybe groupParser <?> "scrutinee"
+    mScrutinee <- Parsec.optionMaybe groupTermParser <?> "scrutinee"
     (cases, else_) <- do
       cases' <- many $ (<?> "case") $ parserMatch Token.Case *> do
         origin <- getTokenOrigin
@@ -651,11 +661,11 @@ termParser = (<?> "expression") $ do
   ifParser :: Parser (Term ())
   ifParser = (<?> "if-else expression") $ do
     ifOrigin <- getTokenOrigin <* parserMatch Token.If
-    mCondition <- Parsec.optionMaybe groupParser <?> "condition"
+    mCondition <- Parsec.optionMaybe groupTermParser <?> "condition"
     ifBody <- blockParser
     elifs <- many $ do
       origin <- getTokenOrigin <* parserMatch Token.Elif
-      condition <- groupParser <?> "condition"
+      condition <- groupTermParser <?> "condition"
       body <- blockParser
       return (condition, body, origin)
     elseBody <- Parsec.option (Term.identityCoercion () ifOrigin)
@@ -677,7 +687,7 @@ termParser = (<?> "expression") $ do
   doParser :: Parser (Term ())
   doParser = (<?> "do expression") $ do
     doOrigin <- getTokenOrigin <* parserMatch Token.Do
-    term <- groupParser <?> "parenthesized expression"
+    term <- groupTermParser <?> "parenthesized expression"
     body <- blockLikeParser
     return $ compose () doOrigin
       [Push () (Quotation body) (Term.origin body), term]

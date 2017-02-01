@@ -51,6 +51,5 @@ compile mainPermissions mainName paths = do
   parsed <- mconcat <$> zipWithM
     (Enter.fragmentFromSource mainPermissions mainName 1)
     paths sources
-  -- dictionary <-
-  Enter.fragment parsed Dictionary.empty
-  -- collectInstantiations dictionary
+  dictionary <- Enter.fragment parsed Dictionary.empty
+  collectInstantiations dictionary

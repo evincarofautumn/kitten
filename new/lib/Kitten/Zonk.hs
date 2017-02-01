@@ -19,6 +19,10 @@ import Kitten.TypeEnv (TypeEnv)
 import qualified Data.Map as Map
 import qualified Kitten.TypeEnv as TypeEnv
 
+import Text.PrettyPrint.HughesPJClass (Pretty(..))
+import qualified Text.PrettyPrint as Pretty
+import qualified Kitten.Kind as Kind
+
 -- | Zonking a type fully substitutes all type variables. That is, if you have:
 --
 -- > t0 ~ t1
@@ -32,9 +36,9 @@ type_ tenv0 = recur
   recur t = case t of
     TypeConstructor{} -> t
     TypeValue{} -> error "TODO: zonk type value"
-    TypeVar _origin (Var x _k) -> case Map.lookup x (TypeEnv.tvs tenv0) of
+    TypeVar _origin (Var x k) -> case Map.lookup x (TypeEnv.tvs tenv0) of
       -- FIXME: Is this necessary?
-      -- Just (TypeVar _origin (Var x' _)) | x == x' -> TypeVar origin (Var x k)
+      -- Just (TypeVar origin (Var x' _)) | x == x' -> TypeVar origin (Var x k)
       Just t' -> recur t'
       Nothing -> t
     TypeConstant{} -> t
@@ -57,8 +61,6 @@ term tenv0 = go
       -> Compose (zonk tref) (go a) (go b)
     Generic x a origin
       -> Generic x (go a) origin
-    Group a
-      -> go a
     Lambda tref name varType body origin
       -> Lambda (zonk tref) name (zonk varType) (go body) origin
     Match hint tref cases else_ origin

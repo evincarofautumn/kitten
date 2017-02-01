@@ -116,7 +116,6 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
       Compose _ a b -> term a >> term b
       -- TODO: Verify that this is correct.
       Generic _ t' _ -> term t'
-      Group t' -> term t'
       Lambda _ _name _ body _ -> do
         (a : r) <- readIORef stackRef
         ls <- readIORef localsRef
@@ -167,11 +166,10 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
 
     call :: IO ()
     call = do
-      (Closure name closure : r) <- readIORef stackRef
+      (Closure (Instantiated name args) closure : r) <- readIORef stackRef
       writeIORef stackRef r
       modifyIORef' currentClosureRef (closure :)
-      -- FIXME: Use right args.
-      word name []
+      word name args
       modifyIORef' currentClosureRef tail
 
     push :: Value Type -> IO ()

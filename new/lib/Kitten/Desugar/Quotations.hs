@@ -8,6 +8,7 @@ Stability   : experimental
 Portability : GHC
 -}
 
+{-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Desugar.Quotations
   ( desugar
@@ -17,7 +18,7 @@ import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State (StateT, gets, modify, runStateT)
 import Data.Foldable (foldrM)
 import Kitten.Dictionary (Dictionary)
-import Kitten.Infer (inferType0)
+import Kitten.Infer (inferType0, valueKinded)
 import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Monad (K)
 import Kitten.Name (Closed(..), Qualified(..), Qualifier, Unqualified(..))
@@ -34,6 +35,11 @@ import qualified Kitten.Free as Free
 import qualified Kitten.Signature as Signature
 import qualified Kitten.Term as Term
 import qualified Kitten.TypeEnv as TypeEnv
+
+import Text.PrettyPrint.HughesPJClass (Pretty(..))
+import qualified Text.PrettyPrint as Pretty
+import Control.Monad.IO.Class
+import qualified Kitten.Quantify as Quantify
 
 newtype LambdaIndex = LambdaIndex Int
 
@@ -64,7 +70,6 @@ desugar dictionary qualifier term0 = do
     Generic type_ a origin -> do
       (a', tenv1) <- go tenv0 a
       return (Generic type_ a' origin, tenv1)
-    Group{} -> error "group should not appear after infix desugaring"
     Lambda type_ name varType a origin -> do
       let
         oldLocals = TypeEnv.vs tenv0
@@ -99,21 +104,25 @@ desugar dictionary qualifier term0 = do
       modify $ \ (_, d) -> (LambdaIndex $ succ index, d)
       let
         deducedType = Term.type_ a
+        freeVars = Map.toList $ Free.tvks tenv2 deducedType
         type_ = foldr (uncurry ((Forall origin .) . Var)) deducedType
-          $ Map.toList $ Free.tvks tenv2 deducedType
+          freeVars
+        a'' = Quantify.term type_ a'
+      liftIO $ putStrLn $ Pretty.render $ Pretty.hcat
+        ["Lifted quotation ", pPrint name, " with type ", pPrint type_, " and body ", pPrint a'']
       modify $ \ (l, d) -> let
         entry = Entry.Word
           Category.Word
           Merge.Deny
-          (Term.origin a')
+          (Term.origin a'')
           Nothing
           (Just (Signature.Type type_))
-          (Just a')
+          (Just a'')
         in (l, Dictionary.insert (Instantiated name []) entry d)
       dict <- gets snd
       (typechecked, _) <- lift $ inferType0 dict tenv2 Nothing
         $ Term.compose () origin $ map pushClosed closed ++
-          [ Push () (Name name) origin
+          [ Push () (Name (Instantiated name [])) origin
           , NewClosure () (length closed) origin
           ]
       return (typechecked, tenv2)

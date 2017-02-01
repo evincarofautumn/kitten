@@ -200,8 +200,8 @@ testType contextSource viewpoint name expected = do
     context <- fragmentFromSource [] Nothing 1 "<common>" contextSource
     contextDictionary <- Enter.fragment context Dictionary.empty
     let origin = Origin.point "<test>" 0 0
-    Resolve.run $ Resolve.signature contextDictionary viewpoint
-      (Signature.Variable name origin)
+    Resolve.run $ Resolve.signature contextDictionary viewpoint []
+      $ Signature.Variable name origin
   case resolved of
     Right (Signature.Variable name' _) -> let
       message = Pretty.render $ Pretty.hsep

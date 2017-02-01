@@ -50,29 +50,37 @@ definition :: Dictionary -> Definition () -> Resolved (Definition ())
 definition dictionary def = do
   -- FIXME: reportDuplicate dictionary def
   let vocabulary = qualifierName $ Definition.name def
-  body <- term dictionary vocabulary $ Definition.body def
-  sig <- signature dictionary vocabulary $ Definition.signature def
+  sig <- signature dictionary vocabulary [] $ Definition.signature def
+  let
+    parameters = case sig of
+      Signature.Quantified params _ _ -> params
+      _ -> []
+  body <- term dictionary vocabulary parameters $ Definition.body def
   return def
     { Definition.body = body
     , Definition.signature = sig
     }
 
-term :: Dictionary -> Qualifier -> Term () -> Resolved (Term ())
-term dictionary vocabulary = recur
+term
+  :: Dictionary
+  -> Qualifier
+  -> [Parameter]
+  -> Term ()
+  -> Resolved (Term ())
+term dictionary vocabulary parameters = recur
   where
 
   recur :: Term () -> Resolved (Term ())
   recur unresolved = case unresolved of
     Coercion (Term.AnyCoercion sig) a b
       -> Coercion
-      <$> (Term.AnyCoercion <$> signature dictionary vocabulary sig)
+      <$> (Term.AnyCoercion <$> signature dictionary vocabulary parameters sig)
       <*> pure a
       <*> pure b
     Coercion{} -> return unresolved
     Compose _ a b -> Compose () <$> recur a <*> recur b
     Generic{} -> error
       "generic expression should not appear before name resolution"
-    Group a -> Group <$> recur a
     Lambda _ name _ t origin -> withLocal name
       $ Lambda () name () <$> recur t <*> pure origin
     Match hint _ cases else_ origin -> Match hint ()
@@ -93,13 +101,18 @@ term dictionary vocabulary = recur
     NewClosure{} -> return unresolved
     NewVector{} -> return unresolved
     Push _ v origin -> Push ()
-      <$> value dictionary vocabulary v <*> pure origin
+      <$> value dictionary vocabulary parameters v <*> pure origin
     Word _ fixity name params origin -> Word () fixity
       <$> definitionName dictionary vocabulary name origin
       <*> pure params <*> pure origin
 
-value :: Dictionary -> Qualifier -> Value () -> Resolved (Value ())
-value dictionary vocabulary v = case v of
+value
+  :: Dictionary
+  -> Qualifier
+  -> [Parameter]
+  -> Value ()
+  -> Resolved (Value ())
+value dictionary vocabulary parameters v = case v of
   Algebraic{} -> error "adt should not appear before runtime"
   Array{} -> error "array should not appear before runtime"
   Capture{} -> error "closure should not appear before name resolution"
@@ -111,11 +124,16 @@ value dictionary vocabulary v = case v of
   Local{} -> error "local name should not appear before name resolution"
   -- FIXME: Maybe should be a GeneralName and require resolution.
   Name{} -> return v
-  Quotation t -> Quotation <$> term dictionary vocabulary t
+  Quotation t -> Quotation <$> term dictionary vocabulary parameters t
   Text{} -> return v
 
-signature :: Dictionary -> Qualifier -> Signature -> Resolved Signature
-signature dictionary vocabulary = go
+signature
+  :: Dictionary
+  -> Qualifier
+  -> [Parameter]
+  -> Signature
+  -> Resolved Signature
+signature dictionary vocabulary parameters = withParameters parameters
   where
 
   go :: Signature -> Resolved Signature
@@ -128,7 +146,7 @@ signature dictionary vocabulary = go
       <*> zipWithM (typeName dictionary vocabulary) es (repeat origin)
       <*> pure origin
     Signature.Quantified vars a origin -> Signature.Quantified vars
-      <$> foldr (withLocal . (\ (Parameter _ name _) -> name)) (go a) vars
+      <$> withParameters vars a
       <*> pure origin
     Signature.Variable name origin -> Signature.Variable
       <$> typeName dictionary vocabulary name origin <*> pure origin
@@ -137,6 +155,10 @@ signature dictionary vocabulary = go
       <*> zipWithM (typeName dictionary vocabulary) es (repeat origin)
       <*> pure origin
     Signature.Type{} -> pure sig
+
+  withParameters vars x = foldr
+    (withLocal . (\ (Parameter _ name _) -> name))
+    (go x) vars
 
 definitionName, typeName
   :: Dictionary -> Qualifier -> GeneralName -> Origin -> Resolved GeneralName
