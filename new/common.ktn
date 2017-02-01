@@ -1,3 +1,10 @@
+vocab kitten {
+
+  intrinsic drop<A> (A ->)
+  intrinsic swap<A, B> (A, B -> B, A)
+
+}
+
 type Int8 {}
 
 about type Int8:

@@ -115,7 +115,6 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
       Call _ _ -> call
       Coercion _ _ _ -> return ()
       Compose _ a b -> term a >> term b
-      Drop _ _ -> modifyIORef' stackRef tail
       -- TODO: Verify that this is correct.
       Generic _ t' _ -> term t'
       Group t' -> term t'
@@ -162,9 +161,6 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
         writeIORef stackRef
           (Array (Vector.reverse $ Vector.fromList values) : r')
       Push _ value _ -> push value
-      Swap _ _ -> do
-        (a : b : r) <- readIORef stackRef
-        writeIORef stackRef (b : a : r)
       Word _ _ (QualifiedName name) args _ -> word name args
       -- FIXME: Use proper reporting. (Internal error?)
       Word _ _ name _ _ -> error $ Pretty.render $ Pretty.hsep
@@ -201,6 +197,12 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
           [ "Execution failure:"
           , Pretty.text message
           ]
+
+      "drop" -> modifyIORef' stackRef tail
+
+      "swap" -> do
+        (a : b : r) <- readIORef stackRef
+        writeIORef stackRef (b : a : r)
 
       "neg_int8" -> unaryInt8 negate
       "add_int8" -> binaryInt8 (+)

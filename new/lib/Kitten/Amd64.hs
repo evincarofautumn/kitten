@@ -93,7 +93,6 @@ term t = case t of
   Term.Compose _ a b -> do
     term a
     term b
-  Term.Drop{} -> comment ["drop"]
   Term.Generic{} -> error
     "uninstantiated term appeared during code generation"
   Term.Group a -> term a
@@ -178,7 +177,6 @@ term t = case t of
         { genSizes = Large elemType : drop size (genSizes state) }
 
   Term.Push _ v origin -> value origin v
-  Term.Swap{} -> comment ["swap"]
   Term.Word _ _ (UnqualifiedName (Unqualified name)) _args _
     -> case name of
 

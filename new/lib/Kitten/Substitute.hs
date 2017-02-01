@@ -46,7 +46,6 @@ term tenv x a = recur
     Call tref origin -> Call <$> go tref <*> pure origin
     Coercion hint tref origin -> Coercion hint <$> go tref <*> pure origin
     Compose tref t1 t2 -> Compose <$> go tref <*> recur t1 <*> recur t2
-    Drop tref origin -> Drop <$> go tref <*> pure origin
     Generic x' body origin -> do
       -- FIXME: Generics could eventually quantify over non-value kinds.
       let k = Kind.Value
@@ -74,7 +73,6 @@ term tenv x a = recur
     NewVector tref size elemType origin -> NewVector <$> go tref
       <*> pure size <*> go elemType <*> pure origin
     Push tref value origin -> Push <$> go tref <*> pure value <*> pure origin
-    Swap tref origin -> Swap <$> go tref <*> pure origin
     Word tref fixity name args origin -> Word <$> go tref
       <*> pure fixity <*> pure name <*> mapM go args <*> pure origin
 

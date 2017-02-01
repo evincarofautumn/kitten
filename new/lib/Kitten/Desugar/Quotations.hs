@@ -62,7 +62,6 @@ desugar dictionary qualifier term0 = do
       (a', tenv1) <- go tenv0 a
       (b', tenv2) <- go tenv1 b
       return (Compose type_ a' b', tenv2)
-    Drop{} -> done
     Generic type_ a origin -> do
       (a', tenv1) <- go tenv0 a
       return (Generic type_ a' origin, tenv1)
@@ -127,7 +126,6 @@ desugar dictionary qualifier term0 = do
         ClosedClosure index -> Closed index) origin
 
     Push{} -> done
-    Swap{} -> done
     Word{} -> done
     where
     done = return (term, tenv0)

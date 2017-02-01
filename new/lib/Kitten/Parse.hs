@@ -595,7 +595,8 @@ termParser = (<?> "expression") $ do
       origin <- getTokenOrigin
       function <- operatorNameParser
       return $ compose () operandOrigin $ operand ++
-        [ Swap () origin
+        [ Word () Operator.Postfix
+          (QualifiedName (Qualified Vocabulary.intrinsic "swap")) [] origin
         , Word () Operator.Postfix (UnqualifiedName function) [] origin
         ]
     ]
@@ -737,7 +738,8 @@ blockLikeParser = blockParser <|> blockLambdaParser
 makeLambda :: [(Maybe Unqualified, Origin)] -> Term () -> Origin -> Term ()
 makeLambda parsed body origin = foldr
   (\ (nameMaybe, nameOrigin) acc -> maybe
-    (Compose () (Drop () origin) acc)
+    (Compose () (Word () Operator.Postfix
+      (QualifiedName (Qualified Vocabulary.intrinsic "drop")) [] origin) acc)
     (\ name -> Lambda () name () acc nameOrigin)
     nameMaybe)
   body

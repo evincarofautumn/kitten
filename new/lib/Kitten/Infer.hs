@@ -241,12 +241,6 @@ inferType dictionary tenvFinal tenv0 term0
       let type' = Zonk.type_ tenvFinal type_
       return (Compose type' term1' term2', type_, tenv6)
 
-    Drop _ origin -> do
-      [a, b, e] <- fresh origin [Stack, Value, Permission]
-      let type_ = Type.fun origin (Type.prod origin a b) a e
-      let type' = Zonk.type_ tenvFinal type_
-      return (Drop type' origin, type_, tenv0)
-
     -- TODO: Verify that this is correct.
     Generic _ t _ -> inferType' tenv0 t
     Group{} -> error
@@ -400,16 +394,6 @@ inferType dictionary tenvFinal tenv0 term0
       let type_ = Type.fun origin a (Type.prod origin a t) e
       let type' = Zonk.type_ tenvFinal type_
       return (Push type' value' origin, type_, tenv1)
-
-    Swap _ origin -> do
-      [a, b, c, e] <- fresh origin [Stack, Value, Value, Permission]
-      let
-        type_ = Type.fun origin
-          (Type.prod origin (Type.prod origin a b) c)
-          (Type.prod origin (Type.prod origin a c) b)
-          e
-      let type' = Zonk.type_ tenvFinal type_
-      return (Swap type' origin, type_, tenv0)
 
     -- FIXME: Should generic parameters be restricted to none?
     Word _ _fixity name _ origin -> inferCall dictionary tenvFinal tenv0 name origin

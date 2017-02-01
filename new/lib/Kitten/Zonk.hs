@@ -56,8 +56,6 @@ term tenv0 = go
       -> Coercion hint (zonk tref) origin
     Compose tref a b
       -> Compose (zonk tref) (go a) (go b)
-    Drop tref origin
-      -> Drop (zonk tref) origin
     Generic x a origin
       -> Generic x (go a) origin
     Group a
@@ -79,8 +77,6 @@ term tenv0 = go
       -> NewVector (zonk tref) size (zonk elemType) origin
     Push tref value' origin
       -> Push (zonk tref) (value tenv0 value') origin
-    Swap tref origin
-      -> Swap (zonk tref) origin
     Word tref fixity name params origin
       -> Word (zonk tref) fixity name params origin
 

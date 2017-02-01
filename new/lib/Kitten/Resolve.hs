@@ -71,7 +71,6 @@ term dictionary vocabulary = recur
       <*> pure b
     Coercion{} -> return unresolved
     Compose _ a b -> Compose () <$> recur a <*> recur b
-    Drop{} -> return unresolved
     Generic{} -> error
       "generic expression should not appear before name resolution"
     Group a -> Group <$> recur a
@@ -96,7 +95,6 @@ term dictionary vocabulary = recur
     NewVector{} -> return unresolved
     Push _ v origin -> Push ()
       <$> value dictionary vocabulary v <*> pure origin
-    Swap{} -> return unresolved
     Word _ fixity name params origin -> Word () fixity
       <$> definitionName dictionary vocabulary name origin
       <*> pure params <*> pure origin

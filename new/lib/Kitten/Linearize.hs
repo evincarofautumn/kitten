@@ -44,7 +44,6 @@ linearize = snd . go []
       (counts1, a') = go counts0 a
       (counts2, b') = go counts1 b
       in (counts2, Compose type_ a' b')
-    Drop{} -> (counts0, term)
     Generic x body origin -> let
       (counts1, body') = go counts0 body
       in (counts1, Generic x body' origin)
@@ -86,7 +85,6 @@ linearize = snd . go []
     Push _ Quotation{} _ -> error
       "pushing of quotation should not appear after desugaring"
     Push{} -> (counts0, term)
-    Swap{} -> (counts0, term)
     Word{} -> (counts0, term)
 
 instrumentDrop :: Origin -> Type -> Term Type -> Term Type
@@ -106,7 +104,6 @@ instrumentCopy varType = go 0
     Call{} -> term
     Coercion{} -> term
     Compose type_ a b -> Compose type_ (go n a) (go n b)
-    Drop{} -> term
     Generic x body origin -> Generic x (go n body) origin
     Group{} -> error "group should not appear after desugaring"
     Lambda type_ name varType' body origin
@@ -129,7 +126,6 @@ instrumentCopy varType = go 0
       -> Compose todoTyped term $ Word todoTyped Operator.Postfix
         (QualifiedName (Qualified Vocabulary.global "copy")) [varType] origin
     Push{} -> term
-    Swap{} -> term
     Word{} -> term
 
 todoTyped :: a

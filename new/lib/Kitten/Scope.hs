@@ -38,7 +38,6 @@ scope = scopeTerm [0]
       Call{} -> term
       Coercion{} -> term
       Compose _ a b -> Compose () (recur a) (recur b)
-      Drop{} -> term
       Generic{} -> error
         "generic expression should not appear before scope resolution"
       Group{} -> error
@@ -55,7 +54,6 @@ scope = scopeTerm [0]
       NewClosure{} -> term
       NewVector{} -> term
       Push _ value origin -> Push () (scopeValue stack value) origin
-      Swap{} -> term
       Word _ _ (LocalName index) _ origin
         -> Push () (scopeValue stack (Local index)) origin
       Word{} -> term
@@ -105,7 +103,6 @@ captureTerm term = case term of
   Call{} -> return term
   Coercion{} -> return term
   Compose _ a b -> Compose () <$> captureTerm a <*> captureTerm b
-  Drop{} -> return term
   Generic{} -> error
     "generic expression should not appear before scope resolution"
   Group{} -> error
@@ -133,7 +130,6 @@ captureTerm term = case term of
   NewClosure{} -> return term
   NewVector{} -> return term
   Push _ value origin -> Push () <$> captureValue value <*> pure origin
-  Swap{} -> return term
   Word{} -> return term
 
 captureValue :: Value () -> Captured (Value ())

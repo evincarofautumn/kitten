@@ -87,7 +87,6 @@ collectInstantiations dictionary0 = do
       (a', q1) <- go q0 a
       (b', q2) <- go q1 b
       return (Compose type_ a' b', q2)
-    Drop{} -> proceed
 
 -- If the definition is generic, we simply ignore it; we won't find any
 -- instantiations in it, because it's not instantiated itself!
@@ -115,7 +114,6 @@ collectInstantiations dictionary0 = do
     Push _ Quotation{} _ -> error
       "quotation should not appear after quotation desugaring"
     Push{} -> proceed
-    Swap{} -> proceed
     Word type_ fixity (QualifiedName name) args origin -> do
       let
         types = case Dictionary.lookup (Instantiated name []) dictionary0 of

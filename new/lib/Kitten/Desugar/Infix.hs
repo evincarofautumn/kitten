@@ -73,7 +73,6 @@ desugar dictionary definition = do
     Call{} -> return term
     Coercion{} -> return term
     Compose _ a b -> desugarTerms (Term.decompose a ++ Term.decompose b)
-    Drop{} -> return term
     Generic{} -> error
       "generic expression should not appear before infix desugaring"
     Group a -> desugarTerms' a
@@ -95,7 +94,6 @@ desugar dictionary definition = do
     NewClosure{} -> return term
     NewVector{} -> return term
     Push _ value origin -> Push () <$> desugarValue value <*> pure origin
-    Swap{} -> return term
     Word{} -> return term
 
   desugarValue :: Value () -> K (Value ())
