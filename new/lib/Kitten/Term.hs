@@ -62,10 +62,8 @@ import qualified Text.PrettyPrint as Pretty
 -- have a type like @'Term' 'Type'@.
 
 data Term a
-  -- | @call@: invokes a closure.
-  = Call a !Origin
   -- | @id@, @as (T)@, @with (+A -B)@: coerces the stack to a particular type.
-  | Coercion !CoercionHint a !Origin
+  = Coercion !CoercionHint a !Origin
   -- | @e1 e2@: composes two terms.
   | Compose a !(Term a) !(Term a)
   -- | @Λx. e@: generic terms that can be specialized.
@@ -196,7 +194,6 @@ decompose term = [term]
 
 origin :: Term a -> Origin
 origin term = case term of
-  Call _ o -> o
   Coercion _ _ o -> o
   Compose _ a _ -> origin a
   Generic _ _ o -> o
@@ -222,7 +219,6 @@ type_ = metadata
 
 metadata :: Term a -> a
 metadata term = case term of
-  Call t _ -> t
   Coercion _ t _ -> t
   Compose t _ _ -> t
   Generic _ term' _ -> metadata term'
@@ -237,7 +233,6 @@ metadata term = case term of
 
 stripMetadata :: Term a -> Term ()
 stripMetadata term = case term of
-  Call _ a -> Call () a
   Coercion a _ b -> Coercion a () b
   Compose _ a b -> Compose () (stripMetadata a) (stripMetadata b)
   Generic a term' b -> Generic a (stripMetadata term') b
@@ -276,7 +271,6 @@ stripValue v = case v of
 
 instance Pretty (Term a) where
   pPrint term = case term of
-    Call{} -> "call"
     Coercion{} -> Pretty.empty
     Compose _ a b -> pPrint a Pretty.$+$ pPrint b
     Generic name body _ -> Pretty.hsep

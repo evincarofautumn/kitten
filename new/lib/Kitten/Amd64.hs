@@ -88,7 +88,6 @@ definition _ = return ()
 
 term :: Term Type -> CodeGen ()
 term t = case t of
-  Term.Call{} -> comment ["call"]
   Term.Coercion{} -> return ()
   Term.Compose _ a b -> do
     term a

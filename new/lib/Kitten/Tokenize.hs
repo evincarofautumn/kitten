@@ -198,7 +198,6 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
         return $ case name of
           "about" -> About
           "as" -> As
-          "call" -> Call
           "case" -> Case
           "define" -> Define
           "do" -> Do

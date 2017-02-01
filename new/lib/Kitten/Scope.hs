@@ -35,7 +35,6 @@ scope = scopeTerm [0]
 
     recur :: Term () -> Term ()
     recur term = case term of
-      Call{} -> term
       Coercion{} -> term
       Compose _ a b -> Compose () (recur a) (recur b)
       Generic{} -> error
@@ -100,7 +99,6 @@ runCapture stack = flip runState []
 
 captureTerm :: Term () -> Captured (Term ())
 captureTerm term = case term of
-  Call{} -> return term
   Coercion{} -> return term
   Compose _ a b -> Compose () <$> captureTerm a <*> captureTerm b
   Generic{} -> error

@@ -547,7 +547,6 @@ termParser = (<?> "expression") $ do
     , do
       (name, fixity) <- nameParser
       return (Word () fixity name [] origin)
-    , Call () origin <$ parserMatch Token.Call
     , Parsec.try sectionParser
     , Parsec.try groupParser <?> "parenthesized expression"
     , vectorParser
@@ -699,7 +698,8 @@ termParser = (<?> "expression") $ do
     permits <- groupedParser $ Parsec.many1 permitParser
     return $ Term.compose () origin
       [ Term.permissionCoercion permits () origin
-      , Call () origin
+      , Word () Operator.Postfix
+        (QualifiedName (Qualified Vocabulary.intrinsic "call")) [] origin
       ]
     where
 

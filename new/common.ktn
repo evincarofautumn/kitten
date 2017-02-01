@@ -1,9 +1,23 @@
 vocab kitten {
 
+  intrinsic call<R..., S...> (R..., (R... -> S...) -> S...)
   intrinsic drop<A> (A ->)
   intrinsic swap<A, B> (A, B -> B, A)
 
 }
+
+define call<R..., S...> (R..., (R... -> S...) -> S...):
+  _::kitten::call
+
+about call:
+  docs: """
+    Applies a closure to the stack.
+
+    This denotes modus ponens: if we have a program state 'R...', a permission
+    '+P', and a closure '(R... -> S... +P)' as evidence that we can convert
+    'R...' to 'S...' given '+P', then we can invoke the closure to produce the
+    new state 'S...'.
+    """
 
 type Int8 {}
 

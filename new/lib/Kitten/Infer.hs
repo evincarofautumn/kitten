@@ -194,16 +194,6 @@ inferType
 inferType dictionary tenvFinal tenv0 term0
   = while (Term.origin term0) context $ case term0 of
 
--- The call operator denotes modus ponens: if we have some program state A, a
--- permission +E, and a closure (A → B +E) as evidence that we can convert A to
--- B given +E, then we can call the closure to produce B.
-
-    Call _ origin -> do
-      [a, b, e] <- fresh origin [Stack, Stack, Permission]
-      let type_ = Type.fun origin (Type.prod origin a (Type.fun origin a b e)) b e
-      let type' = Zonk.type_ tenvFinal type_
-      return (Call type' origin, type_, tenv0)
-
 -- A coercion is a typed no-op.
 --
 -- An identity coercion is the identity function on stacks. The empty program is

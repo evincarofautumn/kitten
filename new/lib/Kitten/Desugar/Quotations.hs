@@ -56,7 +56,6 @@ desugar dictionary qualifier term0 = do
     -> Term Type
     -> StateT (LambdaIndex, Dictionary) K (Term Type, TypeEnv)
   go tenv0 term = case term of
-    Call{} -> done
     Coercion{} -> done
     Compose type_ a b -> do
       (a', tenv1) <- go tenv0 a

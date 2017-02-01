@@ -70,7 +70,6 @@ desugar dictionary definition = do
 
   desugarTerm :: Term () -> K (Term ())
   desugarTerm term = case term of
-    Call{} -> return term
     Coercion{} -> return term
     Compose _ a b -> desugarTerms (Term.decompose a ++ Term.decompose b)
     Generic{} -> error

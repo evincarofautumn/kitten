@@ -38,7 +38,6 @@ linearize = snd . go []
 
   go :: [Int] -> Term Type -> ([Int], Term Type)
   go counts0 term = case term of
-    Call{} -> (counts0, term)
     Coercion{} -> (counts0, term)
     Compose type_ a b -> let
       (counts1, a') = go counts0 a
@@ -101,7 +100,6 @@ instrumentCopy varType = go 0
 
   go :: Int -> Term Type -> Term Type
   go n term = case term of
-    Call{} -> term
     Coercion{} -> term
     Compose type_ a b -> Compose type_ (go n a) (go n b)
     Generic x body origin -> Generic x (go n body) origin

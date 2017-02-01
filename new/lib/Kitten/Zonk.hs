@@ -51,7 +51,6 @@ term tenv0 = go
   where
   zonk = type_ tenv0
   go t = case t of
-    Call tref origin -> Call (zonk tref) origin
     Coercion hint tref origin
       -> Coercion hint (zonk tref) origin
     Compose tref a b

@@ -258,9 +258,13 @@ testTypecheck sign input expected = do
 commonSource :: Text
 commonSource = "\
 \vocab kitten {\
-\  intrinsic magic<R..., S...> (R... -> S...)\
-\  intrinsic add_int (_::Int32, _::Int32 -> _::Int32)\
-\}\
+\  intrinsic call<R..., S...> (R..., (R... -> S...) -> S...)\n\
+\  intrinsic magic<R..., S...> (R... -> S...)\n\
+\  intrinsic add_int (_::Int32, _::Int32 -> _::Int32)\n\
+\}\n\
+\define call<R..., S...> (R..., (R... -> S...) -> S...) {\n\
+\  _::kitten::call\n\
+\}\n\
 \intrinsic abort<R..., S...> (R... -> S... +Fail)\n\
 \type Char {}\n\
 \type Float64 {}\n\

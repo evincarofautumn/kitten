@@ -63,7 +63,6 @@ term dictionary vocabulary = recur
 
   recur :: Term () -> Resolved (Term ())
   recur unresolved = case unresolved of
-    Call{} -> return unresolved
     Coercion (Term.AnyCoercion sig) a b
       -> Coercion
       <$> (Term.AnyCoercion <$> signature dictionary vocabulary sig)

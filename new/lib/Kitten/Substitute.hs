@@ -43,7 +43,6 @@ term :: TypeEnv -> TypeId -> Type -> Term Type -> K (Term Type)
 term tenv x a = recur
   where
   recur t = case t of
-    Call tref origin -> Call <$> go tref <*> pure origin
     Coercion hint tref origin -> Coercion hint <$> go tref <*> pure origin
     Compose tref t1 t2 -> Compose <$> go tref <*> recur t1 <*> recur t2
     Generic x' body origin -> do

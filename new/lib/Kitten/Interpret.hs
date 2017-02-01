@@ -112,7 +112,6 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
             ]
     term :: Term Type -> IO ()
     term t = case t of
-      Call _ _ -> call
       Coercion _ _ _ -> return ()
       Compose _ a b -> term a >> term b
       -- TODO: Verify that this is correct.
@@ -197,6 +196,8 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
           [ "Execution failure:"
           , Pretty.text message
           ]
+
+      "call" -> call
 
       "drop" -> modifyIORef' stackRef tail
 
