@@ -166,7 +166,7 @@ declareWord dictionary definition = let
       -> do
       let qualifier = qualifierName name
       resolvedSignature <- Resolve.run $ Resolve.signature
-        dictionary qualifier $ Definition.signature definition
+        dictionary qualifier [] $ Definition.signature definition
       mangledName <- mangleInstance dictionary
         (Definition.name definition)
         resolvedSignature traitSignature
@@ -208,12 +208,14 @@ resolveSignature dictionary name = do
   let qualifier = qualifierName name
   case Dictionary.lookup (Instantiated name []) dictionary of
     Just (Entry.Word category merge origin parent (Just signature) body) -> do
-      signature' <- Resolve.run $ Resolve.signature dictionary qualifier signature
+      signature' <- Resolve.run
+        $ Resolve.signature dictionary qualifier [] signature
       let
         entry = Entry.Word category merge origin parent (Just signature') body
       return $ Dictionary.insert (Instantiated name []) entry dictionary
     Just (Entry.Trait origin signature) -> do
-      signature' <- Resolve.run $ Resolve.signature dictionary qualifier signature
+      signature' <- Resolve.run
+        $ Resolve.signature dictionary qualifier [] signature
       let entry = Entry.Trait origin signature'
       return $ Dictionary.insert (Instantiated name []) entry dictionary
     _ -> return dictionary

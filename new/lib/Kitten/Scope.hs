@@ -21,6 +21,10 @@ import Data.List (elemIndex)
 import Kitten.Name (Closed(..), ClosureIndex(..), GeneralName(..), LocalIndex(..))
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 
+import Debug.Trace
+import qualified Text.PrettyPrint as Pretty
+import Text.PrettyPrint.HughesPJClass (Pretty(..))
+
 -- | Whereas name resolution is concerned with resolving references to
 -- definitions, scope resolution resolves local names to relative (De Bruijn)
 -- indices, and converts 'Quotation's to explicit 'Capture's.
@@ -39,8 +43,6 @@ scope = scopeTerm [0]
       Compose _ a b -> Compose () (recur a) (recur b)
       Generic{} -> error
         "generic expression should not appear before scope resolution"
-      Group{} -> error
-        "group expression should not appear after infix desugaring"
       Lambda _ name _ a origin -> Lambda () name ()
         (scopeTerm (mapHead succ stack) a) origin
       Match hint _ cases else_ origin -> Match hint ()
@@ -103,8 +105,6 @@ captureTerm term = case term of
   Compose _ a b -> Compose () <$> captureTerm a <*> captureTerm b
   Generic{} -> error
     "generic expression should not appear before scope resolution"
-  Group{} -> error
-    "group expression should not appear after infix desugaring"
   Lambda _ name _ a origin -> let
     inside env = env
       { scopeStack = mapHead succ (scopeStack env)

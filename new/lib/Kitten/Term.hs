@@ -36,6 +36,7 @@ import Data.Text (Text)
 import Data.Vector (Vector)
 import Kitten.Bits
 import Kitten.Entry.Parameter (Parameter(..))
+import Kitten.Instantiated (Instantiated)
 import Kitten.Name
 import Kitten.Operator (Fixity)
 import Kitten.Origin (Origin)
@@ -68,8 +69,6 @@ data Term a
   | Compose a !(Term a) !(Term a)
   -- | @Λx. e@: generic terms that can be specialized.
   | Generic !TypeId !(Term a) !Origin
-  -- | @(e)@: precedence grouping for infix operators.
-  | Group !(Term a)
   -- | @→ x; e@: local variable introductions.
   | Lambda a !Unqualified a !(Term a) !Origin
   -- | @match { case C {...}... else {...} }@, @if {...} else {...}@:
@@ -137,15 +136,15 @@ data Value a
   -- | A captured variable.
   | Closed !ClosureIndex
   -- | A closure value.
-  | Closure !Qualified [Value a]
+  | Closure !Instantiated [Value a]
   -- | A floating-point literal; see "Kitten.Bits".
   | Float !Double !FloatBits
   -- | An integer literal; see "Kitten.Bits".
   | Integer !Integer !IntegerBits
   -- | A local variable.
   | Local !LocalIndex
-  -- | A reference to a name.
-  | Name !Qualified
+  -- | A reference to an instantiated name.
+  | Name !Instantiated
   -- | A parsed quotation.
   | Quotation !(Term a)
   -- | A text literal.
@@ -197,7 +196,6 @@ origin term = case term of
   Coercion _ _ o -> o
   Compose _ a _ -> origin a
   Generic _ _ o -> o
-  Group a -> origin a
   Lambda _ _ _ _ o -> o
   New _ _ _ o -> o
   NewClosure _ _ o -> o
@@ -222,7 +220,6 @@ metadata term = case term of
   Coercion _ t _ -> t
   Compose t _ _ -> t
   Generic _ term' _ -> metadata term'
-  Group term' -> metadata term'
   Lambda t _ _ _ _ -> t
   Match _ t _ _ _ -> t
   New t _ _ _ -> t
@@ -236,7 +233,6 @@ stripMetadata term = case term of
   Coercion a _ b -> Coercion a () b
   Compose _ a b -> Compose () (stripMetadata a) (stripMetadata b)
   Generic a term' b -> Generic a (stripMetadata term') b
-  Group term' -> stripMetadata term'
   Lambda _ a _ b c -> Lambda () a () (stripMetadata b) c
   Match a _ b c d -> Match a () (map stripCase b) (stripElse c) d
   New _ a b c -> New () a b c
@@ -275,7 +271,6 @@ instance Pretty (Term a) where
     Compose _ a b -> pPrint a Pretty.$+$ pPrint b
     Generic name body _ -> Pretty.hsep
       [Pretty.angles $ pPrint name, pPrint body]
-    Group a -> Pretty.parens (pPrint a)
     Lambda _ name _ body _ -> "->"
       Pretty.<+> pPrint name
       Pretty.<> ";"

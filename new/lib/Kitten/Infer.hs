@@ -19,6 +19,7 @@ module Kitten.Infer
   , typeKind
   , typeSize
   , typecheck
+  , valueKinded
   ) where
 
 import Control.Monad (filterM)
@@ -63,6 +64,8 @@ import qualified Kitten.Unify as Unify
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Kitten.Zonk as Zonk
 import qualified Text.PrettyPrint as Pretty
+
+import Control.Monad.IO.Class
 
 -- | Type inference takes a program fragment and produces a program with every
 -- term annotated with its inferred type. It's polymorphic in the annotation
@@ -233,8 +236,6 @@ inferType dictionary tenvFinal tenv0 term0
 
     -- TODO: Verify that this is correct.
     Generic _ t _ -> inferType' tenv0 t
-    Group{} -> error
-      "group expression should not appear during type inference"
 
 -- A local variable binding in Kitten is in fact a lambda term in the ordinary
 -- lambda-calculus sense. We infer the type of its body in the environment
@@ -472,9 +473,11 @@ inferValue dictionary tenvFinal tenv0 origin value = case value of
   Local (LocalIndex index) -> return
     (Local $ LocalIndex index, TypeEnv.vs tenv0 !! index, tenv0)
   Quotation{} -> error "quotation should not appear during type inference"
-  Name name -> case Dictionary.lookup (Instantiated name []) dictionary of
+  Name name -> case Dictionary.lookup name dictionary of
     Just (Entry.Word _ _ _ _ (Just signature) _) -> do
       type_ <- typeFromSignature tenv0 signature
+      liftIO $ putStrLn $ Pretty.render $ Pretty.hcat
+        ["Inferred name ", pPrint name, " as ", pPrint type_]
       return (Name name, type_, tenv0)
     _ -> error $ Pretty.render $ Pretty.hsep
       [ "unbound word name"
@@ -776,5 +779,6 @@ dataType origin params ctors dictionary = let
   unary name = Signature.Variable
     (QualifiedName (Qualified Vocabulary.global name)) origin
   -- FIXME: Use correct vocabulary.
+  -- TODO: Verify that passing empty type parameter list is correct.
   in typeFromSignature TypeEnv.empty
-    =<< Resolve.run (Resolve.signature dictionary Vocabulary.global sig)
+    =<< Resolve.run (Resolve.signature dictionary Vocabulary.global [] sig)

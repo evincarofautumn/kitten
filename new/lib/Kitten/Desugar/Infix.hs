@@ -15,6 +15,7 @@ module Kitten.Desugar.Infix
   ) where
 
 import Control.Applicative
+import Control.Monad.IO.Class (liftIO)
 import Data.Functor.Identity (Identity)
 import Data.HashMap.Strict (HashMap)
 import Kitten.Definition (Definition)
@@ -26,15 +27,18 @@ import Kitten.Operator (Operator)
 import Kitten.Origin (Origin)
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Text.Parsec ((<?>), ParsecT, SourcePos)
+import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Origin as Origin
+import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Report as Report
 import qualified Kitten.Term as Term
 import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Expr as Expr
+import qualified Text.PrettyPrint as Pretty
 
 type Rewriter a = ParsecT [Term ()] () Identity a
 
@@ -44,6 +48,8 @@ type Rewriter a = ParsecT [Term ()] () Identity a
 desugar :: Dictionary -> Definition () -> K (Definition ())
 desugar dictionary definition = do
   desugared <- desugarTerms' $ Definition.body definition
+  liftIO $ putStrLn $ Pretty.render $ Pretty.hsep
+    ["Desugared", Pretty.quotes $ pPrint $ Definition.name definition, pPrint desugared]
   return definition { Definition.body = desugared }
   where
   desugarTerms :: [Term ()] -> K (Term ())
@@ -74,7 +80,6 @@ desugar dictionary definition = do
     Compose _ a b -> desugarTerms (Term.decompose a ++ Term.decompose b)
     Generic{} -> error
       "generic expression should not appear before infix desugaring"
-    Group a -> desugarTerms' a
     Lambda _ name _ body origin -> Lambda () name ()
       <$> desugarTerms' body <*> pure origin
     Match hint _ cases else_ origin -> Match hint ()

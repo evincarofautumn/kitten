@@ -8,6 +8,7 @@ import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Kitten (fragmentFromSource)
 import Kitten.Bits
+import Kitten.CollectInstantiations (collectInstantiations)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Interpret (interpret)
 import Kitten.Monad (runKitten)
