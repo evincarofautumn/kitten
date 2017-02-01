@@ -364,14 +364,15 @@ inferType dictionary tenvFinal tenv0 term0
 --
 
     NewClosure _ size origin -> do
-      [a, b, c, d, e1, e2] <- fresh origin
-        [Stack, Value, Stack, Stack, Permission, Permission]
+      as <- fresh origin $ replicate size Value
+      [r, s, t, p1, p2] <- fresh origin
+        [Stack, Stack, Stack, Permission, Permission]
       let
-        f = Type.fun origin c d e1
+        f = Type.fun origin s t p1
         type_ = Type.fun origin
-          (foldl' (Type.prod origin) a (replicate size b ++ [f]))
-          (Type.prod origin a f)
-          e2
+          (foldl' (Type.prod origin) r (as ++ [f]))
+          (Type.prod origin r f)
+          p2
         type' = Zonk.type_ tenvFinal type_
       return (NewClosure type' size origin, type_, tenv0)
 

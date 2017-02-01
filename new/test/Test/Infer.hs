@@ -152,6 +152,15 @@ spec = do
         \}"
         $ Type.fun o r (Type.prod o (Type.prod o r int) int) e
 
+    it "typechecks closures with multiple types" $ do
+      testTypecheck Positive
+        "define test (-> (-> Int32, Float64)) {\n\
+        \  0 0.0 -> x, y;\n\
+        \  { x y }\n\
+        \}"
+        $ Type.fun o r (Type.prod o r
+          (Type.fun o r (Type.prod o (Type.prod o r int) float) e)) e
+
   describe "with instance checking" $ do
 
     it "rejects invalid signature" $ do
