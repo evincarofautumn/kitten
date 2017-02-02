@@ -89,17 +89,17 @@ insertBraces = (concat <$> many unit) <* Parsec.eof
     colon <- parserMatch Layout
     let
       colonOrigin = Located.origin colon
-      colonIndent = Located.indent colon
-      validFirst token = let
-        column = Located.indent token
-        in column > Indent 1 && column >= colonIndent
+      Indent colonIndent = Located.indent colon
+      validFirst = (> colonIndent)
+        . Parsec.sourceColumn . Origin.begin . Located.origin
     firstToken <- Parsec.lookAhead (tokenSatisfy validFirst)
-      <?> "token indented no less than start of layout block"
+      <?> "a token with a source column greater than \
+          \the start of the layout block"
     let
       firstOrigin = Origin.begin (Located.origin firstToken)
-      inside token
-        = Parsec.sourceColumn (Origin.begin (Located.origin token))
-        >= Parsec.sourceColumn firstOrigin
+      inside = (>= Parsec.sourceColumn firstOrigin)
+        . Parsec.sourceColumn . Origin.begin . Located.origin
+
     body <- concat <$> many (unitWhere inside)
-    return $ At colonOrigin colonIndent (BlockBegin Layoutness.Layout)
-      : body ++ [At colonOrigin colonIndent BlockEnd]
+    return $ At colonOrigin (Indent colonIndent) (BlockBegin Layoutness.Layout)
+      : body ++ [At colonOrigin (Indent colonIndent) BlockEnd]
