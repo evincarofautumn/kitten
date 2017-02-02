@@ -18,7 +18,7 @@ import Control.Applicative
 import Control.Monad (void)
 import Data.Char (isLetter, isPunctuation, isSymbol)
 import Data.Functor.Identity (Identity)
-import Data.Maybe (catMaybes, fromMaybe)
+import Data.Maybe (catMaybes, fromMaybe, maybeToList)
 import Data.Text (Text)
 import Data.Traversable (forM)
 import Kitten.Base (Base(..))
@@ -114,23 +114,34 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
     case mc of
       Just c -> return (Character c)
       Nothing -> Parsec.unexpected "empty character literal"
+  , do
+    mc <- Parsec.between (Parsec.char '\x2018') (Parsec.char '\x2019')
+      $ nestableCharacter '\x2018' '\x2019'
+    case mc of
+      [c] -> return (Character c)
+      [] -> Parsec.unexpected "empty character literal"
+      _ -> Parsec.unexpected "multi-character literal"
   , Comma <$ Parsec.char ','
-  , Parsec.try $ Ellipsis <$ Parsec.string "..."
+  , Parsec.try $ Ellipsis
+    <$ Parsec.choice (map Parsec.string ["...", "\x2026"])
   , GroupBegin <$ Parsec.char '('
   , GroupEnd <$ Parsec.char ')'
   , Parsec.try $ Ignore <$ Parsec.char '_' <* Parsec.notFollowedBy letter
-  , Parsec.try $ VocabLookup <$ Parsec.string "::"
+  , Parsec.try $ VocabLookup
+    <$ Parsec.choice (map Parsec.string ["::", "\x2237"])
   , Layout <$ Parsec.char ':'
   , VectorBegin <$ Parsec.char '['
   , VectorEnd <$ Parsec.char ']'
   , Reference <$ Parsec.char '\\'
   , Text <$> paragraph
   , Text <$> Parsec.between (Parsec.char '"') (Parsec.char '"') text
+  , Text <$> Parsec.between (Parsec.char '\x201C') (Parsec.char '\x201D')
+    (nestableText '\x201C' '\x201D')
   , Parsec.try $ do
-    sign <- Parsec.optionMaybe (Parsec.oneOf "+-")
+    sign <- Parsec.optionMaybe (Parsec.oneOf "+-\x2212")
     let
       applySign :: (Num a) => Maybe Char -> a -> a
-      applySign s = if s == Just '-' then negate else id
+      applySign s = if s `elem` [Just '-', Just '\x2212'] then negate else id
       base
         :: (Num a)
         => Char -> String -> (String -> a) -> Base -> String
@@ -167,7 +178,7 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
         mFraction <- Parsec.optionMaybe
           $ Parsec.char '.' *> Parsec.many Parsec.digit
         mPower <- Parsec.optionMaybe $ Parsec.oneOf "Ee" *> ((,)
-          <$> Parsec.optionMaybe (Parsec.oneOf "+-")
+          <$> Parsec.optionMaybe (Parsec.oneOf "+-\x2212")
           <*> Parsec.many1 Parsec.digit)
         case (mFraction, mPower) of
           (Nothing, Nothing) -> do
@@ -187,7 +198,9 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
               (maybe 0 (\ (s, p) -> applySign s $ read p) mPower)
               bits
       ] <* Parsec.notFollowedBy Parsec.digit
-  , Parsec.try (Arrow <$ Parsec.string "->" <* Parsec.notFollowedBy symbol)
+  , Parsec.try $ Arrow
+    <$ (Parsec.choice $ map Parsec.string ["->", "\x2192"])
+    <* Parsec.notFollowedBy symbol
   , let
     alphanumeric = (Text.pack .) . (:)
       <$> (letter <|> Parsec.char '_')
@@ -235,6 +248,18 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
   character :: Char -> Tokenizer (Maybe Char)
   character quote = Just <$> Parsec.noneOf ('\\' : [quote]) <|> escape
 
+  nestableCharacter :: Char -> Char -> Tokenizer [Char]
+  nestableCharacter open close = go
+    where
+      go = Parsec.choice
+        [ (\ o t c -> o : t ++ [c])
+          <$> (Parsec.char open <?> "nested opening quote")
+          <*> (concat <$> Parsec.many go)
+          <*> (Parsec.char close <?> "matching closing quote")
+        , (:[]) <$> Parsec.noneOf ['\\', open, close]
+        , maybeToList <$> escape
+        ]
+
   escape :: Tokenizer (Maybe Char)
   escape = Parsec.char '\\' *> Parsec.choice
     [ Just <$> Parsec.oneOf "\\\"'"
@@ -271,6 +296,10 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
 
   text :: Tokenizer Text
   text = Text.pack . catMaybes <$> many (character '"')
+
+  nestableText :: Char -> Char -> Tokenizer Text
+  nestableText open close = Text.pack . concat
+    <$> many (nestableCharacter open close)
 
   paragraph :: Tokenizer Text
   paragraph = (<?> "paragraph") $ do
