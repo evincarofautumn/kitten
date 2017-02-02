@@ -29,6 +29,7 @@ import Control.Applicative (liftA2)
 import Data.HashMap.Strict (HashMap)
 import Data.Maybe (mapMaybe)
 import Kitten.Entry (Entry)
+import Kitten.Informer (Informer(..))
 import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Name
 import Kitten.Operator (Operator(Operator))
@@ -39,6 +40,7 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Kitten.Entry as Entry
 import qualified Kitten.Entry.Category as Category
 import qualified Kitten.Operator as Operator
+import qualified Kitten.Report as Report
 import qualified Kitten.Term as Term
 
 -- | A key-value store mapping an 'Instantiated' name to a dictionary 'Entry'.
@@ -75,12 +77,13 @@ member name = (name `HashMap.member`) . entries
 
 -- | Compiles all operator metadata for infix desugaring.
 
-operatorMetadata :: Dictionary -> HashMap Qualified Operator
-operatorMetadata dictionary = HashMap.fromList $ map getMetadata
-  $ filter isOperatorName $ wordNames dictionary
+operatorMetadata
+  :: (Informer m) => Dictionary -> m (HashMap Qualified Operator)
+operatorMetadata dictionary = HashMap.fromList <$> mapM getMetadata
+  (filter isOperatorName $ wordNames dictionary)
   where
 
-  getMetadata :: Qualified -> (Qualified, Operator)
+  getMetadata :: (Informer m) => Qualified -> m (Qualified, Operator)
   getMetadata name = let
     key = Qualified (qualifierFromName name) (Unqualified "operator")
     in case HashMap.lookup (Instantiated key []) $ entries dictionary of
@@ -110,8 +113,10 @@ operatorMetadata dictionary = HashMap.fromList $ map getMetadata
         -> yield associativity
           $ Operator.Precedence $ fromInteger prec
 
-        -- FIXME: Generate real report.
-        | otherwise -> error "invalid operator metadata"
+        | otherwise -> do
+          report $ Report.InvalidOperatorMetadata
+            (Term.origin term) name term
+          yield defaultAssociativity defaultPrecedence
 
       _ -> yield defaultAssociativity defaultPrecedence
 
@@ -126,7 +131,7 @@ operatorMetadata dictionary = HashMap.fromList $ map getMetadata
       defaultPrecedence = Operator.Precedence 6
       defaultAssociativity = Operator.Nonassociative
 
-      yield associativity precedence = (name, Operator
+      yield associativity precedence = return (name, Operator
         { Operator.associativity = associativity
         , Operator.name = name
         , Operator.precedence = precedence

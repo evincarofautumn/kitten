@@ -58,6 +58,7 @@ data Report
   | Chain [Report]
   | OccursCheckFailure !Type !Type
   | StackDepthMismatch !Origin
+  | InvalidOperatorMetadata !Origin !Qualified !(Term ())
   | ParseError !Origin [Pretty.Doc] Pretty.Doc
   | Context [(Origin, Pretty.Doc)] Report
   deriving (Eq, Show)
@@ -203,6 +204,14 @@ human report = case report of
   StackDepthMismatch origin -> Pretty.hsep
     [ showOriginPrefix origin
     , "you may have a stack depth mismatch"
+    ]
+
+  InvalidOperatorMetadata origin name term -> Pretty.hcat
+    [ showOriginPrefix origin
+    , " invalid operator metadata for "
+    , Pretty.quote name
+    , ": "
+    , pPrint term
     ]
 
   ParseError origin unexpected expected -> Pretty.hcat
