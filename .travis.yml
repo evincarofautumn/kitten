@@ -1,41 +1,25 @@
-# Script for Travis CI: https://travis-ci.org/
-# Based off of: https://github.com/hvr/multi-ghc-travis
+language: haskell
 
-language: c
+branches:
+  only:
+    - master
 
-env:
- - GHC_VERSION=7.10.1 CABAL_PACKAGE=cabal-install-1.22 CABAL=cabal-1.22 CABAL_INSTALL_FLAGS=-j
- - GHC_VERSION=head CABAL_PACKAGE=cabal-install-1.22 CABAL=cabal-1.22 CABAL_INSTALL_FLAGS=-j
+sudo: false
 
-compiler:
- - gcc
- - clang
-
-matrix:
- allow_failures:
-  - env: GHC_VERSION=head CABAL_PACKAGE=cabal-install-1.22 CABAL=cabal-1.22 CABAL_INSTALL_FLAGS=-j
+cache:
+  directories:
+    - $HOME/.stack/
 
 before_install:
- - sudo add-apt-repository -y ppa:hvr/ghc
- - sudo apt-get update
- - sudo apt-get install $CABAL_PACKAGE ghc-$GHC_VERSION
- - export PATH=/opt/ghc/$GHC_VERSION/bin:$HOME/.cabal/bin:$PATH # HACK
- - $CABAL update
- - $CABAL install cabal-install
- # See Note [hlint].
- # - $CABAL install $CABAL_INSTALL_FLAGS happy # Needed for hlint.
- # - $CABAL install $CABAL_INSTALL_FLAGS hlint
+  - mkdir -p ~/.local/bin
+  - export PATH=~/.local/bin:$PATH
+  - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+  - chmod a+x ~/.local/bin/stack
+  - cd new
 
 install:
- - CABALFLAGS=$CABAL_INSTALL_FLAGS make deps
+  - travis_wait stack +RTS -N2 -RTS setup
+  - travis_wait stack +RTS -N2 -RTS build
 
 script:
- # - which hlint # See Note [hlint].
- - export CFLAGS="-I $HOME/include -L $HOME/lib"
- - make
- # TODO(strager): cabal sdist, cabal check, etc.
-
-# Note [hlint]:
-#
-# kitten fails to hlint due to hlint bugs.  We have thus
-# disabled hlinting.
+  - stack --no-terminal --skip-ghc-check test
