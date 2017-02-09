@@ -1,0 +1,34 @@
+99 bottles_of_beer
+
+define bottles_of_beer (Int32 -> +IO):
+  -> x;
+  x verse
+  if (x > 1):
+    (x - 1) bottles_of_beer
+
+define verse (Int32 -> +IO):
+  -> x;
+  x on_the_wall
+  x of_beer "" say
+  take_one_down
+  (x - 1) on_the_wall
+  "" say
+
+define of_beer (Int32 -> +IO):
+  bottles " of beer" print
+
+define on_the_wall (Int32 -> +IO):
+  of_beer " on the wall" say
+
+define take_one_down (-> +IO):
+  "take one down, pass it around" say
+
+define bottles (Int32 -> +IO):
+  -> x;
+  if (x = 0):
+    "no more bottles"
+  elif (x = 1):
+    "one bottle"
+  else:
+    x show " bottles" cat
+  print
