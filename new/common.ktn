@@ -860,7 +860,8 @@ define foldl<A, B> (List<B>, A, (A, B -> A) -> A):
   -> xs, z, k;
   match (xs head)
   case some -> x:
-    (xs tail from_some) (z x k call) k foldl
+    { xs tail from_some } with (+Fail)
+    (z x k call) k foldl
   case none:
     z
 
@@ -868,7 +869,8 @@ define foldl1<T> (List<T>, (T, T -> T) -> Optional<T>):
   -> xs, f;
   match (xs head)
   case some -> x:
-    (xs tail from_some) x f foldl some
+    { xs tail from_some } with (+Fail)
+    x f foldl some
   else:
     none
 
@@ -876,7 +878,8 @@ define foldr<A, B> (List<A>, B, (A, B -> B) -> B):
   -> xs, z, k;
   match (xs last)
   case some -> x:
-    (xs init from_some) (x z k call) k foldr
+    { xs init from_some } with (+Fail)
+    (x z k call) k foldr
   else:
     z
 
@@ -884,7 +887,8 @@ define foldr1<A> (List<A>, (A, A -> A) -> Optional<A>):
   -> xs, f;
   match (xs last)
   case some -> x:
-    (xs init from_some) x f foldr some
+    { xs init from_some } with (+Fail)
+    x f foldr some
   else:
     none
 

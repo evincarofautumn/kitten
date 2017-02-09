@@ -173,6 +173,38 @@ spec = do
         \define test (-> Pair<Char, Int32>) { 1 '1' pair flip }"
         $ Type.fun o r (Type.prod o r (ctor "Pair" :@ char :@ int)) e
 
+    it "accepts valid permissions" $ do
+
+      testTypecheck Positive
+        "define test (-> +Fail) { abort }"
+        $ Type.fun o r r (Type.join o fail_ e)
+
+      testTypecheck Positive
+        "intrinsic launch_missiles (-> +IO)\n\
+        \define test (-> +Fail +IO) { launch_missiles abort }"
+        $ Type.fun o r r (Type.join o fail_ (Type.join o io e))
+
+    it "accepts redundant permissions" $ do
+
+      testTypecheck Positive
+        "define test (-> +Fail) {}"
+        $ Type.fun o r r (Type.join o fail_ e)
+
+      testTypecheck Positive
+        "define test (-> +Fail +IO) {}"
+        $ Type.fun o r r (Type.join o fail_ (Type.join o io e))
+
+    it "rejects missing permissions" $ do
+
+      testTypecheck Negative
+        "define test (->) { abort }"
+        $ Type.fun o r r e
+
+      testTypecheck Negative
+        "intrinsic launch_missiles (-> +IO)\n\
+        \define test (->) { launch_missiles abort }"
+        $ Type.fun o r r e
+
   describe "with higher-order functions" $ do
 
     it "typechecks curried functions" $ do
@@ -214,6 +246,7 @@ spec = do
   char = ctor "Char"
   int = ctor "Int32"
   io = ctor "IO"
+  fail_ = ctor "Fail"
   float = ctor "Float64"
 
 testTypecheck :: Sign -> Text -> Type -> IO ()
