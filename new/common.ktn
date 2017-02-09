@@ -439,6 +439,28 @@ define abs<T> (T -> T):
   if ((< zero)):
     neg
 
+// FIXME: Requires casting.
+//
+// define even<T> (T -> Bool):
+//   (% 2) (= 0)
+//
+// define odd<T> (T -> Bool):
+//   (% 2) (<> 0)
+
+define max<T> (T, T -> T):
+  -> a, b;
+  if (a < b):
+    b
+  else:
+    a
+
+define min<T> (T, T -> T):
+  -> a, b;
+  if (a < b):
+    a
+  else:
+    b
+
 type Bool:
   case false
   case true
@@ -529,6 +551,13 @@ define ---> (Bool, (-> Bool) -> Bool):
 about --->:
   operator:
     right 1
+
+// These would be cleaner with lazy folds.
+//
+// define all<T> (List<T>, (T -> Bool) -> Bool)
+// define and (List<Bool> -> Bool)
+// define any<T> (List<T>, (T -> Bool) -> Bool)
+// define or<T> (List<Bool> -> Bool)
 
 type Optional<T>:
   case none
@@ -636,7 +665,21 @@ define either<R..., S..., A, B>
   case right:
     g call
 
-// TODO: map Either
+define map_left<A, B, C> (Either<A, B>, (A -> C) -> Either<C, B>):
+  -> f;
+  match
+  case left:
+    f call left
+  case right:
+    right
+
+define map_right<A, B, C> (Either<A, B>, (B -> C) -> Either<A, C>):
+  -> f;
+  match
+  case right:
+    f call right
+  case left:
+    left
 
 type Pointer<T>:
   case _pointer (UInt64)
@@ -661,6 +704,8 @@ vocab kitten {
   intrinsic empty<T> (List<T> -> Bool)
   intrinsic head<T> (List<T> -> Optional<T>)
   intrinsic tail<T> (List<T> -> Optional<List<T>>)
+  intrinsic init<T> (List<T> -> Optional<List<T>>)
+  intrinsic last<T> (List<T> -> Optional<T>)
   intrinsic append<T> (List<T>, T -> List<T>)
   intrinsic prepend<T> (T, List<T> -> List<T>)
   intrinsic cat<T> (List<T>, List<T> -> List<T>)
@@ -708,6 +753,12 @@ define head<T> (List<T> -> Optional<T>):
 
 define tail<T> (List<T> -> Optional<List<T>>):
   _::kitten::tail
+
+define init<T> (List<T> -> Optional<List<T>>):
+  _::kitten::init
+
+define last<T> (List<T> -> Optional<T>):
+  _::kitten::last
 
 define append<T> (List<T>, T -> List<T>):
   _::kitten::append
@@ -780,6 +831,83 @@ vocab map_index {
       z zs prepend
 
 }
+
+define each<T, +P> (List<T>, (T -> +P) -> +P):
+  -> f;
+  match (head_tail)
+  case some:
+    unpair -> h, t;
+    h f call
+    t f each
+  case none {}
+
+define filter<T> (List<T>, (T -> Bool) -> List<T>):
+  -> f;
+  match (head_tail)
+  case some:
+    unpair -> h, t;
+    if (h f call):
+      h (t f filter) prepend
+    else:
+      t f filter
+  case none:
+    []
+
+define find<T> (List<T>, (T -> Bool) -> Optional<T>):
+  filter head
+
+define foldl<A, B> (List<B>, A, (A, B -> A) -> A):
+  -> xs, z, k;
+  match (xs head)
+  case some -> x:
+    (xs tail from_some) (z x k call) k foldl
+  case none:
+    z
+
+define foldl1<T> (List<T>, (T, T -> T) -> Optional<T>):
+  -> xs, f;
+  match (xs head)
+  case some -> x:
+    (xs tail from_some) x f foldl some
+  else:
+    none
+
+define foldr<A, B> (List<A>, B, (A, B -> B) -> B):
+  -> xs, z, k;
+  match (xs last)
+  case some -> x:
+    (xs init from_some) (x z k call) k foldr
+  else:
+    z
+
+define foldr1<A> (List<A>, (A, A -> A) -> Optional<A>):
+  -> xs, f;
+  match (xs last)
+  case some -> x:
+    (xs init from_some) x f foldr some
+  else:
+    none
+
+define map_concat<A, B> (List<A>, (A -> List<B>) -> List<B>):
+  map concat
+
+define concat<T> (List<List<T>> -> List<T>):
+  [] \cat foldl
+
+define maximum<T> (List<T> -> Optional<T>):
+  \max foldl1
+
+define minimum<T> (List<T> -> Optional<T>):
+  \min foldl1
+
+define cartesian<A, B> (List<A>, List<B> -> List<Pair<A, B>>):
+  \pair cartesian_with
+
+define cartesian_with<A, B, C> (List<A>, List<B>, (A, B -> C) -> List<C>):
+  -> xs, ys, f;
+  xs do (map_concat) -> x:
+    ys do (map) -> y:
+      x y f call
 
 vocab kitten {
 

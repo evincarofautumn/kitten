@@ -360,6 +360,7 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
         if Vector.null xs
           then word (Qualified Vocabulary.global "true") []
           else word (Qualified Vocabulary.global "false") []
+
       "head" -> do
         (Array xs : r) <- readIORef stackRef
         if Vector.null xs
@@ -371,6 +372,19 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
             writeIORef stackRef $ x : r
             -- FIXME: Use right args.
             word (Qualified Vocabulary.global "some") []
+
+      "last" -> do
+        (Array xs : r) <- readIORef stackRef
+        if Vector.null xs
+          then do
+            writeIORef stackRef r
+            word (Qualified Vocabulary.global "none") []
+          else do
+            let x = xs ! (Vector.length xs - 1)
+            writeIORef stackRef $ x : r
+            -- FIXME: Use right args.
+            word (Qualified Vocabulary.global "some") []
+
       "append" -> do
         (x : Array xs : r) <- readIORef stackRef
         writeIORef stackRef $ Array (Vector.snoc xs x) : r
@@ -410,6 +424,7 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
         line <- hGetLine stdin'
         modifyIORef' stackRef (Array (Vector.fromList (map Character line)) :)
       "flush_stdout" -> hFlush stdout'
+
       "tail" -> do
         (Array xs : r) <- readIORef stackRef
         if Vector.null xs
@@ -418,6 +433,18 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
             word (Qualified Vocabulary.global "none") []
           else do
             let xs' = Vector.tail xs
+            writeIORef stackRef $ Array xs' : r
+            -- FIXME: Use right args.
+            word (Qualified Vocabulary.global "some") []
+
+      "init" -> do
+        (Array xs : r) <- readIORef stackRef
+        if Vector.null xs
+          then do
+            writeIORef stackRef r
+            word (Qualified Vocabulary.global "none") []
+          else do
+            let xs' = Vector.init xs
             writeIORef stackRef $ Array xs' : r
             -- FIXME: Use right args.
             word (Qualified Vocabulary.global "some") []
