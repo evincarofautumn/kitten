@@ -184,6 +184,11 @@ spec = do
         \define test (-> +Fail +IO) { launch_missiles abort }"
         $ Type.fun o r r (Type.join o fail_ (Type.join o io e))
 
+      testTypecheck Positive
+        "intrinsic launch_missiles (-> +IO)\n\
+        \define test (-> +IO +Fail) { launch_missiles abort }"
+        $ Type.fun o r r (Type.join o fail_ (Type.join o io e))
+
     it "accepts redundant permissions" $ do
 
       testTypecheck Positive
@@ -192,6 +197,10 @@ spec = do
 
       testTypecheck Positive
         "define test (-> +Fail +IO) {}"
+        $ Type.fun o r r (Type.join o fail_ (Type.join o io e))
+
+      testTypecheck Positive
+        "define test (-> +IO +Fail) {}"
         $ Type.fun o r r (Type.join o fail_ (Type.join o io e))
 
     it "rejects missing permissions" $ do
