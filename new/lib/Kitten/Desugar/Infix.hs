@@ -92,8 +92,7 @@ desugar dictionary definition = do
       Compose _ a b -> desugarTerms (Term.decompose a ++ Term.decompose b)
       Generic{} -> error
         "generic expression should not appear before infix desugaring"
-      Get _ body name origin -> Get ()
-        <$> desugarTerms' body <*> pure name <*> pure origin
+      Get{} -> return term
       Group a -> desugarTerms' a
       Lambda _ name _ body origin -> Lambda () name ()
         <$> desugarTerms' body <*> pure origin

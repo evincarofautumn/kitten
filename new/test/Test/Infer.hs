@@ -256,7 +256,7 @@ spec = do
         \  }\n\
         \}\n\
         \define test (-> Int32) {\n\
-        \  (42 example).value\n\
+        \  42 example .value\n\
         \}"
         $ Type.fun o r (Type.prod o r int) e
 

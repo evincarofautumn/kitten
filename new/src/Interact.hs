@@ -15,7 +15,6 @@ import Kitten (runKitten)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Entry (Entry)
 import Kitten.Entry.Parameter (Parameter(..))
-import Kitten.Infer (typeFromSignature)
 import Kitten.Informer (checkpoint)
 import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Interpret (Failure, interpret)
@@ -144,15 +143,16 @@ run = do
                   Just (Entry.Word _ _ _ _ _ (Just body))
                     -> body
                   _ -> error "cannot get entry point"
-              stackScheme <- typeFromSignature tenv $ Signature.Quantified
-                [ Parameter currentOrigin "R" Stack
-                , Parameter currentOrigin "E" Permission
-                ]
-                (Signature.StackFunction
-                  (Signature.Bottom currentOrigin) []
-                  (Signature.Variable "R" currentOrigin) []
-                  ["E"] currentOrigin)
-                currentOrigin
+              stackScheme <- TypeEnv.typeFromSignature tenv
+                $ Signature.Quantified
+                  [ Parameter currentOrigin "R" Stack
+                  , Parameter currentOrigin "E" Permission
+                  ]
+                  (Signature.StackFunction
+                    (Signature.Bottom currentOrigin) []
+                    (Signature.Variable "R" currentOrigin) []
+                    ["E"] currentOrigin)
+                  currentOrigin
               -- Checking that the main definition is able to operate on an
               -- empty stack is the same as verifying the last entry against the
               -- current stack state, as long as the state was modified

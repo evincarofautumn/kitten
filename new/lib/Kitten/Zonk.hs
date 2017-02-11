@@ -15,11 +15,13 @@ module Kitten.Zonk
   , term
   ) where
 
+import Data.List (find)
 import Kitten.Name (Qualified(Qualified))
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Kitten.Type (Constructor(..), Type(..), Var(..))
 import Kitten.TypeEnv (TypeEnv)
 import qualified Data.Map as Map
+import qualified Kitten.DataConstructor as DataConstructor
 import qualified Kitten.TypeEnv as TypeEnv
 import qualified Kitten.Vocabulary as Vocabulary
 
@@ -50,8 +52,14 @@ type_ tenv0 = recur
       :@ (TypeConstructor _ (Constructor (Qualified v name)))
       | v == Vocabulary.global
       -> case Map.lookup concreteType (TypeEnv.constructors tenv0) of
-        Just ctors -> error $ "found ctors"
-        Nothing -> error "missing ctors"
+        Just [] -> error "no constructors"
+        Just [ctor] -> let
+          matching = (== Just name) . DataConstructor.fieldName
+          in case find matching $ DataConstructor.fields ctor of
+            Just field -> error $ show $ DataConstructor.fieldType field
+            Nothing -> error "missing field"
+        Just ctors -> error "multiple constructors"
+        Nothing -> error "missing type"
     a :@ b -> recur a :@ recur b
 
 -- | Zonking a term zonks all the annotated types of its subterms. This could be
@@ -69,8 +77,8 @@ term tenv0 = go
       -> Compose (zonk tref) (go a) (go b)
     Generic x a origin
       -> Generic x (go a) origin
-    Get tref a name origin
-      -> Get (zonk tref) (go a) name origin
+    Get tref name origin
+      -> Get (zonk tref) name origin
     Group a
       -> go a
     Lambda tref name varType body origin

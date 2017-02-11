@@ -555,19 +555,7 @@ blockContentsParser = do
   return $ foldr (Compose ()) (Term.identityCoercion () origin') terms
 
 termParser :: Parser (Term ())
-termParser = (<?> "expression") $ do
-  prefix <- termPrefix
-  suffixes <- many termSuffix
-  return $ foldr ($) prefix suffixes
-
-termSuffix :: Parser (Term () -> Term ())
-termSuffix = (<?> "suffix") $ do
-  origin <- getTokenOrigin
-  name <- parserMatch Token.Dot *> wordNameParser
-  return (\ prefix -> Get () prefix name origin)
-
-termPrefix :: Parser (Term ())
-termPrefix = do
+termParser = do
   origin <- getTokenOrigin
   Parsec.choice
     [ Parsec.try (uncurry (Push ()) <$> parseOne toLiteral <?> "literal")
@@ -584,6 +572,7 @@ termPrefix = do
     , Push () <$> blockValue <*> pure origin
     , withParser
     , asParser
+    , dotParser
     ]
   where
 
@@ -735,6 +724,12 @@ termPrefix = do
       [ True <$ parserMatchOperator "+"
       , False <$ parserMatchOperator "-"
       ] <*> (UnqualifiedName <$> wordNameParser)
+
+  dotParser :: Parser (Term ())
+  dotParser = (<?> "field access") $ do
+    origin <- getTokenOrigin
+    name <- parserMatch Token.Dot *> wordNameParser
+    return (Get () name origin)
 
 parserMatchOperator :: Text -> Parser (Located Token)
 parserMatchOperator = parserMatch . Token.Operator . Unqualified

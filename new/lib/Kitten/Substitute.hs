@@ -51,8 +51,7 @@ term tenv x a = recur
       z <- freshTypeId tenv
       body' <- term tenv x' (TypeVar origin $ Var z k) body
       Generic z <$> recur body' <*> pure origin
-    Get tref t1 name origin -> Get <$> go tref
-      <*> recur t1 <*> pure name <*> pure origin
+    Get tref name origin -> Get <$> go tref <*> pure name <*> pure origin
     Group body -> recur body
     Lambda tref name varType body origin -> Lambda <$> go tref
       <*> pure name <*> go varType <*> recur body <*> pure origin

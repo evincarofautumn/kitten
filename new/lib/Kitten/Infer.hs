@@ -15,7 +15,6 @@ module Kitten.Infer
   ( dataType
   , inferType0
   , mangleInstance
-  , typeFromSignature
   , typeKind
   , typeSize
   , typecheck
@@ -99,9 +98,10 @@ typecheck dictionary mDeclaredSignature term = do
 -}
 
   let tenv0 = TypeEnv.empty
-  declaredType <- traverse (typeFromSignature tenv0) mDeclaredSignature
+  declaredType <- traverse (TypeEnv.typeFromSignature tenv0) mDeclaredSignature
   declaredTypes <- mapM
-    (\ (name, signature) -> (,) name <$> typeFromSignature tenv0 signature)
+    (\ (name, signature) -> (,) name
+      <$> TypeEnv.typeFromSignature tenv0 signature)
     $ Dictionary.signatures dictionary
   let
     tenv1 = tenv0
@@ -139,8 +139,8 @@ mangleInstance
   :: Dictionary -> Qualified -> Signature -> Signature -> K Instantiated
 mangleInstance dictionary name instanceSignature traitSignature = do
   let tenv0 = TypeEnv.empty
-  instanceType <- typeFromSignature tenv0 instanceSignature
-  traitType <- typeFromSignature tenv0 traitSignature
+  instanceType <- TypeEnv.typeFromSignature tenv0 instanceSignature
+  traitType <- TypeEnv.typeFromSignature tenv0 traitSignature
   instanceCheck "trait" traitType "instance" instanceType
   (traitType', args, tenv1) <- Instantiate.prenex tenv0 traitType
   tenv2 <- Unify.type_ tenv1 instanceType traitType'
@@ -213,7 +213,7 @@ inferType dictionary tenvFinal tenv0 term0
       let type' = Zonk.type_ tenvFinal type_
       return (Coercion hint type' origin, type_, tenv0)
     Coercion hint@(Term.AnyCoercion sig) _ origin -> do
-      type_ <- typeFromSignature tenv0 sig
+      type_ <- TypeEnv.typeFromSignature tenv0 sig
       let type' = Zonk.type_ tenvFinal type_
       return (Coercion hint type' origin, type_, tenv0)
 
@@ -236,30 +236,21 @@ inferType dictionary tenvFinal tenv0 term0
     -- TODO: Verify that this is correct.
     Generic _ t _ -> inferType' tenv0 t
 
--- Given a field access (x).y, we infer the type of the value x, checking that
--- it has the form:
+-- Given a field access '.label', we type it with an unresolved field lookup:
 --
---     ρ → ρ × α
---
--- Then we return an unresolved field lookup type:
---
---     ρ → ρ × α::y
+--     ρ × α → ρ × α::label
 --
 -- During zonking, when α is resolved to a concrete type, we can try to deduce
--- the result of α::y from the environment.
+-- the result of α::label from the environment.
 
-    Get _ body name origin -> do
-      (body', bodyType, tenv1) <- inferType' tenv0 body
-      (a, b, p, tenv2) <- Unify.function tenv1 bodyType
-      [r, x] <- fresh origin [Stack, Value]
-      tenv3 <- Unify.type_ tenv2
-        (Type.fun origin a b p)
-        (Type.fun origin r (Type.prod origin r x) p)
+    Get _ name origin -> do
+      [r, a, p] <- fresh origin [Stack, Value, Permission]
       let
-        type_ = Type.fun origin r
-          (Type.prod origin r (Type.field origin x name)) p
+        type_ = Type.fun origin
+          (Type.prod origin r a)
+          (Type.prod origin r (Type.field origin a name)) p
         type' = Zonk.type_ tenvFinal type_
-      return (Get type' body' name origin, type_, tenv3)
+      return (Get type' name origin, type_, tenv0)
 
     Group{} -> error
       "group expression should not appear during type inference"
@@ -502,7 +493,7 @@ inferValue dictionary tenvFinal tenv0 origin value = case value of
   Quotation{} -> error "quotation should not appear during type inference"
   Name name -> case Dictionary.lookup (Instantiated name []) dictionary of
     Just (Entry.Word _ _ _ _ (Just signature) _) -> do
-      type_ <- typeFromSignature tenv0 signature
+      type_ <- TypeEnv.typeFromSignature tenv0 signature
       return (Name name, type_, tenv0)
     _ -> error $ Pretty.render $ Pretty.hsep
       [ "unbound word name"
@@ -553,126 +544,6 @@ inferCall _dictionary _tenvFinal _tenv0 name origin
   -- FIXME: Use proper reporting. (Internal error?)
   = error $ Pretty.render $ Pretty.hsep
     ["cannot infer type of non-qualified name", Pretty.quote name]
-
--- | Desugars a parsed signature into an actual type. We resolve whether names
--- refer to quantified type variables or data definitions, and make stack
--- polymorphism explicit.
-
-typeFromSignature :: TypeEnv -> Signature -> K Type
-typeFromSignature tenv signature0 = do
-  (type_, env) <- flip runStateT SignatureEnv
-    { sigEnvAnonymous = []
-    , sigEnvVars = Map.empty
-    } $ go signature0
-  let
-    forallAnonymous = Forall (Signature.origin signature0)
-    forallVar (var, origin) = Forall origin var
-  return
-    $ foldr forallAnonymous
-      (foldr forallVar type_ $ Map.elems $ sigEnvVars env)
-    $ sigEnvAnonymous env
-  where
-
-  go :: Signature -> StateT SignatureEnv K Type
-  go signature = case signature of
-    Signature.Application a b _ -> (:@) <$> go a <*> go b
-    Signature.Bottom origin -> return $ Type.bottom origin
-    Signature.Function as bs es origin -> do
-      r <- lift $ freshTypeId tenv
-      let var = Var r Stack
-      let typeVar = TypeVar origin var
-      es' <- mapM (fromVar origin) es
-      (me, es'') <- lift $ permissionVar origin es'
-      Forall origin var <$> makeFunction origin typeVar as typeVar bs es'' me
-    Signature.Quantified vars a origin -> do
-      original <- get
-      (envVars, vars') <- foldrM ((lift .) . declare)
-        (sigEnvVars original, []) vars
-      modify $ \ env -> env { sigEnvVars = envVars }
-      a' <- go a
-      let result = foldr (Forall origin) a' vars'
-      put original
-      return result
-      where
-
-      declare
-        :: Parameter
-        -> (Map Unqualified (Var, Origin), [Var])
-        -> K (Map Unqualified (Var, Origin), [Var])
-      declare (Parameter varOrigin name kind) (envVars, freshVars) = do
-        x <- freshTypeId tenv
-        let var = Var x kind
-        return (Map.insert name (var, varOrigin) envVars, var : freshVars)
-
-    Signature.Variable name origin -> fromVar origin name
-    Signature.StackFunction r as s bs es origin -> do
-      let var = fromVar origin
-      r' <- go r
-      s' <- go s
-      es' <- mapM var es
-      (me, es'') <- lift $ permissionVar origin es'
-      makeFunction origin r' as s' bs es'' me
-    -- TODO: Verify that the type contains no free variables.
-    Signature.Type type_ -> return type_
-
-  permissionVar :: Origin -> [Type] -> K (Maybe Type, [Type])
-  permissionVar origin types = case splitFind isTypeVar types of
-    Just (preceding, type_, following) -> case find isTypeVar following of
-      Nothing -> return (Just type_, preceding ++ following)
-      Just type' -> do
-        report $ Report.MultiplePermissionVariables origin type_ type'
-        halt
-    Nothing -> return (Nothing, types)
-    where
-    isTypeVar TypeVar{} = True
-    isTypeVar _ = False
-
-  fromVar :: Origin -> GeneralName -> StateT SignatureEnv K Type
-  fromVar origin (UnqualifiedName name) = do
-    existing <- gets $ Map.lookup name . sigEnvVars
-    case existing of
-      Just (var, varOrigin) -> return $ TypeVar varOrigin var
-      Nothing -> lift $ do
-        report $ Report.CannotResolveType origin $ UnqualifiedName name
-        halt
-  fromVar origin (QualifiedName name)
-    = return $ TypeConstructor origin $ Constructor name
-  fromVar _ name = error
-    $ "incorrectly resolved name in signature: " ++ show name
-
-  makeFunction
-    :: Origin
-    -> Type -> [Signature] -> Type -> [Signature] -> [Type] -> Maybe Type
-    -> StateT SignatureEnv K Type
-  makeFunction origin r as s bs es me = do
-    as' <- mapM go as
-    bs' <- mapM go bs
-    e <- case me of
-      Just e -> return e
-      Nothing -> do
-        ex <- lift $ freshTypeId tenv
-        let var = Var ex Permission
-        modify $ \ env -> env { sigEnvAnonymous = var : sigEnvAnonymous env }
-        return $ TypeVar origin var
-    return $ Type.fun origin (stack r as') (stack s bs')
-      $ foldr (Type.join origin) e es
-    where
-
-    stack :: Type -> [Type] -> Type
-    stack = foldl' $ Type.prod origin
-
-splitFind :: (Eq a) => (a -> Bool) -> [a] -> Maybe ([a], a, [a])
-splitFind f = go []
-  where
-  go acc (x : xs)
-    | f x = Just (reverse acc, x, xs)
-    | otherwise = go (x : acc) xs
-  go _ [] = Nothing
-
-data SignatureEnv = SignatureEnv
-  { sigEnvAnonymous :: [Var]
-  , sigEnvVars :: !(Map Unqualified (Var, Origin))
-  }
 
 valueKinded :: Dictionary -> [Type] -> K [Type]
 valueKinded dictionary = filterM
@@ -804,5 +675,5 @@ dataType origin params ctors dictionary = let
   unary name = Signature.Variable
     (QualifiedName (Qualified Vocabulary.global name)) origin
   -- FIXME: Use correct vocabulary.
-  in typeFromSignature TypeEnv.empty
+  in TypeEnv.typeFromSignature TypeEnv.empty
     =<< Resolve.run (Resolve.signature dictionary Vocabulary.global sig)
