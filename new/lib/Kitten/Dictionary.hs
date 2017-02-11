@@ -13,6 +13,7 @@ Portability : GHC
 
 module Kitten.Dictionary
   ( Dictionary
+  , constructors
   , empty
   , fromList
   , insert
@@ -28,6 +29,7 @@ module Kitten.Dictionary
 import Control.Applicative (liftA2)
 import Data.HashMap.Strict (HashMap)
 import Data.Maybe (mapMaybe)
+import Kitten.DataConstructor (DataConstructor)
 import Kitten.Entry (Entry)
 import Kitten.Informer (Informer(..))
 import Kitten.Instantiated (Instantiated(Instantiated))
@@ -148,6 +150,17 @@ signatures = mapMaybe getSignature . HashMap.toList . entries
   getSignature (Instantiated name [], Entry.Trait _ signature)
     = Just (name, signature)
   getSignature _ = Nothing
+
+-- | All data type fields in the dictionary.
+--
+-- TODO: Support fields with type variables from the data type.
+constructors :: Dictionary -> [(Qualified, [DataConstructor])]
+constructors = mapMaybe get . HashMap.toList . entries
+  where
+  get :: (Instantiated, Entry) -> Maybe (Qualified, [DataConstructor])
+  get (Instantiated name [], Entry.Type _ _ ctors)
+    = Just (name, ctors)
+  get _ = Nothing
 
 toList :: Dictionary -> [(Instantiated, Entry)]
 toList = HashMap.toList . entries

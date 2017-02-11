@@ -94,6 +94,8 @@ term t = case t of
     term b
   Term.Generic{} -> error
     "uninstantiated term appeared during code generation"
+  Term.Get{} -> error
+    "TODO: compile field access terms"
   Term.Group a -> term a
   Term.Lambda _ _ type_ a _ -> do
     -- TODO: Use actual size class.

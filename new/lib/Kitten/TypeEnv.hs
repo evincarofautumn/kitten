@@ -21,6 +21,7 @@ module Kitten.TypeEnv
 import Control.Monad.IO.Class (liftIO)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Map (Map)
+import Kitten.DataConstructor (DataConstructor)
 import Kitten.Kind (Kind)
 import Kitten.Monad (K)
 import Kitten.Name
@@ -34,6 +35,7 @@ import qualified Text.PrettyPrint as Pretty
 -- The typing environment tracks the state of inference. It answers the
 -- following questions:
 --
+--  • What are the constructors and fields of this type?
 --  • What is the type of this type variable?
 --  • What is the type of this local variable?
 --  • What are the types of the current closure?
@@ -42,7 +44,8 @@ import qualified Text.PrettyPrint as Pretty
 -- It also provides access to the state of globally unique ID generation.
 
 data TypeEnv = TypeEnv
-  { tvs :: !(Map TypeId Type)
+  { constructors :: !(Map Qualified [DataConstructor])
+  , tvs :: !(Map TypeId Type)
   , vs :: [Type]
   , closure :: [Type]
   , sigs :: !(Map Qualified Type)
@@ -51,7 +54,8 @@ data TypeEnv = TypeEnv
 
 empty :: TypeEnv
 empty = TypeEnv
-  { tvs = Map.empty
+  { constructors = Map.empty
+  , tvs = Map.empty
   , vs = []
   , closure = []
   , sigs = Map.empty

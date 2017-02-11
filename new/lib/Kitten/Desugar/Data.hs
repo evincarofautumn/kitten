@@ -79,7 +79,8 @@ desugarConstructor definition index constructor = Definition
   constructorSignature = Signature.Quantified
     (TypeDefinition.parameters definition)
     (Signature.Function
-      (DataConstructor.fields constructor) [resultSignature] [] origin)
+      (map DataConstructor.fieldType (DataConstructor.fields constructor))
+      [resultSignature] [] origin)
     origin
   origin = DataConstructor.origin constructor
   qualifier = qualifierName $ TypeDefinition.name definition

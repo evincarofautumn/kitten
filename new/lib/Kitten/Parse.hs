@@ -20,7 +20,7 @@ import Control.Monad (guard, void)
 import Data.List (find, findIndex, foldl')
 import Data.Maybe (fromMaybe, isJust)
 import Data.Text (Text)
-import Kitten.DataConstructor (DataConstructor(DataConstructor))
+import Kitten.DataConstructor (ConstructorField(ConstructorField), DataConstructor(DataConstructor))
 import Kitten.Declaration (Declaration(Declaration))
 import Kitten.Definition (Definition(Definition))
 import Kitten.Element (Element)
@@ -362,16 +362,31 @@ constructorParser :: Parser DataConstructor
 constructorParser = (<?> "constructor definition") $ do
   origin <- getTokenOrigin <* parserMatch Token.Case
   name <- wordNameParser <?> "constructor name"
-  fields <- (<?> "constructor fields") $ Parsec.option []
-    $ groupedParser constructorFieldsParser
+  fields <- (<?> "constructor fields")
+    $ Parsec.option [] constructorFieldsParser
   return DataConstructor
     { DataConstructor.fields = fields
     , DataConstructor.name = name
     , DataConstructor.origin = origin
     }
 
-constructorFieldsParser :: Parser [Signature]
-constructorFieldsParser = typeParser `Parsec.sepEndBy` commaParser
+constructorFieldsParser :: Parser [ConstructorField]
+constructorFieldsParser = Parsec.choice
+  [ (<?> "anonymous field list") $ groupedParser
+    $ anonymousField `Parsec.sepEndBy` commaParser
+  , (<?> "named field block") $ blockedParser
+    $ many namedField
+  ]
+  where
+    anonymousField = do
+      origin <- getTokenOrigin
+      ConstructorField Nothing <$> typeParser <*> pure origin
+    namedField = do
+      origin <- getTokenOrigin
+      ConstructorField
+        <$> (Just <$> wordNameParser)
+        <*> (parserMatch_ Token.As *> groupedParser basicTypeParser)
+        <*> pure origin
 
 typeParser :: Parser Signature
 typeParser = Parsec.try functionTypeParser <|> basicTypeParser <?> "type"
@@ -541,6 +556,18 @@ blockContentsParser = do
 
 termParser :: Parser (Term ())
 termParser = (<?> "expression") $ do
+  prefix <- termPrefix
+  suffixes <- many termSuffix
+  return $ foldr ($) prefix suffixes
+
+termSuffix :: Parser (Term () -> Term ())
+termSuffix = (<?> "suffix") $ do
+  origin <- getTokenOrigin
+  name <- parserMatch Token.Dot *> wordNameParser
+  return (\ prefix -> Get () prefix name origin)
+
+termPrefix :: Parser (Term ())
+termPrefix = do
   origin <- getTokenOrigin
   Parsec.choice
     [ Parsec.try (uncurry (Push ()) <$> parseOne toLiteral <?> "literal")

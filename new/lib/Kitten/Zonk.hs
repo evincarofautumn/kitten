@@ -8,16 +8,20 @@ Stability   : experimental
 Portability : GHC
 -}
 
+{-# LANGUAGE OverloadedStrings #-}
+
 module Kitten.Zonk
   ( type_
   , term
   ) where
 
+import Kitten.Name (Qualified(Qualified))
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
-import Kitten.Type (Type(..), Var(..))
+import Kitten.Type (Constructor(..), Type(..), Var(..))
 import Kitten.TypeEnv (TypeEnv)
 import qualified Data.Map as Map
 import qualified Kitten.TypeEnv as TypeEnv
+import qualified Kitten.Vocabulary as Vocabulary
 
 -- | Zonking a type fully substitutes all type variables. That is, if you have:
 --
@@ -40,6 +44,14 @@ type_ tenv0 = recur
     TypeConstant{} -> t
     Forall origin (Var x k) t' -> Forall origin (Var x k)
       $ type_ tenv0 { TypeEnv.tvs = Map.delete x $ TypeEnv.tvs tenv0 } t'
+    -- TODO: Avoid nested pattern match.
+    TypeConstructor origin "Field"
+      :@ (TypeConstructor _ (Constructor concreteType))
+      :@ (TypeConstructor _ (Constructor (Qualified v name)))
+      | v == Vocabulary.global
+      -> case Map.lookup concreteType (TypeEnv.constructors tenv0) of
+        Just ctors -> error $ "found ctors"
+        Nothing -> error "missing ctors"
     a :@ b -> recur a :@ recur b
 
 -- | Zonking a term zonks all the annotated types of its subterms. This could be
@@ -57,6 +69,8 @@ term tenv0 = go
       -> Compose (zonk tref) (go a) (go b)
     Generic x a origin
       -> Generic x (go a) origin
+    Get tref a name origin
+      -> Get (zonk tref) (go a) name origin
     Group a
       -> go a
     Lambda tref name varType body origin

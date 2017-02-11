@@ -39,6 +39,7 @@ data Token
   | Comma                                -- ^ @,@
   | Define                               -- ^ @define@
   | Do                                   -- ^ @do@
+  | Dot                                  -- ^ @.@
   | Ellipsis                             -- ^ @...@
   | Elif                                 -- ^ @elif@
   | Else                                 -- ^ @else@
@@ -82,6 +83,7 @@ instance Eq Token where
   Comma                   == Comma                   = True
   Define                  == Define                  = True
   Do                      == Do                      = True
+  Dot                     == Dot                     = True
   Ellipsis                == Ellipsis                = True
   Elif                    == Elif                    = True
   Else                    == Else                    = True
@@ -130,6 +132,7 @@ instance Pretty Token where
     Comma -> ","
     Define -> "define"
     Do -> "do"
+    Dot -> "."
     Ellipsis -> "..."
     Elif -> "elif"
     Else -> "else"

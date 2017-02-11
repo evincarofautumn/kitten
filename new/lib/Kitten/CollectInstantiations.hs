@@ -91,6 +91,9 @@ collectInstantiations dictionary0 = do
 -- instantiations in it, because it's not instantiated itself!
 
     Generic{} -> proceed
+    Get type_ a name origin -> do
+      (a', q1) <- go q0 a
+      return (Get type_ a' name origin, q1)
     Group{} -> error "group should not appear after linearization"
     Lambda type_ name varType body origin -> do
       (body', q1) <- go q0 body

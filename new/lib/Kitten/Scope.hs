@@ -39,6 +39,7 @@ scope = scopeTerm [0]
       Compose _ a b -> Compose () (recur a) (recur b)
       Generic{} -> error
         "generic expression should not appear before scope resolution"
+      Get{} -> term
       Group{} -> error
         "group expression should not appear after infix desugaring"
       Lambda _ name _ a origin -> Lambda () name ()
@@ -103,6 +104,7 @@ captureTerm term = case term of
   Compose _ a b -> Compose () <$> captureTerm a <*> captureTerm b
   Generic{} -> error
     "generic expression should not appear before scope resolution"
+  Get{} -> return term
   Group{} -> error
     "group expression should not appear after infix desugaring"
   Lambda _ name _ a origin -> let

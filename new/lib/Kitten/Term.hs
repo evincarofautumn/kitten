@@ -68,6 +68,8 @@ data Term a
   | Compose a !(Term a) !(Term a)
   -- | @Λx. e@: generic terms that can be specialized.
   | Generic !TypeId !(Term a) !Origin
+  -- | @.x@: field access
+  | Get a !(Term a) !Unqualified !Origin
   -- | @(e)@: precedence grouping for infix operators.
   | Group !(Term a)
   -- | @→ x; e@: local variable introductions.
@@ -197,6 +199,7 @@ origin term = case term of
   Coercion _ _ o -> o
   Compose _ a _ -> origin a
   Generic _ _ o -> o
+  Get _ _ _ o -> o
   Group a -> origin a
   Lambda _ _ _ _ o -> o
   New _ _ _ o -> o
@@ -222,6 +225,7 @@ metadata term = case term of
   Coercion _ t _ -> t
   Compose t _ _ -> t
   Generic _ term' _ -> metadata term'
+  Get t _ _ _ -> t
   Group term' -> metadata term'
   Lambda t _ _ _ _ -> t
   Match _ t _ _ _ -> t
@@ -236,6 +240,7 @@ stripMetadata term = case term of
   Coercion a _ b -> Coercion a () b
   Compose _ a b -> Compose () (stripMetadata a) (stripMetadata b)
   Generic a term' b -> Generic a (stripMetadata term') b
+  Get _ a b c -> Get () (stripMetadata a) b c
   Group term' -> stripMetadata term'
   Lambda _ a _ b c -> Lambda () a () (stripMetadata b) c
   Match a _ b c d -> Match a () (map stripCase b) (stripElse c) d
@@ -275,6 +280,7 @@ instance Pretty (Term a) where
     Compose _ a b -> pPrint a Pretty.$+$ pPrint b
     Generic name body _ -> Pretty.hsep
       [Pretty.angles $ pPrint name, pPrint body]
+    Get _ a b _ -> Pretty.hcat [pPrint a, ".", pPrint b]
     Group a -> Pretty.parens (pPrint a)
     Lambda _ name _ body _ -> "->"
       Pretty.<+> pPrint name

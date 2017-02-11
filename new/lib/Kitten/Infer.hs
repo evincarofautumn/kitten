@@ -105,8 +105,10 @@ typecheck dictionary mDeclaredSignature term = do
     $ Dictionary.signatures dictionary
   let
     tenv1 = tenv0
-      { TypeEnv.sigs = Map.union (Map.fromList declaredTypes)
-        $ TypeEnv.sigs tenv0 }
+      { TypeEnv.constructors = Map.fromList $ Dictionary.constructors dictionary
+      , TypeEnv.sigs = Map.union (Map.fromList declaredTypes)
+        $ TypeEnv.sigs tenv0
+      }
   inferType0 dictionary tenv1 declaredType term
   
   -- declaredTypes
@@ -233,6 +235,32 @@ inferType dictionary tenvFinal tenv0 term0
 
     -- TODO: Verify that this is correct.
     Generic _ t _ -> inferType' tenv0 t
+
+-- Given a field access (x).y, we infer the type of the value x, checking that
+-- it has the form:
+--
+--     ρ → ρ × α
+--
+-- Then we return an unresolved field lookup type:
+--
+--     ρ → ρ × α::y
+--
+-- During zonking, when α is resolved to a concrete type, we can try to deduce
+-- the result of α::y from the environment.
+
+    Get _ body name origin -> do
+      (body', bodyType, tenv1) <- inferType' tenv0 body
+      (a, b, p, tenv2) <- Unify.function tenv1 bodyType
+      [r, x] <- fresh origin [Stack, Value]
+      tenv3 <- Unify.type_ tenv2
+        (Type.fun origin a b p)
+        (Type.fun origin r (Type.prod origin r x) p)
+      let
+        type_ = Type.fun origin r
+          (Type.prod origin r (Type.field origin x name)) p
+        type' = Zonk.type_ tenvFinal type_
+      return (Get type' body' name origin, type_, tenv3)
+
     Group{} -> error
       "group expression should not appear during type inference"
 
@@ -769,8 +797,8 @@ dataType origin params ctors dictionary = let
     (binary "Product" tag
       $ foldr (binary "Sum") (unary "Void")
       $ map
-        (foldr (binary "Product") (unary "Unit") . DataConstructor.fields)
-        ctors) origin
+        (foldr (binary "Product" . DataConstructor.fieldType) (unary "Unit")
+          . DataConstructor.fields) ctors) origin
   binary name a b = Signature.Application
     (Signature.Application (unary name) a origin) b origin
   unary name = Signature.Variable

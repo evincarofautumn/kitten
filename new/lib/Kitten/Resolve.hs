@@ -72,6 +72,8 @@ term dictionary vocabulary = recur
     Compose _ a b -> Compose () <$> recur a <*> recur b
     Generic{} -> error
       "generic expression should not appear before name resolution"
+    Get _ body name origin -> Get ()
+      <$> recur body <*> pure name <*> pure origin
     Group a -> Group <$> recur a
     Lambda _ name _ t origin -> withLocal name
       $ Lambda () name () <$> recur t <*> pure origin

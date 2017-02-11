@@ -64,6 +64,9 @@ desugar dictionary qualifier term0 = do
     Generic type_ a origin -> do
       (a', tenv1) <- go tenv0 a
       return (Generic type_ a' origin, tenv1)
+    Get type_ a name origin -> do
+      (a', tenv1) <- go tenv0 a
+      return (Get type_ a' name origin, tenv1)
     Group{} -> error "group should not appear after infix desugaring"
     Lambda type_ name varType a origin -> do
       let

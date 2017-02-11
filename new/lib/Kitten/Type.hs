@@ -17,6 +17,7 @@ module Kitten.Type
   , TypeId(..)
   , Var(..)
   , bottom
+  , field
   , fun
   , join
   , prod
@@ -51,7 +52,7 @@ data Type
   | TypeConstant !Origin !Var
   | Forall !Origin !Var !Type
   | TypeValue !Origin !Int
- deriving (Show)
+  deriving (Show)
 
 infixl 1 :@
 
@@ -63,6 +64,11 @@ data Var = Var !TypeId !Kind
 
 bottom :: Origin -> Type
 bottom o = TypeConstructor o "Bottom"
+
+-- TODO: Use unqualified name without spurious global vocabulary qualifier.
+field :: Origin -> Type -> Unqualified -> Type
+field o a name = TypeConstructor o "Field" :@ a
+  :@ TypeConstructor o (Constructor (Qualified Vocabulary.global name))
 
 fun :: Origin -> Type -> Type -> Type -> Type
 fun o a b e = TypeConstructor o "Fun" :@ a :@ b :@ e

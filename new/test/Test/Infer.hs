@@ -245,6 +245,21 @@ spec = do
         "define test (-> Int32) { 1i64 as (Int32) }"
         $ Type.fun o r (Type.prod o r int) e
 
+  describe "with named fields" $ do
+
+    it "reads value from field" $ do
+
+      testTypecheck Positive
+        "type Example {\n\
+        \  case example {\n\
+        \    value as (Int32)\n\
+        \  }\n\
+        \}\n\
+        \define test (-> Int32) {\n\
+        \  (42 example).value\n\
+        \}"
+        $ Type.fun o r (Type.prod o r int) e
+
   where
   o = Origin.point "" 0 0
   r = TypeVar o $ Var (TypeId 0) Stack

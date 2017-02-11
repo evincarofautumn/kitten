@@ -124,6 +124,7 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
   , Comma <$ Parsec.char ','
   , Parsec.try $ Ellipsis
     <$ Parsec.choice (map Parsec.string ["...", "\x2026"])
+  , Parsec.try $ Dot <$ Parsec.char '.' <* Parsec.notFollowedBy symbol
   , GroupBegin <$ Parsec.char '('
   , GroupEnd <$ Parsec.char ')'
   , Parsec.try $ Ignore <$ Parsec.char '_' <* Parsec.notFollowedBy letter

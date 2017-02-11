@@ -116,6 +116,7 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
       Compose _ a b -> term a >> term b
       -- TODO: Verify that this is correct.
       Generic _ t' _ -> term t'
+      Get{} -> error "TODO: interpret term"
       Group t' -> term t'
       Lambda _ _name _ body _ -> do
         (a : r) <- readIORef stackRef

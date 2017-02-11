@@ -11,7 +11,8 @@ Portability : GHC
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.DataConstructor
-  ( DataConstructor(..)
+  ( ConstructorField(..)
+  , DataConstructor(..)
   ) where
 
 import Kitten.Name (Unqualified)
@@ -23,9 +24,15 @@ import qualified Text.PrettyPrint as Pretty
 -- | A single data constructor case, e.g., @case some (T)@.
 
 data DataConstructor = DataConstructor
-  { fields :: [Signature]
+  { fields :: [ConstructorField]
   , name :: !Unqualified
   , origin :: !Origin
+  } deriving (Show)
+
+data ConstructorField = ConstructorField
+  { fieldName :: !(Maybe Unqualified)
+  , fieldType :: !Signature
+  , fieldOrigin :: !Origin
   } deriving (Show)
 
 -- FIXME: Support fields.
