@@ -260,5 +260,5 @@ parseError parsecError = ParseError origin unexpected' expected'
     in Pretty.hsep
       [ "unexpected"
       , if null string then "end of input"
-        else Pretty.quotes $ Pretty.text string
+        else Pretty.text string
       ]

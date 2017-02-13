@@ -102,6 +102,29 @@ spec = do
     it "parses nested text" $ do
       testTokenize "\x201CHe said, \x201CWhat?\x201D\x201D" `shouldBe` Right
         [Text "He said, \x201CWhat?\x201D"]
+    it "fails on unterminated text" $ do
+      let origin = Origin.point "" 1 2
+      testTokenize "\"" `shouldBe` Left
+        [ Report.ParseError origin
+          ["unexpected end of input"]
+          "expected character, escape, or closing double quote"
+        ]
+    it "fails on unterminated nested text" $ do
+      let origin = Origin.point "" 1 2
+      testTokenize "\x201C" `shouldBe` Left
+        [ Report.ParseError origin
+          ["unexpected end of input"]
+          "expected character, nested opening quote, \
+          \escape, or closing right double quote"
+        ]
+    it "fails on multi-line text" $ do
+      let origin = Origin.point "" 2 1
+      testTokenize "\"\n\"" `shouldBe` Left
+        [ Report.ParseError origin
+          ["unexpected newline in text literal; \
+            \use an escape, gap, or paragraph instead"]
+          "expected character or escape"
+        ]
 
   describe "with paragraph literals" $ do
     it "parses well-formed paragraph literals" $ do
@@ -147,7 +170,7 @@ spec = do
         \  \"\"\""
         `shouldBe` Left
         [ Report.ParseError origin
-          ["unexpected ' bar'"]
+          ["unexpected \" bar\""]
           "expected all lines to be empty or begin with 2 spaces"
         ]
     -- TODO: Add more negative tests for paragraph literals.

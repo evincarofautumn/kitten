@@ -37,6 +37,7 @@ import qualified Kitten.Origin as Origin
 import qualified Kitten.Report as Report
 import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Pos as Parsec
+import qualified Text.PrettyPrint as Pretty
 
 -- | Lexes a source fragment into a list of tokens, annotated with their source
 -- locations and indent levels.
@@ -134,9 +135,14 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
   , VectorEnd <$ Parsec.char ']'
   , Reference <$ Parsec.char '\\'
   , Text <$> paragraph
-  , Text <$> Parsec.between (Parsec.char '"') (Parsec.char '"') text
-  , Text <$> Parsec.between (Parsec.char '\x201C') (Parsec.char '\x201D')
-    (nestableText '\x201C' '\x201D')
+  , Text <$> Parsec.between
+      (Parsec.char '"')
+      (Parsec.char '"' <?> "closing double quote")
+      text
+  , Text <$> Parsec.between
+      (Parsec.char '\x201C')
+      (Parsec.char '\x201D' <?> "closing right double quote")
+      (nestableText '\x201C' '\x201D')
   , Parsec.try $ do
     sign <- Parsec.optionMaybe (Parsec.oneOf "+-\x2212")
     let
@@ -246,22 +252,30 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
     <$ Parsec.try (Parsec.char char <* Parsec.notFollowedBy symbol)
 
   character :: Char -> Tokenizer (Maybe Char)
-  character quote = Just <$> Parsec.noneOf ('\\' : [quote]) <|> escape
+  character quote = char <|> escape
+    where
+      char = (<?> "character") $ do
+        c <- Parsec.noneOf ('\\' : [quote])
+        case c of
+          '\n' -> Parsec.unexpected
+            "newline in text literal; use an escape, gap, or paragraph instead"
+            <?> "character or escape"
+          _ -> return $ Just c
 
   nestableCharacter :: Char -> Char -> Tokenizer [Char]
   nestableCharacter open close = go
     where
       go = Parsec.choice
-        [ (\ o t c -> o : t ++ [c])
+        [ (<?> "character") $ (:[]) <$> Parsec.noneOf ['\\', open, close]
+        , (\ o t c -> o : t ++ [c])
           <$> (Parsec.char open <?> "nested opening quote")
           <*> (concat <$> Parsec.many go)
           <*> (Parsec.char close <?> "matching closing quote")
-        , (:[]) <$> Parsec.noneOf ['\\', open, close]
         , maybeToList <$> escape
         ]
 
   escape :: Tokenizer (Maybe Char)
-  escape = Parsec.char '\\' *> Parsec.choice
+  escape = (<?> "escape") $ Parsec.char '\\' *> Parsec.choice
     [ Just <$> Parsec.oneOf "\\\"'"
     , Just '\a' <$ Parsec.char 'a'
     , Just '\b' <$ Parsec.char 'b'
@@ -309,7 +323,8 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
     body' <- forM body $ \ line -> case Text.stripPrefix prefix line of
       Just line' -> return line'
       Nothing | Text.null line -> return ""
-      _ -> Parsec.unexpected (Text.unpack line)
+      _ -> Parsec.unexpected
+        (Pretty.render $ Pretty.doubleQuotes $ Pretty.text $ Text.unpack line)
         -- HACK: Relies on formatting of messages to include "expected ...".
         <?> concat
         [ "all lines to be empty or begin with "
