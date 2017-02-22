@@ -13,6 +13,7 @@ import Kitten.Name (Unqualified(..))
 import Kitten.Report (Report)
 import Kitten.Token (Token(..))
 import Kitten.Tokenize (tokenize)
+import Test.HUnit (assertFailure)
 import Test.Hspec (Spec, describe, it, shouldBe)
 import qualified Kitten.Located as Located
 import qualified Kitten.Origin as Origin
@@ -26,8 +27,17 @@ spec = do
       testTokenize "" `shouldBe` Right []
     it "produces no tokens on only space" $ do
       testTokenize " " `shouldBe` Right []
-    it "produces no tokens on only tab" $ do
-      testTokenize "\t" `shouldBe` Right []
+    it "rejects invalid whitespace" $ do
+      -- TODO: Improve error message and test it.
+      case testTokenize "\t" of
+        Left _ -> return ()
+        _ -> assertFailure "tabs should not be accepted"
+      case testTokenize "\v" of
+        Left _ -> return ()
+        _ -> assertFailure "vertical tabs should not be accepted"
+      case testTokenize "\f" of
+        Left _ -> return ()
+        _ -> assertFailure "form feeds should not be accepted"
     it "produces no tokens on only line comment" $ do
       testTokenize "// comment" `shouldBe` Right []
     it "produces no tokens on only line comment plus newline" $ do

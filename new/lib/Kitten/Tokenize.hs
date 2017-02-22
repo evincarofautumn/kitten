@@ -76,7 +76,7 @@ silenceTokenizer = Parsec.skipMany (comment <|> whitespace)
     pos <- Parsec.getPosition
     Parsec.putState (Parsec.sourceColumn pos)
 
-  nonNewline = void (Parsec.satisfy (`elem` ("\t\v\f\r " :: String)))
+  nonNewline = void (Parsec.satisfy (`elem` ("\r " :: String)))
 
   comment = single <|> multi <?> "comment"
 
