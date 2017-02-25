@@ -1,7 +1,7 @@
 vocab kitten {
 
   intrinsic call<R..., S...> (R..., (R... -> S...) -> S...)
-  intrinsic drop<A> (A ->)
+  intrinsic forget<A> (A ->)
   intrinsic swap<A, B> (A, B -> B, A)
 
 }
@@ -19,7 +19,28 @@ about call:
     new state 'S...'.
     """
 
+trait copy<T> (T -> T)
+
+about copy:
+  docs: """
+    Copy constructor, implicitly called for every mention of a local variable
+    after the first. To make a type implicitly copyable without any additional
+    logic, simply write an instance with an empty body. Types that don't
+    implement this trait can only be moved.
+    """
+
+trait destroy<T> (T -> T)
+
+about destroy:
+  docs: """
+    Destructor, implicitly called when a local variable goes out of scope, or
+    when a value is explicitly dropped with `-> _;`. Types that don't implement
+    this trait can't be dropped.
+    """
+
 type Int8 {}
+
+instance copy (Int8 -> Int8) {}
 
 about type Int8:
   size: 1
@@ -27,11 +48,15 @@ about type Int8:
 
 type Int16 {}
 
+instance copy (Int16 -> Int16) {}
+
 about type Int16:
   size: 2
   alignment: 2
 
 type Int32 {}
+
+instance copy (Int32 -> Int32) {}
 
 about type Int32:
   size: 4
@@ -39,11 +64,15 @@ about type Int32:
 
 type Int64 {}
 
+instance copy (Int64 -> Int64) {}
+
 about type Int64:
   size: 8
   alignment: 8
 
 type UInt8 {}
+
+instance copy (UInt8 -> UInt8) {}
 
 about type UInt8:
   size: 1
@@ -51,17 +80,23 @@ about type UInt8:
 
 type UInt16 {}
 
+instance copy (UInt16 -> UInt16) {}
+
 about type UInt16:
   size: 2
   alignment: 2
 
 type UInt32 {}
 
+instance copy (UInt32 -> UInt32) {}
+
 about type UInt32:
   size: 4
   alignment: 4
 
 type UInt64 {}
+
+instance copy (UInt64 -> UInt64) {}
 
 about type UInt64:
   size: 8
@@ -70,13 +105,19 @@ about type UInt64:
 type Char:
   case _char (UInt32)
 
+instance copy (Char -> Char) {}
+
 type Float32 {}
+
+instance copy (Float32 -> Float32) {}
 
 about type Float32:
   size: 4
   alignment: 4
 
 type Float64 {}
+
+instance copy (Float64 -> Float64) {}
 
 about type Float64:
   size: 8
@@ -465,6 +506,8 @@ type Bool:
   case false
   case true
 
+instance copy (Bool -> Bool) {}
+
 define not (Bool -> Bool):
   if:
     false
@@ -563,6 +606,8 @@ type Optional<T>:
   case none
   case some (T)
 
+// instance copy<T> (Optional<T> -> Optional<T>) where (copy<T>) {}
+
 define from_optional<T> (Optional<T>, T -> T):
   -> default;
   match
@@ -604,6 +649,8 @@ define optional<R..., S..., A>
 type Pair<A, B>:
   case pair (A, B)
 
+// instance copy<A, B> (Pair<A, B> -> Pair<A, B>) where (copy<A>, copy<B>) {}
+
 define unpair<A, B> (Pair<A, B> -> A, B):
   match case pair {}
 
@@ -615,6 +662,8 @@ define flip<A, B> (Pair<A, B> -> Pair<B, A>):
 type Either<A, B>:
   case left (A)
   case right (B)
+
+// instance copy<A, B> (Either<A, B> -> Either<A, B>) where (copy<A>, copy<B>) {}
 
 define from_left<A, B> (Either<A, B> -> A +Fail):
   match
@@ -684,6 +733,8 @@ define map_right<A, B, C> (Either<A, B>, (B -> C) -> Either<A, C>):
 type Pointer<T>:
   case _pointer (UInt64)
 
+// instance copy<T> (Pointer<T> -> Pointer<T>) {}
+
 // do (until) { ... }
 define until<R...> (R..., (R... -> R..., Bool) -> R...):
   -> f;
@@ -698,6 +749,8 @@ define while<R...> (R..., (R... -> R..., Bool) -> R...):
 
 type List<T>:
   case _list (Pointer<T>, Pointer<T>, Pointer<T>)
+
+// instance copy<T> (List<T> -> List<T>) where (copy<T>)
 
 vocab kitten {
 
@@ -1054,6 +1107,8 @@ vocab kitten {
 
 type RGBA:
   case rgba (UInt8, UInt8, UInt8, UInt8)
+
+instance copy (RGBA -> RGBA) {}
 
 define draw (List<List<RGBA>> -> +IO):
   _::kitten::draw

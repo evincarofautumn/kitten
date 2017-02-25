@@ -738,8 +738,13 @@ blockLikeParser = blockParser <|> blockLambdaParser
 makeLambda :: [(Maybe Unqualified, Origin)] -> Term () -> Origin -> Term ()
 makeLambda parsed body origin = foldr
   (\ (nameMaybe, nameOrigin) acc -> maybe
-    (Compose () (Word () Operator.Postfix
-      (QualifiedName (Qualified Vocabulary.intrinsic "drop")) [] origin) acc)
+    (Term.compose () origin
+      [ Word () Operator.Postfix
+        (QualifiedName (Qualified Vocabulary.global "destroy")) [] origin
+      , Word () Operator.Postfix
+        (QualifiedName (Qualified Vocabulary.intrinsic "forget")) [] origin
+      , acc
+      ])
     (\ name -> Lambda () name () acc nameOrigin)
     nameMaybe)
   body

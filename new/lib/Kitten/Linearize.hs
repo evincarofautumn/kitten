@@ -16,59 +16,64 @@ module Kitten.Linearize
 
 import Control.Arrow (first)
 import Data.List (transpose)
-import Kitten.Name (GeneralName(..), LocalIndex(..), Qualified(..))
+import Kitten.Name (Closed(..), ClosureIndex(..), LocalIndex(..))
+import Kitten.Name (GeneralName(..), Qualified(..))
 import Kitten.Origin (Origin)
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
-import Kitten.Type (Type)
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Term as Term
 import qualified Kitten.Vocabulary as Vocabulary
 
--- | Linearization replaces all copies and drops with explicit invocations of
--- the @_::copy@ and @_::drop@ words. A value is copied if it appears twice or
--- more in its scope; it's dropped if it doesn't appear at all, or if an
--- explicit @drop@ is present due to an ignored local (@_@). If it only appears
--- once, it is moved, and no special word is invoked.
---
--- FIXME: This is experimental and subject to change.
+import Debug.Trace (trace)
+import Text.PrettyPrint.HughesPJClass (Pretty(..))
+import qualified Text.PrettyPrint as Pretty
 
-linearize :: Term Type -> Term Type
-linearize = snd . go []
+-- | Linearization (I didn't know what else to call it) instruments copies and
+-- drops of local variables with invocations of @_::copy@ (copy constructor) and
+-- @_::destroy@ (destructor), respectively.
+--
+-- A variable is copied if it appears twice or more in its scope; it's dropped
+-- if it doesn't appear at all, or if an explicit drop is present due to an
+-- ignored local (@_@). The first appearance of a local is moved, not copied, so
+-- this doesn't instrument anything if the variable is used only once.
+
+linearize :: Term () -> Term ()
+linearize = (\x -> trace (Pretty.render $ pPrint x) x) . snd . go []
   where
 
-  go :: [Int] -> Term Type -> ([Int], Term Type)
+  go :: [Int] -> Term () -> ([Int], Term ())
   go counts0 term = case term of
     Coercion{} -> (counts0, term)
-    Compose type_ a b -> let
+    Compose _ a b -> let
       (counts1, a') = go counts0 a
       (counts2, b') = go counts1 b
-      in (counts2, Compose type_ a' b')
+      in (counts2, Compose () a' b')
     Generic x body origin -> let
       (counts1, body') = go counts0 body
       in (counts1, Generic x body' origin)
     Group{} -> error "group should not appear after desugaring"
-    Lambda type_ x varType body origin -> let
+    Lambda _ x varType body origin -> let
       (n : counts1, body') = go (0 : counts0) body
       body'' = case n of
-        0 -> instrumentDrop origin varType body'
+        0 -> instrumentDrop origin body'
         1 -> body'
-        _ -> instrumentCopy varType body'
-      in (counts1, Lambda type_ x varType body'' origin)
-    -- FIXME: count usages for each branch & take maximum
-    Match hint type_ cases else_ origin -> let
+        _ -> instrumentCopy body'
+      in (counts1, Lambda () x varType body'' origin)
+    -- FIXME: count usages for each branch & take maximum?
+    Match hint _ cases else_ origin -> let
 
       (counts1, mElse') = goElse counts0 else_
       (counts2, cases') = first (map maximum . transpose)
         $ unzip $ map (goCase counts0) cases
-      in (zipWith max counts1 counts2, Match hint type_ cases' mElse' origin)
+      in (zipWith max counts1 counts2, Match hint () cases' mElse' origin)
       where
 
-      goCase :: [Int] -> Case Type -> ([Int], Case Type)
+      goCase :: [Int] -> Case () -> ([Int], Case ())
       goCase counts (Case name body caseOrigin) = let
         (counts1, body') = go counts body
         in (counts1, Case name body' caseOrigin)
 
-      goElse :: [Int] -> Else Type -> ([Int], Else Type)
+      goElse :: [Int] -> Else () -> ([Int], Else ())
       goElse counts (Else body elseOrigin) = let
         (counts1, body') = go counts body
         in (counts1, Else body' elseOrigin)
@@ -79,41 +84,48 @@ linearize = snd . go []
     Push _ (Local (LocalIndex index)) _ -> let
       (h, t : ts) = splitAt index counts0
       in (h ++ succ t : ts, term)
-    Push _ Capture{} _ -> error
-      "pushing of capture should not appear after desugaring"
+    Push _ (Capture closed body) origin -> let
+      go (ClosedLocal (LocalIndex index)) acc = let
+        (h, t : ts) = splitAt index acc
+        in h ++ succ t : ts
+      go (ClosedClosure (ClosureIndex index)) acc
+        = acc  -- TODO: count closure variables (maybe by rewriting them into locals)
+      in (foldr go counts0 closed, term)
+{-
     Push _ Quotation{} _ -> error
       "pushing of quotation should not appear after desugaring"
+-}
     Push{} -> (counts0, term)
     Word{} -> (counts0, term)
 
-instrumentDrop :: Origin -> Type -> Term Type -> Term Type
-instrumentDrop origin type_ a = Term.compose todoTyped origin
+instrumentDrop :: Origin -> Term () -> Term ()
+instrumentDrop origin a = Term.compose () origin
   [ a
-  , Push todoTyped (Local (LocalIndex 0)) origin
-  , Word todoTyped Operator.Postfix
-    (QualifiedName (Qualified Vocabulary.global "drop")) [type_] origin
+  , Push () (Local (LocalIndex 0)) origin
+  , Word () Operator.Postfix
+    (QualifiedName (Qualified Vocabulary.global "destroy")) [] origin
   ]
 
-instrumentCopy :: Type -> Term Type -> Term Type
-instrumentCopy varType = go 0
+instrumentCopy :: Term () -> Term ()
+instrumentCopy = go 0
   where
 
-  go :: Int -> Term Type -> Term Type
+  go :: Int -> Term () -> Term ()
   go n term = case term of
     Coercion{} -> term
-    Compose type_ a b -> Compose type_ (go n a) (go n b)
+    Compose _ a b -> Compose () (go n a) (go n b)
     Generic x body origin -> Generic x (go n body) origin
     Group{} -> error "group should not appear after desugaring"
-    Lambda type_ name varType' body origin
-      -> Lambda type_ name varType' (go (succ n) body) origin
-    Match hint type_ cases else_ origin
-      -> Match hint type_ (map goCase cases) (goElse else_) origin
+    Lambda _ name varType body origin
+      -> Lambda () name varType (go (succ n) body) origin
+    Match hint _ cases else_ origin
+      -> Match hint () (map goCase cases) (goElse else_) origin
       where
 
-      goCase :: Case Type -> Case Type
+      goCase :: Case () -> Case ()
       goCase (Case name body caseOrigin) = Case name (go n body) caseOrigin
 
-      goElse :: Else Type -> Else Type
+      goElse :: Else () -> Else ()
       goElse (Else body elseOrigin) = Else (go n body) elseOrigin
 
     New{} -> term
@@ -121,10 +133,7 @@ instrumentCopy varType = go 0
     NewVector{} -> term
     Push _ (Local (LocalIndex index)) origin
       | index == n
-      -> Compose todoTyped term $ Word todoTyped Operator.Postfix
-        (QualifiedName (Qualified Vocabulary.global "copy")) [varType] origin
+      -> Compose () term $ Word () Operator.Postfix
+        (QualifiedName (Qualified Vocabulary.global "copy")) [] origin
     Push{} -> term
     Word{} -> term
-
-todoTyped :: a
-todoTyped = error "TODO: generate typed terms"
