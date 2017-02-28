@@ -461,6 +461,15 @@ define min<T> (T, T -> T):
   else:
     b
 
+type Unit:
+  case unit ()
+
+about type Unit:
+  docs: """
+    The unit type, with a single value `unit`, useful as a placeholder type that
+    carries no information.
+    """
+
 type Bool:
   case false
   case true
