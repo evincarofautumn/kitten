@@ -205,7 +205,7 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
               bits
       ] <* Parsec.notFollowedBy Parsec.digit
   , Parsec.try $ Arrow
-    <$ (Parsec.choice $ map Parsec.string ["->", "\x2192"])
+    <$ Parsec.choice (map Parsec.string ["->", "\x2192"])
     <* Parsec.notFollowedBy symbol
   , let
     alphanumeric = (Text.pack .) . (:)

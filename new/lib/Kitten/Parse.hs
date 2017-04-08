@@ -445,7 +445,7 @@ quantifierParser = typeListParser var
         <$> (parserMatchOperator "+" *> wordNameParser)
       , do
         name <- wordNameParser
-        (Parameter origin name)
+        Parameter origin name
           <$> Parsec.option Value (Stack <$ parserMatch Token.Ellipsis)
       ]
 
@@ -644,9 +644,8 @@ termParser = (<?> "expression") $ do
       Nothing -> match
 
   defaultMatchElse :: Origin -> Term ()
-  defaultMatchElse matchOrigin = Word () Operator.Postfix
-    (QualifiedName (Qualified Vocabulary.global "abort"))
-    [] matchOrigin
+  defaultMatchElse = Word () Operator.Postfix
+    (QualifiedName (Qualified Vocabulary.global "abort")) []
 
   ifParser :: Parser (Term ())
   ifParser = (<?> "if-else expression") $ do

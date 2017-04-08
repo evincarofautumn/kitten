@@ -162,7 +162,7 @@ asCoercion x o ts = Coercion (AnyCoercion signature) x o
   signature = Signature.Quantified [] (Signature.Function ts ts [] o) o
 
 identityCoercion :: a -> Origin -> Term a
-identityCoercion x o = Coercion IdentityCoercion x o
+identityCoercion = Coercion IdentityCoercion
 
 permissionCoercion :: [Permit] -> a -> Origin -> Term a
 permissionCoercion permits x o = Coercion (AnyCoercion signature) x o

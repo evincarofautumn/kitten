@@ -112,7 +112,7 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
             ]
     term :: Term Type -> IO ()
     term t = case t of
-      Coercion _ _ _ -> return ()
+      Coercion{} -> return ()
       Compose _ a b -> term a >> term b
       -- TODO: Verify that this is correct.
       Generic _ t' _ -> term t'

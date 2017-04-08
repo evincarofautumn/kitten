@@ -766,11 +766,12 @@ dataType origin params ctors dictionary = let
     _ -> unary "UInt64"  -- n -> union layout, tag
   -- Product of tag and sum of products of fields.
   sig = Signature.Quantified params
-    (binary "Product" tag
-      $ foldr (binary "Sum") (unary "Void")
-      $ map
-        (foldr (binary "Product") (unary "Unit") . DataConstructor.fields)
-        ctors) origin
+    (binary "Product" tag $ foldr
+      (binary "Sum"
+        . foldr (binary "Product") (unary "Unit")
+        . DataConstructor.fields)
+      (unary "Void")
+      ctors) origin
   binary name a b = Signature.Application
     (Signature.Application (unary name) a origin) b origin
   unary name = Signature.Variable

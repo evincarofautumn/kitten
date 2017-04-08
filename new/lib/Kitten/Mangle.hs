@@ -44,7 +44,7 @@ qualified :: Qualified -> Text
 qualified (Qualified (Qualifier _root parts) (Unqualified unqualified))
   = Text.concat
     -- nested
-    $ "_N" : (map (lengthPrefix . normalize) $ parts ++ [unqualified])
+    $ "_N" : map (lengthPrefix . normalize) (parts ++ [unqualified])
     -- end
     ++ ["_E"]
 
