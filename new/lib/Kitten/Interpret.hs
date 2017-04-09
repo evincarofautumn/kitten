@@ -126,7 +126,7 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
         modifyIORef' localsRef tail
       Match _ _ cases else_ _ -> do
         -- We delay matching on the value here because it may not be an ADT at
-        -- all. For example, "1 match { else { 2 } }" is perfectly valid,
+        -- all. For example, "1 match else { 2 }" is perfectly valid,
         -- because we are matching on all (0) of Int32's constructors.
         (x : r) <- readIORef stackRef
         writeIORef stackRef r
