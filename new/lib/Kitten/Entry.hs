@@ -26,6 +26,7 @@ import Kitten.Signature (Signature)
 import Kitten.Term (Term)
 import Kitten.Type (Type)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
+import qualified Kitten.DataConstructor as DataConstructor
 import qualified Kitten.Entry.Category as Category
 import qualified Kitten.Pretty as Pretty
 import qualified Text.PrettyPrint as Pretty
@@ -69,6 +70,7 @@ data Entry
 
 instance Pretty Entry where
   pPrint entry = case entry of
+
     Word category _merge origin mParent mSignature _body -> Pretty.vcat
       [ case category of
         Category.Constructor -> "constructor"  -- of type
@@ -85,17 +87,46 @@ instance Pretty Entry where
           ["with parent", pPrint parent]
         Nothing -> "with no parent"
       ]
-    Metadata _origin _term -> "<metadata>"
-    Synonym _origin _name -> "<synonym>"
-    Trait _origin _signature -> "<signature>"
-    -- TODO: Print constructors.
-    Type origin parameters _ctors -> Pretty.vcat
+
+    Metadata origin term -> Pretty.vcat
+      [ "metadata"
+      , Pretty.hsep ["defined at", pPrint origin]
+      , Pretty.hsep ["with contents", pPrint term]
+      ]
+
+    Synonym origin name -> Pretty.vcat
+      [ "synonym"
+      , Pretty.hsep ["defined at", pPrint origin]
+      , Pretty.hsep ["standing for", pPrint name]
+      ]
+
+    Trait origin signature -> Pretty.vcat
+      [ "trait"
+      , Pretty.hsep ["defined at", pPrint origin]
+      , Pretty.hsep ["with signature", pPrint signature]
+      ]
+
+    Type origin parameters ctors -> Pretty.vcat
       [ "type"
       , Pretty.hsep ["defined at", pPrint origin]
       , Pretty.hcat $ "with parameters <"
         : intersperse ", " (map pPrint parameters)
         ++ [">"]
+      , Pretty.vcat
+        [ "and data constructors"
+        , Pretty.nest 4 $ Pretty.vcat
+          $ map constructor ctors
+        ]
       ]
+      where
+        constructor ctor = Pretty.hcat
+          [ pPrint $ DataConstructor.name ctor
+          , " with fields ("
+          , Pretty.hcat $ intersperse ", "
+            $ map pPrint $ DataConstructor.fields ctor
+          , ")"
+          ]
+
     InstantiatedType origin size -> Pretty.vcat
       [ "instantiated type"
       , Pretty.hsep ["defined at", pPrint origin]
