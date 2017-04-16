@@ -604,7 +604,8 @@ termParser = (<?> "expression") $ do
   vectorParser = (<?> "vector literal") $ do
     vectorOrigin <- getTokenOrigin
     elements <- bracketedParser
-      $ termParser `Parsec.sepEndBy` commaParser
+      $ (compose () vectorOrigin <$> Parsec.many1 termParser)
+      `Parsec.sepEndBy` commaParser
     return $ compose () vectorOrigin $ elements
       ++ [NewVector () (length elements) () vectorOrigin]
 
