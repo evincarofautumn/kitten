@@ -13,6 +13,7 @@ Portability : GHC
 module Kitten.Enter
   ( fragment
   , fragmentFromSource
+  , resolveAndDesugar
   ) where
 
 import Control.Monad ((>=>))

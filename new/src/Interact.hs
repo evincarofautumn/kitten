@@ -15,7 +15,7 @@ import Kitten (runKitten)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Entry (Entry)
 import Kitten.Entry.Parameter (Parameter(..))
-import Kitten.Infer (typeFromSignature)
+import Kitten.Infer (typecheck, typeFromSignature)
 import Kitten.Informer (checkpoint)
 import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Interpret (Failure, interpret)
@@ -33,6 +33,7 @@ import qualified Kitten.Definition as Definition
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Enter as Enter
 import qualified Kitten.Entry as Entry
+import qualified Kitten.Fragment as Fragment
 import qualified Kitten.IO as IO
 import qualified Kitten.Instantiated as Instantiated
 import qualified Kitten.Name as Name
@@ -95,8 +96,10 @@ run = do
           _
             | "//" `Text.isPrefixOf` line
             -> case Text.break (== ' ') $ Text.drop 2 line of
+
               ("info", name) -> nameCommand lineNumber dictionaryRef name loop
                 $ \ _name' entry -> liftIO $ putStrLn $ Pretty.render $ pPrint entry
+
               ("list", name) -> nameCommand lineNumber dictionaryRef name loop
                 $ \ name' entry -> case entry of
                   Entry.Word _ _ _ _ _ (Just body)
@@ -106,6 +109,34 @@ run = do
                     , Pretty.quote name'
                     , "with a body to list"
                     ]
+
+              ("type", expression) -> do
+                dictionary <- liftIO $ readIORef dictionaryRef
+                mResults <- liftIO $ runKitten $ do
+                  fragment <- Kitten.fragmentFromSource
+                    [QualifiedName $ Qualified Vocabulary.global "IO"]
+                    Nothing
+                    lineNumber "<interactive>" expression
+                  checkpoint
+                  case Fragment.definitions fragment of
+                    [main] | Definition.name main == Definition.mainName -> do
+                      resolved <- Enter.resolveAndDesugar dictionary main
+                      checkpoint
+                      (_, type_) <- typecheck dictionary Nothing
+                        $ Definition.body resolved
+                      checkpoint
+                      return (Just type_)
+                    _ -> return Nothing
+
+                liftIO $ case mResults of
+                  Left reports -> reportAll reports
+                  Right (Just type_) -> putStrLn $ Pretty.render $ pPrint type_
+                  Right Nothing -> hPutStrLn stderr
+                    $ Pretty.render $ Pretty.hsep
+                    [ "That doesn't look like an expression"
+                    ]
+                loop
+
               (command, _) -> do
                 liftIO $ hPutStrLn stderr $ Pretty.render $ Pretty.hsep
                   [ "I don't know the command"
@@ -327,6 +358,7 @@ showHelp = putStrLn "\
 \//info <name>  - Show information about <name>.\n\
 \//list <name>  - Show the desugared source of <name>.\n\
 \//stack        - Show the state of the stack.\n\
+\//type <expr>  - Show the type of some expression <expr>.\n\
 \\&"
 
 data InString = Inside | Outside
