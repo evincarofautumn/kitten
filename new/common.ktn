@@ -1034,6 +1034,10 @@ define swap<A, B> (A, B -> B, A):
   -> x, y;
   y x
 
+define dip<R..., S..., T> (R..., T, (R... -> S...) -> S..., T):
+  -> x, f;
+  f call x
+
 define compose<R..., S..., T...>
 ((R... -> S...), (S... -> T...) -> (R... -> T...)):
   -> f, g;
