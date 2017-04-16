@@ -995,7 +995,7 @@ define say<T> (T -> +IO):
 define get_line (-> List<Char> +IO):
   _::kitten::get_line
 
-define prompt (List<Char> -> List<Char> +IO):
+define ask (List<Char> -> List<Char> +IO):
   print _::kitten::flush_stdout get_line
 
 permission Fail<R..., S..., +P> (R..., (R... -> S... +Fail +P) -> S... +P):
