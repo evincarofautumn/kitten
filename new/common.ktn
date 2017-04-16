@@ -619,6 +619,12 @@ define unpair<A, B> (Pair<A, B> -> A, B):
 define flip<A, B> (Pair<A, B> -> Pair<B, A>):
   unpair swap pair
 
+define first<A, B> (Pair<A, B> -> A):
+  unpair drop
+
+define second<A, B> (Pair<A, B> -> B):
+  unpair swap drop
+
 // TODO: map Pair
 
 type Either<A, B>:
