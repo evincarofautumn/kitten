@@ -610,17 +610,18 @@ termParser = (<?> "expression") $ do
       ++ [NewVector () (length elements) () vectorOrigin]
 
   lambdaParser :: Parser (Term ())
-  lambdaParser = (<?> "variable introduction") $ Parsec.choice
-    [ Parsec.try $ parserMatch Token.Arrow *> do
-      names <- lambdaNamesParser <* parserMatchOperator ";"
-      origin <- getTokenOrigin
-      body <- blockContentsParser
-      return $ makeLambda names body origin
-    , do
-      body <- blockLambdaParser
-      let origin = Term.origin body
-      return $ Push () (Quotation body) origin
-    ]
+  lambdaParser = (<?> "variable introduction") $ do
+    names <- parserMatch Token.Arrow *> lambdaNamesParser
+    Parsec.choice
+      [ parserMatchOperator ";" *> do
+        origin <- getTokenOrigin
+        body <- blockContentsParser
+        return $ makeLambda names body origin
+      , do
+        origin <- getTokenOrigin
+        body <- blockParser
+        return $ Push () (Quotation $ makeLambda names body origin) origin
+      ]
 
   matchParser :: Parser (Term ())
   matchParser = (<?> "match") $ do
@@ -712,13 +713,6 @@ termParser = (<?> "expression") $ do
 parserMatchOperator :: Text -> Parser (Located Token)
 parserMatchOperator = parserMatch . Token.Operator . Unqualified
 
-lambdaBlockParser :: Parser ([(Maybe Unqualified, Origin)], Term (), Origin)
-lambdaBlockParser = parserMatch Token.Arrow *> do
-  names <- lambdaNamesParser
-  origin <- getTokenOrigin
-  body <- blockParser
-  return (names, body, origin)
-
 lambdaNamesParser :: Parser [(Maybe Unqualified, Origin)]
 lambdaNamesParser = lambdaName `Parsec.sepEndBy1` commaParser
   where
@@ -727,13 +721,15 @@ lambdaNamesParser = lambdaName `Parsec.sepEndBy1` commaParser
     name <- Just <$> wordNameParser <|> Nothing <$ parserMatch Token.Ignore
     return (name, origin)
 
-blockLambdaParser :: Parser (Term ())
-blockLambdaParser = do
-  (names, body, origin) <- lambdaBlockParser
-  return (makeLambda names body origin)
-
 blockLikeParser :: Parser (Term ())
-blockLikeParser = blockParser <|> blockLambdaParser
+blockLikeParser = Parsec.choice
+  [ blockParser
+  , parserMatch Token.Arrow *> do
+    names <- lambdaNamesParser
+    origin <- getTokenOrigin
+    body <- blockParser
+    return $ makeLambda names body origin
+  ]
 
 makeLambda :: [(Maybe Unqualified, Origin)] -> Term () -> Origin -> Term ()
 makeLambda parsed body origin = foldr
