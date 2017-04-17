@@ -652,6 +652,18 @@ define optional<R..., S..., A>
   case none:
     g call
 
+define lift_optional_2<A, B, C> (Optional<A>, Optional<B>, (A, B -> C) -> Optional<C>):
+  -> mx, my, f;
+  match (mx)
+  case some -> x:
+    match (my)
+    case some -> y:
+      x y f call some
+    else:
+      none
+  else:
+    none
+
 // TODO: map Optional
 
 type Pair<A, B>:
@@ -1101,9 +1113,16 @@ permission IO<R..., S..., +P> (R..., (R... -> S... +IO +P) -> S... +P):
 define drop<T> (T ->):
   -> _;
 
+define drop2<A, B> (A, B ->):
+  -> _, _;
+
 define dup<T> (T -> T, T):
   -> x;
   x x
+
+define dup2<A, B> (A, B -> A, B, A, B):
+  -> x, y;
+  x y x y
 
 define swap<A, B> (A, B -> B, A):
   -> x, y;
