@@ -90,7 +90,11 @@ define ask_turn (Board, Player -> Board +IO +Exit):
   case some -> xy:
     board
     xy unpair to_cell
-    player edit_board
+    match (player edit_board)
+    case some {}
+    case none:
+      "Not a valid move." say
+      board player ask_turn
   case none:
     // HACK: Needs generic instances.
     if (input length = 1 && { ({ input 0 get from_some } with (+Fail)) = 'q' }):
@@ -153,12 +157,17 @@ define is_no (List<Char> -> Bool):
 define new_board (-> Board):
   none 9 replicate _board
 
-define edit_board (Board, Int32, Player -> Board):
+define edit_board (Board, Int32, Player -> Optional<Board>):
   -> number, player;
   unboard
   do (with (+Fail)):
-    (player some) (number cell_number_to_index) set from_some
-  _board
+    dup
+    match (number cell_number_to_index get from_some)
+    case none:
+      (player some) (number cell_number_to_index) set
+      from_some _board some
+    case some -> _:
+      drop none
 
 // Input
 
