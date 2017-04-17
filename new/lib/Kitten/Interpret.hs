@@ -317,6 +317,13 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
       "eq_uint64" -> boolUInt64 (==)
       "ne_uint64" -> boolUInt64 (/=)
 
+      "lt_char" -> boolChar (<)
+      "gt_char" -> boolChar (>)
+      "le_char" -> boolChar (<=)
+      "ge_char" -> boolChar (>=)
+      "eq_char" -> boolChar (==)
+      "ne_char" -> boolChar (/=)
+
       "neg_float32" -> unaryFloat32 negate
       "add_float32" -> binaryFloat32 (+)
       "sub_float32" -> binaryFloat32 (-)
@@ -663,6 +670,14 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
         writeIORef stackRef
           $ Algebraic (ConstructorIndex $ fromEnum
             $ f (fromIntegral x) (fromIntegral y)) []
+          : r
+
+      boolChar :: (Char -> Char -> Bool) -> IO ()
+      boolChar f = do
+        (Character y : Character x : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Algebraic (ConstructorIndex $ fromEnum
+            $ f x y) []
           : r
 
       unaryFloat32 :: (Float -> Float) -> IO ()

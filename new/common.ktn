@@ -67,8 +67,11 @@ about type UInt64:
   size: 8
   alignment: 8
 
-type Char:
-  case _char (UInt32)
+type Char {}
+
+about type Char:
+  size: 4
+  alignment: 4
 
 type Float32 {}
 
@@ -203,6 +206,13 @@ vocab kitten {
   intrinsic ge_uint64 (UInt64, UInt64 -> Bool)
   intrinsic eq_uint64 (UInt64, UInt64 -> Bool)
   intrinsic ne_uint64 (UInt64, UInt64 -> Bool)
+
+  intrinsic lt_char (Char, Char -> Bool)
+  intrinsic gt_char (Char, Char -> Bool)
+  intrinsic le_char (Char, Char -> Bool)
+  intrinsic ge_char (Char, Char -> Bool)
+  intrinsic eq_char (Char, Char -> Bool)
+  intrinsic ne_char (Char, Char -> Bool)
 
   // Floating-point arithmetic.
 
@@ -419,6 +429,13 @@ instance <= (Int64, Int64 -> Bool) { _::kitten::le_int64 }
 instance >= (Int64, Int64 -> Bool) { _::kitten::ge_int64 }
 instance = (Int64, Int64 -> Bool) { _::kitten::eq_int64 }
 instance <> (Int64, Int64 -> Bool) { _::kitten::ne_int64 }
+
+instance < (Char, Char -> Bool) { _::kitten::lt_char }
+instance > (Char, Char -> Bool) { _::kitten::gt_char }
+instance <= (Char, Char -> Bool) { _::kitten::le_char }
+instance >= (Char, Char -> Bool) { _::kitten::ge_char }
+instance = (Char, Char -> Bool) { _::kitten::eq_char }
+instance <> (Char, Char -> Bool) { _::kitten::ne_char }
 
 instance < (Float32, Float32 -> Bool) { _::kitten::lt_float32 }
 instance > (Float32, Float32 -> Bool) { _::kitten::gt_float32 }
