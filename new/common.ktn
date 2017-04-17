@@ -578,11 +578,34 @@ about --->:
   operator:
     right 1
 
-// These would be cleaner with lazy folds.
-//
-// define all<T> (List<T>, (T -> Bool) -> Bool)
+// These (all, and, any, or) would be cleaner with lazy folds or slices.
+
+define all<T> (List<T>, (T -> Bool) -> Bool):
+  -> xs, f;
+  match (xs head_tail)
+  case some:
+    unpair -> h, t;
+    if (h f call):
+      t f all
+    else:
+      false
+  case none:
+    true
+
 // define and (List<Bool> -> Bool)
-// define any<T> (List<T>, (T -> Bool) -> Bool)
+
+define any<T> (List<T>, (T -> Bool) -> Bool):
+  -> xs, f;
+  match (xs head_tail)
+  case some:
+    unpair -> h, t;
+    if (h f call):
+      true
+    else:
+      t f any
+  case none:
+    false
+
 // define or<T> (List<Bool> -> Bool)
 
 type Optional<T>:
@@ -757,6 +780,18 @@ define length<T> (List<T> -> Int32):
   case some:
     length (+ 1)
 
+define elem<T> (T, List<T> -> Bool):
+  -> x, xs;
+  match (xs head_tail)
+  case some:
+    unpair -> h, t;
+    if (x = h):
+      true
+    else:
+      x t elem
+  case none:
+    false
+
 // TODO: Partial instances.
 trait == <T> (List<T>, List<T> -> Bool)
 
@@ -803,6 +838,10 @@ define cat<T> (List<T>, List<T> -> List<T>):
 
 define get<T> (List<T>, Int32 -> Optional<T>):
   _::kitten::get
+
+define get_all<T> (List<T>, List<Int32> -> List<Optional<T>>):
+  -> list, indices;
+  indices { list swap get } map
 
 define set<T> (List<T>, T, Int32 -> Optional<List<T>>):
   _::kitten::set
@@ -888,39 +927,39 @@ define filter<T> (List<T>, (T -> Bool) -> List<T>):
 define find<T> (List<T>, (T -> Bool) -> Optional<T>):
   filter head
 
-define foldl<A, B> (List<B>, A, (A, B -> A) -> A):
+define fold_left<A, B> (List<B>, A, (A, B -> A) -> A):
   -> xs, z, k;
   match (xs head)
   case some -> x:
     { xs tail from_some } with (+Fail)
-    (z x k call) k foldl
+    (z x k call) k fold_left
   case none:
     z
 
-define foldl1<T> (List<T>, (T, T -> T) -> Optional<T>):
+define fold_left_non_empty<T> (List<T>, (T, T -> T) -> Optional<T>):
   -> xs, f;
   match (xs head)
   case some -> x:
     { xs tail from_some } with (+Fail)
-    x f foldl some
+    x f fold_left some
   else:
     none
 
-define foldr<A, B> (List<A>, B, (A, B -> B) -> B):
+define fold_right<A, B> (List<A>, B, (A, B -> B) -> B):
   -> xs, z, k;
   match (xs last)
   case some -> x:
     { xs init from_some } with (+Fail)
-    (x z k call) k foldr
+    (x z k call) k fold_right
   else:
     z
 
-define foldr1<A> (List<A>, (A, A -> A) -> Optional<A>):
+define fold_right_non_empty<A> (List<A>, (A, A -> A) -> Optional<A>):
   -> xs, f;
   match (xs last)
   case some -> x:
     { xs init from_some } with (+Fail)
-    x f foldr some
+    x f fold_right some
   else:
     none
 
@@ -928,13 +967,18 @@ define map_concat<A, B> (List<A>, (A -> List<B>) -> List<B>):
   map concat
 
 define concat<T> (List<List<T>> -> List<T>):
-  [] \cat foldl
+  [] \cat fold_left
+
+define concat_optionals<T> (List<Optional<T>> -> List<T>):
+  []
+  { match case some { append } case none {} }
+  fold_left
 
 define maximum<T> (List<T> -> Optional<T>):
-  \max foldl1
+  \max fold_left_non_empty
 
 define minimum<T> (List<T> -> Optional<T>):
-  \min foldl1
+  \min fold_left_non_empty
 
 define cartesian<A, B> (List<A>, List<B> -> List<Pair<A, B>>):
   \pair cartesian_with
@@ -1007,7 +1051,10 @@ define print<T> (T -> +IO) /* where (show<T>) */ :
   show _::kitten::print
 
 define say<T> (T -> +IO):
-  print "\n" print
+  print newline
+
+define newline (-> +IO):
+  "\n" print
 
 define get_line (-> List<Char> +IO):
   _::kitten::get_line
@@ -1018,14 +1065,21 @@ define ask (List<Char> -> List<Char> +IO):
 permission Fail<R..., S..., +P> (R..., (R... -> S... +Fail +P) -> S... +P):
   with (+Fail)
 
+permission Exit<R..., S..., +P> (R..., (R... -> S... +Exit +P) -> S... +P):
+  with (+Exit)
+
 vocab kitten {
 
   intrinsic abort<R..., S...> (R..., List<Char> -> S... +Fail)
+  intrinsic exit<R..., S...> (R..., Int32 -> S... +Exit)
 
 }
 
 define abort<R..., S...> (R... -> S... +Fail):
   "abort called" _::kitten::abort
+
+define exit<R..., S...> (R..., Int32 -> S... +Exit):
+  _::kitten::exit
 
 define fail<R..., S...> (R..., List<Char> -> S... +Fail):
   _::kitten::abort

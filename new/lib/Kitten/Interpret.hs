@@ -32,6 +32,7 @@ import Kitten.Monad (runKitten)
 import Kitten.Name
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Kitten.Type (Type(..))
+import System.Exit (ExitCode(..), exitWith)
 import System.IO (Handle, hGetLine, hFlush, hPutChar, hPutStrLn)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import Text.Printf (hPrintf)
@@ -78,19 +79,19 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
   currentClosureRef <- newIORef []
   let
 
-    word :: Qualified -> [Type] -> IO ()
-    word name args = do
+    word :: [Qualified] -> Qualified -> [Type] -> IO ()
+    word callStack name args = do
       let mangled = Instantiated name args
       case Dictionary.lookup mangled dictionary of
         -- An entry in the dictionary should already be instantiated, so we
         -- shouldn't need to instantiate it again here.
-        Just (Entry.Word _ _ _ _ _ (Just body)) -> term body
+        Just (Entry.Word _ _ _ _ _ (Just body)) -> term (name : callStack) body
         _ -> case Dictionary.lookup (Instantiated name []) dictionary of
           -- A regular word.
           Just (Entry.Word _ _ _ _ _ (Just body)) -> do
             mBody' <- runKitten $ Instantiate.term TypeEnv.empty body args
             case mBody' of
-              Right body' -> term body'
+              Right body' -> term (name : callStack) body'
               Left reports -> hPutStrLn stdout' $ Pretty.render $ Pretty.vcat
                 $ Pretty.hcat
                   [ "Could not instantiate generic word "
@@ -102,7 +103,7 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
           Just (Entry.Word _ _ _ _ _ Nothing) -> case name of
             Qualified v unqualified
               | v == Vocabulary.intrinsic
-              -> intrinsic unqualified
+              -> intrinsic (name : callStack) unqualified
             _ -> error "no such intrinsic"
           _ -> throwIO $ Failure $ Pretty.hcat
             [ "I can't find an instantiation of "
@@ -110,19 +111,20 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
             , ": "
             , Pretty.quote mangled
             ]
-    term :: Term Type -> IO ()
-    term t = case t of
+
+    term :: [Qualified] -> Term Type -> IO ()
+    term callStack t = case t of
       Coercion{} -> return ()
-      Compose _ a b -> term a >> term b
+      Compose _ a b -> term callStack a >> term callStack b
       -- TODO: Verify that this is correct.
-      Generic _ t' _ -> term t'
-      Group t' -> term t'
+      Generic _ t' _ -> term callStack t'
+      Group t' -> term callStack t'
       Lambda _ _name _ body _ -> do
         (a : r) <- readIORef stackRef
         ls <- readIORef localsRef
         writeIORef stackRef r
         writeIORef localsRef (a : ls)
-        term body
+        term callStack body
         modifyIORef' localsRef tail
       Match _ _ cases else_ _ -> do
         -- We delay matching on the value here because it may not be an ADT at
@@ -141,10 +143,10 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
             , index == index'
             = do
               writeIORef stackRef (fields ++ r)
-              term caseBody
+              term callStack caseBody
           go (_ : rest) = go rest
           go [] = case else_ of
-            Else body _ -> term body
+            Else body _ -> term callStack body
         go cases
       New _ index size _ -> do
         r <- readIORef stackRef
@@ -160,18 +162,19 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
         writeIORef stackRef
           (Array (Vector.reverse $ Vector.fromList values) : r')
       Push _ value _ -> push value
-      Word _ _ (QualifiedName name) args _ -> word name args
+      Word _ _ (QualifiedName name) args _
+        -> word callStack name args
       -- FIXME: Use proper reporting. (Internal error?)
       Word _ _ name _ _ -> error $ Pretty.render $ Pretty.hsep
         ["unresolved word name", pPrint name]
 
-    call :: IO ()
-    call = do
+    call :: [Qualified] -> IO ()
+    call callStack = do
       (Closure name closure : r) <- readIORef stackRef
       writeIORef stackRef r
       modifyIORef' currentClosureRef (closure :)
       -- FIXME: Use right args.
-      word name []
+      word (name : callStack) name []
       modifyIORef' currentClosureRef tail
 
     push :: Value Type -> IO ()
@@ -186,18 +189,26 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
         ((Array $ fmap Character $ Vector.fromList $ Text.unpack text) :)
       _ -> modifyIORef' stackRef (value :)
 
-    intrinsic :: Unqualified -> IO ()
-    intrinsic name = case name of
+    intrinsic :: [Qualified] -> Unqualified -> IO ()
+    intrinsic callStack name = case name of
       "abort" -> do
         (Array cs : r) <- readIORef stackRef
         writeIORef stackRef r
         let message = map (\ (Character c) -> c) $ Vector.toList cs
-        throwIO $ Failure $ Pretty.hsep
-          [ "Execution failure:"
-          , Pretty.text message
-          ]
+        throwIO $ Failure $ Pretty.vcat
+          $ Pretty.hsep
+            [ "Execution failure:"
+            , Pretty.text message
+            ]
+          : "Call stack:"
+          : map (Pretty.nest 4 . pPrint) callStack
 
-      "call" -> call
+      "exit" -> do
+        (Integer i _ : r) <- readIORef stackRef
+        writeIORef stackRef r
+        exitWith $ if i == 0 then ExitSuccess else ExitFailure (fromInteger i)
+
+      "call" -> call callStack
 
       "drop" -> modifyIORef' stackRef tail
 
@@ -365,32 +376,32 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
         (Array xs : r) <- readIORef stackRef
         writeIORef stackRef r
         if Vector.null xs
-          then word (Qualified Vocabulary.global "true") []
-          else word (Qualified Vocabulary.global "false") []
+          then word callStack (Qualified Vocabulary.global "true") []
+          else word callStack (Qualified Vocabulary.global "false") []
 
       "head" -> do
         (Array xs : r) <- readIORef stackRef
         if Vector.null xs
           then do
             writeIORef stackRef r
-            word (Qualified Vocabulary.global "none") []
+            word callStack (Qualified Vocabulary.global "none") []
           else do
             let x = xs ! 0
             writeIORef stackRef $ x : r
             -- FIXME: Use right args.
-            word (Qualified Vocabulary.global "some") []
+            word callStack (Qualified Vocabulary.global "some") []
 
       "last" -> do
         (Array xs : r) <- readIORef stackRef
         if Vector.null xs
           then do
             writeIORef stackRef r
-            word (Qualified Vocabulary.global "none") []
+            word callStack (Qualified Vocabulary.global "none") []
           else do
             let x = xs ! (Vector.length xs - 1)
             writeIORef stackRef $ x : r
             -- FIXME: Use right args.
-            word (Qualified Vocabulary.global "some") []
+            word callStack (Qualified Vocabulary.global "some") []
 
       "append" -> do
         (x : Array xs : r) <- readIORef stackRef
@@ -406,23 +417,23 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
         if i < 0 || i >= fromIntegral (length xs)
           then do
             writeIORef stackRef r
-            word (Qualified Vocabulary.global "none") []
+            word callStack (Qualified Vocabulary.global "none") []
           else do
             writeIORef stackRef $ (xs ! fromIntegral i) : r
             -- FIXME: Use right args.
-            word (Qualified Vocabulary.global "some") []
+            word callStack (Qualified Vocabulary.global "some") []
       "set" -> do
         (Integer i _ : x : Array xs : r) <- readIORef stackRef
         if i < 0 || i >= fromIntegral (length xs)
           then do
             writeIORef stackRef r
-            word (Qualified Vocabulary.global "none") []
+            word callStack (Qualified Vocabulary.global "none") []
           else do
             let (before, after) = Vector.splitAt (fromIntegral i) xs
             writeIORef stackRef $ Array
               (before <> Vector.singleton x <> Vector.tail after) : r
             -- FIXME: Use right args.
-            word (Qualified Vocabulary.global "some") []
+            word callStack (Qualified Vocabulary.global "some") []
       "print" -> do
         (Array cs : r) <- readIORef stackRef
         writeIORef stackRef r
@@ -437,24 +448,24 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
         if Vector.null xs
           then do
             writeIORef stackRef r
-            word (Qualified Vocabulary.global "none") []
+            word callStack (Qualified Vocabulary.global "none") []
           else do
             let xs' = Vector.tail xs
             writeIORef stackRef $ Array xs' : r
             -- FIXME: Use right args.
-            word (Qualified Vocabulary.global "some") []
+            word callStack (Qualified Vocabulary.global "some") []
 
       "init" -> do
         (Array xs : r) <- readIORef stackRef
         if Vector.null xs
           then do
             writeIORef stackRef r
-            word (Qualified Vocabulary.global "none") []
+            word callStack (Qualified Vocabulary.global "none") []
           else do
             let xs' = Vector.init xs
             writeIORef stackRef $ Array xs' : r
             -- FIXME: Use right args.
-            word (Qualified Vocabulary.global "some") []
+            word callStack (Qualified Vocabulary.global "some") []
 
       "draw" -> do
         (Array ys : rest) <- readIORef stackRef
@@ -722,7 +733,8 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
         writeIORef stackRef $ Array
           (Vector.fromList $ map Character $ f (fromIntegral x)) : r
 
-  word (fromMaybe mainName mName) mainArgs
+  let entryPointName = fromMaybe mainName mName
+  word [entryPointName] entryPointName mainArgs
   readIORef stackRef
 
 data Failure = Failure Pretty.Doc
