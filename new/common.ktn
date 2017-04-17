@@ -514,6 +514,10 @@ instance & (Bool, Bool -> Bool):
 // Lazy intersection.
 trait && <T> (T, (-> T) -> T)
 
+about &&:
+  operator:
+    right 3
+
 instance && (Bool, (-> Bool) -> Bool):
   -> x, y;
   if (x):
