@@ -144,7 +144,7 @@ vocab kitten {
   intrinsic eq_int64 (Int64, Int64 -> Bool)
   intrinsic ne_int64 (Int64, Int64 -> Bool)
 
-  // Signed integer arithmetic.
+  // Unsigned integer arithmetic.
 
   intrinsic neg_uint8 (UInt8 -> UInt8)
   intrinsic add_uint8 (UInt8, UInt8 -> UInt8)
@@ -174,7 +174,7 @@ vocab kitten {
   intrinsic div_uint64 (UInt64, UInt64 -> UInt64)
   intrinsic mod_uint64 (UInt64, UInt64 -> UInt64)
 
-  // Signed integer comparisons.
+  // Unsigned integer comparisons.
 
   intrinsic lt_uint8 (UInt8, UInt8 -> Bool)
   intrinsic gt_uint8 (UInt8, UInt8 -> Bool)
