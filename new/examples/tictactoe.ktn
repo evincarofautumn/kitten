@@ -1,0 +1,251 @@
+play
+
+define play (-> +IO +Exit):
+  do (while):
+    play_round
+    play_again
+
+define play_round (-> +IO +Exit):
+  new_board player_x game_loop -> final_board, winner;
+  newline
+  match (winner)
+  case none:
+    "It's a tie!"
+  case some:
+    show " wins!" cat
+  say
+  final_board print
+
+define game_loop (Board, Player -> Board, Optional<Player> +IO +Exit):
+  -> board, player;
+  board get_result -> result;
+  match (result)
+  case continue:
+    board player ask_turn
+    player next_player game_loop
+  case win -> winner:
+    board winner some
+  case tie:
+    board none
+
+type Board:
+  case _board (List<Optional<Player>>)
+
+define unboard (Board -> List<Optional<Player>>):
+  match case _board {}
+
+type Player:
+  case player_x
+  case player_o
+
+// HACK: Should be derived automatically.
+instance = (Player, Player -> Bool):
+  match
+  case player_x:
+    match case player_x { true } case player_o { false }
+  case player_o:
+    match case player_x { false } case player_o { true }
+
+// HACK: Needs generic instances.
+instance show (Optional<Player> -> List<Char>):
+  match
+  case none:
+    " "
+  case some:
+    show
+
+// HACK: Should be derived automatically.
+instance show (Player -> List<Char>):
+  match
+  case player_x: "X"
+  case player_o: "O"
+
+// HACK: Needs generic instances.
+instance = (Optional<Player>, Optional<Player> -> Bool):
+  -> mx, my;
+  match (mx)
+  case some -> x:
+    match (my)
+    case some -> y:
+      x = y
+    else:
+      false
+  case none:
+    match (my)
+    case none:
+      true
+    else:
+      false
+
+type Result:
+  case continue
+  case tie
+  case win (Player)
+
+define ask_turn (Board, Player -> Board +IO +Exit):
+  -> board, player;
+  board print
+  ["It is ", player show, "'s turn. Choose your move: "] concat ask -> input;
+  match (input read_move_line)
+  case some -> xy:
+    board
+    xy unpair to_cell
+    player edit_board
+  case none:
+    // HACK: Needs generic instances.
+    if (input length = 1 && { ({ input 0 get from_some } with (+Fail)) = 'q' }):
+      0 exit
+    "I didn't understand that. Type e.g. \"a3\" to "
+    "move in the bottom-left cell. Type \"q\" to exit."
+    cat say
+    board player ask_turn
+
+define next_player (Player -> Player):
+  match
+  case player_x: player_o
+  case player_o: player_x
+
+define check_sets (-> List<List<Int32>>):
+  [
+    [0, 1, 2], [3, 4, 5], [6, 7, 8],  // Rows
+    [0, 3, 6], [1, 4, 7], [2, 5, 8],  // Columns
+    [0, 4, 8], [2, 4, 6],             // Diagonals
+  ]
+
+define get_check_set_winner (List<Int32>, Board -> Optional<Player>):
+  unboard swap get_all concat_optionals -> players;
+  if (players \(= player_x some) all):
+    player_x some
+  elif (players \(= player_o some) all):
+    player_o some
+  else:
+    none
+
+define get_result (Board -> Result):
+  -> board;
+  check_sets { board get_check_set_winner } map concat_optionals -> winners;
+  if (winners empty):
+    continue
+  elif (winners \(= player_x) all):
+    player_x win
+  elif (winners \(= player_o) all):
+    player_o win
+  else:
+    tie
+
+define play_again (-> Bool +IO):
+  "Play another game? [yN] " ask -> input;
+  if (input is_yes):
+    newline true
+  elif (input is_no || { input empty }):
+    newline false
+  else:
+    play_again
+
+define is_yes (List<Char> -> Bool):
+  { "yY" elem } any
+
+define is_no (List<Char> -> Bool):
+  { "nN" elem } any
+
+// Board
+
+define new_board (-> Board):
+  none 9 replicate _board
+
+define edit_board (Board, Int32, Player -> Board):
+  -> number, player;
+  unboard
+  do (with (+Fail)):
+    (player some) (number cell_number_to_index) set from_some
+  _board
+
+// Input
+
+define read_move_line (List<Char> -> Optional<Pair<Int32, Int32>>):
+  -> chars;
+  if (chars length = 2):
+    do (with (+Fail)):
+      (chars 0 get from_some) (chars 1 get from_some) read_x_y
+  else:
+    none
+
+define read_x_y (Char, Char -> Optional<Pair<Int32, Int32>>):
+  -> x, y;
+  match (x y read_x_y_)
+  case some:
+    some
+  case none:
+    y x read_x_y_
+
+define read_x_y_ (Char, Char -> Optional<Pair<Int32, Int32>>):
+  \read_x \read_y both \pair lift_option_2
+
+define lift_option_2<A, B, C> (Optional<A>, Optional<B>, (A, B -> C) -> Optional<C>):
+  -> mx, my, f;
+  match (mx)
+  case some -> x:
+    match (my)
+    case some -> y:
+      x y f call some
+    else:
+      none
+  else:
+    none
+
+define read_x (Char -> Optional<Int32>):
+  -> c;
+  if (c "aA" elem):
+    0 some
+  elif (c "bB" elem):
+    1 some
+  elif (c "cC" elem):
+    2 some
+  else:
+    none
+
+define read_y (Char -> Optional<Int32>):
+  -> c;
+  if (c "1!" elem):
+    0 some
+  elif (c "2@" elem):
+    1 some
+  elif (c "3#" elem):
+    2 some
+  else:
+    none
+
+define to_cell (Int32, Int32 -> Int32):
+  -> x, y; 3 * y + x
+
+// Show instances
+
+instance show (Board -> List<Char> +Fail):
+  -> b;
+  "  --+-+--\n" -> divider;
+  "   A B C\n" -> heading;
+  [
+    heading, "1 ", b 0 show_row, "\n",
+    divider, "2 ", b 1 show_row, "\n",
+    divider, "3 ", b 2 show_row, "\n",
+  ] concat
+
+define show_row (Board, Int32 -> List<Char> +Fail):
+  (* 3) -> row_index;
+  -> b;
+  [
+    " ", b (0 + row_index) show_cell_at,
+    "|", b (1 + row_index) show_cell_at,
+    "|", b (2 + row_index) show_cell_at,
+  ] concat
+
+define show_cell_at (Board, Int32 -> List<Char> +Fail):
+  cell_number_to_index \unboard dip get from_some show
+
+define cell_number_to_index (Int32 -> Int32):
+  (8 -)
+
+instance show (Player -> List<Char>):
+  match
+  case player_x: "X"
+  case player_o: "O"
