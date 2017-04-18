@@ -210,7 +210,7 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
 
       "call" -> call callStack
 
-      "drop" -> modifyIORef' stackRef tail
+      "forget" -> modifyIORef' stackRef tail
 
       "swap" -> do
         (a : b : r) <- readIORef stackRef

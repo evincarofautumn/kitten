@@ -26,6 +26,7 @@ import Kitten.Fragment (Fragment)
 import Kitten.Infer (mangleInstance, typecheck)
 import Kitten.Informer (checkpoint, report)
 import Kitten.Instantiated (Instantiated(Instantiated))
+import Kitten.Linearize (linearize)
 import Kitten.Metadata (Metadata)
 import Kitten.Monad (K)
 import Kitten.Name
@@ -359,8 +360,12 @@ resolveAndDesugar dictionary definition = do
   postfix <- Infix.desugar dictionary resolved
   checkpoint
 
--- In addition, now that we know which names refer to local variables,
--- quotations can be rewritten into closures that explicitly capture the
--- variables they use from the enclosing scope.
+-- In addition, now that we know which names refer to local variables, we can:
+--
+--   * Rewrite quotations into closures that explicitly capture the variables
+--     they use from the enclosing scope.
+--
+--   * Insert implicit calls to copy constructors and destructors.
 
-  return postfix { Definition.body = scope $ Definition.body postfix }
+  return postfix
+    { Definition.body = linearize $ scope $ Definition.body postfix }
