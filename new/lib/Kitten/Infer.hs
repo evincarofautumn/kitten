@@ -78,26 +78,6 @@ typecheck
   -> K (Term Type, Type)
   -- ^ Type-annotated term and its inferred type.
 typecheck dictionary mDeclaredSignature term = do
-
--- We begin by converting instance definitions into ordinary word definitions.
--- With their mangled names already in the global vocabulary, they will be found
--- first when checking for instantiations during instance collection.
-
-{-
-  definitions <- forM (Fragment.definitions fragment) $ \ definition -> do
-    type_ <- typeFromSignature tenv0 $ Definition.signature definition
-    let name = Definition.name definition
-    name' <- case Definition.category definition of
-      Category.Constructor -> return name
-      Category.Instance -> let
-      Category.Permission -> return name
-      Category.Word -> return name
-    return ((name', type_), Definition.body definition)
-  traits <- forM (Fragment.traits fragment) $ \ trait -> do
-    type_ <- typeFromSignature tenv0 $ Trait.signature trait
-    return (Trait.name trait, type_)
--}
-
   let tenv0 = TypeEnv.empty
   declaredType <- traverse (typeFromSignature tenv0) mDeclaredSignature
   declaredTypes <- mapM
@@ -108,28 +88,7 @@ typecheck dictionary mDeclaredSignature term = do
       { TypeEnv.sigs = Map.union (Map.fromList declaredTypes)
         $ TypeEnv.sigs tenv0 }
   inferType0 dictionary tenv1 declaredType term
-  
-  -- declaredTypes
 
-{-
-    go :: (Qualified, Type) -> Term a -> K ((Qualified, Type), Term Type)
-    go (name, declaredScheme) term = do
-      (term', inferredScheme) <- infer name declaredScheme term
-      case find ((name ==) . Trait.name) $ Fragment.traits fragment of
-        Just trait -> do
-          traitScheme <- typeFromSignature tenv0 $ Trait.signature trait
-          instanceCheck "generic" traitScheme "declared" declaredScheme
-        Nothing -> return ()
-      -- FIXME: Should this be the inferred or declared scheme?
-      return ((name, inferredScheme), term')
--}
-
-{-
-  definitions' <- mapM (uncurry go) definitions
-  return fragment
-    { Fragment.definitions = HashMap.fromList definitions'
-    }
--}
 
 -- | Mangles an instance name according to its trait signature.
 
