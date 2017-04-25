@@ -322,6 +322,12 @@ infer finalProgram resolved = case resolved of
     InIntToChar -> forAll $ \r
       -> (r -: tyInt o --> r -: TyOption (tyChar o) o) o
 
+    InIntToFloat -> forAll $ \r
+      -> (r -: tyInt o --> r -: TyOption (tyFloat o) o) o
+
+    InFloatToInt -> forAll $ \r
+      -> (r -: tyFloat o --> r -: TyOption (tyInt o) o) o
+
     InLeFloat -> relational (tyFloat o) o
     InLeInt -> relational (tyInt o) o
 
@@ -369,6 +375,8 @@ infer finalProgram resolved = case resolved of
 
     InOrBool -> binary (tyBool o) o
     InOrInt -> binary (tyInt o) o
+
+    InPowFloat -> binary (tyFloat o) o
 
     InRest -> forAll $ \r a b
       -> (r -: (a &: b) o --> r -: b) o

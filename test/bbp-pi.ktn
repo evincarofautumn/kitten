@@ -1,0 +1,88 @@
+// based on http://www.experimentalmath.info/bbp-codes/piqpr8.c
+5 -> d;
+
+1 d series
+4 d series
+5 d series
+6 d series -> s1 s4 s5 s6;
+
+s1 sayFloat
+s4 sayFloat
+s5 sayFloat
+s6 sayFloat
+
+(4.0 *. s1 -. 2.0 *. s4 -. s5 -. s6) frac (+. 1.0) -> pid;
+pid sayFloat
+
+define epsfuuu( -> float):
+	(1--17) 1.0 {drop (/. 10.0)} foldl
+
+
+define series(int int -> float):
+	-> m id;
+	epsfuuu +. 0.0 -> eps;
+
+	{
+		-> acc k;
+		(8*k + m) intToFloat fromSome -> ak;
+		(id - k) intToFloat fromSome -> p;
+		p ak expm -> t;
+		(acc +. t /. ak) frac
+	} -> go1;
+
+	(0---id) 0.0 go1 foldl -> s;
+
+	{
+		-> acc recure;
+		acc unpair -> counter total;
+		id + (100 - counter) -> k;
+		(8*k + m) intToFloat fromSome -> ak;
+		(16.0 **. (id k (-) intToFloat fromSome)) /. ak -> t;
+		if ((counter != 0) && (t >=. eps)) {
+			(counter 1 (-), ((total +. t) frac))
+			recure apply
+		} else {
+			total
+		}
+	} -> go2;
+	(100,s) go2 fix
+
+define frac(float -> float):
+	dup floatToInt fromSome intToFloat fromSome (-.)
+
+define floatint(float -> float):
+	floatToInt fromSome intToFloat fromSome
+
+define expm(float float -> float):
+	-> p ak;
+
+	{
+		-> acc recure;
+		acc unpair -> i tp;
+		if (tp >. p) {
+			acc
+		} else {
+			(i + 1, tp *. 2.0)
+			recure apply
+		}
+	} -> go0;
+
+	((0, 1.0) go0 fix) unpair (/. 2.0) -> i pt;
+
+	{
+		-> accm j;
+		accm untriple -> r p1 pt;
+		if (p1 >=. pt) {
+			16.0 *. r -> r1;
+			r1 -. ((r1 /. ak) floatint) *. ak -> r2;
+			r2 (p1 -. pt)
+		} else { r p1 } -> r_ p1_;
+		0.5 *. pt -> pt_;
+		if (pt_ >=. 1.0) {
+			r_ *. r_ -> r1;
+			r1 -. ((r1 /. ak) floatint) *. ak
+		} else { r_ } -> r__;
+		r__ p1_ pt_ triple
+	} -> go1;
+	(1--i) (1.0, p, pt) go1 foldl unpair drop
+

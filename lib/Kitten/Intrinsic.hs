@@ -34,6 +34,7 @@ data Intrinsic
   | InEqInt
   | InExit
   | InFirst
+  | InFloatToInt
   | InFromLeft
   | InFromRight
   | InFromSome
@@ -47,6 +48,7 @@ data Intrinsic
   | InIfElse
   | InInit
   | InIntToChar
+  | InIntToFloat
   | InLeFloat
   | InLeInt
   | InLeft
@@ -71,6 +73,7 @@ data Intrinsic
   | InOrBool
   | InOrInt
   | InPair
+  | InPowFloat
   | InPrint
   | InRest
   | InRight
@@ -126,6 +129,7 @@ intrinsicFromNameTable = V.fromList
   , entry "eqInt"       InEqInt
   , entry "exit"        InExit
   , entry "first"       InFirst
+  , entry "floatToInt"  InFloatToInt
   , entry "fromLeft"    InFromLeft
   , entry "fromRight"   InFromRight
   , entry "fromSome"    InFromSome
@@ -139,6 +143,7 @@ intrinsicFromNameTable = V.fromList
   , entry "ifElse"      InIfElse
   , entry "init"        InInit
   , entry "intToChar"   InIntToChar
+  , entry "intToFloat"  InIntToFloat
   , entry "leFloat"     InLeFloat
   , entry "leInt"       InLeInt
   , entry "left"        InLeft
@@ -163,6 +168,7 @@ intrinsicFromNameTable = V.fromList
   , entry "orBool"      InOrBool
   , entry "orInt"       InOrInt
   , entry "pair"        InPair
+  , entry "powFloat"    InPowFloat
   , entry "print"       InPrint
   , entry "rest"        InRest
   , entry "right"       InRight

@@ -166,6 +166,11 @@ infix left 7 ×.
 define ×. (float float -> float):
   kitten::intrinsic::mulFloat
 
+// Floating-point exponentiation
+infix right 8 **.
+define **. (float float -> float):
+  kitten::intrinsic::powFloat
+
 // Integer addition.
 infix right 6 +
 define + (int int -> int):

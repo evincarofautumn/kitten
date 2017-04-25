@@ -5,3 +5,10 @@ define charToInt (char -> int):
 // Converts an integer code point to a character.
 define intToChar (int -> char?):
   kitten::intrinsic::intToChar
+
+// Converts an float to int according to C-semantics
+define floatToInt(float -> int?):
+  kitten::intrinsic::floatToInt
+
+define intToFloat(int -> float?):
+  kitten::intrinsic::intToFloat

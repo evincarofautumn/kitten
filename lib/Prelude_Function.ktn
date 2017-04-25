@@ -45,3 +45,7 @@ define both<a, b, c, d> (a b (a -> c) (b -> d) -> c d):
   x f apply -> a;
   y g apply -> b;
   a b
+
+define fix<a,b>(a (a (a -> b) -> b) -> b):
+  -> f;
+  {f fix} f apply
