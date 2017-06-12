@@ -1,5 +1,0 @@
-test/occurs-check.ktn:6:3: error: expected stack type s1... int but got s1...
-test/occurs-check.ktn:6:7: note: s1... is from here
-test/occurs-check.ktn:6:7: note: int is from here
-test/occurs-check.ktn:6:3: note: s1... is from here
-test/occurs-check.ktn:6:3: note: maybe you gave a function of the wrong type to a combinator

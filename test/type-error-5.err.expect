@@ -1,4 +1,0 @@
-test/type-error-5.ktn:6:8: error: expected scalar type int but got [t1]
-test/type-error-5.ktn:5:30: note: int is from here
-test/type-error-5.ktn:6:8: note: [t1] is from here
-test/type-error-5.ktn:6:12: note: t1 is from here

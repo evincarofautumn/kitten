@@ -1,4 +1,0 @@
-define myAddVector<a> ([a] [a] -> [a]): kitten::intrinsic::addVector
-
-define bar<a> ([a] [char] -> int):
-  ->x; [x] myAddVector

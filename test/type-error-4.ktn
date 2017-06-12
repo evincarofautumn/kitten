@@ -1,2 +1,0 @@
-define foo<a> ([a] -> a):
-  ->q; q kitten::intrinsic::fromSome

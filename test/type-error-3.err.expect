@@ -1,4 +1,0 @@
-test/type-error-3.ktn:4:8: error: expected scalar type [char] but got char
-test/type-error-3.ktn:3:13: note: [char] is from here
-test/type-error-3.ktn:3:14: note: char is from here
-test/type-error-3.ktn:3:30: note: char is from here

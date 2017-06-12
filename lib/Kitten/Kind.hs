@@ -1,30 +1,52 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE KindSignatures #-}
+{-|
+Module      : Kitten.Kind
+Description : The kinds of types
+Copyright   : (c) Jon Purdy, 2016
+License     : MIT
+Maintainer  : evincarofautumn@gmail.com
+Stability   : experimental
+Portability : GHC
+-}
+
 {-# LANGUAGE OverloadedStrings #-}
 
-module Kitten.Kind where
+module Kitten.Kind
+  ( Kind(..)
+  ) where
 
-import Kitten.Util.Text (ToText(..))
+import Data.Hashable (Hashable(..))
+import Text.PrettyPrint.HughesPJClass (Pretty(..))
+import qualified Text.PrettyPrint as Pretty
 
-data Kind = Scalar | Stack
-  deriving (Eq)
-
--- | A helper data type for reification of a kind type,
--- better demonstrated than explained:
+-- | A kind (κ) is the type of a type. Types with the \"value\" kind (@*@) are
+-- inhabited by values; all other types are used only to enforce program
+-- invariants. These include:
 --
--- > toText (KindProxy :: KindProxy a)
+--  • The \"stack\" kind (ρ), used to enforce that the stack cannot contain
+--    other stacks.
 --
-data KindProxy (a :: Kind) = KindProxy
+--  • The \"permission label\" kind (λ), used to identify a permission.
+--
+--  • The \"permission\" kind (ε), denoting a set of permissions.
+--
+--  • The \"function\" kind (κ → κ), used to describe type constructors.
 
-class ReifyKind (a :: Kind) where
-  reifyKind :: KindProxy a -> Kind
+data Kind = Value | Stack | Label | Permission | !Kind :-> !Kind
+  deriving (Eq, Show)
 
-instance ReifyKind 'Stack where
-  reifyKind _ = Stack
+instance Hashable Kind where
+  hashWithSalt s kind = case kind of
+    Value -> hashWithSalt s (0 :: Int)
+    Stack -> hashWithSalt s (1 :: Int)
+    Label -> hashWithSalt s (2 :: Int)
+    Permission -> hashWithSalt s (3 :: Int)
+    a :-> b -> hashWithSalt s (4 :: Int, a, b)
 
-instance ReifyKind 'Scalar where
-  reifyKind _ = Scalar
-
-instance ToText Kind where
-  toText Stack = "stack"
-  toText Scalar = "scalar"
+instance Pretty Kind where
+  pPrint kind = case kind of
+    Value -> "value"
+    Stack -> "stack"
+    Label -> "label"
+    Permission -> "permission"
+    a :-> b -> Pretty.parens $ Pretty.hsep
+      [pPrint a, "->", pPrint b]

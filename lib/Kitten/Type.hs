@@ -1,219 +1,167 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE LambdaCase #-}
+{-|
+Module      : Kitten.Type
+Description : Types
+Copyright   : (c) Jon Purdy, 2016
+License     : MIT
+Maintainer  : evincarofautumn@gmail.com
+Stability   : experimental
+Portability : GHC
+-}
+
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PostfixOperators #-}
 
-module Kitten.Type where
+module Kitten.Type
+  ( Constructor(..)
+  , Type(..)
+  , TypeId(..)
+  , Var(..)
+  , bottom
+  , fun
+  , join
+  , prod
+  , Kitten.Type.sum
+  , void
+  , setOrigin
+  , origin
+  ) where
 
-import Data.Monoid
-import Data.Set (Set)
-import Data.Text (Text)
-import Data.Vector (Vector)
-import Text.Parsec.Pos
+import Data.Hashable (Hashable(..))
+import GHC.Exts (IsString(..))
+import Kitten.Kind (Kind(..))
+import Kitten.Name (Qualified(..), Unqualified(..))
+import Kitten.Origin (Origin)
+import Text.PrettyPrint.HughesPJClass (Pretty(..))
+import qualified Data.Text as Text
+import qualified Kitten.Pretty as Pretty
+import qualified Kitten.Vocabulary as Vocabulary
+import qualified Text.PrettyPrint as Pretty
 
-import qualified Data.Set as S
-import qualified Data.Text as T
-import qualified Data.Vector as V
+-- | This is the type language. It describes a system of conventional Hindley–
+-- Milner types, with type constructors joined by type application, as well as
+-- type variables and constants for constraint solving and instance checking,
+-- respectively. It syntactically permits higher-ranked quantification, though
+-- there are semantic restrictions on this, discussed in the presentation of the
+-- inference algorithm. Type variables have explicit kinds.
 
-import Kitten.Id
-import Kitten.Kind
-import Kitten.KindedId
-import Kitten.Location
-import Kitten.Name
+data Type
+  = !Type :@ !Type
+  | TypeConstructor !Origin !Constructor
+  | TypeVar !Origin !Var
+  | TypeConstant !Origin !Var
+  | Forall !Origin !Var !Type
+  | TypeValue !Origin !Int
+ deriving (Show)
 
-import Kitten.Util.Text (ToText(..), showText)
+infixl 1 :@
 
-data Type (a :: Kind) where
-  TyApply :: !(Type 'Scalar) -> !(Vector (Type 'Scalar)) -> !Location -> Type 'Scalar
-  TyConst :: !(KindedId a) -> !Location -> Type a
-  TyCtor :: !Ctor -> !Location -> Type 'Scalar
-  TyEmpty :: !Location -> Type 'Stack
-  TyFunction :: !(Type 'Stack) -> !(Type 'Stack) -> !Location -> Type 'Scalar
-  TyOption :: !(Type 'Scalar) -> !Location -> Type 'Scalar
-  TyProduct :: !(Type 'Scalar) -> !(Type 'Scalar) -> !Location -> Type 'Scalar
-  TyQuantified :: !TypeScheme -> !Location -> Type 'Scalar
-  TyStack :: !(Type 'Stack) -> !(Type 'Scalar) -> Type 'Stack
-  TySum :: !(Type 'Scalar) -> !(Type 'Scalar) -> !Location -> Type 'Scalar
-  TyVar :: !(KindedId a) -> !Location -> Type a
-  TyVector :: !(Type 'Scalar) -> !Location -> Type 'Scalar
+newtype Constructor = Constructor Qualified
+  deriving (Eq, Hashable, Show)
 
-typeLocation :: Type a -> Location
-typeLocation = \case
-  TyApply _ _ loc -> loc
-  TyConst _ loc -> loc
-  TyCtor _ loc -> loc
-  TyEmpty loc -> loc
-  TyFunction _ _ loc -> loc
-  TyOption _ loc -> loc
-  TyProduct _ _ loc -> loc
-  TyQuantified _ loc -> loc
-  TyStack _ a -> typeLocation a
-  TySum _ _ loc -> loc
-  TyVar _ loc -> loc
-  TyVector _ loc -> loc
+data Var = Var !TypeId !Kind
+  deriving (Eq, Show)
 
-setTypeLocation :: Location -> Type a -> Type a
-setTypeLocation loc = \case
-  TyProduct a b _ -> TyProduct (recur a) (recur b) loc
-  TyStack a b -> TyStack (recur a) (recur b)
-  TyOption a _ -> TyOption (recur a) loc
-  TyApply a b _ -> TyApply (recur a) (V.map recur b) loc
-  TySum a b _ -> TySum (recur a) (recur b) loc
-  a@TyConst{} -> a
-  TyCtor a _ -> TyCtor a loc
-  TyEmpty _ -> TyEmpty loc
-  TyFunction a b _ -> TyFunction (recur a) (recur b) loc
-  TyQuantified (Forall stacks scalars a) _
-    -> TyQuantified (Forall stacks scalars (recur a)) loc
-  a@TyVar{} -> a
-  TyVector a _ -> TyVector (recur a) loc
+bottom :: Origin -> Type
+bottom o = TypeConstructor o "Bottom"
+
+fun :: Origin -> Type -> Type -> Type -> Type
+fun o a b e = TypeConstructor o "Fun" :@ a :@ b :@ e
+
+prod :: Origin -> Type -> Type -> Type
+prod o a b = TypeConstructor o "Prod" :@ a :@ b
+
+sum :: Origin -> Type -> Type -> Type
+sum o a b = TypeConstructor o "Sum" :@ a :@ b
+
+join :: Origin -> Type -> Type -> Type
+join o a b = TypeConstructor o "Join" :@ a :@ b
+
+void :: Origin -> Type
+void o = TypeConstructor o "Void"
+
+origin :: Type -> Origin
+origin type_ = case type_ of
+  a :@ _ -> origin a
+  TypeConstructor o _ -> o
+  TypeVar o _ -> o
+  TypeConstant o _ -> o
+  Forall o _ _ -> o
+  TypeValue o _ -> o
+
+setOrigin :: Origin -> Type -> Type
+setOrigin o = go
   where
-  recur :: Type a -> Type a
-  recur = setTypeLocation loc
+  go type_ = case type_ of
+    a :@ b -> go a :@ go b
+    TypeConstructor _ constructor -> TypeConstructor o constructor
+    TypeVar _ var -> TypeVar o var
+    TypeConstant _ var -> TypeConstant o var
+    Forall _ var t -> Forall o var $ go t
+    TypeValue _ x -> TypeValue o x
 
-data Ctor
-  = CtorBool
-  | CtorChar
-  | CtorFloat
-  | CtorHandle
-  | CtorInt
-  | CtorUser !Name
-  deriving (Eq)
+-- | Type variables are distinguished by globally unique identifiers. This makes
+-- it easier to support capture-avoiding substitution on types.
 
-tyBool, tyChar, tyFloat, tyHandle, tyInt :: Location -> Type 'Scalar
-tyBool = TyCtor CtorBool
-tyChar = TyCtor CtorChar
-tyFloat = TyCtor CtorFloat
-tyHandle = TyCtor CtorHandle
-tyInt = TyCtor CtorInt
+newtype TypeId = TypeId Int
+  deriving (Enum, Eq, Hashable, Ord, Show)
 
-instance ToText Ctor where
-  toText = \case
-    CtorBool -> "bool"
-    CtorChar -> "char"
-    CtorFloat -> "float"
-    CtorHandle -> "handle"
-    CtorInt -> "int"
-    CtorUser a -> toText a
-
-instance Show Ctor where
-  show = T.unpack . toText
-
-instance Eq (Type a) where
-  TyConst a _ == TyConst b _ = a == b
-  TyCtor a _ == TyCtor b _ = a == b
-  TyEmpty{} == TyEmpty{} = True
-  TyFunction a b _ == TyFunction c d _ = (a, b) == (c, d)
-  TyOption a _ == TyOption b _ = a == b
-  TyProduct a b _ == TyProduct c d _ = (a, b) == (c, d)
-  TyQuantified a _ == TyQuantified b _ = a == b
-  TyStack a b == TyStack c d = (a, b) == (c, d)
-  TySum a b _ == TySum c d _ = (a, b) == (c, d)
-  TyVar a _ == TyVar b _ = a == b
-  TyVector a _ == TyVector b _ = a == b
+instance Eq Type where
+  (a :@ b) == (c :@ d) = (a, b) == (c, d)
+  TypeConstructor _ a == TypeConstructor _ b = a == b
+  TypeVar _ a == TypeVar _ b = a == b
+  TypeConstant _ a == TypeConstant _ b = a == b
+  Forall _ a b == Forall _ c d = (a, b) == (c, d)
   _ == _ = False
 
-instance Show (Type 'Scalar) where
-  show = T.unpack . toText
+instance Hashable Type where
+  hashWithSalt s type_ = case type_ of
+    a :@ b -> hashWithSalt s (0 :: Int, a, b)
+    TypeConstructor _ a -> hashWithSalt s (1 :: Int, a)
+    TypeVar _ a -> hashWithSalt s (2 :: Int, a)
+    TypeConstant _ a -> hashWithSalt s (3 :: Int, a)
+    Forall _ a b -> hashWithSalt s (4 :: Int, a, b)
+    TypeValue _ a -> hashWithSalt s (5 :: Int, a)
 
-instance Show (Type 'Stack) where
-  show = T.unpack . toText
+instance Hashable Var where
+  hashWithSalt s (Var a b) = hashWithSalt s (0 :: Int, a, b)
 
--- TODO showsPrec
-instance ToText (Type 'Scalar) where
-  toText = \case
-    TyApply t1 ts _ -> toText t1 <> case V.toList ts of
-      [] -> ""
-      [t] -> "@" <> toText t
-      ts' -> T.concat ["@(", T.intercalate ", " $ map toText ts', ")"]
-    TyConst (KindedId (Id i)) _
-      -> "t" <> showText i  -- TODO Show differently?
-    TyCtor name _ -> toText name
-    TyFunction r1 r2 _ -> T.concat
-      ["(", T.unwords [toText r1, "->", toText r2], ")"]
-    TyOption t _ -> toText t <> "?"
-    TyProduct t1 t2 _ -> T.concat ["(", toText t1, " & ", toText t2, ")"]
-    TyQuantified scheme _ -> toText scheme
-    TySum t1 t2 _ -> T.concat ["(", toText t1, " | ", toText t2, ")"]
-    TyVar (KindedId (Id i)) _ -> "t" <> showText i
-    TyVector t _ -> T.concat ["[", toText t, "]"]
+instance IsString Constructor where
+  fromString = Constructor
+    . Qualified Vocabulary.global . Unqualified . Text.pack
 
-instance ToText (Type 'Stack) where
-  toText = \case
-    TyConst (KindedId (Id i)) _
-      -> "s" <> showText i <> "..."  -- TODO Show differently?
-    TyEmpty _ -> "<empty>"
-    TyStack t1 t2 -> T.unwords [toText t1, toText t2]
-    TyVar (KindedId (Id i)) _ -> "s" <> showText i <> "..."
+instance Pretty Constructor where
+  pPrint (Constructor name) = pPrint name
 
-data StackHint
-  = StackAny
-  | Stack0
-  | Stack1
+instance Pretty Type where
+  pPrint type_ = case type_ of
+    TypeConstructor _ "Fun" :@ a :@ b :@ e -> Pretty.parens
+      $ Pretty.hsep [pPrint a, "->", pPrint b, pPrint e]
+    TypeConstructor _ "Prod" :@ a :@ b
+      -> Pretty.hcat [pPrint a, ", ", pPrint b]
+    TypeConstructor _ "Sum" :@ a :@ b
+      -> Pretty.hcat [pPrint a, " | ", pPrint b]
+    TypeConstructor _ "Join" :@ a :@ b
+      -> Pretty.hcat ["+", pPrint a, " ", pPrint b]
+    a :@ b -> Pretty.hcat [pPrint a, Pretty.angles $ pPrint b]
+    TypeConstructor _ constructor -> pPrint constructor
+    TypeVar _ var -> pPrint var
+    TypeConstant _ var -> Pretty.hcat ["∃", pPrint var]
+    Forall{} -> prettyForall type_ []
+      where
+      prettyForall (Forall _ x t) vars = prettyForall t (x : vars)
+      prettyForall t vars = Pretty.hcat
+        [ Pretty.angles $ Pretty.list $ map pPrint vars
+        , Pretty.parens $ pPrint t
+        ]
+    TypeValue _ value -> Pretty.int value
 
--- FIXME Derived 'Eq' instance may be too restrictive.
-data Scheme a = Forall
-  (Set (KindedId 'Stack))
-  (Set (KindedId 'Scalar))
-  a
-  deriving (Eq, Foldable, Functor, Traversable)
+instance Pretty TypeId where
+  pPrint (TypeId i) = Pretty.hcat [Pretty.char 'T', Pretty.int i]
 
-instance (ToText a) => Show (Scheme a) where
-  show = T.unpack . toText
-
-instance (ToText a) => ToText (Scheme a) where
-  toText (Forall stacks scalars type_) = T.unwords
-    $ (if null variables then [] else "@" : variables)
-    ++ [toText type_]
-
+instance Pretty Var where
+  pPrint (Var i kind) = Pretty.hcat $ case kind of
+    Permission -> ["+", v]
+    Stack -> [v, "..."]
+    _ -> [v]
     where
-    variables :: [Text]
-    variables = wordSetText stacks ++ wordSetText scalars
-
-    wordSetText :: (ToText (Type a)) => Set (KindedId a) -> [Text]
-    wordSetText = map (toText . flip TyVar loc) . S.toList
-
-    loc = Location
-      { locationStart = newPos "" 0 0, locationIndent = -1 }
-
-type TypeScheme = Scheme (Type 'Scalar)
-
-infix 6 &:
-infix 6 |:
-infixl 5 -:
-infix 4 -->
-
-(-->) :: Type 'Stack -> Type 'Stack -> Location -> Type 'Scalar
-(-->) = TyFunction
-
-(&:), (|:) :: Type 'Scalar -> Type 'Scalar -> Location -> Type 'Scalar
-(&:) = TyProduct
-(|:) = TySum
-
-(-:) :: Type 'Stack -> Type 'Scalar -> Type 'Stack
-(-:) = TyStack
-
--- | Gets the bottommost element of a stack type.
-bottommost :: Type 'Stack -> Type 'Stack
-bottommost type_ = case type_ of
-  TyStack a _ -> bottommost a
-  _ -> type_
-
-mono :: a -> Scheme a
-mono = Forall S.empty S.empty
-
-stackVar :: TypeId -> KindedId 'Stack
-stackVar = KindedId
-
-scalarVar :: TypeId -> KindedId 'Scalar
-scalarVar = KindedId
-
-unscheme :: Scheme a -> a
-unscheme (Forall _ _ x) = x
+    v = pPrint i

@@ -1,8 +1,0 @@
-define error<r..., s...> (r... [char] -> s...):
-  -> message;
-  ["Error: ", message, "\n"] concat stderr handlePrint
-  1 exit
-
-// Exits the program with an implementation-defined status code.
-define exit<r..., s...> (r... int -> s...):
-  kitten::intrinsic::exit

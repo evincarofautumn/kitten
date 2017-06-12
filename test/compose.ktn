@@ -1,8 +1,0 @@
-// Monadic
-5 {2 (*)} {3 (+)} compose apply sayInt
-5 ({dup sayInt} >>> {(+ 1)}) apply sayInt
-5 ({(- 1)} >>> {dup sayInt}) apply sayInt
-
-// Polyadic
-123 456 \+ {(+ 1)} compose apply sayInt
-123 456 ({(- 1)} >>> \+) apply sayInt

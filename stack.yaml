@@ -1,7 +1,6 @@
-resolver: lts-5.9
+resolver: lts-5.2
 packages:
 - '.'
-- mini/
 extra-deps: []
 flags: {}
 extra-package-dbs: []

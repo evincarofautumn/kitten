@@ -1,2 +1,0 @@
-test/precedence-2.ktn:1:13: error: unexpected 0x1
-test/precedence-2.ktn:1:13: note: expecting decimal integer precedence from 0 to 9

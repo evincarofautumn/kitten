@@ -1,4 +1,0 @@
-// TODO(strager): Improve error reporting.
-
-define bar<a> (a [a] -> char):
-  ->x; [x] 1 kitten::intrinsic::addInt

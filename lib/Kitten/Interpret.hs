@@ -1,627 +1,746 @@
-{-# LANGUAGE DataKinds #-}
+{-|
+Module      : Kitten.Interpret
+Description : Simple interpreter
+Copyright   : (c) Jon Purdy, 2016
+License     : MIT
+Maintainer  : evincarofautumn@gmail.com
+Stability   : experimental
+Portability : GHC
+-}
+
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Kitten.Interpret
-  ( InterpreterValue(..)
+  ( Failure
   , interpret
-  , typeOf
   ) where
 
-import Control.Monad
-import Control.Monad.Trans.Class
-import Control.Monad.Trans.Reader
-import Control.Monad.Trans.State.Strict
-import Data.Bits
-import Data.Fixed
-import Data.Function
-import Data.IORef
-import Data.Maybe
-import Data.Monoid
-import Data.Vector (Vector, (!))
-import System.Exit
-import System.IO
-import Text.Printf hiding (fromChar)
-
-import qualified Data.Text as T
-import qualified Data.Vector as V
-
-import Kitten.ClosedName
-import Kitten.IR
-import Kitten.Id
-import Kitten.IdMap (DefIdMap)
-import Kitten.Intrinsic
-import Kitten.Kind
-import Kitten.KindedId
-import Kitten.Location
+import Control.Exception (Exception, throwIO)
+import Data.Fixed (mod')
+import Data.IORef (newIORef, modifyIORef', readIORef, writeIORef)
+import Data.Int
+import Data.Maybe (fromMaybe)
+import Data.Monoid ((<>))
+import Data.Typeable (Typeable)
+import Data.Vector ((!))
+import Data.Word
+import Kitten.Bits
+import Kitten.Definition (mainName)
+import Kitten.Dictionary (Dictionary)
+import Kitten.Instantiated (Instantiated(Instantiated))
+import Kitten.Monad (runKitten)
 import Kitten.Name
-import Kitten.Program
-import Kitten.Type
-import Kitten.Util.Monad
-import Kitten.Util.Text (ToText(..), showText)
+import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
+import Kitten.Type (Type(..))
+import System.Exit (ExitCode(..), exitWith)
+import System.IO (Handle, hGetLine, hFlush, hPutChar, hPutStrLn)
+import Text.PrettyPrint.HughesPJClass (Pretty(..))
+import Text.Printf (hPrintf)
+import qualified Codec.Picture.Png as Png
+import qualified Codec.Picture.Types as Picture
+import qualified Data.ByteString as ByteString
+import qualified Data.ByteString.Base64 as Base64
+import qualified Data.ByteString.Lazy as LazyByteString
+import qualified Data.Text as Text
+import qualified Data.Vector as Vector
+import qualified Kitten.Dictionary as Dictionary
+import qualified Kitten.Entry as Entry
+import qualified Kitten.Instantiate as Instantiate
+import qualified Kitten.Pretty as Pretty
+import qualified Kitten.Report as Report
+import qualified Kitten.Term as Term
+import qualified Kitten.TypeEnv as TypeEnv
+import qualified Kitten.Vocabulary as Vocabulary
+import qualified Text.PrettyPrint as Pretty
 
-import qualified Kitten.IdMap as Id
-import qualified Kitten.Util.Vector as V
-
-data Env = Env
-  { envCalls :: !(IORef [FrameEntry])
-  , envClosures :: !(IORef [Vector InterpreterValue])
-  , envData :: !(IORef [InterpreterValue])
-  , envInstructions :: !(DefIdMap IrBlock)
-  , envIp :: !(IORef Ip)
-  , envLocation :: !(IORef Location)
-  , envSymbols :: !(DefIdMap [Name])
-  }
-
-data FrameEntry
-  = FrCall !CallType !Ip
-  | FrLocal !InterpreterValue
-
-data CallType = WithoutClosure | WithClosure
-  deriving (Eq)
-
-type Interpret a = ReaderT Env IO a
-type Ip = (DefId, Int)
-type Offset = Maybe (Ip -> Ip)
+-- | Interprets a program dictionary.
 
 interpret
-  :: Maybe Int
-  -> [InterpreterValue]
-  -> Program
-  -> IO [InterpreterValue]
-interpret mStart stack program = do
-  envCalls <- newIORef []
-  envClosures <- newIORef []
-  envData <- newIORef stack
-  envIp <- newIORef (entryId, fromMaybe 0 mStart)
-  envLocation <- newIORef (newLocation "interpreter" 0 0)
+  :: Dictionary
+  -- ^ The program.
+  -> Maybe Qualified
+  -- ^ The name of the entry point, if overriding @main@.
+  -> [Type]
+  -- ^ Arguments passed to @main@.
+  -> Handle
+  -- ^ Standard input handle.
+  -> Handle
+  -- ^ Standard output handle.
+  -> Handle
+  -- ^ Standard error handle.
+  -> [Value Type]
+  -- ^ Initial stack state.
+  -> IO [Value Type]
+  -- ^ Final stack state.
+interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
+  -- TODO: Types.
+  stackRef <- newIORef initialStack
+  localsRef <- newIORef []
+  currentClosureRef <- newIORef []
   let
-    envInstructions = programBlocks program
-    envSymbols = inverseSymbols program
-    env0 = Env{..}
-  fix $ \loop -> do
-    offset <- flip runReaderT env0 $ do
-      mInstruction <- currentInstruction
-      case mInstruction of
-        Just instruction -> interpretInstruction instruction
-        Nothing -> return Nothing
-    case offset of
-      Just offset' -> modifyIORef' envIp offset' >> loop
-      Nothing -> noop
-  readIORef envData
-
--- TODO Make this not do a lookup every step.
-currentInstruction :: Interpret (Maybe IrInstruction)
-currentInstruction = do
-  instructions <- asks envInstructions
-  (defId, ip) <- asksIO envIp
-  let def = instructions Id.! defId
-  let len = V.length def
-  return $ if ip >= len
-    then Nothing
-    else Just (def ! ip)
-
-interpretInstruction :: IrInstruction -> Interpret Offset
-interpretInstruction instruction = case instruction of
-  IrAct (target, closure, type_) -> do
-    values <- V.mapM getClosedName closure
-    pushData (Activation target values type_)
-    proceed
-  IrIntrinsic intrinsic -> interpretIntrinsic intrinsic
-  IrCall label -> call label Nothing
-  IrClosure index -> do
-    pushData =<< getClosed index
-    proceed
-  IrConstruct index size type_ -> do
-    let user closure = User index closure type_
-    pushData . user . V.reverse =<< V.replicateM size popData
-    proceed
-  IrDrop size -> do
-    replicateM_ size popData
-    proceed
-  IrEnter locals -> do
-    replicateM_ locals (pushLocal =<< popData)
-    proceed
-  IrLabel{} -> proceed
-  IrLeave locals -> replicateM_ locals popLocal >> proceed
-  IrLocal index -> (pushData =<< getLocal index) >> proceed
-  IrMakeVector size -> do
-    pushData . Vector . V.reverse =<< V.replicateM size popData
-    proceed
-  IrMatch cases mDefault -> do
-    User index fields _ <- popData
-    case V.find (\ (IrCase index' _) -> index == index') cases of
-      Just (IrCase _ (target, closure, type_)) -> do
-        V.mapM_ pushData fields
-        values <- V.mapM getClosedName closure
-        interpretQuotation (Activation target values type_)
-      Nothing -> case mDefault of
-        Just (target, closure, type_) -> do
-          values <- V.mapM getClosedName closure
-          interpretQuotation (Activation target values type_)
-        Nothing -> lift $ do
-          hPutStrLn stderr "pattern match failure"
-          exitWith (ExitFailure 1)
-  IrPush value -> pushData (interpreterValue value) >> proceed
-  IrReturn _ -> fix $ \loop -> do
-    calls <- asksIO envCalls
-    case calls of
-      -- Discard all locals pushed during this call frame.
-      FrLocal _ : rest -> envCalls =: rest >> loop
-      FrCall type_ target : rest -> do
-        envIp =: target
-        envCalls =: rest
-        when (type_ == WithClosure) $ envClosures ~: tail
-        proceed
-      [] -> return Nothing
-  IrTailApply locals -> do
-    replicateM_ locals popLocal
-    quotation <- popData
-    case quotation of
-      Activation target closure _ -> do
-        envClosures ~: (closure :) . tail
-        return $ Just (const (target, 0))
-      _ -> error "Attempt to tail-apply non-function."
-  IrTailCall locals label -> do
-    replicateM_ locals popLocal
-    return $ Just (const (label, 0))
-
-interpreterValue :: IrValue -> InterpreterValue
-interpreterValue value = case value of
-  IrBool x -> Bool x
-  IrChar x -> Char x
-  IrChoice x y -> Choice x (interpreterValue y)
-  IrFloat x -> Float x
-  IrInt x -> Int x
-  IrOption x -> Option (interpreterValue <$> x)
-  IrPair x y -> Pair (interpreterValue x) (interpreterValue y)
-  IrString x -> Vector . V.fromList $ map Char (T.unpack x)
-
-getClosedName :: ClosedName -> Interpret InterpreterValue
-getClosedName (ClosedName index) = getLocal index
-getClosedName (ReclosedName index) = getClosed index
-
-interpretQuotation :: InterpreterValue -> Interpret Offset
-interpretQuotation (Activation target closure _) = call target (Just closure)
-interpretQuotation _ = error "Attempt to call non-function."
-
-call :: DefId -> Maybe (Vector InterpreterValue) -> Interpret Offset
-call target mClosure = do
-  ip <- asksIO envIp
-  case mClosure of
-    Nothing -> envCalls ~: (FrCall WithoutClosure ip :)
-    Just closure -> do
-      envClosures ~: (closure :)
-      envCalls ~: (FrCall WithClosure ip :)
-  return $ Just (const (target, 0))
-
-interpretIntrinsic :: Intrinsic -> Interpret Offset
-interpretIntrinsic intrinsic = case intrinsic of
-  InAddFloat -> floatsToFloat (+)
-  InAddInt -> intsToInt (+)
-
-  InAddVector -> do
-    Vector b <- popData
-    Vector a <- popData
-    pushData $ Vector (a <> b)
-    proceed
-
-  InAndBool -> boolsToBool (&&)
-
-  InAndInt -> intsToInt (.&.)
-
-  InApply -> interpretQuotation =<< popData
-
-  InCharToInt -> do
-    Char a <- popData
-    pushData $ Int (fromEnum a)
-    proceed
-
-  InChoice -> do
-    left <- popData
-    Choice which value <- popData
-    if which then proceed
-      else pushData value >> interpretQuotation left
-
-  InChoiceElse -> do
-    right <- popData
-    left <- popData
-    Choice which value <- popData
-    pushData value
-    interpretQuotation $ if which then right else left
-
-  InClose -> do
-    Handle a <- popData
-    lift $ hClose a
-    proceed
-
-  InDivFloat -> floatsToFloat (/)
-  InDivInt -> intsToInt div
-
-  InEqFloat -> floatsToBool (==)
-  InEqInt -> intsToBool (==)
-
-  InExit -> do
-    Int a <- popData
-    lift $ case a of
-      0 -> exitSuccess
-      _ -> exitWith (ExitFailure a)
-
-  InFirst -> do
-    Pair a _ <- popData
-    pushData a
-    proceed
-
-  InFromLeft -> do
-    Choice False a <- popData
-    pushData a
-    proceed
-
-  InFromRight -> do
-    Choice True a <- popData
-    pushData a
-    proceed
-
-  InFromSome -> do
-    Option (Just a) <- popData
-    pushData a
-    proceed
-
-  InGeFloat -> floatsToBool (>=)
-  InGeInt -> intsToBool (>=)
-
-  InGet -> do
-    Int b <- popData
-    Vector a <- popData
-    pushData . Option $ if b >= 0 && b < V.length a
-      then Just (a ! b)
-      else Nothing
-    proceed
-
-  InGetLine -> do
-    Handle a <- popData
-    line <- lift $ hGetLine a
-    pushData $ Vector (charsFromString line)
-    proceed
-
-  InGtFloat -> floatsToBool (>)
-  InGtInt -> intsToBool (>)
-
-  InIf -> do
-    true <- popData
-    Bool test <- popData
-    if test then interpretQuotation true else proceed
-
-  InIfElse -> do
-    false <- popData
-    true <- popData
-    Bool test <- popData
-    interpretQuotation $ if test then true else false
-
-  InInit -> do
-    Vector a <- popData
-    pushData . Vector $ if V.null a
-      then V.empty
-      else V.init a
-    proceed
-
-  InIntToChar -> do
-    Int a <- popData
-    pushData . Option $ if a >= 0 && a <= 0x10FFFF
-      then Just $ Char (toEnum a)
-      else Nothing
-    proceed
-
-  InLeFloat -> floatsToBool (<=)
-  InLeInt -> intsToBool (<=)
-
-  InLeft -> do
-    a <- popData
-    pushData $ Choice False a
-    proceed
-
-  InLength -> do
-    Vector a <- popData
-    pushData . Int $ V.length a
-    proceed
-
-  InLtFloat -> floatsToBool (<)
-  InLtInt -> intsToBool (<)
-
-  InModFloat -> floatsToFloat mod'
-  InModInt -> intsToInt mod
-
-  InMulFloat -> floatsToFloat (*)
-  InMulInt -> intsToInt (*)
-
-  InNeFloat -> floatsToBool (/=)
-  InNeInt -> intsToBool (/=)
-
-  InNegFloat -> floatToFloat negate
-  InNegInt -> intToInt negate
-
-  InNone -> pushData (Option Nothing) >> proceed
-
-  InNotBool -> boolToBool not
-  InNotInt -> intToInt complement
-
-  InOrBool -> boolsToBool (||)
-  InOrInt -> intsToInt (.|.)
-
-  InOpenIn -> openFilePushHandle ReadMode
-  InOpenOut -> openFilePushHandle WriteMode
-
-  InOption -> do
-    some <- popData
-    Option mValue <- popData
-    case mValue of
-      Just value -> pushData value >> interpretQuotation some
-      Nothing -> proceed
-
-  InOptionElse -> do
-    none <- popData
-    some <- popData
-    Option mValue <- popData
-    case mValue of
-      Just value -> pushData value >> interpretQuotation some
-      Nothing -> interpretQuotation none
-
-  InPair -> do
-    b <- popData
-    a <- popData
-    pushData $ Pair a b
-    proceed
-
-  InPrint -> do
-    Handle b <- popData
-    Vector a <- popData
-    lift $ hPutStr b (stringFromChars a) >> hFlush b
-    proceed
-
-  InRest -> do
-    Pair _ b <- popData
-    pushData b
-    proceed
-
-  InRight -> do
-    a <- popData
-    pushData $ Choice True a
-    proceed
-
-  InSet -> do
-    c <- popData
-    Int b <- popData
-    Vector a <- popData
-    pushData . Vector
-      $ let (before, after) = V.splitAt b a
-      in before <> V.singleton c <> V.drop 1 after
-    proceed
-
-  InShowFloat -> do
-    Float value <- popData
-    pushData $ Vector (charsFromString $ printf "%.6f" value)
-    proceed
-
-  InShowInt -> do
-    Int value <- popData
-    pushData $ Vector (charsFromString $ show value)
-    proceed
-
-  InSome -> do
-    a <- popData
-    pushData $ Option (Just a)
-    proceed
-
-  InStderr -> pushData (Handle stderr) >> proceed
-  InStdin -> pushData (Handle stdin) >> proceed
-  InStdout -> pushData (Handle stdout) >> proceed
-
-  InSubFloat -> floatsToFloat (-)
-  InSubInt -> intsToInt (-)
-
-  InTail -> do
-    Vector a <- popData
-    pushData . Vector $ if V.null a
-      then V.empty
-      else V.tail a
-    proceed
-
-  InXorBool -> boolsToBool (/=)
-
-  InXorInt -> intsToInt xor
-
-  where
-
-  boolToBool :: (Bool -> Bool) -> Interpret Offset
-  boolToBool f = do
-    Bool a <- popData
-    pushData $ Bool (f a)
-    proceed
-
-  boolsToBool :: (Bool -> Bool -> Bool) -> Interpret Offset
-  boolsToBool f = do
-    Bool b <- popData
-    Bool a <- popData
-    pushData $ Bool (f a b)
-    proceed
-
-  floatToFloat :: (Double -> Double) -> Interpret Offset
-  floatToFloat f = do
-    Float a <- popData
-    pushData $ Float (f a)
-    proceed
-
-  floatsToBool :: (Double -> Double -> Bool) -> Interpret Offset
-  floatsToBool f = do
-    Float b <- popData
-    Float a <- popData
-    pushData $ Bool (f a b)
-    proceed
-
-  floatsToFloat :: (Double -> Double -> Double) -> Interpret Offset
-  floatsToFloat f = do
-    Float b <- popData
-    Float a <- popData
-    pushData $ Float (f a b)
-    proceed
-
-  intToInt :: (Int -> Int) -> Interpret Offset
-  intToInt f = do
-    Int a <- popData
-    pushData $ Int (f a)
-    proceed
-
-  intsToBool :: (Int -> Int -> Bool) -> Interpret Offset
-  intsToBool f = do
-    Int b <- popData
-    Int a <- popData
-    pushData $ Bool (f a b)
-    proceed
-
-  intsToInt :: (Int -> Int -> Int) -> Interpret Offset
-  intsToInt f = do
-    Int b <- popData
-    Int a <- popData
-    pushData $ Int (f a b)
-    proceed
-
-  openFilePushHandle :: IOMode -> Interpret Offset
-  openFilePushHandle ioMode = do
-    Vector a <- popData
-    let fileName = stringFromChars a
-    handle <- lift $ openFile fileName ioMode
-    pushData $ Handle handle
-    proceed
-
-proceed :: Interpret Offset
-proceed = return $ Just (fmap succ)
-
-data InterpreterValue
-  = Activation !DefId !(Vector InterpreterValue) !(Type 'Scalar)
-  | Bool !Bool
-  | Char !Char
-  | Choice !Bool !InterpreterValue
-  | Float !Double
-  | Handle !Handle
-  | Int !Int
-  | Option !(Maybe InterpreterValue)
-  | Pair !InterpreterValue !InterpreterValue
-  | Vector !(Vector InterpreterValue)
-  | User !Int !(Vector InterpreterValue) !(Type 'Scalar)
-
-instance Show InterpreterValue where
-  show = T.unpack . toText
-
-instance ToText InterpreterValue where
-  toText value = case value of
-    Activation label _ _ -> "<function@" <> showText label <> ">"
-    Bool b -> if b then "true" else "false"
-    Char c -> showText c
-    Choice which v -> T.unwords
-      [toText v, if which then "right" else "left"]
-    Float f -> showText f
-    Handle{} -> "<handle>"
-    Int i -> showText i
-    Option m -> maybe "none" ((<> " some") . toText) m
-    Pair a b -> T.concat ["(", toText a, ", ", toText b, ")"]
-    Vector v@(V.toList -> (Char _ : _)) -> showText (stringFromChars v)
-    Vector v -> T.concat
-      [ "["
-      , T.intercalate ", " (V.toList (V.map toText v))
-      , "]"
-      ]
-    User index fields _ -> T.concat
-      [ T.unwords . V.toList $ V.map toText fields
-      , "<data ", showText index, " ", showText $ V.length fields, ">"
-      ]
-
-charsFromString :: String -> Vector InterpreterValue
-charsFromString = V.fromList . map Char
-
-getClosed :: Int -> Interpret InterpreterValue
-getClosed index = do
-  closure : _ <- asksIO envClosures
-  return $ closure ! index
-
-getLocal :: Int -> Interpret InterpreterValue
-getLocal index = do
-  locals <- asksIO envCalls
-  case locals !! index of
-    FrLocal value -> return value
-    _ -> error "Bad local variable access."
-
-asksIO :: (Env -> IORef r) -> Interpret r
-asksIO view = do
-  ref <- asks view
-  lift $ readIORef ref
-
-(~:) :: (Env -> IORef r) -> (r -> r) -> Interpret ()
-view ~: f = do
-  ref <- asks view
-  lift $ modifyIORef' ref f
-infix 4 ~:
-
-(=:) :: (Env -> IORef r) -> r -> Interpret ()
-view =: value = do
-  ref <- asks view
-  lift $ writeIORef ref value
-infix 4 =:
-
-popData :: Interpret InterpreterValue
-popData = do
-  dataStack <- asksIO envData
-  case dataStack of
-    [] -> error "Data stack underflow."
-    (top : down) -> envData =: down >> return top
-
-popLocal :: Interpret ()
-popLocal = do
-  localStack <- asksIO envCalls
-  case localStack of
-    FrLocal _ : down -> envCalls =: down
-    _ -> error "Local stack underflow."
-
-pushData :: InterpreterValue -> Interpret ()
-pushData value = envData ~: (value :)
-
-pushLocal :: InterpreterValue -> Interpret ()
-pushLocal value = envCalls ~: (FrLocal value :)
-
-stringFromChars :: Vector InterpreterValue -> String
-stringFromChars = V.toList . V.map fromChar
-  where
-  fromChar :: InterpreterValue -> Char
-  fromChar (Char c) = c
-  fromChar _ = error "stringFromChars: non-character"
-
-typeOf
-  :: Location
-  -> InterpreterValue
-  -> KindedGen 'Scalar
-  -> (Type 'Scalar, KindedGen 'Scalar)
-typeOf loc = runState . typeOfM loc
-
-typeOfM
-  :: Location -> InterpreterValue -> State (KindedGen 'Scalar) (Type 'Scalar)
-typeOfM loc value = case value of
-  Activation _ _ type_ -> pure type_
-  Bool _ -> pure $ tyBool loc
-  Char _ -> pure $ tyChar loc
-  Choice False x -> TySum <$> recur x <*> freshVarM <*> pure loc
-  Choice True y -> TySum <$> freshVarM <*> recur y <*> pure loc
-  Float _ -> pure $ tyFloat loc
-  Handle _ -> pure $ tyHandle loc
-  Int _ -> pure $ tyInt loc
-  Option (Just x) -> TyOption <$> recur x <*> pure loc
-  Option Nothing -> TyOption <$> freshVarM <*> pure loc
-  Pair x y -> TyProduct <$> recur x <*> recur y <*> pure loc
-  Vector xs -> case V.safeHead xs of
-    Nothing -> TyVector <$> freshVarM <*> pure loc
-    Just x -> TyVector <$> recur x <*> pure loc
-  User _ _ type_ -> pure type_
-  where
-  recur = typeOfM loc
-
-  freshVarM :: State (KindedGen 'Scalar) (Type 'Scalar)
-  freshVarM = TyVar <$> state genKinded <*> pure loc
+
+    word :: [Qualified] -> Qualified -> [Type] -> IO ()
+    word callStack name args = do
+      let mangled = Instantiated name args
+      case Dictionary.lookup mangled dictionary of
+        -- An entry in the dictionary should already be instantiated, so we
+        -- shouldn't need to instantiate it again here.
+        Just (Entry.Word _ _ _ _ _ (Just body)) -> term (name : callStack) body
+        _ -> case Dictionary.lookup (Instantiated name []) dictionary of
+          -- A regular word.
+          Just (Entry.Word _ _ _ _ _ (Just body)) -> do
+            mBody' <- runKitten $ Instantiate.term TypeEnv.empty body args
+            case mBody' of
+              Right body' -> term (name : callStack) body'
+              Left reports -> hPutStrLn stdout' $ Pretty.render $ Pretty.vcat
+                $ Pretty.hcat
+                  [ "Could not instantiate generic word "
+                  , Pretty.quote name
+                  , ":"
+                  ]
+                : map Report.human reports
+          -- An intrinsic.
+          Just (Entry.Word _ _ _ _ _ Nothing) -> case name of
+            Qualified v unqualified
+              | v == Vocabulary.intrinsic
+              -> intrinsic (name : callStack) unqualified
+            _ -> error "no such intrinsic"
+          _ -> throwIO $ Failure $ Pretty.hcat
+            [ "I can't find an instantiation of "
+            , Pretty.quote name
+            , ": "
+            , Pretty.quote mangled
+            ]
+
+    term :: [Qualified] -> Term Type -> IO ()
+    term callStack t = case t of
+      Coercion{} -> return ()
+      Compose _ a b -> term callStack a >> term callStack b
+      -- TODO: Verify that this is correct.
+      Generic _ t' _ -> term callStack t'
+      Group t' -> term callStack t'
+      Lambda _ _name _ body _ -> do
+        (a : r) <- readIORef stackRef
+        ls <- readIORef localsRef
+        writeIORef stackRef r
+        writeIORef localsRef (a : ls)
+        term callStack body
+        modifyIORef' localsRef tail
+      Match _ _ cases else_ _ -> do
+        -- We delay matching on the value here because it may not be an ADT at
+        -- all. For example, "1 match else { 2 }" is perfectly valid,
+        -- because we are matching on all (0) of Int32's constructors.
+        (x : r) <- readIORef stackRef
+        writeIORef stackRef r
+        let
+          go (Case (QualifiedName name) caseBody _ : _)
+            -- FIXME: Embed this information during name resolution, rather than
+            -- looking it up.
+            | Just (Entry.Word _ _ _ _ _ (Just ctorBody))
+              <- Dictionary.lookup (Instantiated name []) dictionary
+            , [New _ (ConstructorIndex index') _ _] <- Term.decompose ctorBody
+            , Algebraic (ConstructorIndex index) fields <- x
+            , index == index'
+            = do
+              writeIORef stackRef (fields ++ r)
+              term callStack caseBody
+          go (_ : rest) = go rest
+          go [] = case else_ of
+            Else body _ -> term callStack body
+        go cases
+      New _ index size _ -> do
+        r <- readIORef stackRef
+        let (fields, r') = splitAt size r
+        writeIORef stackRef $ Algebraic index fields : r'
+      NewClosure _ size _ -> do
+        r <- readIORef stackRef
+        let (Name name : closure, r') = splitAt (size + 1) r
+        writeIORef stackRef (Closure name (reverse closure) : r')
+      NewVector _ size _ _ -> do
+        r <- readIORef stackRef
+        let (values, r') = splitAt size r
+        writeIORef stackRef
+          (Array (Vector.reverse $ Vector.fromList values) : r')
+      Push _ value _ -> push value
+      Word _ _ (QualifiedName name) args _
+        -> word callStack name args
+      -- FIXME: Use proper reporting. (Internal error?)
+      Word _ _ name _ _ -> error $ Pretty.render $ Pretty.hsep
+        ["unresolved word name", pPrint name]
+
+    call :: [Qualified] -> IO ()
+    call callStack = do
+      (Closure name closure : r) <- readIORef stackRef
+      writeIORef stackRef r
+      modifyIORef' currentClosureRef (closure :)
+      -- FIXME: Use right args.
+      word (name : callStack) name []
+      modifyIORef' currentClosureRef tail
+
+    push :: Value Type -> IO ()
+    push value = case value of
+      Closed (ClosureIndex index) -> do
+        (currentClosure : _) <- readIORef currentClosureRef
+        modifyIORef' stackRef ((currentClosure !! index) :)
+      Local (LocalIndex index) -> do
+        locals <- readIORef localsRef
+        modifyIORef' stackRef ((locals !! index) :)
+      Text text -> modifyIORef' stackRef
+        ((Array $ fmap Character $ Vector.fromList $ Text.unpack text) :)
+      _ -> modifyIORef' stackRef (value :)
+
+    intrinsic :: [Qualified] -> Unqualified -> IO ()
+    intrinsic callStack name = case name of
+      "abort" -> do
+        (Array cs : r) <- readIORef stackRef
+        writeIORef stackRef r
+        let message = map (\ (Character c) -> c) $ Vector.toList cs
+        throwIO $ Failure $ Pretty.vcat
+          $ Pretty.hsep
+            [ "Execution failure:"
+            , Pretty.text message
+            ]
+          : "Call stack:"
+          : map (Pretty.nest 4 . pPrint) callStack
+
+      "exit" -> do
+        (Integer i _ : r) <- readIORef stackRef
+        writeIORef stackRef r
+        exitWith $ if i == 0 then ExitSuccess else ExitFailure (fromInteger i)
+
+      "call" -> call callStack
+
+      "drop" -> modifyIORef' stackRef tail
+
+      "swap" -> do
+        (a : b : r) <- readIORef stackRef
+        writeIORef stackRef (b : a : r)
+
+      "neg_int8" -> unaryInt8 negate
+      "add_int8" -> binaryInt8 (+)
+      "sub_int8" -> binaryInt8 (-)
+      "mul_int8" -> binaryInt8 (*)
+      "div_int8" -> binaryInt8 div
+      "mod_int8" -> binaryInt8 mod
+
+      "neg_int16" -> unaryInt16 negate
+      "add_int16" -> binaryInt16 (+)
+      "sub_int16" -> binaryInt16 (-)
+      "mul_int16" -> binaryInt16 (*)
+      "div_int16" -> binaryInt16 div
+      "mod_int16" -> binaryInt16 mod
+
+      "neg_int32" -> unaryInt32 negate
+      "add_int32" -> binaryInt32 (+)
+      "sub_int32" -> binaryInt32 (-)
+      "mul_int32" -> binaryInt32 (*)
+      "div_int32" -> binaryInt32 div
+      "mod_int32" -> binaryInt32 mod
+
+      "neg_int64" -> unaryInt64 negate
+      "add_int64" -> binaryInt64 (+)
+      "sub_int64" -> binaryInt64 (-)
+      "mul_int64" -> binaryInt64 (*)
+      "div_int64" -> binaryInt64 div
+      "mod_int64" -> binaryInt64 mod
+
+      "lt_int8" -> boolInt8 (<)
+      "gt_int8" -> boolInt8 (>)
+      "le_int8" -> boolInt8 (<=)
+      "ge_int8" -> boolInt8 (>=)
+      "eq_int8" -> boolInt8 (==)
+      "ne_int8" -> boolInt8 (/=)
+
+      "lt_int16" -> boolInt16 (<)
+      "gt_int16" -> boolInt16 (>)
+      "le_int16" -> boolInt16 (<=)
+      "ge_int16" -> boolInt16 (>=)
+      "eq_int16" -> boolInt16 (==)
+      "ne_int16" -> boolInt16 (/=)
+
+      "lt_int32" -> boolInt32 (<)
+      "gt_int32" -> boolInt32 (>)
+      "le_int32" -> boolInt32 (<=)
+      "ge_int32" -> boolInt32 (>=)
+      "eq_int32" -> boolInt32 (==)
+      "ne_int32" -> boolInt32 (/=)
+
+      "lt_int64" -> boolInt64 (<)
+      "gt_int64" -> boolInt64 (>)
+      "le_int64" -> boolInt64 (<=)
+      "ge_int64" -> boolInt64 (>=)
+      "eq_int64" -> boolInt64 (==)
+      "ne_int64" -> boolInt64 (/=)
+
+      "neg_uint8" -> unaryUInt8 negate
+      "add_uint8" -> binaryUInt8 (+)
+      "sub_uint8" -> binaryUInt8 (-)
+      "mul_uint8" -> binaryUInt8 (*)
+      "div_uint8" -> binaryUInt8 div
+      "mod_uint8" -> binaryUInt8 mod
+
+      "neg_uint16" -> unaryUInt16 negate
+      "add_uint16" -> binaryUInt16 (+)
+      "sub_uint16" -> binaryUInt16 (-)
+      "mul_uint16" -> binaryUInt16 (*)
+      "div_uint16" -> binaryUInt16 div
+      "mod_uint16" -> binaryUInt16 mod
+
+      "neg_uint32" -> unaryUInt32 negate
+      "add_uint32" -> binaryUInt32 (+)
+      "sub_uint32" -> binaryUInt32 (-)
+      "mul_uint32" -> binaryUInt32 (*)
+      "div_uint32" -> binaryUInt32 div
+      "mod_uint32" -> binaryUInt32 mod
+
+      "neg_uint64" -> unaryUInt64 negate
+      "add_uint64" -> binaryUInt64 (+)
+      "sub_uint64" -> binaryUInt64 (-)
+      "mul_uint64" -> binaryUInt64 (*)
+      "div_uint64" -> binaryUInt64 div
+      "mod_uint64" -> binaryUInt64 mod
+
+      "lt_uint8" -> boolUInt8 (<)
+      "gt_uint8" -> boolUInt8 (>)
+      "le_uint8" -> boolUInt8 (<=)
+      "ge_uint8" -> boolUInt8 (>=)
+      "eq_uint8" -> boolUInt8 (==)
+      "ne_uint8" -> boolUInt8 (/=)
+
+      "lt_uint16" -> boolUInt16 (<)
+      "gt_uint16" -> boolUInt16 (>)
+      "le_uint16" -> boolUInt16 (<=)
+      "ge_uint16" -> boolUInt16 (>=)
+      "eq_uint16" -> boolUInt16 (==)
+      "ne_uint16" -> boolUInt16 (/=)
+
+      "lt_uint32" -> boolUInt32 (<)
+      "gt_uint32" -> boolUInt32 (>)
+      "le_uint32" -> boolUInt32 (<=)
+      "ge_uint32" -> boolUInt32 (>=)
+      "eq_uint32" -> boolUInt32 (==)
+      "ne_uint32" -> boolUInt32 (/=)
+
+      "lt_uint64" -> boolUInt64 (<)
+      "gt_uint64" -> boolUInt64 (>)
+      "le_uint64" -> boolUInt64 (<=)
+      "ge_uint64" -> boolUInt64 (>=)
+      "eq_uint64" -> boolUInt64 (==)
+      "ne_uint64" -> boolUInt64 (/=)
+
+      "lt_char" -> boolChar (<)
+      "gt_char" -> boolChar (>)
+      "le_char" -> boolChar (<=)
+      "ge_char" -> boolChar (>=)
+      "eq_char" -> boolChar (==)
+      "ne_char" -> boolChar (/=)
+
+      "neg_float32" -> unaryFloat32 negate
+      "add_float32" -> binaryFloat32 (+)
+      "sub_float32" -> binaryFloat32 (-)
+      "mul_float32" -> binaryFloat32 (*)
+      "div_float32" -> binaryFloat32 (/)
+      "mod_float32" -> binaryFloat32 mod'
+
+      "neg_float64" -> unaryFloat64 negate
+      "add_float64" -> binaryFloat64 (+)
+      "sub_float64" -> binaryFloat64 (-)
+      "mul_float64" -> binaryFloat64 (*)
+      "div_float64" -> binaryFloat64 (/)
+      "mod_float64" -> binaryFloat64 mod'
+
+      "lt_float32" -> boolFloat32 (<)
+      "gt_float32" -> boolFloat32 (>)
+      "le_float32" -> boolFloat32 (<=)
+      "ge_float32" -> boolFloat32 (>=)
+      "eq_float32" -> boolFloat32 (==)
+      "ne_float32" -> boolFloat32 (/=)
+
+      "lt_float64" -> boolFloat64 (<)
+      "gt_float64" -> boolFloat64 (>)
+      "le_float64" -> boolFloat64 (<=)
+      "ge_float64" -> boolFloat64 (>=)
+      "eq_float64" -> boolFloat64 (==)
+      "ne_float64" -> boolFloat64 (/=)
+
+      "show_int8" -> showInteger (show :: Int8 -> String)
+      "show_int16" -> showInteger (show :: Int16 -> String)
+      "show_int32" -> showInteger (show :: Int32 -> String)
+      "show_int64" -> showInteger (show :: Int64 -> String)
+      "show_uint8" -> showInteger (show :: Word8 -> String)
+      "show_uint16" -> showInteger (show :: Word16 -> String)
+      "show_uint32" -> showInteger (show :: Word32 -> String)
+      "show_uint64" -> showInteger (show :: Word64 -> String)
+
+      "empty" -> do
+        (Array xs : r) <- readIORef stackRef
+        writeIORef stackRef r
+        if Vector.null xs
+          then word callStack (Qualified Vocabulary.global "true") []
+          else word callStack (Qualified Vocabulary.global "false") []
+
+      "head" -> do
+        (Array xs : r) <- readIORef stackRef
+        if Vector.null xs
+          then do
+            writeIORef stackRef r
+            word callStack (Qualified Vocabulary.global "none") []
+          else do
+            let x = xs ! 0
+            writeIORef stackRef $ x : r
+            -- FIXME: Use right args.
+            word callStack (Qualified Vocabulary.global "some") []
+
+      "last" -> do
+        (Array xs : r) <- readIORef stackRef
+        if Vector.null xs
+          then do
+            writeIORef stackRef r
+            word callStack (Qualified Vocabulary.global "none") []
+          else do
+            let x = xs ! (Vector.length xs - 1)
+            writeIORef stackRef $ x : r
+            -- FIXME: Use right args.
+            word callStack (Qualified Vocabulary.global "some") []
+
+      "append" -> do
+        (x : Array xs : r) <- readIORef stackRef
+        writeIORef stackRef $ Array (Vector.snoc xs x) : r
+      "prepend" -> do
+        (Array xs : x : r) <- readIORef stackRef
+        writeIORef stackRef $ Array (Vector.cons x xs) : r
+      "cat" -> do
+        (Array ys : Array xs : r) <- readIORef stackRef
+        writeIORef stackRef $ Array (xs <> ys) : r
+      "get" -> do
+        (Integer i _ : Array xs : r) <- readIORef stackRef
+        if i < 0 || i >= fromIntegral (length xs)
+          then do
+            writeIORef stackRef r
+            word callStack (Qualified Vocabulary.global "none") []
+          else do
+            writeIORef stackRef $ (xs ! fromIntegral i) : r
+            -- FIXME: Use right args.
+            word callStack (Qualified Vocabulary.global "some") []
+      "set" -> do
+        (Integer i _ : x : Array xs : r) <- readIORef stackRef
+        if i < 0 || i >= fromIntegral (length xs)
+          then do
+            writeIORef stackRef r
+            word callStack (Qualified Vocabulary.global "none") []
+          else do
+            let (before, after) = Vector.splitAt (fromIntegral i) xs
+            writeIORef stackRef $ Array
+              (before <> Vector.singleton x <> Vector.tail after) : r
+            -- FIXME: Use right args.
+            word callStack (Qualified Vocabulary.global "some") []
+      "print" -> do
+        (Array cs : r) <- readIORef stackRef
+        writeIORef stackRef r
+        mapM_ (\ (Character c) -> hPutChar stdout' c) cs
+      "get_line" -> do
+        line <- hGetLine stdin'
+        modifyIORef' stackRef (Array (Vector.fromList (map Character line)) :)
+      "flush_stdout" -> hFlush stdout'
+
+      "tail" -> do
+        (Array xs : r) <- readIORef stackRef
+        if Vector.null xs
+          then do
+            writeIORef stackRef r
+            word callStack (Qualified Vocabulary.global "none") []
+          else do
+            let xs' = Vector.tail xs
+            writeIORef stackRef $ Array xs' : r
+            -- FIXME: Use right args.
+            word callStack (Qualified Vocabulary.global "some") []
+
+      "init" -> do
+        (Array xs : r) <- readIORef stackRef
+        if Vector.null xs
+          then do
+            writeIORef stackRef r
+            word callStack (Qualified Vocabulary.global "none") []
+          else do
+            let xs' = Vector.init xs
+            writeIORef stackRef $ Array xs' : r
+            -- FIXME: Use right args.
+            word callStack (Qualified Vocabulary.global "some") []
+
+      "draw" -> do
+        (Array ys : rest) <- readIORef stackRef
+        writeIORef stackRef rest
+        let
+          height = length ys
+          width = if null ys
+            then 0
+            else case ys ! 0 of
+              Array xs -> Vector.length xs
+              _ -> error "draw: the typechecker has failed us (rows)"
+        hPrintf stdout' "\ESC]1337;File=width=%dpx;height=%dpx;inline=1:%s\BEL\n"
+          width height
+          $ map ((toEnum :: Int -> Char) . fromIntegral)
+          $ ByteString.unpack $ Base64.encode
+          $ LazyByteString.toStrict $ Png.encodePng
+          $ Picture.generateImage (\ x y -> case ys ! y of
+            Array xs -> case xs ! x of
+              Algebraic _ channels -> case channels of
+                [Integer r _, Integer g _, Integer b _, Integer a _]
+                  -> Picture.PixelRGBA8
+                    (fromIntegral r)
+                    (fromIntegral g)
+                    (fromIntegral b)
+                    (fromIntegral a)
+                _ -> error "draw: the typechecker has failed us (channel)"
+              _ -> error "draw: the typechecker has failed us (column)"
+            _ -> error "draw: the typechecker has failed us (row)")
+            width height
+      _ -> error "no such intrinsic"
+
+      where
+
+      unaryInt8 :: (Int8 -> Int8) -> IO ()
+      unaryInt8 f = do
+        (Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Integer (fromIntegral $ f (fromIntegral x)) Signed8
+          : r
+
+      binaryInt8 :: (Int8 -> Int8 -> Int8) -> IO ()
+      binaryInt8 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Integer (fromIntegral
+            $ f (fromIntegral x) (fromIntegral y)) Signed8
+          : r
+
+      unaryInt16 :: (Int16 -> Int16) -> IO ()
+      unaryInt16 f = do
+        (Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Integer (fromIntegral $ f (fromIntegral x)) Signed16
+          : r
+
+      binaryInt16 :: (Int16 -> Int16 -> Int16) -> IO ()
+      binaryInt16 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Integer (fromIntegral
+            $ f (fromIntegral x) (fromIntegral y)) Signed16
+          : r
+
+      unaryInt32 :: (Int32 -> Int32) -> IO ()
+      unaryInt32 f = do
+        (Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Integer (fromIntegral $ f (fromIntegral x)) Signed32
+          : r
+
+      binaryInt32 :: (Int32 -> Int32 -> Int32) -> IO ()
+      binaryInt32 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Integer (fromIntegral
+            $ f (fromIntegral x) (fromIntegral y)) Signed32
+          : r
+
+      unaryInt64 :: (Int64 -> Int64) -> IO ()
+      unaryInt64 f = do
+        (Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Integer (fromIntegral $ f (fromIntegral x)) Signed64
+          : r
+
+      binaryInt64 :: (Int64 -> Int64 -> Int64) -> IO ()
+      binaryInt64 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Integer (fromIntegral
+            $ f (fromIntegral x) (fromIntegral y)) Signed64
+          : r
+
+      unaryUInt8 :: (Word8 -> Word8) -> IO ()
+      unaryUInt8 f = do
+        (Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Integer (fromIntegral $ f (fromIntegral x)) Unsigned8
+          : r
+
+      binaryUInt8 :: (Word8 -> Word8 -> Word8) -> IO ()
+      binaryUInt8 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Integer (fromIntegral
+            $ f (fromIntegral x) (fromIntegral y)) Unsigned8
+          : r
+
+      unaryUInt16 :: (Word16 -> Word16) -> IO ()
+      unaryUInt16 f = do
+        (Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Integer (fromIntegral $ f (fromIntegral x)) Unsigned16
+          : r
+
+      binaryUInt16 :: (Word16 -> Word16 -> Word16) -> IO ()
+      binaryUInt16 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Integer (fromIntegral
+            $ f (fromIntegral x) (fromIntegral y)) Unsigned16
+          : r
+
+      unaryUInt32 :: (Word32 -> Word32) -> IO ()
+      unaryUInt32 f = do
+        (Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Integer (fromIntegral $ f (fromIntegral x)) Unsigned32
+          : r
+
+      binaryUInt32 :: (Word32 -> Word32 -> Word32) -> IO ()
+      binaryUInt32 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Integer (fromIntegral
+            $ f (fromIntegral x) (fromIntegral y)) Unsigned32
+          : r
+
+      unaryUInt64 :: (Word64 -> Word64) -> IO ()
+      unaryUInt64 f = do
+        (Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Integer (fromIntegral $ f (fromIntegral x)) Unsigned64
+          : r
+
+      binaryUInt64 :: (Word64 -> Word64 -> Word64) -> IO ()
+      binaryUInt64 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Integer (fromIntegral
+            $ f (fromIntegral x) (fromIntegral y)) Unsigned64
+          : r
+
+      boolInt8 :: (Int8 -> Int8 -> Bool) -> IO ()
+      boolInt8 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Algebraic (ConstructorIndex $ fromEnum
+            $ f (fromIntegral x) (fromIntegral y)) []
+          : r
+
+      boolInt16 :: (Int16 -> Int16 -> Bool) -> IO ()
+      boolInt16 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Algebraic (ConstructorIndex $ fromEnum
+            $ f (fromIntegral x) (fromIntegral y)) []
+          : r
+
+      boolInt32 :: (Int32 -> Int32 -> Bool) -> IO ()
+      boolInt32 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Algebraic (ConstructorIndex $ fromEnum
+            $ f (fromIntegral x) (fromIntegral y)) []
+          : r
+
+      boolInt64 :: (Int64 -> Int64 -> Bool) -> IO ()
+      boolInt64 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Algebraic (ConstructorIndex $ fromEnum
+            $ f (fromIntegral x) (fromIntegral y)) []
+          : r
+
+      boolUInt8 :: (Word8 -> Word8 -> Bool) -> IO ()
+      boolUInt8 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Algebraic (ConstructorIndex $ fromEnum
+            $ f (fromIntegral x) (fromIntegral y)) []
+          : r
+
+      boolUInt16 :: (Word16 -> Word16 -> Bool) -> IO ()
+      boolUInt16 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Algebraic (ConstructorIndex $ fromEnum
+            $ f (fromIntegral x) (fromIntegral y)) []
+          : r
+
+      boolUInt32 :: (Word32 -> Word32 -> Bool) -> IO ()
+      boolUInt32 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Algebraic (ConstructorIndex $ fromEnum
+            $ f (fromIntegral x) (fromIntegral y)) []
+          : r
+
+      boolUInt64 :: (Word64 -> Word64 -> Bool) -> IO ()
+      boolUInt64 f = do
+        (Integer y _ : Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Algebraic (ConstructorIndex $ fromEnum
+            $ f (fromIntegral x) (fromIntegral y)) []
+          : r
+
+      boolChar :: (Char -> Char -> Bool) -> IO ()
+      boolChar f = do
+        (Character y : Character x : r) <- readIORef stackRef
+        writeIORef stackRef
+          $ Algebraic (ConstructorIndex $ fromEnum
+            $ f x y) []
+          : r
+
+      unaryFloat32 :: (Float -> Float) -> IO ()
+      unaryFloat32 f = do
+        (Float x _ : r) <- readIORef stackRef
+        writeIORef stackRef $ Float
+          (realToFrac (f (realToFrac x))) Float32 : r
+
+      binaryFloat32 :: (Float -> Float -> Float) -> IO ()
+      binaryFloat32 f = do
+        (Float y _ : Float x _ : r) <- readIORef stackRef
+        writeIORef stackRef $ Float
+          (realToFrac (f (realToFrac x) (realToFrac y))) Float32 : r
+
+      boolFloat32 :: (Float -> Float -> Bool) -> IO ()
+      boolFloat32 f = do
+        (Float y _ : Float x _ : r) <- readIORef stackRef
+        writeIORef stackRef $ Algebraic
+          (ConstructorIndex $ fromEnum $ f (realToFrac x) (realToFrac y))
+          [] : r
+
+      unaryFloat64 :: (Double -> Double) -> IO ()
+      unaryFloat64 f = do
+        (Float x _ : r) <- readIORef stackRef
+        writeIORef stackRef $ Float
+          (realToFrac (f (realToFrac x))) Float64 : r
+
+      binaryFloat64 :: (Double -> Double -> Double) -> IO ()
+      binaryFloat64 f = do
+        (Float y _ : Float x _ : r) <- readIORef stackRef
+        writeIORef stackRef $ Float (f x y) Float64 : r
+
+      boolFloat64 :: (Double -> Double -> Bool) -> IO ()
+      boolFloat64 f = do
+        (Float y _ : Float x _ : r) <- readIORef stackRef
+        writeIORef stackRef $ Algebraic
+          (ConstructorIndex $ fromEnum $ f x y) [] : r
+
+      showInteger :: Num a => (a -> String) -> IO ()
+      showInteger f = do
+        (Integer x _ : r) <- readIORef stackRef
+        writeIORef stackRef $ Array
+          (Vector.fromList $ map Character $ f (fromIntegral x)) : r
+
+  let entryPointName = fromMaybe mainName mName
+  word [entryPointName] entryPointName mainArgs
+  readIORef stackRef
+
+data Failure = Failure Pretty.Doc
+  deriving (Typeable)
+
+instance Exception Failure
+
+instance Show Failure where
+  show (Failure message) = Pretty.render message

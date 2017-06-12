@@ -1,4 +1,0 @@
-define importedFunction (->):
-  "importedFunction" say
-
-importedFunction

@@ -1,1 +1,0 @@
-define example (->): ->x y; y x

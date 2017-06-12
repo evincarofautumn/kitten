@@ -1,9 +1,0 @@
-define myId<a> (a -> a):
-  ->x; x
-
-define myIdAlias<r..., a> (r... a -> r... a): myId
-
-10 myId sayInt
-"x" myId say
-
-10 myIdAlias sayInt

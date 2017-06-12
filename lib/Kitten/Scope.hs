@@ -1,166 +1,186 @@
-{-# LANGUAGE RecordWildCards #-}
+{-|
+Module      : Kitten.Scope
+Description : Scope resolution
+Copyright   : (c) Jon Purdy, 2016
+License     : MIT
+Maintainer  : evincarofautumn@gmail.com
+Stability   : experimental
+Portability : GHC
+-}
+
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Kitten.Scope
   ( scope
   ) where
 
-import Control.Monad.Trans.Class
-import Control.Monad.Trans.Reader
-import Control.Monad.Trans.State
-import Data.Monoid
-import Data.Vector (Vector)
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.Reader (ReaderT, asks, local, runReaderT)
+import Control.Monad.Trans.State (State, get, put, runState)
+import Data.List (elemIndex)
+import Kitten.Name (Closed(..), ClosureIndex(..), GeneralName(..), LocalIndex(..))
+import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 
-import qualified Data.HashMap.Strict as H
-import qualified Data.Vector as V
+-- | Whereas name resolution is concerned with resolving references to
+-- definitions, scope resolution resolves local names to relative (De Bruijn)
+-- indices, and converts 'Quotation's to explicit 'Capture's.
 
-import Kitten.ClosedName
-import Kitten.Definition
-import Kitten.Fragment
-import Kitten.Term
-import Kitten.Util.List
-
--- Converts quotations containing references to local variables in enclosing
--- scopes into explicit closures.
-scope :: Fragment ResolvedTerm -> Fragment ResolvedTerm
-scope fragment@Fragment{..} = fragment
-  { fragmentDefs = H.map scopeDef fragmentDefs
-  , fragmentTerm = scopeTerm [0] fragmentTerm
-  }
-
-scopeDef :: Def ResolvedTerm -> Def ResolvedTerm
-scopeDef def@Def{..} = def { defTerm = scopeTerm [0] <$> defTerm }
-
-scopeTerm :: [Int] -> ResolvedTerm -> ResolvedTerm
-scopeTerm stack typed = case typed of
-  TrCall{} -> typed
-  TrConstruct{} -> typed
-  TrCompose hint terms loc -> TrCompose hint (V.map recur terms) loc
-  TrIntrinsic{} -> typed
-  TrLambda name nameLoc term loc -> TrLambda name nameLoc
-    (scopeTerm (mapHead succ stack) term)
-    loc
-  TrMakePair as bs loc -> TrMakePair (recur as) (recur bs) loc
-  TrMakeVector items loc -> TrMakeVector (V.map recur items) loc
-  TrMatch cases mDefault loc -> TrMatch
-    (V.map scopeCase cases) (fmap (scopeValue stack) mDefault) loc
-  TrPush value loc -> TrPush (scopeValue stack value) loc
-
+scope :: Term () -> Term ()
+scope = scopeTerm [0]
   where
-  recur :: ResolvedTerm -> ResolvedTerm
-  recur = scopeTerm stack
 
-  scopeCase (TrCase name body loc) = TrCase name (scopeValue stack body) loc
-
-scopeValue :: [Int] -> ResolvedValue -> ResolvedValue
-scopeValue stack value = case value of
-  TrBool{} -> value
-  TrChar{} -> value
-  TrClosed{} -> value
-  TrClosure{} -> value
-  TrFloat{} -> value
-  TrInt{} -> value
-  TrLocal{} -> value
-  TrQuotation body x
-    -> TrClosure (ClosedName <$> capturedNames) capturedTerm x
+  scopeTerm :: [Int] -> Term () -> Term ()
+  scopeTerm stack = recur
     where
-    capturedTerm :: ResolvedTerm
-    capturedNames :: Vector Int
-    (capturedTerm, capturedNames) = runCapture stack' $ captureTerm scopedTerm
-    scopedTerm :: ResolvedTerm
-    scopedTerm = scopeTerm stack' body
-    stack' :: [Int]
-    stack' = 0 : stack
-  TrText{} -> value
 
-data Env = Env
-  { envStack :: [Int]
-  , envDepth :: Int
+    recur :: Term () -> Term ()
+    recur term = case term of
+      Coercion{} -> term
+      Compose _ a b -> Compose () (recur a) (recur b)
+      Generic{} -> error
+        "generic expression should not appear before scope resolution"
+      Group{} -> error
+        "group expression should not appear after infix desugaring"
+      Lambda _ name _ a origin -> Lambda () name ()
+        (scopeTerm (mapHead succ stack) a) origin
+      Match hint _ cases else_ origin -> Match hint ()
+        (map (\ (Case name a caseOrigin)
+          -> Case name (recur a) caseOrigin) cases)
+        ((\ (Else a elseOrigin)
+          -> Else (recur a) elseOrigin) else_)
+        origin
+      New{} -> term
+      NewClosure{} -> term
+      NewVector{} -> term
+      Push _ value origin -> Push () (scopeValue stack value) origin
+      Word _ _ (LocalName index) _ origin
+        -> Push () (scopeValue stack (Local index)) origin
+      Word{} -> term
+
+  scopeValue :: [Int] -> Value () -> Value ()
+  scopeValue stack value = case value of
+    Algebraic{} -> value
+    Array{} -> error "array should not appear before runtime"
+    Capture{} -> error "capture should not appear before scope resolution"
+    Character{} -> value
+    Closed{} -> error "closed name should not appear before scope resolution"
+    Closure{} -> error "closure should not appear before runtime"
+    Float{} -> value
+    Integer{} -> value
+    Local{} -> value
+    Name{} -> value
+    Quotation body -> Capture (map ClosedLocal capturedNames) capturedTerm
+      where
+
+      capturedTerm :: Term ()
+      capturedNames :: [LocalIndex]
+      (capturedTerm, capturedNames) = runCapture stack' $ captureTerm scoped
+
+      scoped :: Term ()
+      scoped = scopeTerm stack' body
+
+      stack' :: [Int]
+      stack' = 0 : stack
+
+    Text{} -> value
+
+data ScopeEnv = ScopeEnv
+  { scopeStack :: [ScopeDepth]
+  , scopeDepth :: !ScopeDepth
   }
 
-type Capture a = ReaderT Env (State (Vector Int)) a
+type ScopeDepth = Int
 
-runCapture :: [Int] -> Capture a -> (a, Vector Int)
-runCapture stack
-  = flip runState V.empty
-  . flip runReaderT Env { envStack = stack, envDepth = 0 }
+type Captured a = ReaderT ScopeEnv (State [LocalIndex]) a
 
-addName :: Int -> Capture Int
-addName name = do
-  names <- lift get
-  case V.elemIndex name names of
-    Just existing -> return existing
-    Nothing -> do
-      lift $ put (names <> V.singleton name)
-      return $ V.length names
+runCapture :: [Int] -> Captured a -> (a, [LocalIndex])
+runCapture stack = flip runState []
+  . flip runReaderT ScopeEnv { scopeStack = stack, scopeDepth = 0 }
 
-captureTerm :: ResolvedTerm -> Capture ResolvedTerm
-captureTerm typed = case typed of
-  TrCall{} -> return typed
-  TrCompose hint terms loc -> TrCompose hint
-    <$> V.mapM captureTerm terms
-    <*> pure loc
-  TrConstruct{} -> return typed
-  TrIntrinsic{} -> return typed
-  TrLambda name nameLoc terms loc -> let
-    inside env@Env{..} = env
-      { envStack = mapHead succ envStack
-      , envDepth = succ envDepth
+captureTerm :: Term () -> Captured (Term ())
+captureTerm term = case term of
+  Coercion{} -> return term
+  Compose _ a b -> Compose () <$> captureTerm a <*> captureTerm b
+  Generic{} -> error
+    "generic expression should not appear before scope resolution"
+  Group{} -> error
+    "group expression should not appear after infix desugaring"
+  Lambda _ name _ a origin -> let
+    inside env = env
+      { scopeStack = mapHead succ (scopeStack env)
+      , scopeDepth = succ (scopeDepth env)
       }
-    in TrLambda name nameLoc
-      <$> local inside (captureTerm terms)
-      <*> pure loc
-  TrMakePair a b loc -> TrMakePair
-    <$> captureTerm a
-    <*> captureTerm b
-    <*> pure loc
-  TrMakeVector items loc -> TrMakeVector
-    <$> V.mapM captureTerm items
-    <*> pure loc
-  TrMatch cases mDefault loc -> TrMatch
-    <$> V.mapM captureCase cases
-    <*> traverse captureValue mDefault
-    <*> pure loc
+    in Lambda () name ()
+      <$> local inside (captureTerm a) <*> pure origin
+  Match hint _ cases else_ origin -> Match hint ()
+    <$> mapM captureCase cases <*> captureElse else_ <*> pure origin
     where
-    captureCase (TrCase name body loc') = TrCase name
-      <$> captureValue body
-      <*> pure loc'
-  TrPush value loc -> TrPush <$> captureValue value <*> pure loc
 
-closeLocal :: Int -> Capture (Maybe Int)
-closeLocal index = do
-  stack <- asks envStack
-  depth <- asks envDepth
-  case stack of
-    (here : _)
-      | index >= here
-      -> Just <$> addName (index - depth)
-    _ -> return Nothing
+    captureCase :: Case () -> Captured (Case ())
+    captureCase (Case name a caseOrigin)
+      = Case name <$> captureTerm a <*> pure caseOrigin
 
-captureValue :: ResolvedValue -> Capture ResolvedValue
+    captureElse :: Else () -> Captured (Else ())
+    captureElse (Else a elseOrigin)
+      = Else <$> captureTerm a <*> pure elseOrigin
+
+  New{} -> return term
+  NewClosure{} -> return term
+  NewVector{} -> return term
+  Push _ value origin -> Push () <$> captureValue value <*> pure origin
+  Word{} -> return term
+
+captureValue :: Value () -> Captured (Value ())
 captureValue value = case value of
-  TrBool{} -> return value
-  TrChar{} -> return value
-  TrClosed{} -> return value
-  TrClosure names term x -> TrClosure
-    <$> V.mapM close names
-    <*> pure term
-    <*> pure x
+  Algebraic{} -> error "adt should not appear before runtime"
+  Array{} -> error "array should not appear before runtime"
+  Capture names term -> Capture <$> mapM close names <*> pure term
     where
-    close :: ClosedName -> Capture ClosedName
-    close original@(ClosedName name) = do
-      closed <- closeLocal name
-      return $ case closed of
-        Nothing -> original
-        Just closedLocal -> ReclosedName closedLocal
-    close original@(ReclosedName _) = return original
-  TrFloat{} -> return value
-  TrInt{} -> return value
-  TrQuotation terms x -> let
-    inside env@Env{..} = env { envStack = 0 : envStack }
-    in TrQuotation <$> local inside (captureTerm terms) <*> pure x
-  TrLocal name x -> do
-    closed <- closeLocal name
+
+    close :: Closed -> Captured Closed
+    close original = case original of
+      ClosedLocal index -> do
+        closed <- closeLocal index
+        return $ case closed of
+          Nothing -> original
+          Just index' -> ClosedClosure index'
+      ClosedClosure{} -> return original
+  Character{} -> return value
+  Closed{} -> return value
+  Closure{} -> error "closure should not appear before runtime"
+  Float{} -> return value
+  Integer{} -> return value
+  Local index -> do
+    closed <- closeLocal index
     return $ case closed of
       Nothing -> value
-      Just closedName -> TrClosed closedName x
-  TrText{} -> return value
+      Just index' -> Closed index'
+  Name{} -> return value
+  Quotation term -> let
+    inside env = env { scopeStack = 0 : scopeStack env }
+    in Quotation <$> local inside (captureTerm term)
+  Text{} -> return value
+
+closeLocal :: LocalIndex -> Captured (Maybe ClosureIndex)
+closeLocal (LocalIndex index) = do
+  stack <- asks scopeStack
+  depth <- asks scopeDepth
+  case stack of
+    here : _
+      | index >= here
+      -> fmap Just $ addName $ LocalIndex $ index - depth
+    _ -> return Nothing
+  where
+
+  addName :: LocalIndex -> Captured ClosureIndex
+  addName name = do
+    names <- lift get
+    case elemIndex name names of
+      Just existing -> return $ ClosureIndex existing
+      Nothing -> do
+        lift $ put $ names ++ [name]
+        return $ ClosureIndex $ length names
+
+mapHead :: (a -> a) -> [a] -> [a]
+mapHead _ [] = []
+mapHead f (x : xs) = f x : xs

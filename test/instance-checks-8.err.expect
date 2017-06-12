@@ -1,5 +1,0 @@
-test/instance-checks-8.ktn:1:29: error: expected stack type s2... but got s1... t1 t2
-test/instance-checks-8.ktn:1:17: note: s2... is from here
-test/instance-checks-8.ktn:1:29: note: s1... is from here
-test/instance-checks-8.ktn:1:26: note: t1 is from here
-test/instance-checks-8.ktn:1:24: note: t2 is from here

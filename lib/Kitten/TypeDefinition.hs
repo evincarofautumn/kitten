@@ -1,20 +1,38 @@
-module Kitten.TypeDefinition where
+{-|
+Module      : Kitten.TypeDefinition
+Description : Definitions of types
+Copyright   : (c) Jon Purdy, 2016
+License     : MIT
+Maintainer  : evincarofautumn@gmail.com
+Stability   : experimental
+Portability : GHC
+-}
 
-import Data.Vector (Vector)
+{-# LANGUAGE OverloadedStrings #-}
 
-import Kitten.Annotation
-import Kitten.Location
-import Kitten.Name
+module Kitten.TypeDefinition
+  ( TypeDefinition(..)
+  ) where
 
-data TypeDef = TypeDef
-  { typeDefConstructors :: !(Vector TypeConstructor)
-  , typeDefLocation :: !Location
-  , typeDefName :: !Name
-  , typeDefScalars :: !(Vector Name)
-  } deriving (Eq, Show)
+import Kitten.DataConstructor (DataConstructor)
+import Kitten.Entry.Parameter (Parameter)
+import Kitten.Name (Qualified)
+import Kitten.Origin (Origin)
+import Text.PrettyPrint.HughesPJClass (Pretty(..))
+import qualified Text.PrettyPrint as Pretty
 
-data TypeConstructor = TypeConstructor
-  { ctorFields :: !(Vector AnType)
-  , ctorLocation :: !Location
-  , ctorName :: !Name
-  } deriving (Eq, Show)
+data TypeDefinition = TypeDefinition
+  { constructors :: [DataConstructor]
+  , name :: !Qualified
+  , origin :: !Origin
+  , parameters :: [Parameter]
+  } deriving (Show)
+
+-- FIXME: Support parameters.
+instance Pretty TypeDefinition where
+  pPrint definition = Pretty.vcat
+    [ "type"
+      Pretty.<+> pPrint (name definition)
+      Pretty.<> ":"
+    , Pretty.nest 4 $ Pretty.vcat $ map pPrint $ constructors definition
+    ]

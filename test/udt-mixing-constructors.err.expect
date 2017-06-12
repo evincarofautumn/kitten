@@ -1,3 +1,0 @@
-test/udt-mixing-constructors.ktn:8:1: error: expected scalar type A but got B
-test/udt-mixing-constructors.ktn:9:3: note: A is from here
-test/udt-mixing-constructors.ktn:10:3: note: B is from here

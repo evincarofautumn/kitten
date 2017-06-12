@@ -1,7 +1,0 @@
-// Converts a character to an integer code point.
-define charToInt (char -> int):
-  kitten::intrinsic::charToInt
-
-// Converts an integer code point to a character.
-define intToChar (int -> char?):
-  kitten::intrinsic::intToChar

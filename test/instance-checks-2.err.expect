@@ -1,3 +1,0 @@
-test/instance-checks-2.ktn:1:37: error: expected scalar type t2 but got t1
-test/instance-checks-2.ktn:1:15: note: t2 is from here
-test/instance-checks-2.ktn:1:15: note: t1 is from here

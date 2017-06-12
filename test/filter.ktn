@@ -1,6 +1,0 @@
-[1, 2, 3, 4, 5] -> v;
-
-v \evenInt filter sayInts
-v \oddInt filter sayInts
-v {(> 2)} filter sayInts
-v {(<= 2)} filter sayInts

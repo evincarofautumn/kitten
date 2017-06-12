@@ -1,590 +1,740 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-|
+Module      : Kitten.Infer
+Description : Type inference
+Copyright   : (c) Jon Purdy, 2016
+License     : MIT
+Maintainer  : evincarofautumn@gmail.com
+Stability   : experimental
+Portability : GHC
+-}
+
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PostfixOperators #-}
 {-# LANGUAGE RecursiveDo #-}
 
 module Kitten.Infer
-  ( infer
-  , typeFragment
-  , forAll
+  ( dataType
+  , inferType0
+  , mangleInstance
+  , typeFromSignature
+  , typeKind
+  , typeSize
+  , typecheck
   ) where
 
-import Control.Monad
-import Data.Monoid
-import Data.Vector (Vector)
+import Control.Monad (filterM)
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.State (StateT, get, gets, modify, put, runStateT)
+import Data.Foldable (foldlM, foldrM)
+import Data.List (find, foldl', partition)
+import Data.Map (Map)
+import Kitten.Bits
+import Kitten.DataConstructor (DataConstructor)
+import Kitten.Dictionary (Dictionary)
+import Kitten.Entry.Parameter (Parameter(Parameter))
+import Kitten.Informer (Informer(..))
+import Kitten.InstanceCheck (instanceCheck)
+import Kitten.Instantiated (Instantiated(Instantiated))
+import Kitten.Kind (Kind(..))
+import Kitten.Monad (K)
+import Kitten.Name (ClosureIndex(..), GeneralName(..), LocalIndex(..), Qualified(..), Unqualified(..))
+import Kitten.Origin (Origin)
+import Kitten.Regeneralize (regeneralize)
+import Kitten.Signature (Signature)
+import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
+import Kitten.Type (Constructor(..), Type(..), Var(..))
+import Kitten.TypeEnv (TypeEnv, freshTypeId)
+import Text.PrettyPrint.HughesPJClass (Pretty(..))
+import qualified Data.Map as Map
+import qualified Kitten.DataConstructor as DataConstructor
+import qualified Kitten.Dictionary as Dictionary
+import qualified Kitten.Entry as Entry
+import qualified Kitten.Entry.Parent as Parent
+import qualified Kitten.Instantiate as Instantiate
+import qualified Kitten.Operator as Operator
+import qualified Kitten.Pretty as Pretty
+import qualified Kitten.Report as Report
+import qualified Kitten.Resolve as Resolve
+import qualified Kitten.Signature as Signature
+import qualified Kitten.Substitute as Substitute
+import qualified Kitten.Term as Term
+import qualified Kitten.Type as Type
+import qualified Kitten.TypeEnv as TypeEnv
+import qualified Kitten.Unify as Unify
+import qualified Kitten.Vocabulary as Vocabulary
+import qualified Kitten.Zonk as Zonk
+import qualified Text.PrettyPrint as Pretty
 
-import qualified Data.Foldable as F
-import qualified Data.HashMap.Strict as H
-import qualified Data.Set as S
-import qualified Data.Text as T
-import qualified Data.Traversable as T
-import qualified Data.Vector as V
+-- | Type inference takes a program fragment and produces a program with every
+-- term annotated with its inferred type. It's polymorphic in the annotation
+-- type of its input so that it can't depend on those annotations.
 
-import Kitten.ClosedName
-import Kitten.Config
-import Kitten.Definition
-import Kitten.Error
-import Kitten.Fragment
-import Kitten.Infer.Monad
-import Kitten.Infer.Scheme
-import Kitten.Infer.Type
-import Kitten.Infer.Unify
-import Kitten.Intrinsic
-import Kitten.Kind
-import Kitten.Location
-import Kitten.Name
-import Kitten.Program
-import Kitten.Term
-import Kitten.Type
-import Kitten.Util.FailWriter
-import Kitten.Util.Monad
-import Kitten.Util.Text (toText)
-
-import qualified Kitten.Util.Vector as V
-
-typeFragment
-  :: Fragment ResolvedTerm
-  -> K (Fragment TypedTerm, Type 'Scalar)
-typeFragment fragment = mdo
-  -- Populate environment with definition types.
-  --
-  -- FIXME(strager):
-  -- Use previously-inferred types (i.e. defTypeScheme def). We cannot
-  -- right now because effects are not inferred properly (e.g. for the
-  -- effects of the 'map' prelude function).
-  F.forM_ (fragmentDefs fragment) save
-
-  typedDefs <- flip T.mapM (fragmentDefs fragment) $ \def
-    -> withLocation (parsedLocation $ unscheme (defTerm def)) $ do
-      (typedDefTerm, inferredScheme) <- generalize
-        . infer finalProgram . unscheme  -- See note [scheming defs].
-        $ defTerm def
-      declaredScheme <- do
-        decls <- getsProgram inferenceDecls
-        case H.lookup (defName def) decls of
-          Just decl -> return decl
-          Nothing -> do
-            loc <- getLocation
-            fmap mono . forAll $ \r s -> TyFunction r s loc
-      saveDefWith (flip const) (defName def) inferredScheme
-      instanceCheck inferredScheme declaredScheme $ let
-        item = CompileError (defLocation def)
-        in ErrorGroup
-        [ item Error $ T.unwords
-          [ "inferred type of"
-          , toText (defName def)
-          , "is not an instance of its declared type"
-          ]
-        , item Note $ T.unwords ["inferred", toText inferredScheme]
-        , item Note $ T.unwords ["declared", toText declaredScheme]
-        ]
-      return def { defTerm = typedDefTerm <$ inferredScheme }
-
-  topLevel <- getLocation
-  (typedTerm, fragmentType) <- infer finalProgram $ fragmentTerm fragment
-
-  -- Equate the bottom of the stack with stackTypes.
-  do
-    let TyFunction consumption _ _ = fragmentType
-    bottom <- freshVarM
-    enforce <- asksConfig configEnforceBottom
-    when enforce $ bottom `shouldBe` TyEmpty topLevel
-    stackTypes <- asksConfig configStackTypes
-    let stackType = F.foldl TyStack bottom stackTypes
-    stackType `shouldBe` consumption
-
+typecheck
+  :: Dictionary
+  -- ^ Current dictionary, for context.
+  -> Maybe Signature
+  -- ^ Optional signature to check inferred type against.
+  -> Term a
+  -- ^ Term to infer.
+  -> K (Term Type, Type)
+  -- ^ Type-annotated term and its inferred type.
+typecheck dictionary mDeclaredSignature term = do
+  let tenv0 = TypeEnv.empty
+  declaredType <- traverse (typeFromSignature tenv0) mDeclaredSignature
+  declaredTypes <- mapM
+    (\ (name, signature) -> (,) name <$> typeFromSignature tenv0 signature)
+    $ Dictionary.signatures dictionary
   let
-    typedFragment = fragment
-      { fragmentDefs = typedDefs
-      , fragmentTerm = typedTerm
-      }
+    tenv1 = tenv0
+      { TypeEnv.sigs = Map.union (Map.fromList declaredTypes)
+        $ TypeEnv.sigs tenv0 }
+  inferType0 dictionary tenv1 declaredType term
 
-  finalProgram <- getProgram
 
-  return (typedFragment, sub finalProgram fragmentType)
+-- | Mangles an instance name according to its trait signature.
 
+mangleInstance
+  :: Dictionary -> Qualified -> Signature -> Signature -> K Instantiated
+mangleInstance dictionary name instanceSignature traitSignature = do
+  let tenv0 = TypeEnv.empty
+  instanceType <- typeFromSignature tenv0 instanceSignature
+  traitType <- typeFromSignature tenv0 traitSignature
+  instanceCheck "trait" traitType "instance" instanceType
+  (traitType', args, tenv1) <- Instantiate.prenex tenv0 traitType
+  tenv2 <- Unify.type_ tenv1 instanceType traitType'
+  args' <- valueKinded dictionary $ map (Zonk.type_ tenv2) args
+  return $ Instantiated name args'
+
+-- | Since type variables can be generalized if they do not depend on the
+-- initial state of the typing environment, the type of a single definition is
+-- inferred in an empty environment so that it can be trivially generalized. It
+-- is then regeneralized to increase stack polymorphism.
+
+inferType0
+  :: Dictionary
+  -- ^ Current dictionary, for context.
+  -> TypeEnv
+  -- ^ Current typing environment.
+  -> Maybe Type
+  -- ^ Optional type to check inferred type against.
+  -> Term a
+  -- ^ Term to infer.
+  -> K (Term Type, Type)
+  -- ^ Type-annotated term and its inferred type.
+inferType0 dictionary tenv mDeclared term
+  = while (Term.origin term) context $ do
+    rec
+      (term', t, tenvFinal) <- inferType dictionary tenvFinal' tenv term
+      tenvFinal' <- maybe (return tenvFinal) (Unify.type_ tenvFinal t) mDeclared
+    let zonked = Zonk.type_ tenvFinal' t
+    let regeneralized = regeneralize tenvFinal' zonked
+    case mDeclared of
+      -- The inferred type must be at least as polymorphic as the declared type.
+      Just declared -> instanceCheck
+        "inferred" regeneralized "declared" declared
+      Nothing -> return ()
+    return (Zonk.term tenvFinal' term', regeneralized)
   where
 
-  saveDecl :: Name -> TypeScheme -> K ()
-  saveDecl name scheme = modifyProgram $ \program -> program
-    { inferenceDecls = H.insert name scheme (inferenceDecls program) }
+  context :: Pretty.Doc
+  context = Pretty.hsep ["inferring the type of", Pretty.quote term]
 
-  saveDefWith
-    :: (TypeScheme -> TypeScheme -> TypeScheme)
-    -> Name
-    -> TypeScheme
-    -> K ()
-  saveDefWith f name scheme = modifyProgram $ \program -> program
-    { inferenceDefs = H.insertWith f name scheme (inferenceDefs program) }
 
-  save :: Def a -> K ()
-  save def = do
-    let
-      vocab = case defName def of
-        Qualified qualifier _ -> qualifier
-        MixfixName{} -> Qualifier V.empty
-        _ -> error "unqualified definition name appeared during type inference"
-    scheme <- fromAnno vocab
-      (fragmentTypes fragment) (fragmentAbbrevs fragment) (defAnno def)
-    saveDecl (defName def) scheme
-    saveDefWith const (defName def) scheme
+-- We infer the type of a term and annotate each terminal with the inferred type
+-- as we go. We ignore any existing annotations because a definition may need to
+-- be re-inferred and re-annotated if a program is updated with a new
+-- implementation of an existing definition.
 
-instanceCheck :: TypeScheme -> TypeScheme -> ErrorGroup -> K ()
-instanceCheck inferredScheme declaredScheme errorGroup = do
-  loc <- getLocation
-  inferredType <- instantiateM loc inferredScheme
-  (stackConsts, scalarConsts, declaredType) <- skolemize declaredScheme
-  inferredType `shouldBe` declaredType
-  let
-    (escapedStacks, escapedScalars) = free inferredScheme <> free declaredScheme
-    badStacks = filter (`elem` escapedStacks) stackConsts
-    badScalars = filter (`elem` escapedScalars) scalarConsts
-  unless (null badStacks && null badScalars)
-    $ liftFailWriter $ throwMany [errorGroup]
+inferType
+  :: Dictionary
+  -> TypeEnv
+  -> TypeEnv
+  -> Term a
+  -> K (Term Type, Type, TypeEnv)
+inferType dictionary tenvFinal tenv0 term0
+  = while (Term.origin term0) context $ case term0 of
 
--- Note [scheming defs]:
+-- A coercion is a typed no-op.
 --
--- Defs are always wrapped in 'Scheme's for convenience after type
--- inference, but they are always monomorphic beforehand.
+-- An identity coercion is the identity function on stacks. The empty program is
+-- an identity coercion.
+--
+-- A type coercion is the identity function specialised to a certain type. It
+-- may be specialised to the identity function on stacks; to the unary identity
+-- function on a particular type, in order to constrain the type of a value atop
+-- the stack; or to an arbitrary type, in order to unsafely reinterpret-cast
+-- between types, e.g., to grant or revoke permissions.
 
-class ForAll a b where
-  forAll :: a -> K (Type b)
+    Coercion hint@Term.IdentityCoercion _ origin -> do
+      [a, p] <- fresh origin [Stack, Permission]
+      let type_ = Type.fun origin a a p
+      let type' = Zonk.type_ tenvFinal type_
+      return (Coercion hint type' origin, type_, tenv0)
+    Coercion hint@(Term.AnyCoercion sig) _ origin -> do
+      type_ <- typeFromSignature tenv0 sig
+      let type' = Zonk.type_ tenvFinal type_
+      return (Coercion hint type' origin, type_, tenv0)
 
-instance (ForAll a b, Fresh c) => ForAll (Type c -> a) b where
-  forAll f = do
-    var <- freshVarM
-    forAll $ f var
+-- The type of the composition of two expressions is the composition of the
+-- types of those expressions.
 
-instance ForAll (Type a) a where
-  forAll = pure
+    Compose _ term1 term2 -> do
+      (term1', t1, tenv1) <- inferType' tenv0 term1
+      (term2', t2, tenv2) <- inferType' tenv1 term2
+      (a, b, e1, tenv3) <- Unify.function tenv2 t1
+      (c, d, e2, tenv4) <- Unify.function tenv3 t2
+      tenv5 <- Unify.type_ tenv4 b c
+      tenv6 <- Unify.type_ tenv5 e1 e2
+      -- FIXME: Use range origin over whole composition?
+      let origin = Term.origin term1
+      let type_ = Type.fun origin a d e1
+      let type' = Zonk.type_ tenvFinal type_
+      return (Compose type' term1' term2', type_, tenv6)
 
--- | Infers the type of a term.
-infer :: Program -> ResolvedTerm -> K (TypedTerm, Type 'Scalar)
-infer finalProgram resolved = case resolved of
+    -- TODO: Verify that this is correct.
+    Generic _ t _ -> inferType' tenv0 t
+    Group{} -> error
+      "group expression should not appear during type inference"
 
-  TrCall hint name loc -> asTyped (TrCall hint name) loc
-    . (instantiateM loc =<<) $ do
-      decls <- getsProgram inferenceDecls
-      case H.lookup name decls of
-        Just decl -> return decl
-        Nothing -> do
-          mFound <- getsProgram (H.lookup name . inferenceDefs)
-          case mFound of
-            Just found -> return found
-            Nothing -> liftFailWriter $ throwMany [errorGroup]
+-- A local variable binding in Kitten is in fact a lambda term in the ordinary
+-- lambda-calculus sense. We infer the type of its body in the environment
+-- extended with a fresh local bound to a fresh type variable, and produce a
+-- type of the form 'R..., A -> S... +P'.
+
+    Lambda _ name _ term origin -> do
+      a <- TypeEnv.freshTv tenv0 origin Value
+      let oldLocals = TypeEnv.vs tenv0
+      let localEnv = tenv0 { TypeEnv.vs = a : TypeEnv.vs tenv0 }
+      (term', t1, tenv1) <- inferType' localEnv term
+      let tenv2 = tenv1 { TypeEnv.vs = oldLocals }
+      (b, c, e, tenv3) <- Unify.function tenv2 t1
+      let
+        type_ = Type.fun origin (Type.prod origin b a) c e
+        type' = Zonk.type_ tenvFinal type_
+        varType' = Zonk.type_ tenvFinal a
+      return
+        ( Lambda type' name varType' term' origin
+        , type_
+        , tenv3
+        )
+
+-- A match expression consumes an instance of a data type, pushing its fields
+-- onto the stack, and testing its tag to determine which case to apply, if
+-- any. Note that 'if' is sugar for 'match' on Booleans. An 'if' without an
+-- 'else' is sugar for a 'match' with a present-but-empty (i.e., identity,
+-- modulo permissions) 'else' branch, and this works out neatly in the types. A
+-- 'match' without an else branch raises 'abort', causing the 'match' to require
+-- the +Fail permission.
+
+    Match hint _ cases else_ origin -> do
+      let
+        constructors = case cases of
+          -- Curiously, because an empty match works on any type, no
+          -- constructors are actually permitted.
+          [] -> []
+          Case (QualifiedName ctorName) _ _ : _
+            -> case Dictionary.lookup (Instantiated ctorName []) dictionary of
+              Just (Entry.Word _ _ _ (Just (Parent.Type typeName)) _ _)
+                -> case Dictionary.lookup (Instantiated typeName []) dictionary of
+                  Just (Entry.Type _ _ ctors) -> ctors
+                  -- TODO: Check whether this can happen if a non-constructor
+                  -- word is erroneously used in a case; if this is possible, we
+                  -- should generate a report rather than an error.
+                  _ -> error "constructor not linked to type"
+              _ -> error "constructor not found after name resolution"
+          _ -> error "unqualified constructor after name resolution"
+      (cases', caseTypes, constructors', tenv1)
+        <- foldlM inferCase' ([], [], constructors, tenv0) cases
+      -- Checkpoint to halt after redundant cases are reported.
+      checkpoint
+      (else', elseType, tenv2) <- case else_ of
+        Else body elseOrigin -> do
+          (body', bodyType, tenv') <- inferType' tenv1 body
+          -- The type of a match is the union of the types of the cases, and
+          -- since the cases consume the scrutinee, the 'else' branch must have
+          -- a dummy (fully polymorphic) type for the scrutinee. This may be
+          -- easier to see when considering the type of an expression like:
+          --
+          --     match { else { ... } }
+          --
+          -- Which consumes a value of any type and always executes the 'else'
+          -- branch.
+          --
+          -- TODO: This should be considered a drop.
+          unusedScrutinee <- TypeEnv.freshTv tenv1 origin Value
+          (a, b, e, tenv'') <- Unify.function tenv' bodyType
+          let
+            elseType = Type.fun elseOrigin
+              (Type.prod elseOrigin a unusedScrutinee) b e
+          return (Else body' elseOrigin, elseType, tenv'')
+      (type_, tenv3) <- case constructors' of
+        -- FIXME: Assumes caseTypes is non-empty.
+        [] -> do
+          let firstCase : remainingCases = caseTypes
+          tenv' <- foldrM
+            (\ type_ tenv -> Unify.type_ tenv firstCase type_)
+            tenv2 remainingCases
+          return (Type.setOrigin origin firstCase, tenv')
+        -- Only include 'else' branch if there are unhandled cases.
+        _ -> do
+          tenv' <- foldrM (\ type_ tenv -> Unify.type_ tenv elseType type_)
+            tenv2 caseTypes
+          return (Type.setOrigin origin elseType, tenv')
+      let type' = Zonk.type_ tenvFinal type_
+      return (Match hint type' cases' else' origin, type_, tenv3)
+
+      where
+      inferCase' (cases', types, remaining, tenv) case_ = do
+        (case', type_, remaining', tenv')
+          <- inferCase dictionary tenvFinal tenv remaining case_
+        return (case' : cases', type_ : types, remaining', tenv')
+
+-- A 'new' expression simply tags some fields on the stack, so the most
+-- straightforward way to type it is as an unsafe cast. For now, we can rely on
+-- the type signature of the desugared data constructor definition to make this
+-- type-safe, since only the compiler can generate 'new' expressions.
+
+    New _ constructor size origin -> do
+      [a, b, e] <- fresh origin [Stack, Stack, Permission]
+      let type_ = Type.fun origin a b e
+      let type' = Zonk.type_ tenvFinal type_
+      return (New type' constructor size origin, type_, tenv0)
+
+-- Unlike with 'new', we cannot simply type a 'new closure' expression as an
+-- unsafe cast because we need to know its effect on the stack within the body
+-- of a definition. So we type a 'new.closure.x' expression as:
+--
+--     ∀ρστα̂. ρ × α₀ × … × αₓ × (σ → τ) → ρ × (σ → τ)
+--
+
+    NewClosure _ size origin -> do
+      as <- fresh origin $ replicate size Value
+      [r, s, t, p1, p2] <- fresh origin
+        [Stack, Stack, Stack, Permission, Permission]
+      let
+        f = Type.fun origin s t p1
+        type_ = Type.fun origin
+          (foldl' (Type.prod origin) r (as ++ [f]))
+          (Type.prod origin r f)
+          p2
+        type' = Zonk.type_ tenvFinal type_
+      return (NewClosure type' size origin, type_, tenv0)
+
+-- This is similar for 'new vector' expressions, which we type as:
+--
+--     ∀ρα. ρ × α₀ × … × αₓ → ρ × vector<α>
+--
+
+    NewVector _ size _ origin -> do
+      [a, b, e] <- fresh origin [Stack, Value, Permission]
+      let
+        type_ = Type.fun origin
+          (foldl' (Type.prod origin) a (replicate size b))
+          (Type.prod origin a (TypeConstructor origin "List" :@ b))
+          e
+        type' = Zonk.type_ tenvFinal type_
+        b' = Zonk.type_ tenvFinal b
+      return (NewVector type' size b' origin, type_, tenv0)
+
+-- Pushing a value results in a stack with that value on top.
+
+    Push _ value origin -> do
+      [a, e] <- fresh origin [Stack, Permission]
+      (value', t, tenv1) <- inferValue dictionary tenvFinal tenv0 origin value
+      let type_ = Type.fun origin a (Type.prod origin a t) e
+      let type' = Zonk.type_ tenvFinal type_
+      return (Push type' value' origin, type_, tenv1)
+
+    -- FIXME: Should generic parameters be restricted to none?
+    Word _ _fixity name _ origin -> inferCall dictionary tenvFinal tenv0 name origin
+
+  where
+  inferType' = inferType dictionary tenvFinal
+  fresh origin = foldrM (\k ts -> (: ts) <$> TypeEnv.freshTv tenv0 origin k) []
+
+  context :: Pretty.Doc
+  context = Pretty.hsep ["inferring the type of", Pretty.quote term0]
+
+-- A case in a 'match' expression is simply the inverse of a constructor:
+-- whereas a constructor takes some fields from the stack and produces
+-- an instance of a data type, a 'case' deconstructs an instance of a data type
+-- and produces the fields on the stack for the body of the case to consume.
+
+inferCase
+  :: Dictionary
+  -> TypeEnv
+  -> TypeEnv
+  -> [DataConstructor]
+  -> Case a
+  -> K (Case Type, Type, [DataConstructor], TypeEnv)
+inferCase dictionary tenvFinal tenv0 dataConstructors
+  (Case qualified@(QualifiedName name) body origin) = do
+  (body', bodyType, tenv1) <- inferType dictionary tenvFinal tenv0 body
+  (a1, b1, e1, tenv2) <- Unify.function tenv1 bodyType
+  case Map.lookup name $ TypeEnv.sigs tenv2 of
+    Just signature -> do
+      (a2, b2, e2, tenv3) <- Unify.function tenv2 signature
+      -- Note that we swap the consumption and production of the constructor
+      -- to get the type of the deconstructor. The body consumes the fields.
+      tenv4 <- Unify.type_ tenv3 a1 a2
+      tenv5 <- Unify.type_ tenv4 e1 e2
+      let type_ = Type.fun origin b2 b1 e1
+      -- FIXME: Should a case be annotated with a type?
+      -- let type' = Zonk.type_ tenvFinal type_
+      let matching ctor = DataConstructor.name ctor == unqualifiedName name
+      dataConstructors' <- case partition matching dataConstructors of
+        ([], remaining) -> do
+          report $ Report.RedundantCase origin
+          return remaining
+        (_covered, remaining) -> return remaining
+      return (Case qualified body' origin, type_, dataConstructors', tenv5)
+    Nothing -> error
+      "case constructor missing signature after name resolution"
+inferCase _ _ _ _ _ = error "case of non-qualified name after name resolution"
+
+inferValue
+  :: Dictionary
+  -> TypeEnv
+  -> TypeEnv
+  -> Origin
+  -> Value a
+  -> K (Value Type, Type, TypeEnv)
+inferValue dictionary tenvFinal tenv0 origin value = case value of
+  Algebraic{} -> error "adt should not appear before runtime"
+  Array{} -> error "array should not appear before runtime"
+  Capture names term -> do
+    let types = map (TypeEnv.getClosed tenv0) names
+    let oldClosure = TypeEnv.closure tenv0
+    let localEnv = tenv0 { TypeEnv.closure = types }
+    (term', t1, tenv1) <- inferType dictionary tenvFinal localEnv term
+    let tenv2 = tenv1 { TypeEnv.closure = oldClosure }
+    return (Capture names term', t1, tenv2)
+  Character x -> return (Character x, TypeConstructor origin "Char", tenv0)
+  Closed (ClosureIndex index) -> return
+    (Closed $ ClosureIndex index, TypeEnv.closure tenv0 !! index, tenv0)
+  Closure{} -> error "closure should not appear before runtime"
+  Float x bits -> let
+    ctor = case bits of
+      Float32 -> "Float32"
+      Float64 -> "Float64"
+    in return (Float x bits, TypeConstructor origin ctor, tenv0)
+  Integer x bits -> let
+    ctor = case bits of
+      Signed8 -> "Int8"
+      Signed16 -> "Int16"
+      Signed32 -> "Int32"
+      Signed64 -> "Int64"
+      Unsigned8 -> "UInt8"
+      Unsigned16 -> "UInt16"
+      Unsigned32 -> "UInt32"
+      Unsigned64 -> "UInt64"
+    in return (Integer x bits, TypeConstructor origin ctor, tenv0)
+  Local (LocalIndex index) -> return
+    (Local $ LocalIndex index, TypeEnv.vs tenv0 !! index, tenv0)
+  Quotation{} -> error "quotation should not appear during type inference"
+  Name name -> case Dictionary.lookup (Instantiated name []) dictionary of
+    Just (Entry.Word _ _ _ _ (Just signature) _) -> do
+      type_ <- typeFromSignature tenv0 signature
+      return (Name name, type_, tenv0)
+    _ -> error $ Pretty.render $ Pretty.hsep
+      [ "unbound word name"
+      , Pretty.quote name
+      , "found during type inference"
+      ]
+  Text x -> return
+    ( Text x
+    , TypeConstructor origin "List" :@ TypeConstructor origin "Char"
+    , tenv0
+    )
+
+inferCall
+  :: Dictionary
+  -> TypeEnv
+  -> TypeEnv
+  -> GeneralName
+  -> Origin
+  -> K (Term Type, Type, TypeEnv)
+inferCall dictionary tenvFinal tenv0 (QualifiedName name) origin
+  = case Map.lookup name $ TypeEnv.sigs tenv0 of
+    Just t@Forall{} -> do
+      (type_, params, tenv1) <- Instantiate.prenex tenv0 t
+      let
+        type' = Type.setOrigin origin type_
+      params' <- valueKinded dictionary params
+      let
+        type'' = Zonk.type_ tenvFinal type'
+        params'' = map (Zonk.type_ tenvFinal) params'
+      let
+        mangled = QualifiedName name
+        -- case params'' of
+        --   [] -> name
+        --   _ -> Qualified Vocabulary.global
+        --     $ Unqualified $ Mangle.name name params''
+      return
+        ( Word type'' Operator.Postfix mangled
+          params'' origin
+        , type'
+        , tenv1
+        )
+    Just{} -> error "what is a non-quantified type doing as a type signature?"
+    Nothing -> do
+      report $ Report.MissingTypeSignature origin name
+      halt
+
+inferCall _dictionary _tenvFinal _tenv0 name origin
+  -- FIXME: Use proper reporting. (Internal error?)
+  = error $ Pretty.render $ Pretty.hsep
+    ["cannot infer type of non-qualified name", Pretty.quote name]
+
+-- | Desugars a parsed signature into an actual type. We resolve whether names
+-- refer to quantified type variables or data definitions, and make stack
+-- polymorphism explicit.
+
+typeFromSignature :: TypeEnv -> Signature -> K Type
+typeFromSignature tenv signature0 = do
+  (type_, env) <- flip runStateT SignatureEnv
+    { sigEnvAnonymous = []
+    , sigEnvVars = Map.empty
+    } $ go signature0
+  let
+    forallAnonymous = Forall (Signature.origin signature0)
+    forallVar (var, origin) = Forall origin var
+  return
+    $ foldr forallAnonymous
+      (foldr forallVar type_ $ Map.elems $ sigEnvVars env)
+    $ sigEnvAnonymous env
+  where
+
+  go :: Signature -> StateT SignatureEnv K Type
+  go signature = case signature of
+    Signature.Application a b _ -> (:@) <$> go a <*> go b
+    Signature.Bottom origin -> return $ Type.bottom origin
+    Signature.Function as bs es origin -> do
+      r <- lift $ freshTypeId tenv
+      let var = Var r Stack
+      let typeVar = TypeVar origin var
+      es' <- mapM (fromVar origin) es
+      (me, es'') <- lift $ permissionVar origin es'
+      Forall origin var <$> makeFunction origin typeVar as typeVar bs es'' me
+    Signature.Quantified vars a origin -> do
+      original <- get
+      (envVars, vars') <- foldrM ((lift .) . declare)
+        (sigEnvVars original, []) vars
+      modify $ \ env -> env { sigEnvVars = envVars }
+      a' <- go a
+      let result = foldr (Forall origin) a' vars'
+      put original
+      return result
+      where
+
+      declare
+        :: Parameter
+        -> (Map Unqualified (Var, Origin), [Var])
+        -> K (Map Unqualified (Var, Origin), [Var])
+      declare (Parameter varOrigin name kind) (envVars, freshVars) = do
+        x <- freshTypeId tenv
+        let var = Var x kind
+        return (Map.insert name (var, varOrigin) envVars, var : freshVars)
+
+    Signature.Variable name origin -> fromVar origin name
+    Signature.StackFunction r as s bs es origin -> do
+      let var = fromVar origin
+      r' <- go r
+      s' <- go s
+      es' <- mapM var es
+      (me, es'') <- lift $ permissionVar origin es'
+      makeFunction origin r' as s' bs es'' me
+    -- TODO: Verify that the type contains no free variables.
+    Signature.Type type_ -> return type_
+
+  permissionVar :: Origin -> [Type] -> K (Maybe Type, [Type])
+  permissionVar origin types = case splitFind isTypeVar types of
+    Just (preceding, type_, following) -> case find isTypeVar following of
+      Nothing -> return (Just type_, preceding ++ following)
+      Just type' -> do
+        report $ Report.MultiplePermissionVariables origin type_ type'
+        halt
+    Nothing -> return (Nothing, types)
     where
-    errorGroup = ErrorGroup
-      [ CompileError loc Error $ T.concat
-        ["missing signature for '", toText name, "'"] ]
+    isTypeVar TypeVar{} = True
+    isTypeVar _ = False
 
-  TrCompose hint terms loc -> withLocation loc $ do
-    (typedTerms, types) <- V.mapAndUnzipM recur terms
-    r <- freshVarM
-    let
-      composed = foldM
-        (\x y -> do
-          TyFunction a b _ <- unquantify (typeLocation x) x
-          TyFunction c d _ <- unquantify (typeLocation y) y
-          inferCompose a b c d)
-        ((r --> r) loc)
-        (V.toList types)
+  fromVar :: Origin -> GeneralName -> StateT SignatureEnv K Type
+  fromVar origin (UnqualifiedName name) = do
+    existing <- gets $ Map.lookup name . sigEnvVars
+    case existing of
+      Just (var, varOrigin) -> return $ TypeVar varOrigin var
+      Nothing -> lift $ do
+        report $ Report.CannotResolveType origin $ UnqualifiedName name
+        halt
+  fromVar origin (QualifiedName name)
+    = return $ TypeConstructor origin $ Constructor name
+  fromVar _ name = error
+    $ "incorrectly resolved name in signature: " ++ show name
 
-    -- We need the generalized type to check stack effects.
-    (_, typeScheme) <- generalize $ (,) () <$> composed
-    type_ <- composed
-
-    -- Check stack effect hint.
-    case hint of
-      Stack0 -> do
-        s <- freshStackIdM
-        instanceCheck typeScheme
-          (Forall (S.singleton s) S.empty
-            $ (TyVar s loc --> TyVar s loc) loc)
-          $ ErrorGroup
-          [ CompileError loc Error $ T.unwords
-            [ toText typeScheme
-            , "has a non-null stack effect"
-            ]
-          ]
-      Stack1 -> do
-        s <- freshStackIdM
-        a <- freshScalarIdM
-        -- Note that 'a' is not forall-bound. We want this effect hint
-        -- to match function types that produce a single result of any
-        -- type, and that operate on any input stack; but these two
-        -- notions of "any" are quite different. In the former case, we
-        -- care very much that the stack type is immaterial. In the
-        -- latter, we don't care what the type is at all.
-        instanceCheck typeScheme
-          (Forall (S.singleton s) S.empty
-            $ (TyVar s loc
-              --> TyVar s loc -: TyVar a loc) loc)
-          $ ErrorGroup
-          [ CompileError loc Error $ T.unwords
-            [ toText typeScheme
-            , "has a non-unary stack effect"
-            ]
-          ]
-      StackAny -> noop
-
-    return (TrCompose hint typedTerms (loc, sub finalProgram type_), type_)
-
-  -- HACK This is essentially untyped and relies on the constructor definition's
-  -- type annotation in order to be safe.
-  TrConstruct name ctor size loc -> withLocation loc $ do
-    r <- freshVarM
-    inputs <- V.foldl (-:) r <$> V.replicateM size freshVarM
-    a <- freshVarM
-    let type_ = TyFunction inputs (r -: a) loc
-    return (TrConstruct name ctor size (loc, sub finalProgram type_), type_)
-
-  TrIntrinsic name loc -> asTyped (TrIntrinsic name) loc $ case name of
-
-    InAddVector -> forAll $ \r a
-      -> (r -: TyVector a o -: TyVector a o
-      --> r -: TyVector a o) o
-
-    InAddFloat -> binary (tyFloat o) o
-
-    InAddInt -> binary (tyInt o) o
-
-    InAndBool -> binary (tyBool o) o
-
-    InAndInt -> binary (tyInt o) o
-
-    InApply -> forAll $ \r s
-      -> TyFunction (r -: TyFunction r s o) s o
-
-    InCharToInt -> forAll $ \r
-      -> (r -: tyChar o --> r -: tyInt o) o
-
-    InChoice -> forAll $ \r a b -> TyFunction
-      (r -: (a |: b) o -: TyFunction (r -: a) r o) r o
-
-    InChoiceElse -> forAll $ \r a b s -> TyFunction
-      (r -: (a |: b) o
-        -: TyFunction (r -: a) s o
-        -: TyFunction (r -: b) s o)
-      s o
-
-    InClose -> forAll $ \r
-      -> (r -: tyHandle o --> r) o
-
-    InDivFloat -> binary (tyFloat o) o
-    InDivInt -> binary (tyInt o) o
-
-    InEqFloat -> relational (tyFloat o) o
-    InEqInt -> relational (tyInt o) o
-
-    InExit -> forAll $ \r s
-      -> (r -: tyInt o --> s) o
-
-    InFirst -> forAll $ \r a b
-      -> (r -: (a &: b) o --> r -: a) o
-
-    InFromLeft -> forAll $ \r a b
-      -> (r -: (a |: b) o --> r -: a) o
-
-    InFromRight -> forAll $ \r a b
-      -> (r -: (a |: b) o --> r -: b) o
-
-    InFromSome -> forAll $ \r a
-      -> (r -: TyOption a o --> r -: a) o
-
-    InGeFloat -> relational (tyFloat o) o
-    InGeInt -> relational (tyInt o) o
-
-    InGet -> forAll $ \r a
-      -> (r -: TyVector a o -: tyInt o --> r -: TyOption a o) o
-
-    InGetLine -> forAll $ \r
-      -> (r -: tyHandle o --> r -: string o) o
-
-    InGtFloat -> relational (tyFloat o) o
-    InGtInt -> relational (tyInt o) o
-
-    InIf -> forAll $ \r -> TyFunction
-      (r -: tyBool o -: TyFunction r r o) r o
-
-    InIfElse -> forAll $ \r s -> TyFunction
-      (r -: tyBool o
-        -: TyFunction r s o
-        -: TyFunction r s o)
-      s o
-
-    InInit -> forAll $ \r a
-      -> (r -: TyVector a o --> r -: TyVector a o) o
-
-    InIntToChar -> forAll $ \r
-      -> (r -: tyInt o --> r -: TyOption (tyChar o) o) o
-
-    InLeFloat -> relational (tyFloat o) o
-    InLeInt -> relational (tyInt o) o
-
-    InLeft -> forAll $ \r a b
-      -> (r -: a --> r -: (a |: b) o) o
-
-    InLength -> forAll $ \r a
-      -> (r -: TyVector a o --> r -: tyInt o) o
-
-    InLtFloat -> relational (tyFloat o) o
-    InLtInt -> relational (tyInt o) o
-
-    InModFloat -> binary (tyFloat o) o
-    InModInt -> binary (tyInt o) o
-
-    InMulFloat -> binary (tyFloat o) o
-    InMulInt -> binary (tyInt o) o
-
-    InNeFloat -> relational (tyFloat o) o
-    InNeInt -> relational (tyInt o) o
-
-    InNegFloat -> unary (tyFloat o) o
-    InNegInt -> unary (tyInt o) o
-
-    InNone -> forAll $ \r a
-      -> (r --> r -: TyOption a o) o
-
-    InNotBool -> unary (tyBool o) o
-    InNotInt -> unary (tyInt o) o
-
-    InOpenIn -> forAll $ \r
-      -> (r -: string o --> r -: tyHandle o) o
-
-    InOpenOut -> forAll $ \r
-      -> (r -: string o --> r -: tyHandle o) o
-
-    InOption -> forAll $ \r a -> TyFunction
-      (r -: TyOption a o -: TyFunction (r -: a) r o) r o
-
-    InOptionElse -> forAll $ \r a s -> TyFunction
-      (r -: TyOption a o
-        -: TyFunction (r -: a) s o
-        -: TyFunction r s o)
-      s o
-
-    InOrBool -> binary (tyBool o) o
-    InOrInt -> binary (tyInt o) o
-
-    InRest -> forAll $ \r a b
-      -> (r -: (a &: b) o --> r -: b) o
-
-    InRight -> forAll $ \r a b
-      -> (r -: b --> r -: (a |: b) o) o
-
-    InSet -> forAll $ \r a
-      -> (r -: TyVector a o -: tyInt o -: a
-      --> r -: TyVector a o) o
-
-    InShowFloat -> forAll $ \r
-      -> (r -: tyFloat o --> r -: string o) o
-
-    InShowInt -> forAll $ \r
-      -> (r -: tyInt o --> r -: string o) o
-
-    InSome -> forAll $ \r a
-      -> (r -: a --> r -: TyOption a o) o
-
-    InStderr -> forAll $ \r
-      -> (r --> r -: tyHandle o) o
-    InStdin -> forAll $ \r
-      -> (r --> r -: tyHandle o) o
-    InStdout -> forAll $ \r
-      -> (r --> r -: tyHandle o) o
-
-    InSubFloat -> binary (tyFloat o) o
-    InSubInt -> binary (tyInt o) o
-
-    InPair -> forAll $ \r a b
-      -> (r -: a -: b --> r -: (a &: b) o) o
-
-    InPrint -> forAll $ \r
-      -> (r -: string o -: tyHandle o --> r) o
-
-    InTail -> forAll $ \r a
-      -> (r -: TyVector a o --> r -: TyVector a o) o
-
-    InXorBool -> binary (tyBool o) o
-    InXorInt -> binary (tyInt o) o
-
-    where
-    o = loc
-
-  TrLambda name nameLoc term loc -> withLocation loc $ do
-    a <- withLocation nameLoc freshVarM
-    (term', TyFunction b c _) <- local a $ recur term
-    let type_ = TyFunction (b -: a) c loc
-    return (TrLambda name nameLoc term' (loc, sub finalProgram type_), type_)
-
-  TrMakePair x y loc -> withLocation loc $ do
-    (x', a) <- secondM fromConstant =<< recur x
-    (y', b) <- secondM fromConstant =<< recur y
-    type_ <- forAll $ \r -> (r --> r -: (a &: b) loc) loc
-    return (TrMakePair x' y' (loc, sub finalProgram type_), type_)
-
-  TrMakeVector values loc -> withLocation loc $ do
-    (typedValues, types) <- V.mapAndUnzipM recur values
-    elementType <- fromConstant =<< unifyEach types
-    type_ <- forAll $ \r -> (r --> r -: TyVector elementType loc) loc
-    return
-      ( TrMakeVector typedValues (loc, sub finalProgram type_)
-      , type_
-      )
-
-  TrMatch cases mDefault loc -> withLocation loc $ do
-    decls <- getsProgram inferenceDecls
-    (mDefault', defaultType) <- case mDefault of
-      Just (TrClosure names term defaultBodyLoc) -> do
-        closedTypes <- V.mapM getClosedName names
-        (term', type_@(TyFunction bodyIn bodyOut functionLoc))
-          <- withClosure closedTypes $ recur term
-        a <- freshVarM
-        return
-          ( Just (TrClosure names term' (defaultBodyLoc, type_))
-          , TyFunction (bodyIn -: a) bodyOut functionLoc
-          )
-      Just _ -> error "non-closure appeared in match default during inference"
+  makeFunction
+    :: Origin
+    -> Type -> [Signature] -> Type -> [Signature] -> [Type] -> Maybe Type
+    -> StateT SignatureEnv K Type
+  makeFunction origin r as s bs es me = do
+    as' <- mapM go as
+    bs' <- mapM go bs
+    e <- case me of
+      Just e -> return e
       Nothing -> do
-        type_ <- forAll $ \r s a -> (r -: a --> s) loc
-        return (Nothing, type_)
-    (cases', caseTypes) <- flip V.mapAndUnzipM cases $ \case
-      TrCase name (TrClosure names body caseBodyLoc) caseLoc -> withLocation caseLoc $ do
-        closedTypes <- V.mapM getClosedName names
-        (body', TyFunction bodyIn bodyOut _)
-          <- withClosure closedTypes $ recur body
-        case H.lookup name decls of
-          Just (Forall _ _ ctorType) -> do
-            TyFunction fields whole functionLoc <- unquantify caseLoc ctorType
-            bodyIn `shouldBe` fields
-            let type_ = TyFunction whole bodyOut functionLoc
-            return
-              ( TrCase name (TrClosure names body' (caseBodyLoc, type_))
-                (caseLoc, sub finalProgram type_)
-              , type_
-              )
-          Nothing -> liftFailWriter $ throwMany [errorGroup]
-            where
-            errorGroup = ErrorGroup
-              [ CompileError caseLoc Error $ T.concat
-                ["'", toText name, "' does not seem to be a defined constructor"] ]
-      _ -> error "non-closure appeared in match case during inference"
-    type_ <- unifyEach (V.cons defaultType caseTypes)
-    return (TrMatch cases' mDefault' (loc, sub finalProgram type_), type_)
+        ex <- lift $ freshTypeId tenv
+        let var = Var ex Permission
+        modify $ \ env -> env { sigEnvAnonymous = var : sigEnvAnonymous env }
+        return $ TypeVar origin var
+    return $ Type.fun origin (stack r as') (stack s bs')
+      $ foldr (Type.join origin) e es
+    where
 
-  TrPush value loc -> withLocation loc $ do
-    (value', a) <- inferValue finalProgram value
-    type_ <- forAll $ \r -> (r --> r -: a) loc
-    return (TrPush value' (loc, sub finalProgram type_), type_)
+    stack :: Type -> [Type] -> Type
+    stack = foldl' $ Type.prod origin
 
+splitFind :: (Eq a) => (a -> Bool) -> [a] -> Maybe ([a], a, [a])
+splitFind f = go []
   where
-  recur = infer finalProgram
+  go acc (x : xs)
+    | f x = Just (reverse acc, x, xs)
+    | otherwise = go (x : acc) xs
+  go _ [] = Nothing
 
-  asTyped
-    :: ((Location, Type 'Scalar) -> a)
-    -> Location
-    -> K (Type 'Scalar)
-    -> K (a, Type 'Scalar)
-  asTyped constructor loc action = do
-    type_ <- withLocation loc action
-    let type' = setTypeLocation loc type_
-    return (constructor (loc, sub finalProgram type'), type')
+data SignatureEnv = SignatureEnv
+  { sigEnvAnonymous :: [Var]
+  , sigEnvVars :: !(Map Unqualified (Var, Origin))
+  }
 
--- | Removes top-level quantifiers from a type.
-unquantify :: Location -> Type a -> K (Type a)
-unquantify loc = go
+valueKinded :: Dictionary -> [Type] -> K [Type]
+valueKinded dictionary = filterM
+  $ fmap (Value ==) . typeKind dictionary
+
+-- | Infers the kind of a type.
+
+typeKind :: Dictionary -> Type -> K Kind
+typeKind dictionary = go
   where
-  go (TyQuantified scheme _) = go =<< instantiateM loc scheme
-  go type_ = return $ setTypeLocation loc type_
+  go :: Type -> K Kind
+  go t = case t of
+    TypeConstructor _origin (Constructor qualified)
+      -> case Dictionary.lookup (Instantiated qualified []) dictionary of
+      Just (Entry.Type _origin parameters _ctors) -> case parameters of
+        [] -> return Value
+        _ -> return $ foldr
+          ((:->) . (\ (Parameter _ _ k) -> k)) Value parameters
+      _ -> case qualified of
+        Qualified qualifier unqualified
+          | qualifier == Vocabulary.global -> case unqualified of
+            "Bottom" -> return Stack
+            "Fun" -> return $ Stack :-> Stack :-> Permission :-> Value
+            "Prod" -> return $ Stack :-> Value :-> Stack
+            "Sum" -> return $ Value :-> Value :-> Value
+            "Unsafe" -> return Label
+            "Void" -> return Value
+            "IO" -> return Label
+            "Fail" -> return Label
+            "Join" -> return $ Label :-> Permission :-> Permission
+            "List" -> return $ Value :-> Value
+            _ -> error $ Pretty.render $ Pretty.hsep
+              [ "can't infer kind of constructor"
+              , Pretty.quote qualified
+              , "in dictionary"
+              , pPrint dictionary
+              ]
+        -- TODO: Better error reporting.
+        _ -> error $ Pretty.render $ Pretty.hsep
+          [ "can't infer kind of constructor"
+          , Pretty.quote qualified
+          , "in dictionary"
+          , pPrint dictionary
+          ]
+    TypeValue{} -> error "TODO: infer kind of type value"
+    TypeVar _origin (Var _ k) -> return k
+    TypeConstant _origin (Var _ k) -> return k
+    Forall _origin _ t' -> go t'
+    a :@ b -> do
+      ka <- go a
+      case ka of
+        _ :-> k -> return k
+        -- TODO: Better error reporting.
+        _ -> error $ Pretty.render $ Pretty.hsep
+          [ "applying type"
+          , Pretty.quote a
+          , "of non-constructor kind"
+          , Pretty.quote ka
+          , "to type"
+          , Pretty.quote b
+          ]
 
-fromConstant :: Type 'Scalar -> K (Type 'Scalar)
-fromConstant type_ = do
-  a <- freshVarM
-  r <- freshVarM
-  loc <- getLocation
-  type_ `shouldBe` (r --> r -: a) loc
-  return a
+-- | Calculates the size of a type.
 
-binary :: Type 'Scalar -> Location -> K (Type 'Scalar)
-binary a loc = forAll
-  $ \r -> (r -: a -: a --> r -: a) loc
-
-relational :: Type 'Scalar -> Location -> K (Type 'Scalar)
-relational a loc = forAll
-  $ \r -> (r -: a -: a --> r -: tyBool loc) loc
-
-unary :: Type 'Scalar -> Location -> K (Type 'Scalar)
-unary a loc = forAll
-  $ \r -> (r -: a --> r -: a) loc
-
-string :: Location -> Type 'Scalar
-string loc = TyVector (tyChar loc) loc
-
-local :: Type 'Scalar -> K a -> K a
-local type_ action = do
-  modifyProgram $ \program -> program
-    { inferenceLocals = type_ : inferenceLocals program }
-  result <- action
-  modifyProgram $ \program -> program
-    { inferenceLocals = tail $ inferenceLocals program }
-  return result
-
-withClosure :: Vector (Type 'Scalar) -> K a -> K a
-withClosure types action = do
-  original <- getsProgram inferenceClosure
-  modifyProgram $ \program -> program { inferenceClosure = types }
-  result <- action
-  modifyProgram $ \program -> program { inferenceClosure = original }
-  return result
-
-getClosedName :: ClosedName -> K (Type 'Scalar)
-getClosedName name = case name of
-  ClosedName index -> getsProgram $ (!! index) . inferenceLocals
-  ReclosedName index -> getsProgram $ (V.! index) . inferenceClosure
-
-inferValue :: Program -> ResolvedValue -> K (TypedValue, Type 'Scalar)
-inferValue finalProgram value = getLocation >>= \pushLoc -> case value of
-  TrBool val loc -> ret loc (tyBool pushLoc) (TrBool val)
-  TrChar val loc -> ret loc (tyChar pushLoc) (TrChar val)
-  TrClosed index loc -> do
-    type_ <- getsProgram ((V.! index) . inferenceClosure)
-    ret loc type_ (TrClosed index)
-  TrClosure names term loc -> do
-    closedTypes <- V.mapM getClosedName names
-    (term', type_) <- withClosure closedTypes (infer finalProgram term)
-    ret loc type_ (TrClosure names term')
-  TrFloat val loc -> ret loc (tyFloat pushLoc) (TrFloat val)
-  TrInt val loc -> ret loc (tyInt pushLoc) (TrInt val)
-  TrLocal index loc -> do
-    type_ <- getsProgram ((!! index) . inferenceLocals)
-    ret loc type_ (TrLocal index)
-  TrQuotation{} -> error "quotation appeared during type inference"
-  TrText val loc -> ret loc (TyVector (tyChar pushLoc) pushLoc) (TrText val)
+typeSize :: Dictionary -> Type -> K Type
+typeSize dictionary = eval
   where
-  ret loc type_ constructor = let
-    type' = setTypeLocation loc type_
-    in return (constructor (loc, type'), type')
+  eval :: Type -> K Type
+  eval (a :@ b) = do
+    a' <- eval a
+    b' <- eval b
+    apply a' b'
+  eval (Type.TypeConstructor origin "Unit") = return $ Type.TypeValue origin 0
+  eval (Type.TypeConstructor origin "Void") = return $ Type.TypeValue origin 0
+  eval (Type.TypeConstructor origin "Int8") = return $ Type.TypeValue origin 1
+  eval (Type.TypeConstructor origin "Int16") = return $ Type.TypeValue origin 1
+  eval (Type.TypeConstructor origin "Int32") = return $ Type.TypeValue origin 1
+  eval (Type.TypeConstructor origin "Int64") = return $ Type.TypeValue origin 1
+  eval (Type.TypeConstructor origin "UInt8") = return $ Type.TypeValue origin 1
+  eval (Type.TypeConstructor origin "UInt16") = return $ Type.TypeValue origin 1
+  eval (Type.TypeConstructor origin "UInt32") = return $ Type.TypeValue origin 1
+  eval (Type.TypeConstructor origin "UInt64") = return $ Type.TypeValue origin 1
+  eval (Type.TypeConstructor origin "Float32") = return $ Type.TypeValue origin 1
+  eval (Type.TypeConstructor origin "Float64") = return $ Type.TypeValue origin 1
+  eval t@(Type.TypeConstructor _ (Type.Constructor name))
+    = case Dictionary.lookup (Instantiated name []) dictionary of
+      Just (Entry.Type origin params ctors) -> do
+        type_ <- dataType origin params ctors dictionary
+        eval type_
+      _ -> return t {- error $ Pretty.render $ Pretty.hsep
+        ["I could not find a type entry for", Pretty.quote name] -}
+  eval t@Type.TypeValue{} = return t
+  eval t@Type.TypeVar{} = return t
+  eval t@Type.TypeConstant{} = return t
+  eval t@Type.Forall{} = return t
 
-unifyEach :: Vector (Type 'Scalar) -> K (Type 'Scalar)
-unifyEach xs = go 0
-  where
-  go i
-    | i >= V.length xs = freshVarM
-    | i == V.length xs - 1 = return (xs V.! i)
-    | otherwise = do
-      xs V.! (i + 1) `shouldBe` xs V.! i
-      go (i + 1)
+  apply (Type.Forall _ (Var typeId _) body) arg = do
+    body' <- Substitute.type_ TypeEnv.empty typeId arg body
+    eval body'
+  apply (Type.TypeConstructor origin "Sum" :@ TypeValue _ a) (TypeValue _ b)
+    = return $ Type.TypeValue origin $ max a b
+  apply (Type.TypeConstructor origin "Product" :@ TypeValue _ a) (TypeValue _ b)
+    = return $ Type.TypeValue origin $ a + b
+  apply (Type.TypeConstructor origin "Fun" :@ _ :@ _) _
+    = return $ Type.TypeValue origin 1
+  apply (Type.TypeConstructor origin "List") _
+    = return $ Type.TypeValue origin 3 -- begin+end+capacity
+  apply t arg = return $ t :@ arg {- error $ Pretty.render $ Pretty.hsep
+    ["cannot apply type", pPrint t, "to argument", pPrint arg] -}
 
-inferCompose
-  :: Type 'Stack -> Type 'Stack
-  -> Type 'Stack -> Type 'Stack
-  -> K (Type 'Scalar)
-inferCompose in1 out1 in2 out2 = do
-  out1 `shouldBe` in2
-  return $ TyFunction in1 out2 (typeLocation out2)
+-- | Converts a data type definition into a generic sum of products, for
+-- 'typeSize' calculation.
 
-getLocation :: K Location
-getLocation = getsProgram inferenceLocation
+dataType :: Origin -> [Parameter] -> [DataConstructor] -> Dictionary -> K Type
+dataType origin params ctors dictionary = let
+  tag = case ctors of
+    [] -> unary "Void"   -- 0 -> void layout, no tag
+    [_] -> unary "Void"  -- 1 -> struct layout, no tag
+    _ -> unary "UInt64"  -- n -> union layout, tag
+  -- Product of tag and sum of products of fields.
+  sig = Signature.Quantified params
+    (binary "Product" tag $ foldr
+      (binary "Sum"
+        . foldr (binary "Product") (unary "Unit")
+        . DataConstructor.fields)
+      (unary "Void")
+      ctors) origin
+  binary name a b = Signature.Application
+    (Signature.Application (unary name) a origin) b origin
+  unary name = Signature.Variable
+    (QualifiedName (Qualified Vocabulary.global name)) origin
+  -- FIXME: Use correct vocabulary.
+  in typeFromSignature TypeEnv.empty
+    =<< Resolve.run (Resolve.signature dictionary Vocabulary.global sig)

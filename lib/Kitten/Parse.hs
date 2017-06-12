@@ -1,568 +1,742 @@
-{-# LANGUAGE LambdaCase #-}
+{-|
+Module      : Kitten.Parse
+Description : Parsing from tokens to terms
+Copyright   : (c) Jon Purdy, 2016
+License     : MIT
+Maintainer  : evincarofautumn@gmail.com
+Stability   : experimental
+Portability : GHC
+-}
+
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE RecordWildCards #-}
 
 module Kitten.Parse
-  ( parse
-  , rewriteInfix
+  ( generalName
+  , fragment
   ) where
 
-import Control.Applicative hiding (some)
-import Control.Arrow
-import Control.Monad
-import Data.Functor.Identity
-import Data.List (sortBy)
-import Data.Maybe
-import Data.Monoid
-import Data.Ord
+import Control.Applicative
+import Control.Monad (guard, void)
+import Data.List (find, findIndex, foldl')
+import Data.Maybe (fromMaybe, isJust)
 import Data.Text (Text)
-import Data.Vector (Vector)
-import Text.Parsec.Pos
-
-import qualified Data.HashMap.Strict as H
-import qualified Data.Traversable as T
-import qualified Data.Vector as V
-import qualified Text.Parsec as Parsec
-import qualified Text.Parsec.Expr as E
-
-import Kitten.Abbreviation
-import Kitten.Definition
-import Kitten.Error
-import Kitten.Fragment
-import Kitten.Import
-import Kitten.Location
+import Kitten.DataConstructor (DataConstructor(DataConstructor))
+import Kitten.Declaration (Declaration(Declaration))
+import Kitten.Definition (Definition(Definition))
+import Kitten.Element (Element)
+import Kitten.Entry.Category (Category)
+import Kitten.Entry.Parameter (Parameter(Parameter))
+import Kitten.Fragment (Fragment(Fragment))
+import Kitten.Informer (Informer(..))
+import Kitten.Kind (Kind(..))
+import Kitten.Located (Located)
+import Kitten.Metadata (Metadata(Metadata))
+import Kitten.Monad (K)
 import Kitten.Name
-import Kitten.Operator
-import Kitten.Parse.Element
-import Kitten.Parse.Layout
-import Kitten.Parse.Monad
-import Kitten.Parse.Primitive
-import Kitten.Parse.Type
-import Kitten.Parsec
-import Kitten.Program
-import Kitten.Term
-import Kitten.Token
-import Kitten.Type
-import Kitten.TypeDefinition
-import Kitten.Util.Either
-import Kitten.Util.List
-import Kitten.Util.Maybe
-import Kitten.Util.Parsec
+import Kitten.Origin (Origin)
+import Kitten.Parser (Parser, getTokenOrigin, parserMatch, parserMatch_)
+import Kitten.Signature (Signature)
+import Kitten.Synonym (Synonym(Synonym))
+import Kitten.Term (Case(..), Else(..), MatchHint(..), Term(..), Value(..), compose)
+import Kitten.Token (Token)
+import Kitten.Tokenize (tokenize)
+import Kitten.TypeDefinition (TypeDefinition(TypeDefinition))
+import Text.Parsec ((<?>))
+import Text.Parsec.Pos (SourcePos)
+import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Text as Text
+import qualified Kitten.DataConstructor as DataConstructor
+import qualified Kitten.Declaration as Declaration
+import qualified Kitten.Definition as Definition
+import qualified Kitten.Desugar.Data as Data
+import qualified Kitten.Element as Element
+import qualified Kitten.Entry.Category as Category
+import qualified Kitten.Entry.Merge as Merge
+import qualified Kitten.Entry.Parent as Parent
+import qualified Kitten.Fragment as Fragment
+import qualified Kitten.Layoutness as Layoutness
+import qualified Kitten.Located as Located
+import qualified Kitten.Metadata as Metadata
+import qualified Kitten.Operator as Operator
+import qualified Kitten.Origin as Origin
+import qualified Kitten.Report as Report
+import qualified Kitten.Signature as Signature
+import qualified Kitten.Term as Term
+import qualified Kitten.Token as Token
+import qualified Kitten.TypeDefinition as TypeDefinition
+import qualified Kitten.Vocabulary as Vocabulary
+import qualified Text.Parsec as Parsec
 
-parse
-  :: String
-  -> [Located]
-  -> Either ErrorGroup (Fragment ParsedTerm)
-parse name tokens = mapLeft parseError $ do
-  inserted <- Parsec.runParser insertBraces topLevelEnv name tokens
-  Parsec.runParser (setInitialPosition name inserted >> fragment)
-    topLevelEnv name inserted
+-- | Parses a program fragment.
 
-topLevelEnv :: Env
-topLevelEnv = Env { envCurrentVocabulary = Qualifier V.empty }
+fragment
+  :: Int
+  -- ^ Initial source line (e.g. for REPL offset).
+  -> FilePath
+  -- ^ Source file path.
+  -> [GeneralName]
+  -- ^ List of permissions granted to @main@.
+  -> Maybe Qualified
+  -- ^ Override name of @main@.
+  -> [Located Token]
+  -- ^ Input tokens.
+  -> K (Fragment ())
+  -- ^ Parsed program fragment.
+fragment line path mainPermissions mainName tokens = let
+  parsed = Parsec.runParser
+    (fragmentParser mainPermissions mainName)
+    Vocabulary.global path tokens
+  in case parsed of
+    Left parseError -> do
+      report $ Report.parseError parseError
+      halt
+    Right result -> return (Data.desugar (insertMain result))
 
-setInitialPosition :: String -> [Located] -> Parser ()
-setInitialPosition name [] = setPosition (newPos name 1 1)
-setInitialPosition _ (Located{..} : _)
-  = setPosition (locationStart locatedLocation)
+  where
+    isMain = (== fromMaybe Definition.mainName mainName) . Definition.name
+    insertMain f = case find isMain $ Fragment.definitions f of
+      Just{} -> f
+      Nothing -> f
+        { Fragment.definitions = Definition.main mainPermissions mainName
+          (Term.identityCoercion () (Origin.point path line 1))
+          : Fragment.definitions f
+        }
 
-fragment :: Parser (Fragment ParsedTerm)
-fragment = do
-  loc <- getLocation
-  partitionElements loc . concat
-    <$> many (vocabulary <|> ((:[]) <$> element)) <* eof
+-- | Parses only a name.
 
-vocabulary :: Parser [Element]
-vocabulary = (<?> "vocabulary declaration") $ do
-  void (match TkVocab)
-  qualifier <- qualified_ >>= \case
-    MixfixName{} -> fail "vocabulary names cannot be mixfix"
-    Qualified (Qualifier parts) name -> return $ Qualifier (V.snoc parts name)
-    Unqualified name -> return $ Qualifier (V.singleton name)
-  choice
-    [ do
-      modifyState $ \env -> env { envCurrentVocabulary = qualifier }
-      [] <$ match (TkOperator ";")
+generalName :: (Informer m) => Int -> FilePath -> Text -> m GeneralName
+generalName line path text = do
+  tokens <- tokenize line path text
+  checkpoint
+  let parsed = Parsec.runParser nameParser Vocabulary.global path tokens
+  case parsed of
+    Left parseError -> do
+      report $ Report.parseError parseError
+      halt
+    Right (name, _) -> return name
+
+fragmentParser
+  :: [GeneralName] -> Maybe Qualified -> Parser (Fragment ())
+fragmentParser mainPermissions mainName
+  = partitionElements mainPermissions mainName
+    <$> elementsParser <* Parsec.eof
+
+elementsParser :: Parser [Element ()]
+elementsParser = concat <$> many (vocabularyParser <|> (:[]) <$> elementParser)
+
+partitionElements
+  :: [GeneralName]
+  -> Maybe Qualified
+  -> [Element ()]
+  -> Fragment ()
+partitionElements mainPermissions mainName = rev . foldr go mempty
+  where
+
+  rev :: Fragment () -> Fragment ()
+  rev f = Fragment
+    { Fragment.declarations = reverse $ Fragment.declarations f
+    , Fragment.definitions = reverse $ Fragment.definitions f
+    , Fragment.metadata = reverse $ Fragment.metadata f
+    , Fragment.synonyms = reverse $ Fragment.synonyms f
+    , Fragment.types = reverse $ Fragment.types f
+    }
+
+  go :: Element () -> Fragment () -> Fragment ()
+  go element acc = case element of
+    Element.Declaration x -> acc
+      { Fragment.declarations = x : Fragment.declarations acc }
+    Element.Definition x -> acc
+      { Fragment.definitions = x : Fragment.definitions acc }
+    Element.Metadata x -> acc
+      { Fragment.metadata = x : Fragment.metadata acc }
+    Element.Synonym x -> acc
+      { Fragment.synonyms = x : Fragment.synonyms acc }
+    Element.TypeDefinition x -> acc
+      { Fragment.types = x : Fragment.types acc }
+    Element.Term x -> acc
+      { Fragment.definitions
+        = case findIndex
+          ((== fromMaybe Definition.mainName mainName) . Definition.name)
+          $ Fragment.definitions acc of
+          Just index -> case splitAt index $ Fragment.definitions acc of
+            (a, existing : b) -> a ++ existing { Definition.body
+              = composeUnderLambda (Definition.body existing) x } : b
+            _ -> error "cannot find main definition"
+          Nothing -> Definition.main mainPermissions mainName x
+            : Fragment.definitions acc
+      }
+      where
+
+-- In top-level code, we want local variable bindings to remain in scope even
+-- when separated by other top-level program elements, e.g.:
+--
+--     1 -> x;
+--     define f (int -> int) { (+ 1) }
+--     x say  // should work
+--
+-- As such, when composing top-level code, we extend the scope of lambdas to
+-- include subsequent expressions.
+
+      composeUnderLambda :: Term () -> Term () -> Term ()
+      composeUnderLambda (Lambda type_ name varType body origin) term
+        = Lambda type_ name varType (composeUnderLambda body term) origin
+      composeUnderLambda a b = Compose () a b
+
+vocabularyParser :: Parser [Element ()]
+vocabularyParser = (<?> "vocabulary definition") $ do
+  parserMatch_ Token.Vocab
+  original@(Qualifier _ outer) <- Parsec.getState
+  (vocabularyName, _) <- nameParser
+  let
+    (inner, name) = case vocabularyName of
+      QualifiedName
+        (Qualified (Qualifier _root qualifier) (Unqualified unqualified))
+        -> (qualifier, unqualified)
+      UnqualifiedName (Unqualified unqualified) -> ([], unqualified)
+      LocalName{} -> error "local name should not appear as vocabulary name"
+  Parsec.putState (Qualifier Absolute (outer ++ inner ++ [name]))
+  Parsec.choice
+    [ [] <$ parserMatchOperator ";"
     , do
-      original <- envCurrentVocabulary <$> getState
-      modifyState $ \env -> env { envCurrentVocabulary = qualifier }
-      elements <- blocked (many element)
-      modifyState $ \env -> env { envCurrentVocabulary = original }
+      elements <- blockedParser elementsParser
+      Parsec.putState original
       return elements
     ]
 
-element :: Parser Element
-element = choice
-  [ AbbreviationElement <$> abbreviation
-  , DefElement <$> def
-  , ImportElement <$> import_
-  , OperatorElement <$> operatorDeclaration
-  , TermElement <$> term
-  , TypeElement <$> typeDef
-  ]
+blockedParser :: Parser a -> Parser a
+blockedParser = Parsec.between
+  (parserMatch (Token.BlockBegin Layoutness.Nonlayout))
+  (parserMatch Token.BlockEnd)
 
-abbreviation :: Parser Abbreviation
-abbreviation = (<?> "abbreviation") $ do
-  loc <- getLocation <* match TkAbbrev
-  here <- envCurrentVocabulary <$> getState
-  name <- named >>= \case
-    Unqualified text -> return text
-    _ -> fail "abbreviations must have unqualified names"
-  qualifier <- qualified_ >>= \case
-    Qualified (Qualifier xs) x -> return $ Qualifier (V.snoc xs x)
-    Unqualified x -> return $ Qualifier (V.singleton x)
-    _ -> fail "abbreviations must be short for qualifiers"
-  return $ Abbreviation here name qualifier loc
+groupedParser :: Parser a -> Parser a
+groupedParser = Parsec.between
+  (parserMatch Token.GroupBegin) (parserMatch Token.GroupEnd)
 
-def :: Parser (Def ParsedTerm)
-def = (<?> "definition") $ do
-  defLoc <- getLocation <* match TkDefine
-  (fixity, name) <- choice
-    [ (,) Postfix <$> nonsymbolic
-    , (,) Infix <$> symbolic
-    ] <?> "definition name"
-  anno <- signature
-  bodyTerm <- (<?> "definition body") $ choice [block, blockLambda]
-  qualifier <- envCurrentVocabulary <$> getState
-  qualifiedName <- case name of
-    Qualified{} -> fail "definition names cannot be qualified"
-    Unqualified text -> return (Qualified qualifier text)
-    MixfixName{}
-      | Qualifier xs <- qualifier, not (V.null xs)
-      -> fail "mixfix definitions must be in the root vocabulary"
-      | otherwise -> return name
-  return Def
-    { defAnno = anno
-    , defFixity = fixity
-    , defLocation = defLoc
-    , defName = qualifiedName
-    , defTerm = mono bodyTerm
-    }
+groupParser :: Parser (Term ())
+groupParser = do
+  origin <- getTokenOrigin
+  groupedParser $ Group . compose () origin <$> Parsec.many1 termParser
 
-typeDef :: Parser TypeDef
-typeDef = (<?> "type definition") $ do
-  loc <- getLocation <* match TkData
-  qualifier <- envCurrentVocabulary <$> getState
-  name <- named <?> "type name"
-  (qualifiedName, text) <- case name of
-    Unqualified text -> return (Qualified qualifier text, text)
-    Qualified{} -> fail "type definition names cannot be qualified"
-    MixfixName{} -> fail "type definition names cannot be mixfix"
-  scalars <- option mempty scalarQuantifier
-  constructors <- blocked (manyV (typeConstructor qualifier text))
-  return TypeDef
-    { typeDefConstructors = constructors
-    , typeDefLocation = loc
-    , typeDefName = qualifiedName
-    , typeDefScalars = V.map fst scalars  -- TODO Use locations?
-    }
+-- See note [Angle Brackets].
 
-typeConstructor :: Qualifier -> Text -> Parser TypeConstructor
-typeConstructor (Qualifier qualifier) typeName = (<?> "type constructor") $ do
-  loc <- getLocation <* match TkCase
-  name <- named <?> "constructor name"
-  text <- case name of
-    Unqualified text -> return text
-    _ -> fail "type constructor names must be unqualified"
-  fields <- option V.empty $ grouped (type_ `sepEndByV` match TkComma)
-  return TypeConstructor
-    { ctorFields = fields
-    , ctorLocation = loc
-    , ctorName = Qualified (Qualifier (V.snoc qualifier typeName)) text
-    }
+angledParser :: Parser a -> Parser a
+angledParser = Parsec.between
+  (parserMatchOperator "<" <|> parserMatch Token.AngleBegin)
+  (parserMatchOperator ">" <|> parserMatch Token.AngleEnd)
 
-import_ :: Parser Import
-import_ = (<?> "import") $ do
-  loc <- getLocation <* match TkImport
-  name <- qualified_
-  return Import
-    { importName = name
-    , importLocation = loc
-    }
+bracketedParser :: Parser a -> Parser a
+bracketedParser = Parsec.between
+  (parserMatch Token.VectorBegin) (parserMatch Token.VectorEnd)
 
-operatorDeclaration :: Parser Operator
-operatorDeclaration = (<?> "operator declaration") $ uncurry Operator
-  <$> (match TkInfix *> choice
-    [ ((,) NonAssociative <$> precedence)
-    , match (TkWord "left") *> ((,) LeftAssociative <$> precedence)
-    , match (TkWord "right") *> ((,) RightAssociative <$> precedence)
-    ])
-  <*> symbolic
-  where
-  precedence = (<?> "decimal integer precedence from 0 to 9")
-    $ mapOne $ \case
-      TkInt value DecimalHint
-        | value >= 0 && value <= 9 -> Just value
-      _ -> Nothing
+nameParser :: Parser (GeneralName, Operator.Fixity)
+nameParser = (<?> "name") $ do
+  global <- isJust <$> Parsec.optionMaybe
+    (parserMatch Token.Ignore <* parserMatch Token.VocabLookup)
+  parts <- Parsec.choice
+    [ (,) Operator.Postfix <$> wordNameParser
+    , (,) Operator.Infix <$> operatorNameParser
+    ] `Parsec.sepBy1` parserMatch Token.VocabLookup
+  return $ case parts of
+    [(fixity, unqualified)]
+      -> ((if global
+        then QualifiedName . Qualified Vocabulary.global
+        else UnqualifiedName)
+      unqualified, fixity)
+    _ -> let
+      parts' = map ((\ (Unqualified part) -> part) . snd) parts
+      qualifier = init parts'
+      (fixity, unqualified) = last parts
+      in
+        ( QualifiedName
+          (Qualified
+            (Qualifier (if global then Absolute else Relative) qualifier)
+            unqualified)
+        , fixity
+        )
 
-term :: Parser ParsedTerm
-term = do
-  loc <- getLocation
-  choice
-    [ try $ do
-      literal <- mapOne toLiteral <?> "literal"
-      return $ TrPush (literal loc) loc
-    , TrCall Infix <$> symbolic <*> pure loc
-    , TrCall Postfix <$> (try mixfixName <|> qualified_) <*> pure loc
-    , mapOne toIntrinsic <*> pure loc <?> "intrinsic"
-    , try section
-    , try group <?> "grouped expression"
-    , pair <$> tuple <*> pure loc
-    , TrMakeVector <$> vector <*> pure loc
-    , lambda
-    , matchCase
-    , TrPush <$> blockValue <*> pure loc
-    ]
-  where
+unqualifiedNameParser :: Parser Unqualified
+unqualifiedNameParser = (<?> "unqualified name")
+  $ wordNameParser <|> operatorNameParser
 
-  section :: Parser ParsedTerm
-  section = (<?> "operator section") . grouped $ choice
-    [ do
-      loc <- getLocation
-      function <- symbolic
-      choice
-        [ do
-          operandLoc <- getLocation
-          operand <- many1 term
-          let
-            operandLoc' = case operand of
-              x : _ -> parsedLocation x
-              _ -> operandLoc
-          return $ TrCompose StackAny (V.fromList
-            [ TrCompose Stack1 (V.fromList operand) operandLoc'
-            , TrCall Postfix function loc
-            ]) loc
-        , return $ TrCall Postfix function loc
-        ]
-    , do
-      operandLoc <- getLocation
-      operand <- many1 (notFollowedBy symbolic *> term)
-      let
-        operandLoc' = case operand of
-          x : _ -> parsedLocation x
-          _ -> operandLoc
-      loc <- getLocation
-      function <- symbolic
-      return $ TrCompose StackAny (V.fromList
-        [ TrCompose Stack1 (V.fromList operand) operandLoc'
-        , swap loc
-        , TrCall Postfix function loc
-        ]) loc
-    ]
-    where
-    swap loc = TrLambda "right operand" loc (TrLambda "left operand" loc
-      (TrCompose StackAny (V.fromList
-        [ TrCall Postfix "right operand" loc
-        , TrCall Postfix "left operand" loc
-        ]) loc) loc) loc
-
-  matchCase :: Parser ParsedTerm
-  matchCase = (<?> "match") $ do
-    matchLoc <- getLocation <* match TkMatch
-    scrutineeLoc <- getLocation
-    mScrutinee <- optionMaybe group <?> "scrutinee"
-    (patterns, mDefault) <- blocked $ do
-      patterns <- manyV . (<?> "case") $ do
-        caseLoc <- getLocation <* match TkCase
-        name <- qualified_
-        bodyLoc <- getLocation
-        body <- choice [block, blockLambda]
-        return $ TrCase name (TrQuotation body bodyLoc) caseLoc
-      mDefault <- optionMaybe $ do
-        defaultLoc <- getLocation <* match TkDefault
-        TrQuotation <$> block <*> pure defaultLoc
-      return (patterns, mDefault)
-    let
-      withScrutinee loc scrutinee x
-        = TrCompose StackAny (V.fromList [scrutinee, x]) loc
-    return $ maybe id (withScrutinee scrutineeLoc) mScrutinee
-      $ TrMatch patterns mDefault matchLoc
-
-  pair :: Vector ParsedTerm -> Location -> ParsedTerm
-  pair values loc = V.foldr1 (\x y -> TrMakePair x y loc) values
-
-  toIntrinsic :: Token -> Maybe (Location -> ParsedTerm)
-  toIntrinsic (TkIntrinsic name) = Just $ TrIntrinsic name
-  toIntrinsic _ = Nothing
-
-  tuple :: Parser (Vector ParsedTerm)
-  tuple = grouped
-    (tupleElement `sepEndBy1V` match TkComma)
-    <?> "tuple"
-    where
-    tupleElement = do
-      loc <- getLocation
-      TrCompose StackAny <$> many1V term <*> pure loc
-
-vector :: Parser (Vector ParsedTerm)
-vector = vectored
-  (vectorElement `sepEndByV` match TkComma)
-  <?> "vector"
-  where
-  vectorElement = do
-    loc <- getLocation
-    TrCompose StackAny <$> many1V term <*> pure loc
-
-group :: Parser ParsedTerm
-group = (<?> "group") $ do
-  loc <- getLocation
-  TrCompose StackAny <$> grouped (many1V term) <*> pure loc
-
-lambda :: Parser ParsedTerm
-lambda = (<?> "lambda") $ do
-  choice
-    [ try $ plainLambda
-    , do
-      body <- blockLambda
-      let loc = parsedLocation body
-      return $ TrPush (TrQuotation body loc) loc
-    ]
-
-plainLambda :: Parser ParsedTerm
-plainLambda = match TkArrow *> do
-  names <- lambdaNames <* match (TkOperator ";")
-  bodyLoc <- getLocation
-  body <- blockContents
-  return $ makeLambda names body bodyLoc
-
-lambdaNames :: Parser [(Maybe Name, Location)]
-lambdaNames = many1 $ do
-  loc <- getLocation
-  name <- Just <$> named <|> Nothing <$ ignore
-  return (name, loc)
-
-lambdaBlock :: Parser ([(Maybe Name, Location)], ParsedTerm, Location)
-lambdaBlock = match TkArrow *> do
-  names <- lambdaNames
-  loc <- getLocation
-  body <- block
-  return (names, body, loc)
-
-blockLambda :: Parser ParsedTerm
-blockLambda = do
-  (names, body, loc) <- lambdaBlock
-  return $ makeLambda names body loc
-
-makeLambda :: [(Maybe Name, Location)] -> ParsedTerm -> Location -> ParsedTerm
-makeLambda namesAndLocs body bodyLoc = foldr
-  (\ (mLambdaName, nameLoc) lambdaTerms -> maybe
-    (TrCompose StackAny (V.fromList
-      [ TrLambda "_" nameLoc (TrCompose StackAny V.empty bodyLoc) bodyLoc
-      , lambdaTerms
-      ]) bodyLoc)
-    (\lambdaName -> TrLambda lambdaName nameLoc lambdaTerms bodyLoc)
-    mLambdaName)
-  body
-  (reverse namesAndLocs)
-
-blockValue :: Parser ParsedValue
-blockValue = (<?> "function") $ do
-  loc <- getLocation
-  let
-    reference = TrCall Postfix
-      <$> (match TkReference *> qualified_) <*> pure loc
-  TrQuotation <$> (block <|> reference) <*> pure loc
-
-toLiteral :: Token -> Maybe (Location -> ParsedValue)
-toLiteral (TkBool x) = Just $ TrBool x
-toLiteral (TkChar x) = Just $ TrChar x
-toLiteral (TkFloat x) = Just $ TrFloat x
-toLiteral (TkInt x _) = Just $ TrInt x
-toLiteral (TkText x) = Just $ TrText x
-toLiteral _ = Nothing
-
-block :: Parser ParsedTerm
-block = blocked blockContents <?> "block"
-
-blockContents :: Parser ParsedTerm
-blockContents = do
-  loc <- getLocation
-  terms <- many term
-  let
-    loc' = case terms of
-      x : _ -> parsedLocation x
-      _ -> loc
-  return $ TrCompose StackAny (V.fromList terms) loc'
-
-----------------------------------------
-
-type TermParser a = ParsecT [ParsedTerm] Env Identity a
-
-rewriteInfix
-  :: Program
-  -> Fragment ParsedTerm
-  -> Either ErrorGroup (Fragment ParsedTerm, Program)
-rewriteInfix program@Program{..} parsed@Fragment{..} = do
-  rewrittenDefs <- T.mapM (traverse rewriteInfixTerm) fragmentDefs
-  rewrittenTerm <- rewriteInfixTerm fragmentTerm
-  return $ (,)
-    parsed
-      { fragmentDefs = rewrittenDefs
-      , fragmentTerm = rewrittenTerm
-      }
-    program
-      { programFixities = allFixities
-      , programOperators = allOperators
-      }
-
-  where
-  rewriteInfixTerm :: ParsedTerm -> Either ErrorGroup ParsedTerm
-  rewriteInfixTerm = \case
-    x@TrCall{} -> return x
-    TrCompose hint terms loc -> do
-      terms' <- V.toList <$> V.mapM rewriteInfixTerm terms
-      let
-        expression' = between (setPositionTerm loc terms') eof infixExpression
-        infixExpression = TrCompose hint
-          <$> manyV (expression <|> lambdaTerm)
-          <*> pure loc
-          <?> "infix expression"
-      case Parsec.runParser expression' topLevelEnv [] terms' of
-        Left message -> Left $ parseError message
-        Right parseResult -> Right parseResult
-    x@TrConstruct{} -> return x
-    x@TrIntrinsic{} -> return x
-    TrLambda name nameLoc body loc -> do
-      body' <- rewriteInfixTerm body
-      return $ TrLambda name nameLoc body' loc
-    TrMakePair a b loc -> do
-      a' <- rewriteInfixTerm a
-      b' <- rewriteInfixTerm b
-      return $ TrMakePair a' b' loc
-    TrMakeVector terms loc -> do
-      terms' <- V.mapM rewriteInfixTerm terms
-      return $ TrMakeVector terms' loc
-    TrMatch cases mDefault loc -> do
-      cases' <- V.mapM rewriteInfixCase cases
-      mDefault' <- traverse rewriteInfixValue mDefault
-      return $ TrMatch cases' mDefault' loc
-      where
-      rewriteInfixCase (TrCase name body loc') = do
-        body' <- rewriteInfixValue body
-        return $ TrCase name body' loc'
-    TrPush value loc -> do
-      value' <- rewriteInfixValue value
-      return $ TrPush value' loc
-
-  lambdaTerm :: TermParser ParsedTerm
-  lambdaTerm = satisfyTerm $ \case
-    TrLambda{} -> True
-    _ -> False
-
-  mixfix :: TermParser ParsedTerm
-  mixfix = do
-    loc <- getPosition
-    (operands, name) <- choice $ map (try . fromParts) mixfixTable
-    return . mixfixCall operands name
-      $ Location { locationStart = loc, locationIndent = -1 }
-
-    where
-    mixfixCall :: [ParsedTerm] -> Name -> Location -> ParsedTerm
-    mixfixCall operands name loc = TrCompose StackAny
-      (V.fromList operands
-        <> V.singleton (TrCall Postfix {- TODO Mixfix? -} name loc))
-      loc
-
-    fromParts :: [MixfixNamePart] -> TermParser ([ParsedTerm], Name)
-    fromParts = fmap (second MixfixName) . go
-      where
-      go (hole@MixfixHole : parts) = do
-        operand <- satisfyTerm $ \case
-          TrCall{} -> False
-          _ -> True
-        (operands, name) <- go parts
-        return (operand : operands, hole : name)
-      go (namePart@(MixfixNamePart part) : parts) = do
-        void . satisfyTerm $ \case
-          TrCall _ (Unqualified name) _ | name == part -> True
-          _ -> False
-        (operands, name) <- go parts
-        return (operands, namePart : name)
-      go [] = return ([], [])
-
-  mixfixTable :: [[MixfixNamePart]]
-  mixfixTable
-    = sortBy (flip (comparing length)) . mapMaybe toMixfixParts
-      $ H.keys fragmentDefs ++ H.keys programSymbols
-
-  toMixfixParts :: Name -> Maybe [MixfixNamePart]
-  toMixfixParts (MixfixName parts) = Just parts
-  toMixfixParts _ = Nothing
-
-  rewriteInfixValue :: ParsedValue -> Either ErrorGroup ParsedValue
-  rewriteInfixValue = \case
-    TrQuotation body loc -> TrQuotation <$> rewriteInfixTerm body <*> pure loc
-    -- TODO Exhaustivity/safety.
-    other -> return other
-
-  stack1 :: Location -> ParsedTerm -> ParsedTerm
-  stack1 loc x = TrCompose Stack1 (V.singleton x) loc
-
-  binary :: Name -> Location -> ParsedTerm -> ParsedTerm -> ParsedTerm
-  binary name loc x y = TrCompose StackAny (V.fromList
-    [ stack1 (parsedLocation x) x
-    , stack1 (parsedLocation y) y
-    , TrCall Postfix name loc
-    ]) loc
-
-  binaryOp :: Name -> TermParser (ParsedTerm -> ParsedTerm -> ParsedTerm)
-  binaryOp name = mapTerm $ \t -> case t of
-    TrCall Infix name' loc
-      | name == name' -> Just (binary name loc)
+wordNameParser :: Parser Unqualified
+wordNameParser = (<?> "word name") $ parseOne
+  $ \ token -> case Located.item token of
+    Token.Word name -> Just name
     _ -> Nothing
 
-  expression :: TermParser ParsedTerm
-  expression = E.buildExpressionParser opTable (operands <?> "operand")
-    where
-    operands = do
-      loc <- getLocation
-      results <- many1 operand
-      let
-        loc' = case results of
-          x : _ -> parsedLocation x
-          _ -> loc
-      return $ TrCompose StackAny (V.fromList results) loc'
-    operand = choice
-      [ try mixfix
-      , satisfyTerm $ \case
-        TrCall Infix _ _ -> False  -- An operator is not an operand.
-        TrLambda{} -> False  -- Nor is a bare lambda.
-        _ -> True
+operatorNameParser :: Parser Unqualified
+operatorNameParser = (<?> "operator name") $ do
+  -- Rihtlice hi sind Angle gehatene, for ðan ðe hi engla wlite habbað.
+  angles <- many $ parseOne $ \ token -> case Located.item token of
+    Token.AngleBegin -> Just "<"
+    Token.AngleEnd -> Just ">"
+    _ -> Nothing
+  rest <- parseOne $ \ token -> case Located.item token of
+    Token.Operator (Unqualified name) -> Just name
+    _ -> Nothing
+  return $ Unqualified $ Text.concat $ angles ++ [rest]
+
+parseOne :: (Located Token -> Maybe a) -> Parser a
+parseOne = Parsec.tokenPrim show advance
+  where
+  advance :: SourcePos -> t -> [Located Token] -> SourcePos
+  advance _ _ (token : _) = Origin.begin $ Located.origin token
+  advance sourcePos _ _ = sourcePos
+
+elementParser :: Parser (Element ())
+elementParser = (<?> "top-level program element") $ Parsec.choice
+  [ Element.Definition <$> Parsec.choice
+    [ basicDefinitionParser
+    , instanceParser
+    , permissionParser
+    ]
+  , Element.Declaration <$> Parsec.choice
+    [ traitParser
+    , intrinsicParser
+    ]
+  , Element.Metadata <$> metadataParser
+  , Element.Synonym <$> synonymParser
+  , Element.TypeDefinition <$> typeDefinitionParser
+  , do
+    origin <- getTokenOrigin
+    Element.Term . compose () origin <$> Parsec.many1 termParser
+  ]
+
+synonymParser :: Parser Synonym
+synonymParser = (<?> "synonym definition") $ do
+  origin <- getTokenOrigin <* parserMatch_ Token.Synonym
+  from <- Qualified <$> Parsec.getState
+    <*> unqualifiedNameParser
+  (to, _) <- nameParser
+  return $ Synonym from to origin
+
+metadataParser :: Parser Metadata
+metadataParser = (<?> "metadata block") $ do
+  origin <- getTokenOrigin <* parserMatch Token.About
+  -- FIXME: This only allows metadata to be defined for elements within the
+  -- current vocabulary.
+  name <- Qualified <$> Parsec.getState
+    <*> Parsec.choice
+      [ unqualifiedNameParser <?> "word identifier"
+      , (parserMatch Token.Type *> wordNameParser)
+        <?> "'type' and type identifier"
+      ]
+  fields <- blockedParser $ many $ (,)
+    <$> (wordNameParser <?> "metadata key identifier")
+    <*> (blockParser <?> "metadata value block")
+  return Metadata
+    { Metadata.fields = HashMap.fromList fields
+    , Metadata.name = QualifiedName name
+    , Metadata.origin = origin
+    }
+
+typeDefinitionParser :: Parser TypeDefinition
+typeDefinitionParser = (<?> "type definition") $ do
+  origin <- getTokenOrigin <* parserMatch Token.Type
+  name <- Qualified <$> Parsec.getState
+    <*> (wordNameParser <?> "type definition name")
+  parameters <- Parsec.option [] quantifierParser
+  constructors <- Parsec.choice
+    [ blockedParser $ many constructorParser
+{-
+    -- FIXME: If types and words are in the same namespace, a constructor can't
+    -- have the same name as its type, so this convenience syntax doesn't work.
+    , do
+      constructorOrigin <- getTokenOrigin
+      fields <- groupedParser $ constructorFieldsParser
+      return $ (:[]) $ DataConstructor
+        { DataConstructor.fields = fields
+        , DataConstructor.name = unqualifiedName name
+        , DataConstructor.origin = constructorOrigin
+        }
+-}
+    ]
+  return TypeDefinition
+    { TypeDefinition.constructors = constructors
+    , TypeDefinition.name = name
+    , TypeDefinition.origin = origin
+    , TypeDefinition.parameters = parameters
+    }
+
+constructorParser :: Parser DataConstructor
+constructorParser = (<?> "constructor definition") $ do
+  origin <- getTokenOrigin <* parserMatch Token.Case
+  name <- wordNameParser <?> "constructor name"
+  fields <- (<?> "constructor fields") $ Parsec.option []
+    $ groupedParser constructorFieldsParser
+  return DataConstructor
+    { DataConstructor.fields = fields
+    , DataConstructor.name = name
+    , DataConstructor.origin = origin
+    }
+
+constructorFieldsParser :: Parser [Signature]
+constructorFieldsParser = typeParser `Parsec.sepEndBy` commaParser
+
+typeParser :: Parser Signature
+typeParser = Parsec.try functionTypeParser <|> basicTypeParser <?> "type"
+
+functionTypeParser :: Parser Signature
+functionTypeParser = (<?> "function type") $ do
+  (effect, origin) <- Parsec.choice
+    [ do
+      leftVar <- stack
+      leftTypes <- Parsec.option [] (commaParser *> left)
+      origin <- arrow
+      rightVar <- stack
+      rightTypes <- Parsec.option [] (commaParser *> right)
+      return
+        ( Signature.StackFunction
+          (Signature.Variable (UnqualifiedName leftVar) origin) leftTypes
+          (Signature.Variable (UnqualifiedName rightVar) origin) rightTypes
+        , origin)
+    , do
+      leftTypes <- left
+      origin <- arrow
+      rightTypes <- right
+      return (Signature.Function leftTypes rightTypes, origin)
+    ]
+  permissions <- (<?> "permission labels")
+    $ many $ parserMatchOperator "+" *> (fst <$> nameParser)
+  return (effect permissions origin)
+  where
+
+  stack :: Parser Unqualified
+  stack = Parsec.try $ wordNameParser <* parserMatch Token.Ellipsis
+
+  left, right :: Parser [Signature]
+  left = basicTypeParser `Parsec.sepEndBy` commaParser
+  right = typeParser `Parsec.sepEndBy` commaParser
+
+  arrow :: Parser Origin
+  arrow = getTokenOrigin <* parserMatch Token.Arrow
+
+commaParser :: Parser ()
+commaParser = void $ parserMatch Token.Comma
+
+basicTypeParser :: Parser Signature
+basicTypeParser = (<?> "basic type") $ do
+  prefix <- Parsec.choice
+    [ quantifiedParser $ groupedParser typeParser
+    , Parsec.try $ do
+      origin <- getTokenOrigin
+      (name, fixity) <- nameParser
+      -- Must be a word, not an operator, but may be qualified.
+      guard $ fixity == Operator.Postfix
+      return $ Signature.Variable name origin
+    , groupedParser typeParser
+    ]
+  let apply a b = Signature.Application a b $ Signature.origin prefix
+  mSuffix <- Parsec.optionMaybe $ fmap concat
+    $ Parsec.many1 $ typeListParser basicTypeParser
+  return $ case mSuffix of
+    Just suffix -> foldl' apply prefix suffix
+    Nothing -> prefix
+
+quantifierParser :: Parser [Parameter]
+quantifierParser = typeListParser var
+  where
+
+  var :: Parser Parameter
+  var = do
+    origin <- getTokenOrigin
+    Parsec.choice
+      [ (\ unqualified -> Parameter origin unqualified Permission)
+        <$> (parserMatchOperator "+" *> wordNameParser)
+      , do
+        name <- wordNameParser
+        Parameter origin name
+          <$> Parsec.option Value (Stack <$ parserMatch Token.Ellipsis)
       ]
 
-  -- TODO Detect/report duplicates.
-  opTable = map (map toOp) rawTable
-  allOperators = fragmentOperators ++ programOperators
-  allFixities = H.map defFixity fragmentDefs <> programFixities
+typeListParser :: Parser a -> Parser [a]
+typeListParser element = angledParser
+  $ element `Parsec.sepEndBy1` commaParser
 
-  rawTable :: [[Operator]]
-  rawTable = let
-    -- TODO Make smarter than a linear search.
-    useDefault name fixity = fixity == Infix
-      && not (any ((name ==) . operatorName) allOperators)
-    flat = allOperators
-      ++ map (Operator LeftAssociative 6)
-        (H.keys $ H.filterWithKey useDefault allFixities)
-    in for [9,8..0] $ \p -> filter ((p ==) . operatorPrecedence) flat
+quantifiedParser :: Parser Signature -> Parser Signature
+quantifiedParser thing = do
+  origin <- getTokenOrigin
+  Signature.Quantified <$> quantifierParser <*> thing <*> pure origin
 
-  toOp :: Operator -> E.Operator [ParsedTerm] Env Identity ParsedTerm
-  toOp (Operator associativity _ name) = case associativity of
-    NonAssociative -> E.Infix (binaryOp name) E.AssocNone
-    LeftAssociative -> E.Infix (binaryOp name) E.AssocLeft
-    RightAssociative -> E.Infix (binaryOp name) E.AssocRight
+traitParser :: Parser Declaration
+traitParser = (<?> "intrinsic declaration")
+  $ declarationParser Token.Trait Declaration.Trait
 
-mapTerm :: (ParsedTerm -> Maybe a) -> TermParser a
-mapTerm = tokenPrim show advanceTerm
+intrinsicParser :: Parser Declaration
+intrinsicParser = (<?> "intrinsic declaration")
+  $ declarationParser Token.Intrinsic Declaration.Intrinsic
 
-advanceTerm :: SourcePos -> t -> [ParsedTerm] -> SourcePos
-advanceTerm _ _ (t : _) = locationStart (termMetadata t)
-advanceTerm sourcePos _ _ = sourcePos
+declarationParser :: Token -> Declaration.Category -> Parser Declaration
+declarationParser keyword category = do
+  origin <- getTokenOrigin <* parserMatch keyword
+  suffix <- unqualifiedNameParser <?> "declaration name"
+  name <- Qualified <$> Parsec.getState <*> pure suffix
+  signature <- signatureParser
+  return Declaration
+    { Declaration.category = category
+    , Declaration.name = name
+    , Declaration.origin = origin
+    , Declaration.signature = signature
+    }
 
-satisfyTerm :: (ParsedTerm -> Bool) -> TermParser ParsedTerm
-satisfyTerm predicate = tokenPrim show advanceTerm
-  $ \t -> justIf (predicate t) t
+basicDefinitionParser :: Parser (Definition ())
+basicDefinitionParser = (<?> "word definition")
+  $ definitionParser Token.Define Category.Word
 
-setPositionTerm :: Location -> [ParsedTerm] -> TermParser ()
-setPositionTerm _ (t : _) = setPosition (locationStart (termMetadata t))
-setPositionTerm loc [] = setPosition (locationStart loc)
+instanceParser :: Parser (Definition ())
+instanceParser = (<?> "instance definition")
+  $ definitionParser Token.Instance Category.Instance
+
+permissionParser :: Parser (Definition ())
+permissionParser = (<?> "permission definition")
+  $ definitionParser Token.Permission Category.Permission
+
+definitionParser :: Token -> Category -> Parser (Definition ())
+definitionParser keyword category = do
+  origin <- getTokenOrigin <* parserMatch keyword
+  (fixity, suffix) <- Parsec.choice
+    [ (,) Operator.Postfix <$> wordNameParser
+    , (,) Operator.Infix <$> operatorNameParser
+    ] <?> "definition name"
+  name <- Qualified <$> Parsec.getState <*> pure suffix
+  signature <- signatureParser
+  body <- blockLikeParser <?> "definition body"
+  return Definition
+    { Definition.body = body
+    , Definition.category = category
+    , Definition.fixity = fixity
+    , Definition.inferSignature = False
+    , Definition.merge = Merge.Deny
+    , Definition.name = name
+    , Definition.origin = origin
+    -- HACK: Should be passed in from outside?
+    , Definition.parent = case keyword of
+      Token.Instance -> Just $ Parent.Type name
+      _ -> Nothing
+    , Definition.signature = signature
+    }
+
+signatureParser :: Parser Signature
+signatureParser = quantifiedParser signature <|> signature <?> "type signature"
+  where signature = groupedParser functionTypeParser
+
+blockParser :: Parser (Term ())
+blockParser = (blockedParser blockContentsParser <|> reference)
+  <?> "block or reference"
+  where
+  reference = parserMatch_ Token.Reference *> Parsec.choice
+    [ do
+      origin <- getTokenOrigin
+      Word () Operator.Postfix
+        <$> (fst <$> nameParser) <*> pure [] <*> pure origin
+    , termParser
+    ]
+
+blockContentsParser :: Parser (Term ())
+blockContentsParser = do
+  origin <- getTokenOrigin
+  terms <- many termParser
+  let origin' = case terms of { x : _ -> Term.origin x; _ -> origin }
+  return $ foldr (Compose ()) (Term.identityCoercion () origin') terms
+
+termParser :: Parser (Term ())
+termParser = (<?> "expression") $ do
+  origin <- getTokenOrigin
+  Parsec.choice
+    [ Parsec.try (uncurry (Push ()) <$> parseOne toLiteral <?> "literal")
+    , do
+      (name, fixity) <- nameParser
+      return (Word () fixity name [] origin)
+    , Parsec.try sectionParser
+    , Parsec.try groupParser <?> "parenthesized expression"
+    , vectorParser
+    , lambdaParser
+    , matchParser
+    , ifParser
+    , doParser
+    , Push () <$> blockValue <*> pure origin
+    , withParser
+    , asParser
+    ]
+  where
+
+  toLiteral :: Located Token -> Maybe (Value (), Origin)
+  toLiteral token = case Located.item token of
+    Token.Character x -> Just (Character x, origin)
+    Token.Float a b c bits -> Just (Float (Token.float a b c) bits, origin)
+    Token.Integer x _ bits -> Just (Integer x bits, origin)
+    Token.Text x -> Just (Text x, origin)
+    _ -> Nothing
+    where
+
+    origin :: Origin
+    origin = Located.origin token
+
+  sectionParser :: Parser (Term ())
+  sectionParser = (<?> "operator section") $ groupedParser $ Parsec.choice
+    [ do
+      origin <- getTokenOrigin
+      function <- operatorNameParser
+      let
+        call = Word () Operator.Postfix
+          (UnqualifiedName function) [] origin
+      Parsec.choice
+        [ do
+          operandOrigin <- getTokenOrigin
+          operand <- Parsec.many1 termParser
+          return $ compose () operandOrigin $ operand ++ [call]
+        , return call
+        ]
+    , do
+      operandOrigin <- getTokenOrigin
+      operand <- Parsec.many1
+        $ Parsec.notFollowedBy operatorNameParser *> termParser
+      origin <- getTokenOrigin
+      function <- operatorNameParser
+      return $ compose () operandOrigin $ operand ++
+        [ Word () Operator.Postfix
+          (QualifiedName (Qualified Vocabulary.intrinsic "swap")) [] origin
+        , Word () Operator.Postfix (UnqualifiedName function) [] origin
+        ]
+    ]
+
+  vectorParser :: Parser (Term ())
+  vectorParser = (<?> "vector literal") $ do
+    vectorOrigin <- getTokenOrigin
+    elements <- bracketedParser
+      $ (compose () vectorOrigin <$> Parsec.many1 termParser)
+      `Parsec.sepEndBy` commaParser
+    return $ compose () vectorOrigin $ elements
+      ++ [NewVector () (length elements) () vectorOrigin]
+
+  lambdaParser :: Parser (Term ())
+  lambdaParser = (<?> "variable introduction") $ do
+    names <- parserMatch Token.Arrow *> lambdaNamesParser
+    Parsec.choice
+      [ parserMatchOperator ";" *> do
+        origin <- getTokenOrigin
+        body <- blockContentsParser
+        return $ makeLambda names body origin
+      , do
+        origin <- getTokenOrigin
+        body <- blockParser
+        return $ Push () (Quotation $ makeLambda names body origin) origin
+      ]
+
+  matchParser :: Parser (Term ())
+  matchParser = (<?> "match") $ do
+    matchOrigin <- getTokenOrigin <* parserMatch Token.Match
+    scrutineeOrigin <- getTokenOrigin
+    mScrutinee <- Parsec.optionMaybe groupParser <?> "scrutinee"
+    (cases, else_) <- do
+      cases' <- many $ (<?> "case") $ parserMatch Token.Case *> do
+        origin <- getTokenOrigin
+        (name, _) <- nameParser
+        body <- blockLikeParser
+        return $ Case name body origin
+      mElse' <- Parsec.optionMaybe $ do
+        origin <- getTokenOrigin <* parserMatch Token.Else
+        body <- blockParser
+        return $ Else body origin
+      return $ (,) cases' $ fromMaybe
+        (Else (defaultMatchElse matchOrigin) matchOrigin) mElse'
+    let match = Match AnyMatch () cases else_ matchOrigin
+    return $ case mScrutinee of
+      Just scrutinee -> compose () scrutineeOrigin [scrutinee, match]
+      Nothing -> match
+
+  defaultMatchElse :: Origin -> Term ()
+  defaultMatchElse = Word () Operator.Postfix
+    (QualifiedName (Qualified Vocabulary.global "abort")) []
+
+  ifParser :: Parser (Term ())
+  ifParser = (<?> "if-else expression") $ do
+    ifOrigin <- getTokenOrigin <* parserMatch Token.If
+    mCondition <- Parsec.optionMaybe groupParser <?> "condition"
+    ifBody <- blockParser
+    elifs <- many $ do
+      origin <- getTokenOrigin <* parserMatch Token.Elif
+      condition <- groupParser <?> "condition"
+      body <- blockParser
+      return (condition, body, origin)
+    elseBody <- Parsec.option (Term.identityCoercion () ifOrigin)
+      $ parserMatch Token.Else *> blockParser
+    let
+      desugarCondition :: (Term (), Term (), Origin) -> Term () -> Term ()
+      desugarCondition (condition, body, origin) acc = let
+        match = Match BooleanMatch ()
+          [ Case "true" body origin
+          , Case "false" acc (Term.origin acc)
+          ] (Else (defaultMatchElse ifOrigin) ifOrigin) origin
+        in compose () ifOrigin [condition, match]
+    return $ foldr desugarCondition elseBody $ 
+      ( fromMaybe (Term.identityCoercion () ifOrigin) mCondition
+      , ifBody
+      , ifOrigin
+      ) : elifs
+
+  doParser :: Parser (Term ())
+  doParser = (<?> "do expression") $ do
+    doOrigin <- getTokenOrigin <* parserMatch Token.Do
+    term <- groupParser <?> "parenthesized expression"
+    body <- blockLikeParser
+    return $ compose () doOrigin
+      [Push () (Quotation body) (Term.origin body), term]
+
+  blockValue :: Parser (Value ())
+  blockValue = (<?> "quotation") $ Quotation <$> blockParser
+
+  asParser :: Parser (Term ())
+  asParser = (<?> "'as' expression") $ do
+    origin <- getTokenOrigin <* parserMatch_ Token.As
+    signatures <- groupedParser $ basicTypeParser `Parsec.sepEndBy` commaParser
+    return $ Term.asCoercion () origin signatures
+
+  -- A 'with' term is parsed as a coercion followed by a call.
+  withParser :: Parser (Term ())
+  withParser = (<?> "'with' expression") $ do
+    origin <- getTokenOrigin <* parserMatch_ Token.With
+    permits <- groupedParser $ Parsec.many1 permitParser
+    return $ Term.compose () origin
+      [ Term.permissionCoercion permits () origin
+      , Word () Operator.Postfix
+        (QualifiedName (Qualified Vocabulary.intrinsic "call")) [] origin
+      ]
+    where
+
+    permitParser :: Parser Term.Permit
+    permitParser = Term.Permit <$> Parsec.choice
+      [ True <$ parserMatchOperator "+"
+      , False <$ parserMatchOperator "-"
+      ] <*> (UnqualifiedName <$> wordNameParser)
+
+parserMatchOperator :: Text -> Parser (Located Token)
+parserMatchOperator = parserMatch . Token.Operator . Unqualified
+
+lambdaNamesParser :: Parser [(Maybe Unqualified, Origin)]
+lambdaNamesParser = lambdaName `Parsec.sepEndBy1` commaParser
+  where
+  lambdaName = do
+    origin <- getTokenOrigin
+    name <- Just <$> wordNameParser <|> Nothing <$ parserMatch Token.Ignore
+    return (name, origin)
+
+blockLikeParser :: Parser (Term ())
+blockLikeParser = Parsec.choice
+  [ blockParser
+  , parserMatch Token.Arrow *> do
+    names <- lambdaNamesParser
+    origin <- getTokenOrigin
+    body <- blockParser
+    return $ makeLambda names body origin
+  ]
+
+makeLambda :: [(Maybe Unqualified, Origin)] -> Term () -> Origin -> Term ()
+makeLambda parsed body origin = foldr
+  (\ (nameMaybe, nameOrigin) acc -> maybe
+    (Compose () (Word () Operator.Postfix
+      (QualifiedName (Qualified Vocabulary.intrinsic "drop")) [] origin) acc)
+    (\ name -> Lambda () name () acc nameOrigin)
+    nameMaybe)
+  body
+  (reverse parsed)

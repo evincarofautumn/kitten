@@ -1,8 +1,0 @@
-data IntOrString:
-  case Int (int)
-  case String ([char])
-
-match (1 IntOrString::Int):
-  case IntOrString::String: say
-  default:
-    "default" say
