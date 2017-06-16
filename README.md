@@ -26,7 +26,8 @@ To build the latest compiler, you need [Stack]:
 
 ```
 git clone https://github.com/evincarofautumn/kitten.git
-cd kitten/new
+cd kitten
+stack setup
 stack build
 
 stack exec kitten
