@@ -623,11 +623,11 @@ define from_optional<T> (Optional<T>, T -> T):
   else:
     default
 
-define from_some<T> (Optional<T> -> T +Fail):
-  match
-  case some {}
+define from_some<T> (Optional<T>, List<Char> -> T +Fail):
+  -> message;
+  match case some {}
   else:
-    "from_some: none" fail
+    message fail
 
 define is_none<T> (Optional<T> -> Bool):
   match
@@ -687,17 +687,18 @@ type Either<A, B>:
   case left (A)
   case right (B)
 
-define from_left<A, B> (Either<A, B> -> A +Fail):
-  match
-  case left {}
+define from_left<A, B> (Either<A, B>, List<Char> -> A +Fail):
+  -> message;
+  match case left {}
   else:
-    "from_left: right" fail
+    message fail
 
-define from_right<A, B> (Either<A, B> -> B +Fail):
+define from_right<A, B> (Either<A, B>, List<Char> -> B +Fail):
+  -> message;
   match
   case right {}
   else:
-    "from_right: left" fail
+    message fail
 
 define get_left<A, B> (Either<A, B> -> Optional<A>):
   match
@@ -962,7 +963,9 @@ define fold_left<A, B> (List<B>, A, (A, B -> A) -> A):
   -> xs, z, k;
   match (xs head)
   case some -> x:
-    { xs tail from_some } with (+Fail)
+    do (with (+Fail)):
+      xs tail
+      "fold_left: tail should not be none if head is some" from_some
     (z x k call) k fold_left
   case none:
     z
@@ -971,7 +974,9 @@ define fold_left_non_empty<T> (List<T>, (T, T -> T) -> Optional<T>):
   -> xs, f;
   match (xs head)
   case some -> x:
-    { xs tail from_some } with (+Fail)
+    do (with (+Fail)):
+      xs tail
+      "fold_left_non_empty: tail should not be none if head is some" from_some
     x f fold_left some
   else:
     none
@@ -980,7 +985,9 @@ define fold_right<A, B> (List<A>, B, (A, B -> B) -> B):
   -> xs, z, k;
   match (xs last)
   case some -> x:
-    { xs init from_some } with (+Fail)
+    do (with (+Fail)):
+      xs init
+      "fold_right: init should not be none if last is some" from_some
     (x z k call) k fold_right
   else:
     z
@@ -989,7 +996,9 @@ define fold_right_non_empty<A> (List<A>, (A, A -> A) -> Optional<A>):
   -> xs, f;
   match (xs last)
   case some -> x:
-    { xs init from_some } with (+Fail)
+    do (with (+Fail)):
+      xs init
+      "fold_right_non_empty: init should not be none if last is some" from_some
     x f fold_right some
   else:
     none
