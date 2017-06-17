@@ -1156,6 +1156,15 @@ define function<T> (T -> (-> T)):
   -> x;
   { x }
 
+define apply<R..., S..., T, +P> (T, (R..., T -> S... +P) -> (R... -> S... +P)):
+  -> x, f;
+  { x f call }
+
+about apply:
+  docs: """
+    Partially applies the topmost argument of a function.
+    """
+
 define both<A, B, C, D> (A, B, (A -> C), (B -> D) -> C, D):
   -> x, y, f, g;
   x f call -> a;
