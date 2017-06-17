@@ -687,7 +687,7 @@ termParser = (<?> "expression") $ do
           , Case "false" acc (Term.origin acc)
           ] (Else (defaultMatchElse ifOrigin) ifOrigin) origin
         in compose () ifOrigin [condition, match]
-    return $ foldr desugarCondition elseBody $ 
+    return $ foldr desugarCondition elseBody $
       ( fromMaybe (Term.identityCoercion () ifOrigin) mCondition
       , ifBody
       , ifOrigin
