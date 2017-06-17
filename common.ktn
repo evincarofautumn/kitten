@@ -880,15 +880,21 @@ define replicate<T> (T, Int32 -> List<T>):
 
 define head_tail<T> (List<T> -> Optional<Pair<T, List<T>>>):
   -> xs;
-  match (xs head)
-  case none:
-    none
-  case some -> y:
-    match (xs tail)
-    case none:
-      none
-    case some -> ys:
-      y ys pair some
+  none
+  match (xs head) case some -> y:
+    match (xs tail) case some -> ys:
+      drop y ys pair some
+    else {}
+  else {}
+
+define init_last<T> (List<T> -> Optional<Pair<List<T>, T>>):
+  -> xs;
+  none
+  match (xs init) case some -> ys:
+    match (xs last) case some -> y:
+      drop ys y pair some
+    else {}
+  else {}
 
 define map<A, B, +P> (List<A>, (A -> B +P) -> List<B> +P):
   -> xs, f;
