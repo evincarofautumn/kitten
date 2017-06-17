@@ -896,6 +896,15 @@ define init_last<T> (List<T> -> Optional<Pair<List<T>, T>>):
     else {}
   else {}
 
+define reverse<T> (List<T> -> List<T>):
+  -> xs;
+  match (xs head_tail)
+  case some:
+    unpair -> h, t;
+    t reverse h append
+  case none:
+    []
+
 define map<A, B, +P> (List<A>, (A -> B +P) -> List<B> +P):
   -> xs, f;
   match (xs head_tail)
