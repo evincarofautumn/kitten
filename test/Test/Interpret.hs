@@ -14,6 +14,7 @@ import Kitten.Monad (runKitten)
 import Kitten.Name
 import Kitten.Term (Value(..))
 import System.IO (IOMode(..), hClose)
+import Test.Common
 import Test.HUnit (assertEqual, assertFailure)
 import Test.Hspec (Spec, describe, it, runIO)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
@@ -33,7 +34,8 @@ spec = do
   testInterpretWithHandles <- runIO $ do
     commonSource <- IO.readFileUtf8 "common.ktn"
     mDictionary <- runKitten $ do
-      common <- fragmentFromSource io Nothing 1 "common.ktn" commonSource
+      common <- fragmentFromSource
+        ioPermission Nothing 1 "common.ktn" commonSource
       Enter.fragment common Dictionary.empty
     case mDictionary of
       Left reports -> error $ Pretty.render $ Pretty.vcat
@@ -155,7 +157,7 @@ testInterpretFull
 testInterpretFull commonDictionary standardInput
   mExpectedStdout mExpectedStderr input expectedStack = do
   result <- runKitten $ do
-    fragment <- fragmentFromSource io Nothing 1 "<test>" input
+    fragment <- fragmentFromSource ioPermission Nothing 1 "<test>" input
     Enter.fragment fragment commonDictionary
   (_stdinKnob, stdin) <- do
     knob <- Knob.newKnob standardInput
@@ -203,6 +205,3 @@ testInterpretFull commonDictionary standardInput
         Nothing -> return ()
     Left reports -> assertFailure $ unlines
       $ map (Pretty.render . Report.human) reports
-
-io :: [GeneralName]
-io = [QualifiedName $ Qualified Vocabulary.global "IO"]

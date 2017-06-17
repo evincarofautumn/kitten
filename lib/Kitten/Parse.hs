@@ -333,8 +333,10 @@ metadataParser = (<?> "metadata block") $ do
 typeDefinitionParser :: Parser TypeDefinition
 typeDefinitionParser = (<?> "type definition") $ do
   origin <- getTokenOrigin <* parserMatch Token.Type
-  name <- Qualified <$> Parsec.getState
-    <*> (wordNameParser <?> "type definition name")
+  (name, fixity) <- qualifiedNameParser <?> "type definition name"
+  case fixity of
+    Operator.Infix -> Parsec.unexpected "type-level operator"
+    _ -> pure ()
   parameters <- Parsec.option [] quantifierParser
   constructors <- Parsec.choice
     [ blockedParser $ many constructorParser
@@ -491,14 +493,30 @@ permissionParser :: Parser (Definition ())
 permissionParser = (<?> "permission definition")
   $ definitionParser Token.Permission Category.Permission
 
+-- | Unqualified or partially qualified name, implicitly qualified by the
+-- current vocabulary, or fully qualified (global) name.
+qualifiedNameParser :: Parser (Qualified, Operator.Fixity)
+qualifiedNameParser = (<?> "optionally qualified name") $ do
+  (suffix, fixity) <- nameParser
+  name <- case suffix of
+    QualifiedName qualified@(Qualified (Qualifier root parts) unqualified)
+      -> case root of
+        -- Fully qualified name: return it as-is.
+        Absolute -> pure qualified
+        -- Partially qualified name: add current vocab prefix to qualifier.
+        Relative -> do
+          Qualifier root' prefixParts <- Parsec.getState
+          pure (Qualified (Qualifier root' (prefixParts ++ parts)) unqualified)
+    -- Unqualified name: use current vocab prefix as qualifier.
+    UnqualifiedName unqualified
+      -> Qualified <$> Parsec.getState <*> pure unqualified
+    _ -> error "name parser should only return qualified or unqualified name"
+  pure (name, fixity)
+
 definitionParser :: Token -> Category -> Parser (Definition ())
 definitionParser keyword category = do
   origin <- getTokenOrigin <* parserMatch keyword
-  (fixity, suffix) <- Parsec.choice
-    [ (,) Operator.Postfix <$> wordNameParser
-    , (,) Operator.Infix <$> operatorNameParser
-    ] <?> "definition name"
-  name <- Qualified <$> Parsec.getState <*> pure suffix
+  (name, fixity) <- qualifiedNameParser <?> "definition name"
   signature <- signatureParser
   body <- blockLikeParser <?> "definition body"
   return Definition

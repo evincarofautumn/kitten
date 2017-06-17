@@ -222,6 +222,7 @@ test-suite test
     Test.InstanceCheck
     Test.Interpret
     Test.Origin
+    Test.Parse
     Test.Resolve
     Test.Tokenize
     Test.Zonk
