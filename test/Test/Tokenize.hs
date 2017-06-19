@@ -50,6 +50,14 @@ spec = do
       testTokenize "/*/**/*/" `shouldBe` Right []
     it "produces no tokens on nested spaced empty block comment" $ do
       testTokenize "/* /**/ */" `shouldBe` Right []
+    it "produces no tokens on nested multi-line block comment" $ do
+      testTokenize
+        "/*\n\
+        \define useless<T> (T -> T):\n\
+        \  /* FIXME: this is /* probably */ useless. */\n\
+        \*/\n\
+        \\&"
+        `shouldBe` Right []
     it "fails on unterminated block comment" $ do
       let origin = Origin.point "" 1 3
       testTokenize "/*" `shouldBe` Left
