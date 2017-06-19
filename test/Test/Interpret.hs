@@ -26,7 +26,6 @@ import qualified Kitten.Enter as Enter
 import qualified Kitten.IO as IO
 import qualified Kitten.Report as Report
 import qualified Kitten.Term as Term
-import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.PrettyPrint as Pretty
 
 spec :: Spec
