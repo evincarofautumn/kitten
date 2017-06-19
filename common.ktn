@@ -366,6 +366,33 @@ define div_mod<T> (T, T -> T, T +Fail):
   -> x, y;
   (x / y) (x % y)
 
+trait ^ <A, B> (A, B -> A)
+
+about ^:
+  docs: """
+    Exponentiation.
+    """
+
+instance ^ (Float32, Int8 -> Float32) { ... }
+instance ^ (Float32, Int16 -> Float32) { ... }
+instance ^ (Float32, Int32 -> Float32) { ... }
+instance ^ (Float32, Int64 -> Float32) { ... }
+instance ^ (Float32, UInt8 -> Float32) { ... }
+instance ^ (Float32, UInt16 -> Float32) { ... }
+instance ^ (Float32, UInt32 -> Float32) { ... }
+instance ^ (Float32, UInt64 -> Float32) { ... }
+instance ^ (Float32, Float32 -> Float32) { ... }
+
+instance ^ (Float64, Int8 -> Float64) { ... }
+instance ^ (Float64, Int16 -> Float64) { ... }
+instance ^ (Float64, Int32 -> Float64) { ... }
+instance ^ (Float64, Int64 -> Float64) { ... }
+instance ^ (Float64, UInt8 -> Float64) { ... }
+instance ^ (Float64, UInt16 -> Float64) { ... }
+instance ^ (Float64, UInt32 -> Float64) { ... }
+instance ^ (Float64, UInt64 -> Float64) { ... }
+instance ^ (Float64, Float64 -> Float64) { ... }
+
 trait < <T> (T, T -> Bool)
 
 about <:
