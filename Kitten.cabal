@@ -111,6 +111,7 @@ library
     Kitten.Resolve
     Kitten.Scope
     Kitten.Signature
+    Kitten.Stack
     Kitten.Substitute
     Kitten.Synonym
     Kitten.Term
@@ -206,6 +207,7 @@ test-suite test
     Kitten.Resolve
     Kitten.Scope
     Kitten.Signature
+    Kitten.Stack
     Kitten.Substitute
     Kitten.Synonym
     Kitten.Term
