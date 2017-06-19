@@ -146,6 +146,18 @@ spec = do
       testInterpret "2147483647 abs" [Integer 2147483647 Signed32]
       testInterpret "-2147483648 abs" [Integer (-2147483648) Signed32]
 
+  describe "with functional combinators" $ do
+    it "computes fixed points" $ do
+      testInterpret
+        "5 {\n\
+        \  -> n, rec;\n\
+        \  if (n <= 0):\n\
+        \    1\n\
+        \  else:\n\
+        \    (n - 1) rec call * n\n\
+        \} fix"
+        [Integer 120 Signed32]
+
 testInterpretFull
   :: Dictionary
   -> ByteString

@@ -1174,6 +1174,25 @@ about apply:
     Partially applies the topmost argument of a function.
     """
 
+define fix<R..., S...> (R..., (R..., (R... -> S...) -> S...) -> S...):
+  -> f;
+  { f fix } f call
+
+about fix:
+  docs: """
+    Computes the least fixed point of a function. Can be used to write recursive
+    definitions without explicit recursion, e.g.:
+
+        // Compute the factorial of 5.
+        5 {
+          -> n, rec;
+          if (n <= 0):
+            1
+          else:
+            (n - 1) rec call * n
+        } fix
+    """
+
 define both<A, B, C, D> (A, B, (A -> C), (B -> D) -> C, D):
   -> x, y, f, g;
   x f call -> a;
