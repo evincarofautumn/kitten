@@ -328,41 +328,41 @@ instance * (UInt64, UInt64 -> UInt64) { _::kitten::mul_uint64 }
 instance * (Float32, Float32 -> Float32) { _::kitten::mul_float32 }
 instance * (Float64, Float64 -> Float64) { _::kitten::mul_float64 }
 
-trait / <T> (T, T -> T)
+trait / <T> (T, T -> T +Fail)
 
 about /:
   operator:
     left 7
 
-instance / (Int8, Int8 -> Int8) { _::kitten::div_int8 }
-instance / (Int16, Int16 -> Int16) { _::kitten::div_int16 }
-instance / (Int32, Int32 -> Int32) { _::kitten::div_int32 }
-instance / (Int64, Int64 -> Int64) { _::kitten::div_int64 }
-instance / (UInt8, UInt8 -> UInt8) { _::kitten::div_uint8 }
-instance / (UInt16, UInt16 -> UInt16) { _::kitten::div_uint16 }
-instance / (UInt32, UInt32 -> UInt32) { _::kitten::div_uint32 }
-instance / (UInt64, UInt64 -> UInt64) { _::kitten::div_uint64 }
-instance / (Float32, Float32 -> Float32) { _::kitten::div_float32 }
-instance / (Float64, Float64 -> Float64) { _::kitten::div_float64 }
+instance / (Int8, Int8 -> Int8 +Fail) { _::kitten::div_int8 }
+instance / (Int16, Int16 -> Int16 +Fail) { _::kitten::div_int16 }
+instance / (Int32, Int32 -> Int32 +Fail) { _::kitten::div_int32 }
+instance / (Int64, Int64 -> Int64 +Fail) { _::kitten::div_int64 }
+instance / (UInt8, UInt8 -> UInt8 +Fail) { _::kitten::div_uint8 }
+instance / (UInt16, UInt16 -> UInt16 +Fail) { _::kitten::div_uint16 }
+instance / (UInt32, UInt32 -> UInt32 +Fail) { _::kitten::div_uint32 }
+instance / (UInt64, UInt64 -> UInt64 +Fail) { _::kitten::div_uint64 }
+instance / (Float32, Float32 -> Float32 +Fail) { _::kitten::div_float32 }
+instance / (Float64, Float64 -> Float64 +Fail) { _::kitten::div_float64 }
 
-trait % <T> (T, T -> T)
+trait % <T> (T, T -> T +Fail)
 
 about %:
   operator:
     left 7
 
-instance % (Int8, Int8 -> Int8) { _::kitten::mod_int8 }
-instance % (Int16, Int16 -> Int16) { _::kitten::mod_int16 }
-instance % (Int32, Int32 -> Int32) { _::kitten::mod_int32 }
-instance % (Int64, Int64 -> Int64) { _::kitten::mod_int64 }
-instance % (UInt8, UInt8 -> UInt8) { _::kitten::mod_uint8 }
-instance % (UInt16, UInt16 -> UInt16) { _::kitten::mod_uint16 }
-instance % (UInt32, UInt32 -> UInt32) { _::kitten::mod_uint32 }
-instance % (UInt64, UInt64 -> UInt64) { _::kitten::mod_uint64 }
-instance % (Float32, Float32 -> Float32) { _::kitten::mod_float32 }
-instance % (Float64, Float64 -> Float64) { _::kitten::mod_float64 }
+instance % (Int8, Int8 -> Int8 +Fail) { _::kitten::mod_int8 }
+instance % (Int16, Int16 -> Int16 +Fail) { _::kitten::mod_int16 }
+instance % (Int32, Int32 -> Int32 +Fail) { _::kitten::mod_int32 }
+instance % (Int64, Int64 -> Int64 +Fail) { _::kitten::mod_int64 }
+instance % (UInt8, UInt8 -> UInt8 +Fail) { _::kitten::mod_uint8 }
+instance % (UInt16, UInt16 -> UInt16 +Fail) { _::kitten::mod_uint16 }
+instance % (UInt32, UInt32 -> UInt32 +Fail) { _::kitten::mod_uint32 }
+instance % (UInt64, UInt64 -> UInt64 +Fail) { _::kitten::mod_uint64 }
+instance % (Float32, Float32 -> Float32 +Fail) { _::kitten::mod_float32 }
+instance % (Float64, Float64 -> Float64 +Fail) { _::kitten::mod_float64 }
 
-define div_mod<T> (T, T -> T, T):
+define div_mod<T> (T, T -> T, T +Fail):
   -> x, y;
   (x / y) (x % y)
 

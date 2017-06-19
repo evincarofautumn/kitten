@@ -8,6 +8,7 @@ Stability   : experimental
 Portability : GHC
 -}
 
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Interpret
@@ -55,6 +56,7 @@ import qualified Kitten.Term as Term
 import qualified Kitten.TypeEnv as TypeEnv
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.PrettyPrint as Pretty
+import Control.Exception (ArithException(..), catch)
 
 -- | Interprets a program dictionary.
 
@@ -223,29 +225,29 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
       "add_int8" -> binaryInt8 (+)
       "sub_int8" -> binaryInt8 (-)
       "mul_int8" -> binaryInt8 (*)
-      "div_int8" -> binaryInt8 div
-      "mod_int8" -> binaryInt8 mod
+      "div_int8" -> catchDivideByZero $ binaryInt8 div
+      "mod_int8" -> catchDivideByZero $ binaryInt8 mod
 
       "neg_int16" -> unaryInt16 negate
       "add_int16" -> binaryInt16 (+)
       "sub_int16" -> binaryInt16 (-)
       "mul_int16" -> binaryInt16 (*)
-      "div_int16" -> binaryInt16 div
-      "mod_int16" -> binaryInt16 mod
+      "div_int16" -> catchDivideByZero $ binaryInt16 div
+      "mod_int16" -> catchDivideByZero $ binaryInt16 mod
 
       "neg_int32" -> unaryInt32 negate
       "add_int32" -> binaryInt32 (+)
       "sub_int32" -> binaryInt32 (-)
       "mul_int32" -> binaryInt32 (*)
-      "div_int32" -> binaryInt32 div
-      "mod_int32" -> binaryInt32 mod
+      "div_int32" -> catchDivideByZero $ binaryInt32 div
+      "mod_int32" -> catchDivideByZero $ binaryInt32 mod
 
       "neg_int64" -> unaryInt64 negate
       "add_int64" -> binaryInt64 (+)
       "sub_int64" -> binaryInt64 (-)
       "mul_int64" -> binaryInt64 (*)
-      "div_int64" -> binaryInt64 div
-      "mod_int64" -> binaryInt64 mod
+      "div_int64" -> catchDivideByZero $ binaryInt64 div
+      "mod_int64" -> catchDivideByZero $ binaryInt64 mod
 
       "lt_int8" -> boolInt8 (<)
       "gt_int8" -> boolInt8 (>)
@@ -279,29 +281,29 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
       "add_uint8" -> binaryUInt8 (+)
       "sub_uint8" -> binaryUInt8 (-)
       "mul_uint8" -> binaryUInt8 (*)
-      "div_uint8" -> binaryUInt8 div
-      "mod_uint8" -> binaryUInt8 mod
+      "div_uint8" -> catchDivideByZero $ binaryUInt8 div
+      "mod_uint8" -> catchDivideByZero $ binaryUInt8 mod
 
       "neg_uint16" -> unaryUInt16 negate
       "add_uint16" -> binaryUInt16 (+)
       "sub_uint16" -> binaryUInt16 (-)
       "mul_uint16" -> binaryUInt16 (*)
-      "div_uint16" -> binaryUInt16 div
-      "mod_uint16" -> binaryUInt16 mod
+      "div_uint16" -> catchDivideByZero $ binaryUInt16 div
+      "mod_uint16" -> catchDivideByZero $ binaryUInt16 mod
 
       "neg_uint32" -> unaryUInt32 negate
       "add_uint32" -> binaryUInt32 (+)
       "sub_uint32" -> binaryUInt32 (-)
       "mul_uint32" -> binaryUInt32 (*)
-      "div_uint32" -> binaryUInt32 div
-      "mod_uint32" -> binaryUInt32 mod
+      "div_uint32" -> catchDivideByZero $ binaryUInt32 div
+      "mod_uint32" -> catchDivideByZero $ binaryUInt32 mod
 
       "neg_uint64" -> unaryUInt64 negate
       "add_uint64" -> binaryUInt64 (+)
       "sub_uint64" -> binaryUInt64 (-)
       "mul_uint64" -> binaryUInt64 (*)
-      "div_uint64" -> binaryUInt64 div
-      "mod_uint64" -> binaryUInt64 mod
+      "div_uint64" -> catchDivideByZero $ binaryUInt64 div
+      "mod_uint64" -> catchDivideByZero $ binaryUInt64 mod
 
       "lt_uint8" -> boolUInt8 (<)
       "gt_uint8" -> boolUInt8 (>)
@@ -343,14 +345,14 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
       "sub_float32" -> binaryFloat32 (-)
       "mul_float32" -> binaryFloat32 (*)
       "div_float32" -> binaryFloat32 (/)
-      "mod_float32" -> binaryFloat32 mod'
+      "mod_float32" -> catchFloatModByZero $ binaryFloat32 mod'
 
       "neg_float64" -> unaryFloat64 negate
       "add_float64" -> binaryFloat64 (+)
       "sub_float64" -> binaryFloat64 (-)
       "mul_float64" -> binaryFloat64 (*)
       "div_float64" -> binaryFloat64 (/)
-      "mod_float64" -> binaryFloat64 mod'
+      "mod_float64" -> catchFloatModByZero $ binaryFloat64 mod'
 
       "lt_float32" -> boolFloat32 (<)
       "gt_float32" -> boolFloat32 (>)
@@ -505,236 +507,210 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
       unaryInt8 :: (Int8 -> Int8) -> IO ()
       unaryInt8 f = do
         Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Integer (fromIntegral $ f (fromIntegral x)) Signed8
-          ::: r
+        let !result = fromIntegral $ f $ fromIntegral x
+        writeIORef stackRef $ Integer result Signed8 ::: r
 
       binaryInt8 :: (Int8 -> Int8 -> Int8) -> IO ()
       binaryInt8 f = do
         Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Integer (fromIntegral
-            $ f (fromIntegral x) (fromIntegral y)) Signed8
-          ::: r
+        let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
+        writeIORef stackRef $ Integer result Signed8 ::: r
 
       unaryInt16 :: (Int16 -> Int16) -> IO ()
       unaryInt16 f = do
         Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Integer (fromIntegral $ f (fromIntegral x)) Signed16
-          ::: r
+        let !result = fromIntegral $ f $ fromIntegral x
+        writeIORef stackRef $ Integer result Signed16 ::: r
 
       binaryInt16 :: (Int16 -> Int16 -> Int16) -> IO ()
       binaryInt16 f = do
         Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Integer (fromIntegral
-            $ f (fromIntegral x) (fromIntegral y)) Signed16
-          ::: r
+        let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
+        writeIORef stackRef $ Integer result Signed16 ::: r
 
       unaryInt32 :: (Int32 -> Int32) -> IO ()
       unaryInt32 f = do
         Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Integer (fromIntegral $ f (fromIntegral x)) Signed32
-          ::: r
+        let !result = fromIntegral $ f $ fromIntegral x
+        writeIORef stackRef $ Integer result Signed32 ::: r
 
       binaryInt32 :: (Int32 -> Int32 -> Int32) -> IO ()
       binaryInt32 f = do
         Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Integer (fromIntegral
-            $ f (fromIntegral x) (fromIntegral y)) Signed32
-          ::: r
+        let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
+        writeIORef stackRef $ Integer result Signed32 ::: r
 
       unaryInt64 :: (Int64 -> Int64) -> IO ()
       unaryInt64 f = do
         Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Integer (fromIntegral $ f (fromIntegral x)) Signed64
-          ::: r
+        let !result = fromIntegral $ f $ fromIntegral x
+        writeIORef stackRef $ Integer result Signed64 ::: r
 
       binaryInt64 :: (Int64 -> Int64 -> Int64) -> IO ()
       binaryInt64 f = do
         Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Integer (fromIntegral
-            $ f (fromIntegral x) (fromIntegral y)) Signed64
-          ::: r
+        let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
+        writeIORef stackRef $ Integer result Signed64 ::: r
 
       unaryUInt8 :: (Word8 -> Word8) -> IO ()
       unaryUInt8 f = do
         Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Integer (fromIntegral $ f (fromIntegral x)) Unsigned8
-          ::: r
+        let !result = fromIntegral $ f $ fromIntegral x
+        writeIORef stackRef $ Integer result Unsigned8 ::: r
 
       binaryUInt8 :: (Word8 -> Word8 -> Word8) -> IO ()
       binaryUInt8 f = do
         Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Integer (fromIntegral
-            $ f (fromIntegral x) (fromIntegral y)) Unsigned8
-          ::: r
+        let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
+        writeIORef stackRef $ Integer result Unsigned8 ::: r
 
       unaryUInt16 :: (Word16 -> Word16) -> IO ()
       unaryUInt16 f = do
         Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Integer (fromIntegral $ f (fromIntegral x)) Unsigned16
-          ::: r
+        let !result = fromIntegral $ f $ fromIntegral x
+        writeIORef stackRef $ Integer result Unsigned16 ::: r
 
       binaryUInt16 :: (Word16 -> Word16 -> Word16) -> IO ()
       binaryUInt16 f = do
         Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Integer (fromIntegral
-            $ f (fromIntegral x) (fromIntegral y)) Unsigned16
-          ::: r
+        let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
+        writeIORef stackRef $ Integer result Unsigned16 ::: r
 
       unaryUInt32 :: (Word32 -> Word32) -> IO ()
       unaryUInt32 f = do
         Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Integer (fromIntegral $ f (fromIntegral x)) Unsigned32
-          ::: r
+        let !result = fromIntegral $ f $ fromIntegral x
+        writeIORef stackRef $ Integer result Unsigned32 ::: r
 
       binaryUInt32 :: (Word32 -> Word32 -> Word32) -> IO ()
       binaryUInt32 f = do
         Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Integer (fromIntegral
-            $ f (fromIntegral x) (fromIntegral y)) Unsigned32
-          ::: r
+        let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
+        writeIORef stackRef $ Integer result Unsigned32 ::: r
 
       unaryUInt64 :: (Word64 -> Word64) -> IO ()
       unaryUInt64 f = do
         Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Integer (fromIntegral $ f (fromIntegral x)) Unsigned64
-          ::: r
+        let !result = fromIntegral $ f $ fromIntegral x
+        writeIORef stackRef $ Integer result Unsigned64 ::: r
 
       binaryUInt64 :: (Word64 -> Word64 -> Word64) -> IO ()
       binaryUInt64 f = do
         Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Integer (fromIntegral
-            $ f (fromIntegral x) (fromIntegral y)) Unsigned64
-          ::: r
+        let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
+        writeIORef stackRef $ Integer result Unsigned64 ::: r
 
       boolInt8 :: (Int8 -> Int8 -> Bool) -> IO ()
       boolInt8 f = do
         Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Algebraic (ConstructorIndex $ fromEnum
-            $ f (fromIntegral x) (fromIntegral y)) []
-          ::: r
+        let !result = fromEnum $ f (fromIntegral x) (fromIntegral y)
+        writeIORef stackRef $ Algebraic (ConstructorIndex result) [] ::: r
 
       boolInt16 :: (Int16 -> Int16 -> Bool) -> IO ()
       boolInt16 f = do
         Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Algebraic (ConstructorIndex $ fromEnum
-            $ f (fromIntegral x) (fromIntegral y)) []
-          ::: r
+        let !result = fromEnum $ f (fromIntegral x) (fromIntegral y)
+        writeIORef stackRef $ Algebraic (ConstructorIndex result) [] ::: r
 
       boolInt32 :: (Int32 -> Int32 -> Bool) -> IO ()
       boolInt32 f = do
         Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Algebraic (ConstructorIndex $ fromEnum
-            $ f (fromIntegral x) (fromIntegral y)) []
-          ::: r
+        let !result = fromEnum $ f (fromIntegral x) (fromIntegral y)
+        writeIORef stackRef $ Algebraic (ConstructorIndex result) [] ::: r
 
       boolInt64 :: (Int64 -> Int64 -> Bool) -> IO ()
       boolInt64 f = do
         Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Algebraic (ConstructorIndex $ fromEnum
-            $ f (fromIntegral x) (fromIntegral y)) []
-          ::: r
+        let !result = fromEnum $ f (fromIntegral x) (fromIntegral y)
+        writeIORef stackRef $ Algebraic (ConstructorIndex result) [] ::: r
 
       boolUInt8 :: (Word8 -> Word8 -> Bool) -> IO ()
       boolUInt8 f = do
         Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Algebraic (ConstructorIndex $ fromEnum
-            $ f (fromIntegral x) (fromIntegral y)) []
-          ::: r
+        let !result = fromEnum $ f (fromIntegral x) (fromIntegral y)
+        writeIORef stackRef $ Algebraic (ConstructorIndex result) [] ::: r
 
       boolUInt16 :: (Word16 -> Word16 -> Bool) -> IO ()
       boolUInt16 f = do
         Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Algebraic (ConstructorIndex $ fromEnum
-            $ f (fromIntegral x) (fromIntegral y)) []
-          ::: r
+        let !result = fromEnum $ f (fromIntegral x) (fromIntegral y)
+        writeIORef stackRef $ Algebraic (ConstructorIndex result) [] ::: r
 
       boolUInt32 :: (Word32 -> Word32 -> Bool) -> IO ()
       boolUInt32 f = do
         Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Algebraic (ConstructorIndex $ fromEnum
-            $ f (fromIntegral x) (fromIntegral y)) []
-          ::: r
+        let !result = fromEnum $ f (fromIntegral x) (fromIntegral y)
+        writeIORef stackRef $ Algebraic (ConstructorIndex result) [] ::: r
 
       boolUInt64 :: (Word64 -> Word64 -> Bool) -> IO ()
       boolUInt64 f = do
         Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Algebraic (ConstructorIndex $ fromEnum
-            $ f (fromIntegral x) (fromIntegral y)) []
-          ::: r
+        let !result = fromEnum $ f (fromIntegral x) (fromIntegral y)
+        writeIORef stackRef $ Algebraic (ConstructorIndex result) [] ::: r
 
       boolChar :: (Char -> Char -> Bool) -> IO ()
       boolChar f = do
         Character y ::: Character x ::: r <- readIORef stackRef
-        writeIORef stackRef
-          $ Algebraic (ConstructorIndex $ fromEnum
-            $ f x y) []
-          ::: r
+        let !result = fromEnum $ f x y
+        writeIORef stackRef $ Algebraic (ConstructorIndex result) [] ::: r
 
       unaryFloat32 :: (Float -> Float) -> IO ()
       unaryFloat32 f = do
         Float x _ ::: r <- readIORef stackRef
-        writeIORef stackRef $ Float
-          (realToFrac (f (realToFrac x))) Float32 ::: r
+        let !result = realToFrac $ f $ realToFrac x
+        writeIORef stackRef $ Float result Float32 ::: r
 
       binaryFloat32 :: (Float -> Float -> Float) -> IO ()
       binaryFloat32 f = do
         Float y _ ::: Float x _ ::: r <- readIORef stackRef
-        writeIORef stackRef $ Float
-          (realToFrac (f (realToFrac x) (realToFrac y))) Float32 ::: r
+        let !result = realToFrac $ f (realToFrac x) (realToFrac y)
+        writeIORef stackRef $ Float result Float32 ::: r
 
       boolFloat32 :: (Float -> Float -> Bool) -> IO ()
       boolFloat32 f = do
         Float y _ ::: Float x _ ::: r <- readIORef stackRef
-        writeIORef stackRef $ Algebraic
-          (ConstructorIndex $ fromEnum $ f (realToFrac x) (realToFrac y))
-          [] ::: r
+        let !result = fromEnum $ f (realToFrac x) (realToFrac y)
+        writeIORef stackRef $ Algebraic (ConstructorIndex result) [] ::: r
 
       unaryFloat64 :: (Double -> Double) -> IO ()
       unaryFloat64 f = do
         Float x _ ::: r <- readIORef stackRef
-        writeIORef stackRef $ Float
-          (realToFrac (f (realToFrac x))) Float64 ::: r
+        let !result = realToFrac $ f $ realToFrac x
+        writeIORef stackRef $ Float result Float64 ::: r
 
       binaryFloat64 :: (Double -> Double -> Double) -> IO ()
       binaryFloat64 f = do
         Float y _ ::: Float x _ ::: r <- readIORef stackRef
-        writeIORef stackRef $ Float (f x y) Float64 ::: r
+        let !result = f x y
+        writeIORef stackRef $ Float result Float64 ::: r
 
       boolFloat64 :: (Double -> Double -> Bool) -> IO ()
       boolFloat64 f = do
         Float y _ ::: Float x _ ::: r <- readIORef stackRef
-        writeIORef stackRef $ Algebraic
-          (ConstructorIndex $ fromEnum $ f x y) [] ::: r
+        let !result = fromEnum $ f x y
+        writeIORef stackRef $ Algebraic (ConstructorIndex result) [] ::: r
 
       showInteger :: Num a => (a -> String) -> IO ()
       showInteger f = do
         Integer x _ ::: r <- readIORef stackRef
         writeIORef stackRef $ Array
           (Vector.fromList $ map Character $ f (fromIntegral x)) ::: r
+
+      catchDivideByZero :: IO a -> IO a
+      catchDivideByZero action = action `catch` \ e -> case e of
+        DivideByZero -> throwIO $ Failure $ Pretty.vcat
+          $ "Execution failure: integer division by zero"
+          : "Call stack:"
+          : map (Pretty.nest 4 . pPrint) callStack
+        _ -> throwIO e
+
+      catchFloatModByZero :: IO a -> IO a
+      catchFloatModByZero action = action `catch` \ e -> case e of
+        RatioZeroDenominator -> throwIO $ Failure $ Pretty.vcat
+          $ "Execution failure: float modulus by zero"
+          : "Call stack:"
+          : map (Pretty.nest 4 . pPrint) callStack
+        _ -> throwIO e
 
   let entryPointName = fromMaybe mainName mName
   word [entryPointName] entryPointName mainArgs
