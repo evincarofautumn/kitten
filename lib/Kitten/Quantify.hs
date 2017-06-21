@@ -24,6 +24,6 @@ import qualified Kitten.Kind as Kind
 -- > Λβ:*. dup
 
 term :: Type -> Term a -> Term a
-term (Forall origin (Var x Kind.Value) t) e = Generic x (term t e) origin
+term (Forall origin (Var name x Kind.Value) t) e = Generic name x (term t e) origin
 term (Forall _ _ t) e = term t e
 term _ e = e

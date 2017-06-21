@@ -20,6 +20,7 @@ import Data.Foldable (foldlM)
 import Kitten.Informer (Informer(..))
 import Kitten.Kind (Kind)
 import Kitten.Monad (K)
+import Kitten.Name (Unqualified)
 import Kitten.Origin (Origin)
 import Kitten.Term (Term(..))
 import Kitten.Type (Type(..), TypeId, Var(..))
@@ -35,10 +36,17 @@ import qualified Text.PrettyPrint as Pretty
 -- variables were instantiated, in order. Because type identifiers are globally
 -- unique, we know a fresh type variable will never be erroneously captured.
 
-type_ :: TypeEnv -> Origin -> TypeId -> Kind -> Type -> K (Type, Type, TypeEnv)
-type_ tenv0 origin x k t = do
+type_
+  :: TypeEnv
+  -> Origin
+  -> Unqualified
+  -> TypeId
+  -> Kind
+  -> Type
+  -> K (Type, Type, TypeEnv)
+type_ tenv0 origin name x k t = do
   ia <- freshTypeId tenv0
-  let a = TypeVar origin $ Var ia k
+  let a = TypeVar origin $ Var name ia k
   replaced <- Substitute.type_ tenv0 x a t
   return (replaced, a, tenv0)
 
@@ -46,9 +54,9 @@ type_ tenv0 origin x k t = do
 -- instantiate the rank-1 quantifiers; all other quantifiers are irrelevant.
 
 prenex :: TypeEnv -> Type -> K (Type, [Type], TypeEnv)
-prenex tenv0 q@(Forall origin (Var x k) t)
+prenex tenv0 q@(Forall origin (Var name x k) t)
   = while origin (Pretty.hsep ["instantiating", Pretty.quote q]) $ do
-    (t', a, tenv1) <- type_ tenv0 origin x k t
+    (t', a, tenv1) <- type_ tenv0 origin name x k t
     (t'', as, tenv2) <- prenex tenv1 t'
     return (t'', a : as, tenv2)
 prenex tenv0 t = return (t, [], tenv0)
@@ -58,7 +66,7 @@ prenex tenv0 t = return (t, [], tenv0)
 term :: TypeEnv -> Term Type -> [Type] -> K (Term Type)
 term tenv t args = foldlM go t args
   where
-  go (Generic x expr _origin) arg = Substitute.term tenv x arg expr
+  go (Generic _name x expr _origin) arg = Substitute.term tenv x arg expr
   go _ _ = do
     report $ Report.TypeArgumentCountMismatch t $ map (Zonk.type_ tenv) args
     halt

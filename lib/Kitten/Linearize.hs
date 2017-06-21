@@ -43,9 +43,9 @@ linearize = snd . go []
       (counts1, a') = go counts0 a
       (counts2, b') = go counts1 b
       in (counts2, Compose type_ a' b')
-    Generic x body origin -> let
+    Generic name x body origin -> let
       (counts1, body') = go counts0 body
-      in (counts1, Generic x body' origin)
+      in (counts1, Generic name x body' origin)
     Group{} -> error "group should not appear after desugaring"
     Lambda type_ x varType body origin -> let
       (n : counts1, body') = go (0 : counts0) body
@@ -102,7 +102,7 @@ instrumentCopy varType = go 0
   go n term = case term of
     Coercion{} -> term
     Compose type_ a b -> Compose type_ (go n a) (go n b)
-    Generic x body origin -> Generic x (go n body) origin
+    Generic name i body origin -> Generic name i (go n body) origin
     Group{} -> error "group should not appear after desugaring"
     Lambda type_ name varType' body origin
       -> Lambda type_ name varType' (go (succ n) body) origin

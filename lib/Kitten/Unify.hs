@@ -38,8 +38,8 @@ type_ tenv0 t1 t2 = case (t1', t2') of
   (TypeVar origin x, t) -> unifyTv tenv0 origin x t
   (_, TypeVar{}) -> commute
   -- FIXME: Unify the kinds here?
-  (a, Forall origin (Var x k) t) -> do
-    (b, _, tenv1) <- Instantiate.type_ tenv0 origin x k t
+  (a, Forall origin (Var name x k) t) -> do
+    (b, _, tenv1) <- Instantiate.type_ tenv0 origin name x k t
     type_ tenv1 a b
   (Forall{}, _) -> commute
 
@@ -93,8 +93,8 @@ type_ tenv0 t1 t2 = case (t1', t2') of
 -- See: Occurs Checks
 
 unifyTv :: TypeEnv -> Origin -> Var -> Type -> K TypeEnv
-unifyTv tenv0 origin v@(Var x _) t = case t of
-  TypeVar _origin (Var y _) | x == y -> return tenv0
+unifyTv tenv0 origin v@(Var _name x _) t = case t of
+  TypeVar _origin (Var _name y _) | x == y -> return tenv0
   TypeVar{} -> declare
   _ -> if occurs tenv0 x (Zonk.type_ tenv0 t)
     then let t' = Zonk.type_ tenv0 t in do
@@ -116,9 +116,9 @@ function tenv0 t = case t of
   TypeConstructor _ "Fun" :@ a :@ b :@ e -> return (a, b, e, tenv0)
   _ -> do
     let origin = Type.origin t
-    a <- freshTv tenv0 origin Stack
-    b <- freshTv tenv0 origin Stack
-    e <- freshTv tenv0 origin Permission
+    a <- freshTv tenv0 "A" origin Stack
+    b <- freshTv tenv0 "B" origin Stack
+    e <- freshTv tenv0 "P" origin Permission
     tenv1 <- type_ tenv0 t $ Type.fun origin a b e
     return (a, b, e, tenv1)
 
@@ -155,9 +155,10 @@ rowIso tenv0 l (TypeConstructor origin "Join" :@ l' :@ r') rt
 -- that ensures termination by preventing unification of rows with a common tail
 -- but distinct prefixes.
 
-rowIso tenv0 l r@(TypeVar origin (Var a _)) rt
+rowIso tenv0 l r@(TypeVar origin (Var name a _)) rt
   | r /= rt = do
-  b <- freshTv tenv0 origin Permission
+  -- FIXME: Should this use 'name' or a distinct name?
+  b <- freshTv tenv0 name origin Permission
   return $ Just (b, Just (a, Type.join origin l b), tenv0)
 
 -- In any other case, the rows are not isomorphic.

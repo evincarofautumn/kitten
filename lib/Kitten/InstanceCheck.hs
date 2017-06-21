@@ -60,9 +60,10 @@ instanceCheck aSort aScheme bSort bScheme = do
 
 skolemize :: TypeEnv -> Type -> K (Set TypeId, Type)
 skolemize tenv0 t = case t of
-  Forall origin (Var x k) t' -> do
+  Forall origin (Var name x k) t' -> do
     c <- freshTypeId tenv0
-    substituted <- Substitute.type_ tenv0 x (TypeConstant origin $ Var c k) t'
+    substituted <- Substitute.type_ tenv0 x
+      (TypeConstant origin $ Var name c k) t'
     (c', t'') <- skolemize tenv0 substituted
     return (Set.insert c c', t'')
   -- TForall _ t' -> skolemize tenv0 t'
@@ -76,8 +77,8 @@ skolemize tenv0 t = case t of
 -- but @c <: a@ (contravariant).
 
 subsumptionCheck :: TypeEnv -> Type -> Type -> K TypeEnv
-subsumptionCheck tenv0 (Forall origin (Var x k) t) t2 = do
-  (t1, _, tenv1) <- Instantiate.type_ tenv0 origin x k t
+subsumptionCheck tenv0 (Forall origin (Var name x k) t) t2 = do
+  (t1, _, tenv1) <- Instantiate.type_ tenv0 origin name x k t
   subsumptionCheck tenv1 t1 t2
 subsumptionCheck tenv0 t1 (TypeConstructor _ "Fun" :@ a' :@ b' :@ e') = do
   (a, b, e, tenv1) <- Unify.function tenv0 t1

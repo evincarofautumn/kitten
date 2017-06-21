@@ -27,6 +27,8 @@ import Control.Monad.Trans.State (StateT, get, gets, modify, put, runStateT)
 import Data.Foldable (foldlM, foldrM)
 import Data.List (find, foldl', partition)
 import Data.Map (Map)
+import Data.Monoid ((<>))
+import Data.Text (Text)
 import Kitten.Bits
 import Kitten.DataConstructor (DataConstructor)
 import Kitten.Dictionary (Dictionary)
@@ -45,6 +47,7 @@ import Kitten.Type (Constructor(..), Type(..), Var(..))
 import Kitten.TypeEnv (TypeEnv, freshTypeId)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.Map as Map
+import qualified Data.Text as Text
 import qualified Kitten.DataConstructor as DataConstructor
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
@@ -165,7 +168,10 @@ inferType dictionary tenvFinal tenv0 term0
 -- between types, e.g., to grant or revoke permissions.
 
     Coercion hint@Term.IdentityCoercion _ origin -> do
-      [a, p] <- fresh origin [Stack, Permission]
+      [a, p] <- fresh origin
+        [ ("S", Stack)
+        , ("P", Permission)
+        ]
       let type_ = Type.fun origin a a p
       let type' = Zonk.type_ tenvFinal type_
       return (Coercion hint type' origin, type_, tenv0)
@@ -191,7 +197,7 @@ inferType dictionary tenvFinal tenv0 term0
       return (Compose type' term1' term2', type_, tenv6)
 
     -- TODO: Verify that this is correct.
-    Generic _ t _ -> inferType' tenv0 t
+    Generic _name _ t _ -> inferType' tenv0 t
     Group{} -> error
       "group expression should not appear during type inference"
 
@@ -200,8 +206,9 @@ inferType dictionary tenvFinal tenv0 term0
 -- extended with a fresh local bound to a fresh type variable, and produce a
 -- type of the form 'R..., A -> S... +P'.
 
-    Lambda _ name _ term origin -> do
-      a <- TypeEnv.freshTv tenv0 origin Value
+    Lambda _ name@(Unqualified unqualified) _ term origin -> do
+      let varTypeName = Unqualified ("Local" <> capitalize unqualified)
+      a <- TypeEnv.freshTv tenv0 varTypeName origin Value
       let oldLocals = TypeEnv.vs tenv0
       let localEnv = tenv0 { TypeEnv.vs = a : TypeEnv.vs tenv0 }
       (term', t1, tenv1) <- inferType' localEnv term
@@ -260,7 +267,7 @@ inferType dictionary tenvFinal tenv0 term0
           -- branch.
           --
           -- TODO: This should be considered a drop.
-          unusedScrutinee <- TypeEnv.freshTv tenv1 origin Value
+          unusedScrutinee <- TypeEnv.freshTv tenv1 "MatchUnused" origin Value
           (a, b, e, tenv'') <- Unify.function tenv' bodyType
           let
             elseType = Type.fun elseOrigin
@@ -294,7 +301,11 @@ inferType dictionary tenvFinal tenv0 term0
 -- type-safe, since only the compiler can generate 'new' expressions.
 
     New _ constructor size origin -> do
-      [a, b, e] <- fresh origin [Stack, Stack, Permission]
+      [a, b, e] <- fresh origin
+        [ ("R", Stack)
+        , ("S", Stack)
+        , ("P", Permission)
+        ]
       let type_ = Type.fun origin a b e
       let type' = Zonk.type_ tenvFinal type_
       return (New type' constructor size origin, type_, tenv0)
@@ -307,9 +318,19 @@ inferType dictionary tenvFinal tenv0 term0
 --
 
     NewClosure _ size origin -> do
-      as <- fresh origin $ replicate size Value
+      as <- fresh origin
+        $ zip
+          [ Unqualified ("Capture" <> Text.pack (show i))
+          | i <- [1 :: Int ..]
+          ]
+        $ replicate size Value
       [r, s, t, p1, p2] <- fresh origin
-        [Stack, Stack, Stack, Permission, Permission]
+        [ ("R", Stack)
+        , ("ClosureIn", Stack)
+        , ("ClosureOut", Stack)
+        , ("ClosurePermissions", Permission)
+        , ("P", Permission)
+        ]
       let
         f = Type.fun origin s t p1
         type_ = Type.fun origin
@@ -325,7 +346,11 @@ inferType dictionary tenvFinal tenv0 term0
 --
 
     NewVector _ size _ origin -> do
-      [a, b, e] <- fresh origin [Stack, Value, Permission]
+      [a, b, e] <- fresh origin
+        [ ("R", Stack)
+        , ("Item", Value)
+        , ("P", Permission)
+        ]
       let
         type_ = Type.fun origin
           (foldl' (Type.prod origin) a (replicate size b))
@@ -338,7 +363,10 @@ inferType dictionary tenvFinal tenv0 term0
 -- Pushing a value results in a stack with that value on top.
 
     Push _ value origin -> do
-      [a, e] <- fresh origin [Stack, Permission]
+      [a, e] <- fresh origin
+        [ ("S", Stack)
+        , ("P", Permission)
+        ]
       (value', t, tenv1) <- inferValue dictionary tenvFinal tenv0 origin value
       let type_ = Type.fun origin a (Type.prod origin a t) e
       let type' = Zonk.type_ tenvFinal type_
@@ -349,7 +377,9 @@ inferType dictionary tenvFinal tenv0 term0
 
   where
   inferType' = inferType dictionary tenvFinal
-  fresh origin = foldrM (\k ts -> (: ts) <$> TypeEnv.freshTv tenv0 origin k) []
+  fresh origin = foldrM
+    (\(name, k) ts -> (: ts) <$> TypeEnv.freshTv tenv0 name origin k)
+    []
 
   context :: Pretty.Doc
   context = Pretty.hsep ["inferring the type of", Pretty.quote term0]
@@ -510,7 +540,7 @@ typeFromSignature tenv signature0 = do
     Signature.Bottom origin -> return $ Type.bottom origin
     Signature.Function as bs es origin -> do
       r <- lift $ freshTypeId tenv
-      let var = Var r Stack
+      let var = Var "R" r Stack
       let typeVar = TypeVar origin var
       es' <- mapM (fromVar origin) es
       (me, es'') <- lift $ permissionVar origin es'
@@ -532,7 +562,7 @@ typeFromSignature tenv signature0 = do
         -> K (Map Unqualified (Var, Origin), [Var])
       declare (Parameter varOrigin name kind) (envVars, freshVars) = do
         x <- freshTypeId tenv
-        let var = Var x kind
+        let var = Var name x kind
         return (Map.insert name (var, varOrigin) envVars, var : freshVars)
 
     Signature.Variable name origin -> fromVar origin name
@@ -582,7 +612,7 @@ typeFromSignature tenv signature0 = do
       Just e -> return e
       Nothing -> do
         ex <- lift $ freshTypeId tenv
-        let var = Var ex Permission
+        let var = Var "P" ex Permission
         modify $ \ env -> env { sigEnvAnonymous = var : sigEnvAnonymous env }
         return $ TypeVar origin var
     return $ Type.fun origin (stack r as') (stack s bs')
@@ -649,8 +679,8 @@ typeKind dictionary = go
           , pPrint dictionary
           ]
     TypeValue{} -> error "TODO: infer kind of type value"
-    TypeVar _origin (Var _ k) -> return k
-    TypeConstant _origin (Var _ k) -> return k
+    TypeVar _origin (Var _name _ k) -> return k
+    TypeConstant _origin (Var _name _ k) -> return k
     Forall _origin _ t' -> go t'
     a :@ b -> do
       ka <- go a
@@ -700,7 +730,7 @@ typeSize dictionary = eval
   eval t@Type.TypeConstant{} = return t
   eval t@Type.Forall{} = return t
 
-  apply (Type.Forall _ (Var typeId _) body) arg = do
+  apply (Type.Forall _ (Var _name typeId _) body) arg = do
     body' <- Substitute.type_ TypeEnv.empty typeId arg body
     eval body'
   apply (Type.TypeConstructor origin "Sum" :@ TypeValue _ a) (TypeValue _ b)
@@ -738,3 +768,9 @@ dataType origin params ctors dictionary = let
   -- FIXME: Use correct vocabulary.
   in typeFromSignature TypeEnv.empty
     =<< Resolve.run (Resolve.signature dictionary Vocabulary.global sig)
+
+capitalize :: Text -> Text
+capitalize x
+  | Text.null x = x
+  | otherwise
+  = Text.toUpper (Text.singleton (Text.head x)) <> Text.tail x

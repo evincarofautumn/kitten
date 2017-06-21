@@ -61,9 +61,9 @@ desugar dictionary qualifier term0 = do
       (a', tenv1) <- go tenv0 a
       (b', tenv2) <- go tenv1 b
       return (Compose type_ a' b', tenv2)
-    Generic type_ a origin -> do
+    Generic name type_ a origin -> do
       (a', tenv1) <- go tenv0 a
-      return (Generic type_ a' origin, tenv1)
+      return (Generic name type_ a' origin, tenv1)
     Group{} -> error "group should not appear after infix desugaring"
     Lambda type_ name varType a origin -> do
       let
@@ -99,8 +99,9 @@ desugar dictionary qualifier term0 = do
       modify $ \ (_, d) -> (LambdaIndex $ succ index, d)
       let
         deducedType = Term.type_ a
-        type_ = foldr (uncurry ((Forall origin .) . Var)) deducedType
+        type_ = foldr addForall deducedType
           $ Map.toList $ Free.tvks tenv2 deducedType
+        addForall (i, (n, k)) = Forall origin (Var n i k)
       modify $ \ (l, d) -> let
         entry = Entry.Word
           Category.Word

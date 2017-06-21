@@ -28,14 +28,14 @@ type_ :: TypeEnv -> TypeId -> Type -> Type -> K Type
 type_ tenv0 x a = recur
   where
   recur t = case t of
-    Forall origin (Var x' k) t'
+    Forall origin var@(Var name x' k) t'
       | x == x' -> return t
-      | x' `Set.notMember` Free.tvs tenv0 t' -> Forall origin (Var x' k) <$> recur t'
+      | x' `Set.notMember` Free.tvs tenv0 t' -> Forall origin var <$> recur t'
       | otherwise -> do
         z <- freshTypeId tenv0
-        t'' <- type_ tenv0 x' (TypeVar origin $ Var z k) t'
-        Forall origin (Var z k) <$> recur t''
-    TypeVar _ (Var x' _) | x == x' -> return a
+        t'' <- type_ tenv0 x' (TypeVar origin $ Var name z k) t'
+        Forall origin (Var name z k) <$> recur t''
+    TypeVar _ (Var _name x' _) | x == x' -> return a
     m :@ n -> (:@) <$> recur m <*> recur n
     _ -> return t
 
@@ -45,12 +45,12 @@ term tenv x a = recur
   recur t = case t of
     Coercion hint tref origin -> Coercion hint <$> go tref <*> pure origin
     Compose tref t1 t2 -> Compose <$> go tref <*> recur t1 <*> recur t2
-    Generic x' body origin -> do
+    Generic name x' body origin -> do
       -- FIXME: Generics could eventually quantify over non-value kinds.
       let k = Kind.Value
       z <- freshTypeId tenv
-      body' <- term tenv x' (TypeVar origin $ Var z k) body
-      Generic z <$> recur body' <*> pure origin
+      body' <- term tenv x' (TypeVar origin $ Var name z k) body
+      Generic name z <$> recur body' <*> pure origin
     Group body -> recur body
     Lambda tref name varType body origin -> Lambda <$> go tref
       <*> pure name <*> go varType <*> recur body <*> pure origin

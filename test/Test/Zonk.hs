@@ -23,8 +23,8 @@ spec = do
   where
   o = Origin.point "" 0 0
   ia = TypeId 0
-  va = TypeVar o $ Var ia kv
+  va = TypeVar o $ Var "A" ia kv
   ib = TypeId 1
-  vb = TypeVar o $ Var ib kv
+  vb = TypeVar o $ Var "B" ib kv
   kv = Value
   int = TypeConstructor o "Int32"

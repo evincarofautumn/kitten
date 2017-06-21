@@ -67,7 +67,7 @@ data Term a
   -- | @e1 e2@: composes two terms.
   | Compose a !(Term a) !(Term a)
   -- | @Λx. e@: generic terms that can be specialized.
-  | Generic !TypeId !(Term a) !Origin
+  | Generic !Unqualified !TypeId !(Term a) !Origin
   -- | @(e)@: precedence grouping for infix operators.
   | Group !(Term a)
   -- | @→ x; e@: local variable introductions.
@@ -187,7 +187,7 @@ permissionCoercion permits x o = Coercion (AnyCoercion signature) x o
 
 decompose :: Term a -> [Term a]
 -- TODO: Verify that this is correct.
-decompose (Generic _ t _) = decompose t
+decompose (Generic _name _id t _origin) = decompose t
 decompose (Compose _ a b) = decompose a ++ decompose b
 decompose (Coercion IdentityCoercion _ _) = []
 decompose term = [term]
@@ -196,7 +196,7 @@ origin :: Term a -> Origin
 origin term = case term of
   Coercion _ _ o -> o
   Compose _ a _ -> origin a
-  Generic _ _ o -> o
+  Generic _ _ _ o -> o
   Group a -> origin a
   Lambda _ _ _ _ o -> o
   New _ _ _ o -> o
@@ -209,7 +209,7 @@ origin term = case term of
 quantifierCount :: Term a -> Int
 quantifierCount = countFrom 0
   where
-  countFrom !count (Generic _ body _) = countFrom (count + 1) body
+  countFrom !count (Generic _ _ body _) = countFrom (count + 1) body
   countFrom count _ = count
 
 -- Deduces the explicit type of a term.
@@ -221,7 +221,7 @@ metadata :: Term a -> a
 metadata term = case term of
   Coercion _ t _ -> t
   Compose t _ _ -> t
-  Generic _ term' _ -> metadata term'
+  Generic _ _ term' _ -> metadata term'
   Group term' -> metadata term'
   Lambda t _ _ _ _ -> t
   Match _ t _ _ _ -> t
@@ -235,7 +235,7 @@ stripMetadata :: Term a -> Term ()
 stripMetadata term = case term of
   Coercion a _ b -> Coercion a () b
   Compose _ a b -> Compose () (stripMetadata a) (stripMetadata b)
-  Generic a term' b -> Generic a (stripMetadata term') b
+  Generic a b term' c -> Generic a b (stripMetadata term') c
   Group term' -> stripMetadata term'
   Lambda _ a _ b c -> Lambda () a () (stripMetadata b) c
   Match a _ b c d -> Match a () (map stripCase b) (stripElse c) d
@@ -273,8 +273,10 @@ instance Pretty (Term a) where
   pPrint term = case term of
     Coercion{} -> Pretty.empty
     Compose _ a b -> pPrint a Pretty.$+$ pPrint b
-    Generic name body _ -> Pretty.hsep
-      [Pretty.angles $ pPrint name, pPrint body]
+    Generic name i body _ -> Pretty.hsep
+      [ Pretty.angles $ Pretty.hcat [pPrint name, "/*", pPrint i, "*/"]
+      , pPrint body
+      ]
     Group a -> Pretty.parens (pPrint a)
     Lambda _ name _ body _ -> "->"
       Pretty.<+> pPrint name

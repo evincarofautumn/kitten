@@ -16,6 +16,7 @@ module Kitten.Free
 import Data.Map (Map)
 import Data.Set (Set)
 import Kitten.Kind (Kind)
+import Kitten.Name (Unqualified)
 import Kitten.Type (Type(..), TypeId, Var(..))
 import Kitten.TypeEnv (TypeEnv)
 import qualified Data.Map as Map
@@ -30,13 +31,13 @@ tvs tenv0 = Set.fromList . Map.keys . tvks tenv0
 -- | Finds free variables (those not bound by any quantifier) and returns them
 -- along with their kinds.
 
-tvks :: TypeEnv -> Type -> Map TypeId Kind
+tvks :: TypeEnv -> Type -> Map TypeId (Unqualified, Kind)
 tvks tenv = go . Zonk.type_ tenv
   where
   go t = case t of
     TypeConstructor{} -> Map.empty
-    TypeVar _ (Var x k) -> Map.singleton x k
+    TypeVar _ (Var name i k) -> Map.singleton i (name, k)
     TypeConstant{} -> Map.empty
-    Forall _ (Var x _) t' -> Map.delete x $ go t'
+    Forall _ (Var _name i _) t' -> Map.delete i $ go t'
     a :@ b -> Map.union (go a) (go b)
     TypeValue{} -> Map.empty

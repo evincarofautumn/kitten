@@ -62,8 +62,9 @@ currentTypeId :: IORef TypeId
 currentTypeId = unsafePerformIO (newIORef (TypeId 0))
 {-# NOINLINE currentTypeId #-}
 
-freshTv :: TypeEnv -> Origin -> Kind -> K Type
-freshTv tenv origin k = TypeVar origin <$> (Var <$> freshTypeId tenv <*> pure k)
+freshTv :: TypeEnv -> Unqualified -> Origin -> Kind -> K Type
+freshTv tenv name origin k
+  = TypeVar origin <$> (Var name <$> freshTypeId tenv <*> pure k)
 
 freshTypeId :: TypeEnv -> K TypeId
 freshTypeId tenv = do

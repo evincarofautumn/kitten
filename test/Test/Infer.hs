@@ -247,9 +247,9 @@ spec = do
 
   where
   o = Origin.point "" 0 0
-  r = TypeVar o $ Var (TypeId 0) Stack
-  s = TypeVar o $ Var (TypeId 1) Stack
-  e = TypeVar o $ Var (TypeId 2) Permission
+  r = TypeVar o $ Var "R" (TypeId 0) Stack
+  s = TypeVar o $ Var "S" (TypeId 1) Stack
+  e = TypeVar o $ Var "P" (TypeId 2) Permission
   ctor = TypeConstructor o . Type.Constructor
     . Qualified Vocabulary.global
   char = ctor "Char"

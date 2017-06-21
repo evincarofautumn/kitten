@@ -115,13 +115,13 @@ type_ t = case t of
       _ -> qualified constructor
     | otherwise
     -> qualified constructor
-  TypeVar _ (Var n _)
+  TypeVar _ (Var _name i _kind)
     -- variable
-    -> Text.concat ["_V", Text.pack $ show n]
+    -> Text.concat ["_V", Text.pack $ show i]
   TypeValue{} -> error "TODO: mangle type value"
-  TypeConstant _ (Var n _)
+  TypeConstant _ (Var _name i _)
     -- constant
-    -> Text.concat ["_K", Text.pack $ show n]
-  Forall _ (Var n _) t'
+    -> Text.concat ["_K", Text.pack $ show i]
+  Forall _ (Var _name i _) t'
     -- quantified
-    -> Text.concat ["_Q", Text.pack $ show n, type_ t', "_E"]
+    -> Text.concat ["_Q", Text.pack $ show i, type_ t', "_E"]

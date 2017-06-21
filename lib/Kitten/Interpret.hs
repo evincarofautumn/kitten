@@ -122,7 +122,7 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
       Coercion{} -> return ()
       Compose _ a b -> term callStack a >> term callStack b
       -- TODO: Verify that this is correct.
-      Generic _ t' _ -> term callStack t'
+      Generic _name _ t' _ -> term callStack t'
       Group t' -> term callStack t'
       Lambda _ _name _ body _ -> do
         a ::: r <- readIORef stackRef

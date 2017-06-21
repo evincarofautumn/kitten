@@ -19,6 +19,7 @@ import Control.Monad.Trans.Writer (Writer, runWriter, tell)
 import Data.Function (on)
 import Data.List (deleteBy)
 import Kitten.Kind (Kind)
+import Kitten.Name (Unqualified)
 import Kitten.Occurrences (occurrences)
 import Kitten.Type (Type(..), TypeId, Var(..))
 import Kitten.TypeEnv (TypeEnv)
@@ -49,21 +50,27 @@ import qualified Kitten.Type as Type
 regeneralize :: TypeEnv -> Type -> Type
 regeneralize tenv t = let
   (t', vars) = runWriter $ go t
-  in foldr (uncurry ((Forall (Type.origin t) .) . Var)) t'
-    $ foldr (deleteBy ((==) `on` fst)) (Map.toList (Free.tvks tenv t')) vars
+  in foldr addForall t'
+    $ foldr (deleteBy ((==) `on` fst))
+      (Map.toList (Free.tvks tenv t'))
+      vars
   where
-  go :: Type -> Writer [(TypeId, Kind)] Type
+
+  addForall :: (TypeId, (Unqualified, Kind)) -> Type -> Type
+  addForall (i, (name, k)) = Forall (Type.origin t) (Var name i k)
+
+  go :: Type -> Writer [(TypeId, (Unqualified, Kind))] Type
   go t' = case t' of
     TypeConstructor _ "Fun" :@ a :@ b :@ e
-      | TypeVar origin (Var c k) <- bottommost a
-      , TypeVar _ (Var d _) <- bottommost b
+      | TypeVar origin (Var name c k) <- bottommost a
+      , TypeVar _ (Var _name d _) <- bottommost b
       , c == d
       -> do
-        when (occurrences tenv c t == 2) $ tell [(c, k)]
+        when (occurrences tenv c t == 2) $ tell [(c, (name, k))]
         a' <- go a
         b' <- go b
         e' <- go e
-        return $ Forall origin (Var c k) $ Type.fun origin a' b' e'
+        return $ Forall origin (Var name c k) $ Type.fun origin a' b' e'
     c@(TypeConstructor _ "Prod") :@ a :@ b -> do
       a' <- go a
       b' <- go b

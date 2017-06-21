@@ -26,12 +26,17 @@ module Kitten.Type
   , origin
   ) where
 
+import Data.HashMap.Strict (HashMap)
 import Data.Hashable (Hashable(..))
+import Data.List (findIndex)
+import Data.Maybe (fromMaybe)
+import Data.Monoid ((<>))
 import GHC.Exts (IsString(..))
 import Kitten.Kind (Kind(..))
 import Kitten.Name (Qualified(..), Unqualified(..))
 import Kitten.Origin (Origin)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Vocabulary as Vocabulary
@@ -58,8 +63,15 @@ infixl 1 :@
 newtype Constructor = Constructor Qualified
   deriving (Eq, Hashable, Show)
 
-data Var = Var !TypeId !Kind
-  deriving (Eq, Show)
+data Var = Var
+  { varNameHint :: !Unqualified
+  , varTypeId :: !TypeId
+  , varKind :: !Kind
+  } deriving (Show)
+
+instance Eq Var where
+  -- We ignore the name hint for equality tests.
+  Var _ a b == Var _ c d = (a, b) == (c, d)
 
 bottom :: Origin -> Type
 bottom o = TypeConstructor o "Bottom"
@@ -123,7 +135,8 @@ instance Hashable Type where
     TypeValue _ a -> hashWithSalt s (5 :: Int, a)
 
 instance Hashable Var where
-  hashWithSalt s (Var a b) = hashWithSalt s (0 :: Int, a, b)
+  -- We ignore the name hint when hashing.
+  hashWithSalt s (Var _ a b) = hashWithSalt s (0 :: Int, a, b)
 
 instance IsString Constructor where
   fromString = Constructor
@@ -133,35 +146,90 @@ instance Pretty Constructor where
   pPrint (Constructor name) = pPrint name
 
 instance Pretty Type where
-  pPrint type_ = case type_ of
-    TypeConstructor _ "Fun" :@ a :@ b :@ e -> Pretty.parens
-      $ Pretty.hsep [pPrint a, "->", pPrint b, pPrint e]
-    TypeConstructor _ "Prod" :@ a :@ b
-      -> Pretty.hcat [pPrint a, ", ", pPrint b]
-    TypeConstructor _ "Sum" :@ a :@ b
-      -> Pretty.hcat [pPrint a, " | ", pPrint b]
-    TypeConstructor _ "Join" :@ a :@ b
-      -> Pretty.hcat ["+", pPrint a, " ", pPrint b]
-    a :@ b -> Pretty.hcat [pPrint a, Pretty.angles $ pPrint b]
-    TypeConstructor _ constructor -> pPrint constructor
-    TypeVar _ var -> pPrint var
-    TypeConstant _ var -> Pretty.hcat ["∃", pPrint var]
-    Forall{} -> prettyForall type_ []
-      where
-      prettyForall (Forall _ x t) vars = prettyForall t (x : vars)
-      prettyForall t vars = Pretty.hcat
-        [ Pretty.angles $ Pretty.list $ map pPrint vars
-        , Pretty.parens $ pPrint t
-        ]
-    TypeValue _ value -> Pretty.int value
+  pPrint type0 = recur type0
+    where
+      context = buildContext type0
+      recur type_ = case type_ of
+        TypeConstructor _ "Fun" :@ a :@ b :@ p -> Pretty.parens
+          $ Pretty.hsep [recur a, "->", recur b, recur p]
+        TypeConstructor _ "Fun" :@ a :@ b -> Pretty.parens
+          $ Pretty.hsep [recur a, "->", recur b]
+        TypeConstructor _ "Fun" :@ a -> Pretty.parens
+          $ Pretty.hsep [recur a, "->"]
+        TypeConstructor _ "Fun" -> Pretty.parens "->"
+        TypeConstructor _ "Prod" :@ a :@ b
+          -> Pretty.hcat [recur a, ", ", recur b]
+        TypeConstructor _ "Prod" :@ a
+          -> Pretty.parens $ Pretty.hcat [recur a, ", "]
+        TypeConstructor _ "Prod"
+          -> Pretty.parens ","
+        TypeConstructor _ "Sum" :@ a :@ b
+          -> Pretty.hcat [recur a, " | ", recur b]
+        TypeConstructor _ "Join" :@ a :@ b
+          -> Pretty.hcat ["+", recur a, " ", recur b]
+        TypeConstructor _ "Join" :@ a
+          -> Pretty.parens $ Pretty.hcat ["+", recur a]
+        a :@ b -> Pretty.hcat [recur a, Pretty.angles $ recur b]
+        TypeConstructor _ constructor -> pPrint constructor
+        TypeVar _ var@(Var name i k)
+          -- The default cases here shouldn't happen if the context was built
+          -- correctly, so it's fine if we fall back to something ugly.
+          -> fromMaybe (pPrint var) $ do
+            ids <- HashMap.lookup name context
+            case ids of
+              -- Only one variable with this name: print without index.
+              [(i', _)] | i == i' -> pure $ prettyKinded name k
+              -- No variables with this name: ugly-print.
+              [] -> pure $ pPrint var
+              -- Multiple variables with this name: print with index.
+              _ -> do
+                index <- findIndex ((== i) . fst) ids
+                let Unqualified unqualified = name
+                pure $ prettyKinded
+                  (Unqualified
+                    (unqualified <> "_" <> Text.pack (show (index + 1))))
+                  k
+        TypeConstant o var -> Pretty.hcat ["∃", recur $ TypeVar o var]
+        Forall{} -> prettyForall type_ []
+          where
+          prettyForall (Forall _ x t) vars = prettyForall t (x : vars)
+          prettyForall t vars = Pretty.hcat
+            [ Pretty.angles $ Pretty.list
+              $ map (recur . TypeVar (origin t)) vars
+            , Pretty.parens $ recur t
+            ]
+        TypeValue _ value -> Pretty.int value
+
+type PrettyContext = HashMap Unqualified [(TypeId, Kind)]
+
+buildContext :: Type -> PrettyContext
+buildContext = go mempty
+  where
+    go :: PrettyContext -> Type -> PrettyContext
+    go context type_ = case type_ of
+      a :@ b -> go context a <> go context b
+      TypeConstructor{} -> context
+      TypeVar _ (Var name i k) -> record name i k context
+      TypeConstant _ (Var name i k) -> record name i k context
+      Forall _ (Var name i k) t -> go (record name i k context) t
+      TypeValue{} -> context
+      where record name i k = HashMap.insertWith (<>) name [(i, k)]
 
 instance Pretty TypeId where
   pPrint (TypeId i) = Pretty.hcat [Pretty.char 'T', Pretty.int i]
 
 instance Pretty Var where
-  pPrint (Var i kind) = Pretty.hcat $ case kind of
-    Permission -> ["+", v]
-    Stack -> [v, "..."]
-    _ -> [v]
-    where
-    v = pPrint i
+  pPrint (Var (Unqualified unqualified) i k)
+    = prettyKinded
+      (Unqualified $ mconcat
+        [ unqualified
+        , "_"
+        , Text.pack $ Pretty.render $ pPrint i
+        ])
+      k
+
+prettyKinded :: Unqualified -> Kind -> Pretty.Doc
+prettyKinded name k = Pretty.hcat $ case k of
+  Permission -> ["+", pPrint name]
+  Stack -> [pPrint name, "..."]
+  _ -> [pPrint name]
