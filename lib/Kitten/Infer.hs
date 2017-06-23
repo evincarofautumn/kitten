@@ -518,21 +518,27 @@ inferCall _dictionary _tenvFinal _tenv0 name origin
 -- | Desugars a parsed signature into an actual type. We resolve whether names
 -- refer to quantified type variables or data definitions, and make stack
 -- polymorphism explicit.
+--
+-- Every function type in the signature that doesn't explicitly mention a
+-- permission variable is assumed to implicitly refer to the same one.
 
 typeFromSignature :: TypeEnv -> Signature -> K Type
 typeFromSignature tenv signature0 = do
+  implicitPermissionId <- freshTypeId tenv
+  -- FIXME: This invalid name is a hack to avoid potential name clashes.
+  let implicitPermissionVar = Var "$P" implicitPermissionId Permission
   (type_, env) <- flip runStateT SignatureEnv
-    { sigEnvAnonymous = []
+    { sigEnvImplicit = implicitPermissionVar
+    , sigEnvImplicitUsed = False
     , sigEnvVars = Map.empty
     } $ go signature0
-  let
-    forallAnonymous = Forall (Signature.origin signature0)
-    forallVar (var, origin) = Forall origin var
   return
-    $ foldr forallAnonymous
-      (foldr forallVar type_ $ Map.elems $ sigEnvVars env)
-    $ sigEnvAnonymous env
+    $ (if sigEnvImplicitUsed env
+      then forallVar (implicitPermissionVar, Signature.origin signature0)
+      else id)
+    $ foldr forallVar type_ $ Map.elems $ sigEnvVars env
   where
+  forallVar (var, origin) = Forall origin var
 
   go :: Signature -> StateT SignatureEnv K Type
   go signature = case signature of
@@ -605,18 +611,16 @@ typeFromSignature tenv signature0 = do
     :: Origin
     -> Type -> [Signature] -> Type -> [Signature] -> [Type] -> Maybe Type
     -> StateT SignatureEnv K Type
-  makeFunction origin r as s bs es me = do
+  makeFunction origin r as s bs ps mpv = do
     as' <- mapM go as
     bs' <- mapM go bs
-    e <- case me of
-      Just e -> return e
+    p <- case mpv of
+      Just pv -> return pv
       Nothing -> do
-        ex <- lift $ freshTypeId tenv
-        let var = Var "P" ex Permission
-        modify $ \ env -> env { sigEnvAnonymous = var : sigEnvAnonymous env }
-        return $ TypeVar origin var
+        modify $ \ env -> env { sigEnvImplicitUsed = True }
+        TypeVar origin <$> gets sigEnvImplicit
     return $ Type.fun origin (stack r as') (stack s bs')
-      $ foldr (Type.join origin) e es
+      $ foldr (Type.join origin) p ps
     where
 
     stack :: Type -> [Type] -> Type
@@ -631,7 +635,8 @@ splitFind f = go []
   go _ [] = Nothing
 
 data SignatureEnv = SignatureEnv
-  { sigEnvAnonymous :: [Var]
+  { sigEnvImplicit :: Var
+  , sigEnvImplicitUsed :: Bool
   , sigEnvVars :: !(Map Unqualified (Var, Origin))
   }
 

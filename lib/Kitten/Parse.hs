@@ -715,6 +715,8 @@ termParser = (<?> "expression") $ do
   withParser = (<?> "'with' expression") $ do
     origin <- getTokenOrigin <* parserMatch_ Token.With
     permits <- groupedParser $ Parsec.many1 permitParser
+    -- FIXME: This shouldn't be desugared here because the names haven't been
+    -- resolved yet, so the signature of the coercion may clash.
     return $ Term.compose () origin
       [ Term.permissionCoercion permits () origin
       , Word () Operator.Postfix

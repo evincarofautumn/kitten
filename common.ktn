@@ -1124,7 +1124,7 @@ define exit<R..., S...> (R..., Int32 -> S... +Exit):
 define fail<R..., S...> (R..., List<Char> -> S... +Fail):
   _::kitten::abort
 
-define assert<+P> (List<Char>, (-> Bool +P) -> +Fail +P):
+define assert (List<Char>, (-> Bool) -> +Fail):
   -> message, test;
   do (with (-Fail)):
     test call
