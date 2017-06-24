@@ -550,6 +550,34 @@ instance >= (Int64, Int64 -> Bool) { _::kitten::ge_int64 }
 instance = (Int64, Int64 -> Bool) { _::kitten::eq_int64 }
 instance <> (Int64, Int64 -> Bool) { _::kitten::ne_int64 }
 
+instance < (UInt8, UInt8 -> Bool) { _::kitten::lt_uint8 }
+instance > (UInt8, UInt8 -> Bool) { _::kitten::gt_uint8 }
+instance <= (UInt8, UInt8 -> Bool) { _::kitten::le_uint8 }
+instance >= (UInt8, UInt8 -> Bool) { _::kitten::ge_uint8 }
+instance = (UInt8, UInt8 -> Bool) { _::kitten::eq_uint8 }
+instance <> (UInt8, UInt8 -> Bool) { _::kitten::ne_uint8 }
+
+instance < (UInt16, UInt16 -> Bool) { _::kitten::lt_uint16 }
+instance > (UInt16, UInt16 -> Bool) { _::kitten::gt_uint16 }
+instance <= (UInt16, UInt16 -> Bool) { _::kitten::le_uint16 }
+instance >= (UInt16, UInt16 -> Bool) { _::kitten::ge_uint16 }
+instance = (UInt16, UInt16 -> Bool) { _::kitten::eq_uint16 }
+instance <> (UInt16, UInt16 -> Bool) { _::kitten::ne_uint16 }
+
+instance < (UInt32, UInt32 -> Bool) { _::kitten::lt_uint32 }
+instance > (UInt32, UInt32 -> Bool) { _::kitten::gt_uint32 }
+instance <= (UInt32, UInt32 -> Bool) { _::kitten::le_uint32 }
+instance >= (UInt32, UInt32 -> Bool) { _::kitten::ge_uint32 }
+instance = (UInt32, UInt32 -> Bool) { _::kitten::eq_uint32 }
+instance <> (UInt32, UInt32 -> Bool) { _::kitten::ne_uint32 }
+
+instance < (UInt64, UInt64 -> Bool) { _::kitten::lt_uint64 }
+instance > (UInt64, UInt64 -> Bool) { _::kitten::gt_uint64 }
+instance <= (UInt64, UInt64 -> Bool) { _::kitten::le_uint64 }
+instance >= (UInt64, UInt64 -> Bool) { _::kitten::ge_uint64 }
+instance = (UInt64, UInt64 -> Bool) { _::kitten::eq_uint64 }
+instance <> (UInt64, UInt64 -> Bool) { _::kitten::ne_uint64 }
+
 instance < (Char, Char -> Bool) { _::kitten::lt_char }
 instance > (Char, Char -> Bool) { _::kitten::gt_char }
 instance <= (Char, Char -> Bool) { _::kitten::le_char }
@@ -570,6 +598,10 @@ instance <= (Float64, Float64 -> Bool) { _::kitten::le_float64 }
 instance >= (Float64, Float64 -> Bool) { _::kitten::ge_float64 }
 instance = (Float64, Float64 -> Bool) { _::kitten::eq_float64 }
 instance <> (Float64, Float64 -> Bool) { _::kitten::ne_float64 }
+
+instance = (Bool, Bool -> Bool): if {} else {not}
+instance <> (Bool, Bool -> Bool) { (=) not }
+
 
 define abs<T> (T -> T):
   dup
@@ -979,9 +1011,7 @@ define elem<T> (T, List<T> -> Bool):
     false
 
 // TODO: Partial instances.
-trait == <T> (List<T>, List<T> -> Bool)
-
-instance == (List<Int32>, List<Int32> -> Bool):
+instance = (List<Int32>, List<Int32> -> Bool):
   -> xs, ys;
   if (xs length <> ys length):
     false
@@ -995,7 +1025,27 @@ instance == (List<Int32>, List<Int32> -> Bool):
         if (x <> y):
           false
         else:
-          xs_ == ys_
+          xs_ = ys_
+      case none:
+        true
+    case none:
+      true
+
+instance = (List<Char>, List<Char> -> Bool):
+  -> xs, ys;
+  if (xs length <> ys length):
+    false
+  else:
+    match (xs head_tail)
+    case some:
+      unpair -> x, xs_;
+      match (ys head_tail)
+      case some:
+        unpair -> y, ys_;
+        if (x <> y):
+          false
+        else:
+          xs_ = ys_
       case none:
         true
     case none:
