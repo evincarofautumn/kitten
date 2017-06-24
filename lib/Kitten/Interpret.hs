@@ -477,6 +477,8 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
       "show_uint16" -> showInteger (show :: Word16 -> String)
       "show_uint32" -> showInteger (show :: Word32 -> String)
       "show_uint64" -> showInteger (show :: Word64 -> String)
+      "show_float32" -> showFloat (show :: Float -> String)
+      "show_float64" -> showFloat (show :: Double -> String)
 
       "empty" -> do
         Array xs ::: r <- readIORef stackRef
@@ -863,6 +865,12 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
         Integer x _ ::: r <- readIORef stackRef
         writeIORef stackRef $ Array
           (Vector.fromList $ map Character $ f (fromIntegral x)) ::: r
+
+      showFloat :: Fractional a => (a -> String) -> IO ()
+      showFloat f = do
+        Float x _ ::: r <- readIORef stackRef
+        writeIORef stackRef $ Array
+          (Vector.fromList $ map Character $ f $ realToFrac x) ::: r
 
       catchDivideByZero :: IO a -> IO a
       catchDivideByZero action = action `catch` \ e -> case e of
