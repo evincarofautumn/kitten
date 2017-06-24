@@ -1206,6 +1206,9 @@ vocab kitten {
   // FIXME: Figure out handles and generalize this.
   intrinsic flush_stdout (-> +IO)
 
+  intrinsic read_file (List<Char> -> List<Char> +IO)
+  intrinsic write_file (List<Char>, List<Char> -> +IO)
+  intrinsic append_file (List<Char>, List<Char> -> +IO)
 }
 
 trait show<T> (T -> List<Char>)
@@ -1270,6 +1273,15 @@ define get_line (-> List<Char> +IO):
 
 define ask (List<Char> -> List<Char> +IO):
   print _::kitten::flush_stdout get_line
+
+define read_file (List<Char> -> List<Char> +IO):
+  _::kitten::read_file
+
+define write_file (List<Char>, List<Char> -> +IO):
+  _::kitten::write_file
+
+define append_file (List<Char>, List<Char> -> +IO):
+  _::kitten::append_file
 
 permission Fail<R..., S..., +P> (R..., (R... -> S... +Fail +P) -> S... +P):
   with (+Fail)
