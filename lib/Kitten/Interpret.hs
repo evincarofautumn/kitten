@@ -37,6 +37,8 @@ import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
 import Kitten.Type (Type(..))
 import System.Exit (ExitCode(..), exitWith)
 import System.IO (Handle, hGetLine, hFlush, hPutChar, hPutStrLn)
+import System.IO.Error (isAlreadyInUseError, isDoesNotExistError,
+                        isPermissionError)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import Text.Printf (hPrintf)
 import qualified Codec.Picture.Png as Png
@@ -448,6 +450,25 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
         modifyIORef' stackRef (Array (Vector.fromList (map Character line)) :::)
       "flush_stdout" -> hFlush stdout'
 
+      "read_file" -> do
+        Array cs ::: r <- readIORef stackRef
+        contents <- catchFileAccessErrors $
+          readFile $ map (\ (Character c) -> c) $ Vector.toList cs
+        writeIORef stackRef $ Array
+          (Vector.fromList (map Character contents)) ::: r
+      "write_file" -> do
+        Array cs ::: Array bs ::: r <- readIORef stackRef
+        writeIORef stackRef r
+        catchFileAccessErrors $
+          writeFile (map (\ (Character c) -> c) $ Vector.toList cs) $
+          map (\ (Character c) -> c) $ Vector.toList bs
+      "append_file" -> do
+        Array cs ::: Array bs ::: r <- readIORef stackRef
+        writeIORef stackRef r
+        catchFileAccessErrors $
+          appendFile (map (\ (Character c) -> c) $ Vector.toList cs) $
+          map (\ (Character c) -> c) $ Vector.toList bs
+
       "tail" -> do
         Array xs ::: r <- readIORef stackRef
         if Vector.null xs
@@ -711,6 +732,20 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
           : "Call stack:"
           : map (Pretty.nest 4 . pPrint) callStack
         _ -> throwIO e
+
+      catchFileAccessErrors :: IO a -> IO a
+      catchFileAccessErrors action = action `catch` \ e ->
+        throwIO $ Failure $ Pretty.vcat
+        $ (if isAlreadyInUseError e then
+            "Execution failure: file already in use"
+          else if isDoesNotExistError e then
+            "Execution failure: file does not exist"
+          else if isPermissionError e then
+            "Execution failure: not permitted to open file"
+          else
+            "Execution failure: unknown file access error")
+        : "Call stack:"
+        : map (Pretty.nest 4 . pPrint) callStack
 
   let entryPointName = fromMaybe mainName mName
   word [entryPointName] entryPointName mainArgs
