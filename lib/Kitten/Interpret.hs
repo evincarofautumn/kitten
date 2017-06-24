@@ -10,6 +10,7 @@ Portability : GHC
 
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Kitten.Interpret
   ( Failure
@@ -480,6 +481,17 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
       "show_float32" -> showFloat (show :: Float -> String)
       "show_float64" -> showFloat (show :: Double -> String)
 
+      "read_int8" -> readInteger (readIO :: String -> IO Int8) Signed8
+      "read_int16" -> readInteger (readIO :: String -> IO Int16) Signed16
+      "read_int32" -> readInteger (readIO :: String -> IO Int32) Signed32
+      "read_int64" -> readInteger (readIO :: String -> IO Int64) Signed64
+      "read_uint8" -> readInteger (readIO :: String -> IO Word8) Unsigned8
+      "read_uint16" -> readInteger (readIO :: String -> IO Word16) Unsigned16
+      "read_uint32" -> readInteger (readIO :: String -> IO Word32) Unsigned32
+      "read_uint64" -> readInteger (readIO :: String -> IO Word64) Unsigned64
+      "read_float32" -> readFloat (readIO :: String -> IO Float) Float32
+      "read_float64" -> readFloat (readIO :: String -> IO Double) Float64
+
       "empty" -> do
         Array xs ::: r <- readIORef stackRef
         writeIORef stackRef r
@@ -871,6 +883,30 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
         Float x _ ::: r <- readIORef stackRef
         writeIORef stackRef $ Array
           (Vector.fromList $ map Character $ f $ realToFrac x) ::: r
+
+      readInteger :: Integral a => (String -> IO a) -> IntegerBits -> IO ()
+      readInteger f b = do
+        Array cs ::: r <- readIORef stackRef
+        do
+          result <- f $ map (\ (Character c) -> c) $ Vector.toList cs
+          writeIORef stackRef $ Integer (fromIntegral result) b ::: r
+          -- FIXME: Use right args.
+          word callStack (Qualified Vocabulary.global "some") []
+          `catch` \ (_ :: IOError) -> do
+            writeIORef stackRef r
+            word callStack (Qualified Vocabulary.global "none") []
+
+      readFloat :: Real a => (String -> IO a) -> FloatBits -> IO ()
+      readFloat f b = do
+        Array cs ::: r <- readIORef stackRef
+        do
+          result <- f $ map (\ (Character c) -> c) $ Vector.toList cs
+          writeIORef stackRef $ Float (realToFrac result) b ::: r
+          -- FIXME: Use right args.
+          word callStack (Qualified Vocabulary.global "some") []
+          `catch` \ (_ :: IOError) -> do
+            writeIORef stackRef r
+            word callStack (Qualified Vocabulary.global "none") []
 
       catchDivideByZero :: IO a -> IO a
       catchDivideByZero action = action `catch` \ e -> case e of

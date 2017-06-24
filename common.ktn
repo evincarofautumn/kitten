@@ -1462,6 +1462,68 @@ instance show (Float32 -> List<Char>):
 instance show (Float64 -> List<Char>):
   _::kitten::show_float64
 
+trait read<T> (List<Char> -> Optional<T>)
+
+instance read (List<Char> -> Optional<List<Char>>) { some }
+
+instance read (List<Char> -> Optional<Char>):
+  -> cs;
+  if (cs length = 1):
+    cs head
+  else:
+    none
+
+instance read (List<Char> -> Optional<Bool>):
+  -> cs;
+  if (cs = "true"): true some
+  elif (cs = "false"): false some
+  else: none
+
+vocab kitten {
+
+  intrinsic read_int8 (List<Char> -> Optional<Int8>)
+  intrinsic read_int16 (List<Char> -> Optional<Int16>)
+  intrinsic read_int32 (List<Char> -> Optional<Int32>)
+  intrinsic read_int64 (List<Char> -> Optional<Int64>)
+  intrinsic read_uint8 (List<Char> -> Optional<UInt8>)
+  intrinsic read_uint16 (List<Char> -> Optional<UInt16>)
+  intrinsic read_uint32 (List<Char> -> Optional<UInt32>)
+  intrinsic read_uint64 (List<Char> -> Optional<UInt64>)
+  intrinsic read_float32 (List<Char> -> Optional<Float32>)
+  intrinsic read_float64 (List<Char> -> Optional<Float64>)
+
+}
+
+instance read (List<Char> -> Optional<Int8>):
+  _::kitten::read_int8
+
+instance read (List<Char> -> Optional<Int16>):
+  _::kitten::read_int16
+
+instance read (List<Char> -> Optional<Int32>):
+  _::kitten::read_int32
+
+instance read (List<Char> -> Optional<Int64>):
+  _::kitten::read_int64
+
+instance read (List<Char> -> Optional<UInt8>):
+  _::kitten::read_uint8
+
+instance read (List<Char> -> Optional<UInt16>):
+  _::kitten::read_uint16
+
+instance read (List<Char> -> Optional<UInt32>):
+  _::kitten::read_uint32
+
+instance read (List<Char> -> Optional<UInt64>):
+  _::kitten::read_uint64
+
+instance read (List<Char> -> Optional<Float32>):
+  _::kitten::read_float32
+
+instance read (List<Char> -> Optional<Float64>):
+  _::kitten::read_float64
+
 define print<T> (T -> +IO) /* where (show<T>) */ :
   show _::kitten::print
 
