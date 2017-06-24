@@ -290,6 +290,50 @@ vocab kitten {
   intrinsic div_float64 (Float64, Float64 -> Float64)
   intrinsic mod_float64 (Float64, Float64 -> Float64)
 
+  // Floating-point functions.
+
+  intrinsic exp_float32 (Float32 -> Float32)
+  intrinsic log_float32 (Float32 -> Float32)
+  intrinsic sqrt_float32 (Float32 -> Float32)
+  intrinsic sin_float32 (Float32 -> Float32)
+  intrinsic cos_float32 (Float32 -> Float32)
+  intrinsic tan_float32 (Float32 -> Float32)
+  intrinsic asin_float32 (Float32 -> Float32)
+  intrinsic acos_float32 (Float32 -> Float32)
+  intrinsic atan_float32 (Float32 -> Float32)
+  intrinsic atan2_float32 (Float32, Float32 -> Float32)
+  intrinsic sinh_float32 (Float32 -> Float32)
+  intrinsic cosh_float32 (Float32 -> Float32)
+  intrinsic tanh_float32 (Float32 -> Float32)
+  intrinsic asinh_float32 (Float32 -> Float32)
+  intrinsic acosh_float32 (Float32 -> Float32)
+  intrinsic atanh_float32 (Float32 -> Float32)
+  intrinsic trunc_float32 (Float32 -> Float32)
+  intrinsic round_float32 (Float32 -> Float32)
+  intrinsic ceil_float32 (Float32 -> Float32)
+  intrinsic floor_float32 (Float32 -> Float32)
+
+  intrinsic exp_float64 (Float64 -> Float64)
+  intrinsic log_float64 (Float64 -> Float64)
+  intrinsic sqrt_float64 (Float64 -> Float64)
+  intrinsic sin_float64 (Float64 -> Float64)
+  intrinsic cos_float64 (Float64 -> Float64)
+  intrinsic tan_float64 (Float64 -> Float64)
+  intrinsic asin_float64 (Float64 -> Float64)
+  intrinsic acos_float64 (Float64 -> Float64)
+  intrinsic atan_float64 (Float64 -> Float64)
+  intrinsic atan2_float64 (Float64, Float64 -> Float64)
+  intrinsic sinh_float64 (Float64 -> Float64)
+  intrinsic cosh_float64 (Float64 -> Float64)
+  intrinsic tanh_float64 (Float64 -> Float64)
+  intrinsic asinh_float64 (Float64 -> Float64)
+  intrinsic acosh_float64 (Float64 -> Float64)
+  intrinsic atanh_float64 (Float64 -> Float64)
+  intrinsic trunc_float64 (Float64 -> Float64)
+  intrinsic round_float64 (Float64 -> Float64)
+  intrinsic ceil_float64 (Float64 -> Float64)
+  intrinsic floor_float64 (Float64 -> Float64)
+
   // Floating-point comparisons.
 
   intrinsic lt_float32 (Float32, Float32 -> Bool)
@@ -485,6 +529,107 @@ instance |>> (UInt8, Int32 -> UInt8) { neg _::kitten::rol_uint8 }
 instance |>> (UInt16, Int32 -> UInt16) { neg _::kitten::rol_uint16 }
 instance |>> (UInt32, Int32 -> UInt32) { neg _::kitten::rol_uint32 }
 instance |>> (UInt64, Int32 -> UInt64) { neg _::kitten::rol_uint64 }
+
+trait pi<T> (-> T)
+
+instance pi (-> Float32) { 3.1415927f32 }
+instance pi (-> Float64) { 3.141592653589793f64 }
+
+trait exp<T> (T -> T)
+
+instance exp (Float32 -> Float32) { _::kitten::exp_float32 }
+instance exp (Float64 -> Float64) { _::kitten::exp_float64 }
+
+trait log<T> (T -> T)
+
+instance log (Float32 -> Float32) { _::kitten::log_float32 }
+instance log (Float64 -> Float64) { _::kitten::log_float64 }
+
+trait sqrt<T> (T -> T)
+
+instance sqrt (Float32 -> Float32) { _::kitten::sqrt_float32 }
+instance sqrt (Float64 -> Float64) { _::kitten::sqrt_float64 }
+
+trait sin<T> (T -> T)
+
+instance sin (Float32 -> Float32) { _::kitten::sin_float32 }
+instance sin (Float64 -> Float64) { _::kitten::sin_float64 }
+
+trait cos<T> (T -> T)
+
+instance cos (Float32 -> Float32) { _::kitten::cos_float32 }
+instance cos (Float64 -> Float64) { _::kitten::cos_float64 }
+
+trait tan<T> (T -> T)
+
+instance tan (Float32 -> Float32) { _::kitten::tan_float32 }
+instance tan (Float64 -> Float64) { _::kitten::tan_float64 }
+
+trait asin<T> (T -> T)
+
+instance asin (Float32 -> Float32) { _::kitten::asin_float32 }
+instance asin (Float64 -> Float64) { _::kitten::asin_float64 }
+
+trait acos<T> (T -> T)
+
+instance acos (Float32 -> Float32) { _::kitten::acos_float32 }
+instance acos (Float64 -> Float64) { _::kitten::acos_float64 }
+
+trait atan<T> (T -> T)
+
+instance atan (Float32 -> Float32) { _::kitten::atan_float32 }
+instance atan (Float64 -> Float64) { _::kitten::atan_float64 }
+
+trait atan2<T> (T, T -> T)
+
+instance atan2 (Float32, Float32 -> Float32) { _::kitten::atan2_float32 }
+instance atan2 (Float64, Float64 -> Float64) { _::kitten::atan2_float64 }
+
+trait sinh<T> (T -> T)
+
+instance sinh (Float32 -> Float32) { _::kitten::sinh_float32 }
+instance sinh (Float64 -> Float64) { _::kitten::sinh_float64 }
+
+trait cosh<T> (T -> T)
+
+instance cosh (Float32 -> Float32) { _::kitten::cosh_float32 }
+instance cosh (Float64 -> Float64) { _::kitten::cosh_float64 }
+
+trait tanh<T> (T -> T)
+
+instance tanh (Float32 -> Float32) { _::kitten::tanh_float32 }
+instance tanh (Float64 -> Float64) { _::kitten::tanh_float64 }
+
+trait asinh<T> (T -> T)
+
+instance asinh (Float32 -> Float32) { _::kitten::asinh_float32 }
+instance asinh (Float64 -> Float64) { _::kitten::asinh_float64 }
+
+trait acosh<T> (T -> T)
+
+instance acosh (Float32 -> Float32) { _::kitten::acosh_float32 }
+instance acosh (Float64 -> Float64) { _::kitten::acosh_float64 }
+
+trait atanh<T> (T -> T)
+
+instance atanh (Float32 -> Float32) { _::kitten::atanh_float32 }
+instance atanh (Float64 -> Float64) { _::kitten::atanh_float64 }
+
+trait trunc<T> (T -> T)
+instance trunc (Float32 -> Float32) { _::kitten::trunc_float32 }
+instance trunc (Float64 -> Float64) { _::kitten::trunc_float64 }
+
+trait round<T> (T -> T)
+instance round (Float32 -> Float32) { _::kitten::round_float32 }
+instance round (Float64 -> Float64) { _::kitten::round_float64 }
+
+trait ceil<T> (T -> T)
+instance ceil (Float32 -> Float32) { _::kitten::ceil_float32 }
+instance ceil (Float64 -> Float64) { _::kitten::ceil_float64 }
+
+trait floor<T> (T -> T)
+instance floor (Float32 -> Float32) { _::kitten::floor_float32 }
+instance floor (Float64 -> Float64) { _::kitten::floor_float64 }
 
 trait < <T> (T, T -> Bool)
 
