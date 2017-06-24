@@ -1232,6 +1232,8 @@ vocab kitten {
   intrinsic show_uint16 (UInt16 -> List<Char>)
   intrinsic show_uint32 (UInt32 -> List<Char>)
   intrinsic show_uint64 (UInt64 -> List<Char>)
+  intrinsic show_float32 (Float32 -> List<Char>)
+  intrinsic show_float64 (Float64 -> List<Char>)
 
 }
 
@@ -1258,6 +1260,12 @@ instance show (UInt32 -> List<Char>):
 
 instance show (UInt64 -> List<Char>):
   _::kitten::show_uint64
+
+instance show (Float32 -> List<Char>):
+  _::kitten::show_float32
+
+instance show (Float64 -> List<Char>):
+  _::kitten::show_float64
 
 define print<T> (T -> +IO) /* where (show<T>) */ :
   show _::kitten::print
