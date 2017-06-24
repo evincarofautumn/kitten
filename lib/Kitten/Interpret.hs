@@ -413,6 +413,48 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
       "div_float64" -> binaryFloat64 (/)
       "mod_float64" -> catchFloatModByZero $ binaryFloat64 mod'
 
+      "exp_float32" -> unaryFloat32 exp
+      "log_float32" -> unaryFloat32 log
+      "sqrt_float32" -> unaryFloat32 sqrt
+      "sin_float32" -> unaryFloat32 sin
+      "cos_float32" -> unaryFloat32 cos
+      "tan_float32" -> unaryFloat32 tan
+      "asin_float32" -> unaryFloat32 asin
+      "acos_float32" -> unaryFloat32 acos
+      "atan_float32" -> unaryFloat32 atan
+      "atan2_float32" -> binaryFloat32 atan2
+      "sinh_float32" -> unaryFloat32 sinh
+      "cosh_float32" -> unaryFloat32 cosh
+      "tanh_float32" -> unaryFloat32 tanh
+      "asinh_float32" -> unaryFloat32 asinh
+      "acosh_float32" -> unaryFloat32 acosh
+      "atanh_float32" -> unaryFloat32 atanh
+      "trunc_float32" -> unaryFloat32 $ fromInteger . truncate
+      "round_float32" -> unaryFloat32 $ fromInteger . round
+      "ceil_float32" -> unaryFloat32 $ fromInteger . ceiling
+      "floor_float32" -> unaryFloat32 $ fromInteger . floor
+
+      "exp_float64" -> unaryFloat64 exp
+      "log_float64" -> unaryFloat64 log
+      "sqrt_float64" -> unaryFloat64 sqrt
+      "sin_float64" -> unaryFloat64 sin
+      "cos_float64" -> unaryFloat64 cos
+      "tan_float64" -> unaryFloat64 tan
+      "asin_float64" -> unaryFloat64 asin
+      "acos_float64" -> unaryFloat64 acos
+      "atan_float64" -> unaryFloat64 atan
+      "atan2_float64" -> binaryFloat64 atan2
+      "sinh_float64" -> unaryFloat64 sinh
+      "cosh_float64" -> unaryFloat64 cosh
+      "tanh_float64" -> unaryFloat64 tanh
+      "asinh_float64" -> unaryFloat64 asinh
+      "acosh_float64" -> unaryFloat64 acosh
+      "atanh_float64" -> unaryFloat64 atanh
+      "trunc_float64" -> unaryFloat64 $ fromInteger . truncate
+      "round_float64" -> unaryFloat64 $ fromInteger . round
+      "ceil_float64" -> unaryFloat64 $ fromInteger . ceiling
+      "floor_float64" -> unaryFloat64 $ fromInteger . floor
+
       "lt_float32" -> boolFloat32 (<)
       "gt_float32" -> boolFloat32 (>)
       "le_float32" -> boolFloat32 (<=)
