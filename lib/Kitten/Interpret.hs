@@ -21,6 +21,7 @@ import Data.Fixed (mod')
 import Data.Foldable (toList)
 import Data.IORef (newIORef, modifyIORef', readIORef, writeIORef)
 import Data.Int
+import Data.Bits
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Data.Typeable (Typeable)
@@ -249,6 +250,34 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
       "div_int64" -> catchDivideByZero $ binaryInt64 div
       "mod_int64" -> catchDivideByZero $ binaryInt64 mod
 
+      "not_int8" -> unaryInt8 complement
+      "or_int8"  -> binaryInt8 (.|.)
+      "and_int8" -> binaryInt8 (.&.)
+      "xor_int8" -> binaryInt8 xor
+      "shl_int8" -> binaryInt8Int shift
+      "rol_int8" -> binaryInt8Int rotate
+
+      "not_int16" -> unaryInt16 complement
+      "or_int16"  -> binaryInt16 (.|.)
+      "and_int16" -> binaryInt16 (.&.)
+      "xor_int16" -> binaryInt16 xor
+      "shl_int16" -> binaryInt16Int shift
+      "rol_int16" -> binaryInt16Int rotate
+
+      "not_int32" -> unaryInt32 complement
+      "or_int32"  -> binaryInt32 (.|.)
+      "and_int32" -> binaryInt32 (.&.)
+      "xor_int32" -> binaryInt32 xor
+      "shl_int32" -> binaryInt32Int shift
+      "rol_int32" -> binaryInt32Int rotate
+
+      "not_int64" -> unaryInt64 complement
+      "or_int64"  -> binaryInt64 (.|.)
+      "and_int64" -> binaryInt64 (.&.)
+      "xor_int64" -> binaryInt64 xor
+      "shl_int64" -> binaryInt64Int shift
+      "rol_int64" -> binaryInt64Int rotate
+
       "lt_int8" -> boolInt8 (<)
       "gt_int8" -> boolInt8 (>)
       "le_int8" -> boolInt8 (<=)
@@ -304,6 +333,34 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
       "mul_uint64" -> binaryUInt64 (*)
       "div_uint64" -> catchDivideByZero $ binaryUInt64 div
       "mod_uint64" -> catchDivideByZero $ binaryUInt64 mod
+
+      "not_uint8" -> unaryUInt8 complement
+      "or_uint8"  -> binaryUInt8 (.|.)
+      "and_uint8" -> binaryUInt8 (.&.)
+      "xor_uint8" -> binaryUInt8 xor
+      "shl_uint8" -> binaryUInt8Int shift
+      "rol_uint8" -> binaryUInt8Int rotate
+
+      "not_uint16" -> unaryUInt16 complement
+      "or_uint16"  -> binaryUInt16 (.|.)
+      "and_uint16" -> binaryUInt16 (.&.)
+      "xor_uint16" -> binaryUInt16 xor
+      "shl_uint16" -> binaryUInt16Int shift
+      "rol_uint16" -> binaryUInt16Int rotate
+
+      "not_uint32" -> unaryUInt32 complement
+      "or_uint32"  -> binaryUInt32 (.|.)
+      "and_uint32" -> binaryUInt32 (.&.)
+      "xor_uint32" -> binaryUInt32 xor
+      "shl_uint32" -> binaryUInt32Int shift
+      "rol_uint32" -> binaryUInt32Int rotate
+
+      "not_uint64" -> unaryUInt64 complement
+      "or_uint64"  -> binaryUInt64 (.|.)
+      "and_uint64" -> binaryUInt64 (.&.)
+      "xor_uint64" -> binaryUInt64 xor
+      "shl_uint64" -> binaryUInt64Int shift
+      "rol_uint64" -> binaryUInt64Int rotate
 
       "lt_uint8" -> boolUInt8 (<)
       "gt_uint8" -> boolUInt8 (>)
@@ -516,6 +573,12 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
         let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
         writeIORef stackRef $ Integer result Signed8 ::: r
 
+      binaryInt8Int :: (Int8 -> Int -> Int8) -> IO ()
+      binaryInt8Int f = do
+        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
+        writeIORef stackRef $ Integer result Signed8 ::: r
+
       unaryInt16 :: (Int16 -> Int16) -> IO ()
       unaryInt16 f = do
         Integer x _ ::: r <- readIORef stackRef
@@ -524,6 +587,12 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
 
       binaryInt16 :: (Int16 -> Int16 -> Int16) -> IO ()
       binaryInt16 f = do
+        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
+        writeIORef stackRef $ Integer result Signed16 ::: r
+
+      binaryInt16Int :: (Int16 -> Int -> Int16) -> IO ()
+      binaryInt16Int f = do
         Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
         let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
         writeIORef stackRef $ Integer result Signed16 ::: r
@@ -540,6 +609,12 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
         let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
         writeIORef stackRef $ Integer result Signed32 ::: r
 
+      binaryInt32Int :: (Int32 -> Int -> Int32) -> IO ()
+      binaryInt32Int f = do
+        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
+        writeIORef stackRef $ Integer result Signed32 ::: r
+
       unaryInt64 :: (Int64 -> Int64) -> IO ()
       unaryInt64 f = do
         Integer x _ ::: r <- readIORef stackRef
@@ -548,6 +623,12 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
 
       binaryInt64 :: (Int64 -> Int64 -> Int64) -> IO ()
       binaryInt64 f = do
+        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
+        writeIORef stackRef $ Integer result Signed64 ::: r
+
+      binaryInt64Int :: (Int64 -> Int -> Int64) -> IO ()
+      binaryInt64Int f = do
         Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
         let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
         writeIORef stackRef $ Integer result Signed64 ::: r
@@ -564,6 +645,12 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
         let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
         writeIORef stackRef $ Integer result Unsigned8 ::: r
 
+      binaryUInt8Int :: (Word8 -> Int -> Word8) -> IO ()
+      binaryUInt8Int f = do
+        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
+        writeIORef stackRef $ Integer result Unsigned8 ::: r
+
       unaryUInt16 :: (Word16 -> Word16) -> IO ()
       unaryUInt16 f = do
         Integer x _ ::: r <- readIORef stackRef
@@ -572,6 +659,12 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
 
       binaryUInt16 :: (Word16 -> Word16 -> Word16) -> IO ()
       binaryUInt16 f = do
+        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
+        writeIORef stackRef $ Integer result Unsigned16 ::: r
+
+      binaryUInt16Int :: (Word16 -> Int -> Word16) -> IO ()
+      binaryUInt16Int f = do
         Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
         let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
         writeIORef stackRef $ Integer result Unsigned16 ::: r
@@ -588,6 +681,12 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
         let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
         writeIORef stackRef $ Integer result Unsigned32 ::: r
 
+      binaryUInt32Int :: (Word32 -> Int -> Word32) -> IO ()
+      binaryUInt32Int f = do
+        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
+        writeIORef stackRef $ Integer result Unsigned32 ::: r
+
       unaryUInt64 :: (Word64 -> Word64) -> IO ()
       unaryUInt64 f = do
         Integer x _ ::: r <- readIORef stackRef
@@ -596,6 +695,12 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
 
       binaryUInt64 :: (Word64 -> Word64 -> Word64) -> IO ()
       binaryUInt64 f = do
+        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
+        writeIORef stackRef $ Integer result Unsigned64 ::: r
+
+      binaryUInt64Int :: (Word64 -> Int -> Word64) -> IO ()
+      binaryUInt64Int f = do
         Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
         let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
         writeIORef stackRef $ Integer result Unsigned64 ::: r
