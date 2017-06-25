@@ -117,6 +117,36 @@ vocab kitten {
   intrinsic div_int64 (Int64, Int64 -> Int64)
   intrinsic mod_int64 (Int64, Int64 -> Int64)
 
+  // Signed integer bitwise operations.
+
+  intrinsic not_int8 (Int8 -> Int8)
+  intrinsic or_int8  (Int8, Int8 -> Int8)
+  intrinsic and_int8 (Int8, Int8 -> Int8)
+  intrinsic xor_int8 (Int8, Int8 -> Int8)
+  intrinsic shl_int8 (Int8, Int32 -> Int8)
+  intrinsic rol_int8 (Int8, Int32 -> Int8)
+
+  intrinsic not_int16 (Int16 -> Int16)
+  intrinsic or_int16  (Int16, Int16 -> Int16)
+  intrinsic and_int16 (Int16, Int16 -> Int16)
+  intrinsic xor_int16 (Int16, Int16 -> Int16)
+  intrinsic shl_int16 (Int16, Int32 -> Int16)
+  intrinsic rol_int16 (Int16, Int32 -> Int16)
+
+  intrinsic not_int32 (Int32 -> Int32)
+  intrinsic or_int32  (Int32, Int32 -> Int32)
+  intrinsic and_int32 (Int32, Int32 -> Int32)
+  intrinsic xor_int32 (Int32, Int32 -> Int32)
+  intrinsic shl_int32 (Int32, Int32 -> Int32)
+  intrinsic rol_int32 (Int32, Int32 -> Int32)
+
+  intrinsic not_int64 (Int64 -> Int64)
+  intrinsic or_int64  (Int64, Int64 -> Int64)
+  intrinsic and_int64 (Int64, Int64 -> Int64)
+  intrinsic xor_int64 (Int64, Int64 -> Int64)
+  intrinsic shl_int64 (Int64, Int32 -> Int64)
+  intrinsic rol_int64 (Int64, Int32 -> Int64)
+
   // Signed integer comparisons.
 
   intrinsic lt_int8 (Int8, Int8 -> Bool)
@@ -176,6 +206,36 @@ vocab kitten {
   intrinsic mul_uint64 (UInt64, UInt64 -> UInt64)
   intrinsic div_uint64 (UInt64, UInt64 -> UInt64)
   intrinsic mod_uint64 (UInt64, UInt64 -> UInt64)
+
+  // Unsigned integer bitwise operations.
+
+  intrinsic not_uint8 (UInt8 -> UInt8)
+  intrinsic or_uint8  (UInt8, UInt8 -> UInt8)
+  intrinsic and_uint8 (UInt8, UInt8 -> UInt8)
+  intrinsic xor_uint8 (UInt8, UInt8 -> UInt8)
+  intrinsic shl_uint8 (UInt8, Int32 -> UInt8)
+  intrinsic rol_uint8 (UInt8, Int32 -> UInt8)
+
+  intrinsic not_uint16 (UInt16 -> UInt16)
+  intrinsic or_uint16  (UInt16, UInt16 -> UInt16)
+  intrinsic and_uint16 (UInt16, UInt16 -> UInt16)
+  intrinsic xor_uint16 (UInt16, UInt16 -> UInt16)
+  intrinsic shl_uint16 (UInt16, Int32 -> UInt16)
+  intrinsic rol_uint16 (UInt16, Int32 -> UInt16)
+
+  intrinsic not_uint32 (UInt32 -> UInt32)
+  intrinsic or_uint32  (UInt32, UInt32 -> UInt32)
+  intrinsic and_uint32 (UInt32, UInt32 -> UInt32)
+  intrinsic xor_uint32 (UInt32, UInt32 -> UInt32)
+  intrinsic shl_uint32 (UInt32, Int32 -> UInt32)
+  intrinsic rol_uint32 (UInt32, Int32 -> UInt32)
+
+  intrinsic not_uint64 (UInt64 -> UInt64)
+  intrinsic or_uint64  (UInt64, UInt64 -> UInt64)
+  intrinsic and_uint64 (UInt64, UInt64 -> UInt64)
+  intrinsic xor_uint64 (UInt64, UInt64 -> UInt64)
+  intrinsic shl_uint64 (UInt64, Int32 -> UInt64)
+  intrinsic rol_uint64 (UInt64, Int32 -> UInt64)
 
   // Unsigned integer comparisons.
 
@@ -366,6 +426,66 @@ define div_mod<T> (T, T -> T, T +Fail):
   -> x, y;
   (x / y) (x % y)
 
+trait << <T> (T, Int32 -> T)
+
+about <<:
+  operator:
+    left 5
+
+instance << (Int8, Int32 -> Int8) { _::kitten::shl_int8 }
+instance << (Int16, Int32 -> Int16) { _::kitten::shl_int16 }
+instance << (Int32, Int32 -> Int32) { _::kitten::shl_int32 }
+instance << (Int64, Int32 -> Int64) { _::kitten::shl_int64 }
+instance << (UInt8, Int32 -> UInt8) { _::kitten::shl_uint8 }
+instance << (UInt16, Int32 -> UInt16) { _::kitten::shl_uint16 }
+instance << (UInt32, Int32 -> UInt32) { _::kitten::shl_uint32 }
+instance << (UInt64, Int32 -> UInt64) { _::kitten::shl_uint64 }
+
+trait >> <T> (T, Int32 -> T)
+
+about >>:
+  operator:
+    left 5
+
+instance >> (Int8, Int32 -> Int8) { neg _::kitten::shl_int8 }
+instance >> (Int16, Int32 -> Int16) { neg _::kitten::shl_int16 }
+instance >> (Int32, Int32 -> Int32) { neg _::kitten::shl_int32 }
+instance >> (Int64, Int32 -> Int64) { neg _::kitten::shl_int64 }
+instance >> (UInt8, Int32 -> UInt8) { neg _::kitten::shl_uint8 }
+instance >> (UInt16, Int32 -> UInt16) { neg _::kitten::shl_uint16 }
+instance >> (UInt32, Int32 -> UInt32) { neg _::kitten::shl_uint32 }
+instance >> (UInt64, Int32 -> UInt64) { neg _::kitten::shl_uint64 }
+
+trait <<| <T> (T, Int32 -> T)
+
+about <<|:
+  operator:
+    left 5
+
+instance <<| (Int8, Int32 -> Int8) { _::kitten::rol_int8 }
+instance <<| (Int16, Int32 -> Int16) { _::kitten::rol_int16 }
+instance <<| (Int32, Int32 -> Int32) { _::kitten::rol_int32 }
+instance <<| (Int64, Int32 -> Int64) { _::kitten::rol_int64 }
+instance <<| (UInt8, Int32 -> UInt8) { _::kitten::rol_uint8 }
+instance <<| (UInt16, Int32 -> UInt16) { _::kitten::rol_uint16 }
+instance <<| (UInt32, Int32 -> UInt32) { _::kitten::rol_uint32 }
+instance <<| (UInt64, Int32 -> UInt64) { _::kitten::rol_uint64 }
+
+trait |>> <T> (T, Int32 -> T)
+
+about |>>:
+  operator:
+    left 5
+
+instance |>> (Int8, Int32 -> Int8) { neg _::kitten::rol_int8 }
+instance |>> (Int16, Int32 -> Int16) { neg _::kitten::rol_int16 }
+instance |>> (Int32, Int32 -> Int32) { neg _::kitten::rol_int32 }
+instance |>> (Int64, Int32 -> Int64) { neg _::kitten::rol_int64 }
+instance |>> (UInt8, Int32 -> UInt8) { neg _::kitten::rol_uint8 }
+instance |>> (UInt16, Int32 -> UInt16) { neg _::kitten::rol_uint16 }
+instance |>> (UInt32, Int32 -> UInt32) { neg _::kitten::rol_uint32 }
+instance |>> (UInt64, Int32 -> UInt64) { neg _::kitten::rol_uint64 }
+
 trait < <T> (T, T -> Bool)
 
 about <:
@@ -491,11 +611,22 @@ type Bool:
   case false
   case true
 
-define not (Bool -> Bool):
+trait not<T> (T -> T)
+
+instance not (Bool -> Bool):
   if:
     false
   else:
     true
+
+instance not (Int8 -> Int8) { _::kitten::not_int8 }
+instance not (Int16 -> Int16) { _::kitten::not_int16 }
+instance not (Int32 -> Int32) { _::kitten::not_int32 }
+instance not (Int64 -> Int64) { _::kitten::not_int64 }
+instance not (UInt8 -> UInt8) { _::kitten::not_uint8 }
+instance not (UInt16 -> UInt16) { _::kitten::not_uint16 }
+instance not (UInt32 -> UInt32) { _::kitten::not_uint32 }
+instance not (UInt64 -> UInt64) { _::kitten::not_uint64 }
 
 // Strict intersection.
 trait & <T> (T, T -> T)
@@ -510,6 +641,15 @@ instance & (Bool, Bool -> Bool):
     y
   else:
     false
+
+instance & (Int8, Int8 -> Int8) { _::kitten::and_int8 }
+instance & (Int16, Int16 -> Int16) { _::kitten::and_int16 }
+instance & (Int32, Int32 -> Int32) { _::kitten::and_int32 }
+instance & (Int64, Int64 -> Int64) { _::kitten::and_int64 }
+instance & (UInt8, UInt8 -> UInt8) { _::kitten::and_uint8 }
+instance & (UInt16, UInt16 -> UInt16) { _::kitten::and_uint16 }
+instance & (UInt32, UInt32 -> UInt32) { _::kitten::and_uint32 }
+instance & (UInt64, UInt64 -> UInt64) { _::kitten::and_uint64 }
 
 // Lazy intersection.
 trait && <T> (T, (-> T) -> T)
@@ -539,6 +679,15 @@ instance | (Bool, Bool -> Bool):
   else:
     y
 
+instance | (Int8, Int8 -> Int8) { _::kitten::or_int8 }
+instance | (Int16, Int16 -> Int16) { _::kitten::or_int16 }
+instance | (Int32, Int32 -> Int32) { _::kitten::or_int32 }
+instance | (Int64, Int64 -> Int64) { _::kitten::or_int64 }
+instance | (UInt8, UInt8 -> UInt8) { _::kitten::or_uint8 }
+instance | (UInt16, UInt16 -> UInt16) { _::kitten::or_uint16 }
+instance | (UInt32, UInt32 -> UInt32) { _::kitten::or_uint32 }
+instance | (UInt64, UInt64 -> UInt64) { _::kitten::or_uint64 }
+
 // Lazy union.
 trait || <T> (T, (-> T) -> T)
 
@@ -564,14 +713,34 @@ instance ~ (Bool, Bool -> Bool):
   swap
   if { not }
 
+instance ~ (Int8, Int8 -> Int8) { _::kitten::xor_int8 }
+instance ~ (Int16, Int16 -> Int16) { _::kitten::xor_int16 }
+instance ~ (Int32, Int32 -> Int32) { _::kitten::xor_int32 }
+instance ~ (Int64, Int64 -> Int64) { _::kitten::xor_int64 }
+instance ~ (UInt8, UInt8 -> UInt8) { _::kitten::xor_uint8 }
+instance ~ (UInt16, UInt16 -> UInt16) { _::kitten::xor_uint16 }
+instance ~ (UInt32, UInt32 -> UInt32) { _::kitten::xor_uint32 }
+instance ~ (UInt64, UInt64 -> UInt64) { _::kitten::xor_uint64 }
+
 // Strict implication.
-define --> (Bool, Bool -> Bool):
-  -> a, b;
-  if (a) { b } else { true }
+trait --> <T> (T, T -> T)
 
 about -->:
   operator:
     right 1
+
+instance --> (Bool, Bool -> Bool):
+  -> a, b;
+  if (a) { b } else { true }
+
+instance --> (Int8, Int8 -> Int8) { -> a, b; a not | b }
+instance --> (Int16, Int16 -> Int16) { -> a, b; a not | b }
+instance --> (Int32, Int32 -> Int32) { -> a, b; a not | b }
+instance --> (Int64, Int64 -> Int64) { -> a, b; a not | b }
+instance --> (UInt8, UInt8 -> UInt8) { -> a, b; a not | b }
+instance --> (UInt16, UInt16 -> UInt16) { -> a, b; a not | b }
+instance --> (UInt32, UInt32 -> UInt32) { -> a, b; a not | b }
+instance --> (UInt64, UInt64 -> UInt64) { -> a, b; a not | b }
 
 // Lazy implication.
 define ---> (Bool, (-> Bool) -> Bool):
