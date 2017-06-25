@@ -744,7 +744,11 @@ instance >= (Float64, Float64 -> Bool) { _::kitten::ge_float64 }
 instance = (Float64, Float64 -> Bool) { _::kitten::eq_float64 }
 instance <> (Float64, Float64 -> Bool) { _::kitten::ne_float64 }
 
-instance = (Bool, Bool -> Bool): if {} else {not}
+instance < (Bool, Bool -> Bool) { -> a, b; a not & b }
+instance > (Bool, Bool -> Bool) { -> a, b; a & b not }
+instance <= (Bool, Bool -> Bool) { (>) not }
+instance >= (Bool, Bool -> Bool) { (<) not }
+instance = (Bool, Bool -> Bool) { if {} else {not} }
 instance <> (Bool, Bool -> Bool) { (=) not }
 
 
@@ -1156,6 +1160,29 @@ define elem<T> (T, List<T> -> Bool):
     false
 
 // TODO: Partial instances.
+instance > (List<Int32>, List<Int32> -> Bool):
+  -> xs, ys;
+  match (xs head_tail)
+  case some:
+    unpair -> x, xs_;
+    match (ys head_tail)
+    case some:
+      unpair -> y, ys_;
+      if (x > y):
+        true
+      elif (x < y):
+        false
+      else:
+        xs_ > ys_
+    case none:
+      true
+  case none:
+    false
+
+instance < (List<Int32>, List<Int32> -> Bool) { swap (>) }
+instance <= (List<Int32>, List<Int32> -> Bool) { (>) not }
+instance >= (List<Int32>, List<Int32> -> Bool) { (<) not }
+
 instance = (List<Int32>, List<Int32> -> Bool):
   -> xs, ys;
   if (xs length <> ys length):
@@ -1176,6 +1203,31 @@ instance = (List<Int32>, List<Int32> -> Bool):
     case none:
       true
 
+instance <> (List<Int32>, List<Int32> -> Bool) { (=) not }
+
+instance > (List<Char>, List<Char> -> Bool):
+  -> xs, ys;
+  match (xs head_tail)
+  case some:
+    unpair -> x, xs_;
+    match (ys head_tail)
+    case some:
+      unpair -> y, ys_;
+      if (x > y):
+        true
+      elif (x < y):
+        false
+      else:
+        xs_ > ys_
+    case none:
+      true
+  case none:
+    false
+
+instance < (List<Char>, List<Char> -> Bool) { swap (>) }
+instance <= (List<Char>, List<Char> -> Bool) { (>) not }
+instance >= (List<Char>, List<Char> -> Bool) { (<) not }
+
 instance = (List<Char>, List<Char> -> Bool):
   -> xs, ys;
   if (xs length <> ys length):
@@ -1195,6 +1247,8 @@ instance = (List<Char>, List<Char> -> Bool):
         true
     case none:
       true
+
+instance <> (List<Char>, List<Char> -> Bool) { (=) not }
 
 define head<T> (List<T> -> Optional<T>):
   _::kitten::head
