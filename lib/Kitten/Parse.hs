@@ -697,9 +697,17 @@ termParser = (<?> "expression") $ do
   doParser = (<?> "do expression") $ do
     doOrigin <- getTokenOrigin <* parserMatch Token.Do
     term <- groupParser <?> "parenthesized expression"
-    body <- blockLikeParser
-    return $ compose () doOrigin
-      [Push () (Quotation body) (Term.origin body), term]
+    Parsec.choice
+      -- do (f) { x y z } => { x y z } f
+      [ do
+        body <- blockLikeParser
+        return $ compose () doOrigin
+          [Push () (Quotation body) (Term.origin body), term]
+      -- do (f) [x, y, z] => [x, y, z] f
+      , do
+        body <- vectorParser
+        return $ compose () doOrigin [body, term]
+      ]
 
   blockValue :: Parser (Value ())
   blockValue = (<?> "quotation") $ Quotation <$> blockParser
