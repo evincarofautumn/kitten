@@ -1,0 +1,32 @@
+define fib_naive (UInt64 -> UInt64):
+  -> n;
+  if (n <= 1u64):
+    1u64
+  else:
+    (n - 2u64) fib_naive + (n - 1u64) fib_naive
+
+define fib_tailrec (UInt64 -> UInt64):
+  1u64 1u64 fib_tailrec_helper
+
+define fib_tailrec_helper (UInt64, UInt64, UInt64 -> UInt64):
+  -> n, a, b;
+  if (n = 0u64):
+    a
+  elif (n = 1u64):
+    b
+  else:
+    (n - 1u64) b (a + b) fib_tailrec_helper
+
+define fib_fix (UInt64 -> UInt64):
+  do (fix) -> n, rec:
+    if (n <= 1u64):
+      1u64
+    else:
+      (n - 2u64) rec call -> a;
+      (n - 1u64) rec call -> b;
+      a + b
+
+define test ((UInt64 -> UInt64) -> +IO):
+  10u64 swap call say
+
+[\fib_naive, \fib_tailrec, \fib_fix] \test each
