@@ -6,51 +6,42 @@
 
  * An interpreter.
 
- * A compiler targeting C99.
+ * A native-code compiler producing static executables. (Incomplete.)
 
-# Resources
-
-**Note: these are currently out of date with the new compiler.**
+## Resources
 
  * Visit the [official site][site].
 
- * Browse some [examples][examples].
-
  * Skim a quick [intro][intro].
 
- * Read a (work in progress) [tutorial][tutorial].
+ * Browse some [examples][examples].
 
-# Building [![Build Status](https://travis-ci.org/evincarofautumn/kitten.png?branch=master)](https://travis-ci.org/evincarofautumn/kitten)
+## Building [![Build Status](https://travis-ci.org/evincarofautumn/kitten.png?branch=master)](https://travis-ci.org/evincarofautumn/kitten)
 
 To build the latest compiler, you need [Stack]:
 
 ```
 git clone https://github.com/evincarofautumn/kitten.git
 cd kitten
-stack setup
+stack setup  # only necessary on first build
 stack build
 
 stack exec kitten
+stack exec kitten -- <flags>
 # OR
 stack install
 ~/.local/bin/kitten
+~/.local/bin/kitten <flags>
 ```
 
----
+## Miscellany
 
-To build the old compiler, which will be removed soon, you need GHC ≥7.10:
-
-```
-git clone https://github.com/evincarofautumn/kitten.git
-cd kitten
-make
-```
-
-You can run the integration tests concurrently with `make -jn`, where `n` is the number of concurrent jobs. If you are working on the compiler, you can use `make dev` to avoid checking the library dependencies on every rebuild.
+Kitten is distributed under the terms of the [MIT license][license]. Contributors should agree to abide by the [code of conduct].
 
 [concatenative]: http://concatenative.org/
 [examples]: https://github.com/evincarofautumn/kitten/tree/master/examples
 [intro]: http://kittenlang.org/intro/
 [site]: http://kittenlang.org/
-[tutorial]: http://kittenlang.org/tutorial/
 [Stack]: https://docs.haskellstack.org/en/stable/README/
+[license]: https://github.com/evincarofautumn/kitten/blob/master/LICENSE.md
+[code of conduct]: https://github.com/evincarofautumn/kitten/blob/master/CODE_OF_CONDUCT.md
