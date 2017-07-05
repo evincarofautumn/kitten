@@ -1019,6 +1019,15 @@ define lift_optional_2<A, B, C> (Optional<A>, Optional<B>, (A, B -> C) -> Option
 type Pair<A, B>:
   case pair (A, B)
 
+define => <K, V> (K, V -> Pair<K, V>) { pair }
+
+about =>:
+  docs: """
+    A mnemonic operator for creating key-value pairs.
+    """
+  operator:
+    right 1
+
 define unpair<A, B> (Pair<A, B> -> A, B):
   match case pair {}
 
