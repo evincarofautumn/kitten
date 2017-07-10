@@ -123,8 +123,7 @@ inferType0
   -- ^ Term to infer.
   -> K (Term Type, Type)
   -- ^ Type-annotated term and its inferred type.
-inferType0 dictionary tenv mDeclared term
-  = while (Term.origin term) context $ do
+inferType0 dictionary tenv mDeclared term = do
     rec
       (term', t, tenvFinal) <- inferType dictionary tenvFinal' tenv term
       tenvFinal' <- maybe (return tenvFinal) (Unify.type_ tenvFinal t) mDeclared
@@ -136,11 +135,6 @@ inferType0 dictionary tenv mDeclared term
         "inferred" regeneralized "declared" declared
       Nothing -> return ()
     return (Zonk.term tenvFinal' term', regeneralized)
-  where
-
-  context :: Pretty.Doc
-  context = Pretty.hsep ["inferring the type of", Pretty.quote term]
-
 
 -- We infer the type of a term and annotate each terminal with the inferred type
 -- as we go. We ignore any existing annotations because a definition may need to
@@ -153,8 +147,7 @@ inferType
   -> TypeEnv
   -> Term a
   -> K (Term Type, Type, TypeEnv)
-inferType dictionary tenvFinal tenv0 term0
-  = while (Term.origin term0) context $ case term0 of
+inferType dictionary tenvFinal tenv0 term0 = case term0 of
 
 -- A coercion is a typed no-op.
 --
@@ -167,7 +160,8 @@ inferType dictionary tenvFinal tenv0 term0
 -- the stack; or to an arbitrary type, in order to unsafely reinterpret-cast
 -- between types, e.g., to grant or revoke permissions.
 
-    Coercion hint@Term.IdentityCoercion _ origin -> do
+    Coercion hint@Term.IdentityCoercion _ origin
+      -> while (Term.origin term0) context $ do
       [a, p] <- fresh origin
         [ ("S", Stack)
         , ("P", Permission)
@@ -175,7 +169,8 @@ inferType dictionary tenvFinal tenv0 term0
       let type_ = Type.fun origin a a p
       let type' = Zonk.type_ tenvFinal type_
       return (Coercion hint type' origin, type_, tenv0)
-    Coercion hint@(Term.AnyCoercion sig) _ origin -> do
+    Coercion hint@(Term.AnyCoercion sig) _ origin
+      -> while (Term.origin term0) context $ do
       type_ <- typeFromSignature tenv0 sig
       let type' = Zonk.type_ tenvFinal type_
       return (Coercion hint type' origin, type_, tenv0)
@@ -232,7 +227,7 @@ inferType dictionary tenvFinal tenv0 term0
 -- 'match' without an else branch raises 'abort', causing the 'match' to require
 -- the +Fail permission.
 
-    Match hint _ cases else_ origin -> do
+    Match hint _ cases else_ origin -> while (Term.origin term0) context $ do
       let
         constructors = case cases of
           -- Curiously, because an empty match works on any type, no
@@ -300,7 +295,8 @@ inferType dictionary tenvFinal tenv0 term0
 -- the type signature of the desugared data constructor definition to make this
 -- type-safe, since only the compiler can generate 'new' expressions.
 
-    New _ constructor size origin -> do
+    New _ constructor size origin
+      -> while (Term.origin term0) context $ do
       [a, b, e] <- fresh origin
         [ ("R", Stack)
         , ("S", Stack)
@@ -317,7 +313,8 @@ inferType dictionary tenvFinal tenv0 term0
 --     ∀ρστα̂. ρ × α₀ × … × αₓ × (σ → τ) → ρ × (σ → τ)
 --
 
-    NewClosure _ size origin -> do
+    NewClosure _ size origin
+      -> while (Term.origin term0) context $ do
       as <- fresh origin
         $ zip
           [ Unqualified ("Capture" <> Text.pack (show i))
@@ -345,7 +342,8 @@ inferType dictionary tenvFinal tenv0 term0
 --     ∀ρα. ρ × α₀ × … × αₓ → ρ × vector<α>
 --
 
-    NewVector _ size _ origin -> do
+    NewVector _ size _ origin
+      -> while (Term.origin term0) context $ do
       [a, b, e] <- fresh origin
         [ ("R", Stack)
         , ("Item", Value)
@@ -362,7 +360,8 @@ inferType dictionary tenvFinal tenv0 term0
 
 -- Pushing a value results in a stack with that value on top.
 
-    Push _ value origin -> do
+    Push _ value origin
+      -> while (Term.origin term0) context $ do
       [a, e] <- fresh origin
         [ ("S", Stack)
         , ("P", Permission)
@@ -373,7 +372,9 @@ inferType dictionary tenvFinal tenv0 term0
       return (Push type' value' origin, type_, tenv1)
 
     -- FIXME: Should generic parameters be restricted to none?
-    Word _ _fixity name _ origin -> inferCall dictionary tenvFinal tenv0 name origin
+    Word _ _fixity name _ origin
+      -> while (Term.origin term0) context
+      $ inferCall dictionary tenvFinal tenv0 name origin
 
   where
   inferType' = inferType dictionary tenvFinal
