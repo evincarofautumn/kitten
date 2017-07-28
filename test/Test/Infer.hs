@@ -49,6 +49,15 @@ spec = do
         "define test (-> Float64) { 1.0 }"
         $ Type.fun o r (Type.prod o r float) e
 
+    it "typechecks compound literals" $ do
+
+      testTypecheck Positive
+        "type Pair<A, B> { case pair (A, B) }\n\
+        \define => <K, V> (K, V -> Pair<K, V>) { pair }\n\
+        \about => { operator { right 1 } }\n\
+        \define test (-> List<Pair<Int32, Int32>>) { [1 => 1, 2 => 2, 3 => 3] }"
+        $ Type.fun o r (Type.prod o r (ctor "List" :@ (ctor "Pair" :@ int :@ int))) e
+
     it "typechecks intrinsics" $ do
 
       testTypecheck Positive

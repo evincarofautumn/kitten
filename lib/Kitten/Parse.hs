@@ -624,7 +624,7 @@ termParser = (<?> "expression") $ do
     elements <- bracketedParser
       $ (compose () vectorOrigin <$> Parsec.many1 termParser)
       `Parsec.sepEndBy` commaParser
-    return $ compose () vectorOrigin $ elements
+    return $ compose () vectorOrigin $ map Group elements
       ++ [NewVector () (length elements) () vectorOrigin]
 
   lambdaParser :: Parser (Term ())
