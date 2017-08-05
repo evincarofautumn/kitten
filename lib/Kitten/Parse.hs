@@ -21,6 +21,7 @@ import Control.Monad (guard, void)
 import Data.List (find, findIndex, foldl')
 import Data.Maybe (fromMaybe, isJust)
 import Data.Text (Text)
+import Kitten.Bracket (bracket)
 import Kitten.DataConstructor (DataConstructor(DataConstructor))
 import Kitten.Declaration (Declaration(Declaration))
 import Kitten.Definition (Definition(Definition))
@@ -30,7 +31,6 @@ import Kitten.Entry.Parameter (Parameter(Parameter))
 import Kitten.Fragment (Fragment(Fragment))
 import Kitten.Informer (Informer(..))
 import Kitten.Kind (Kind(..))
-import Kitten.Layout (layout)
 import Kitten.Layoutness (Layoutness(..))
 import Kitten.Located (Located)
 import Kitten.Metadata (Metadata(Metadata))
@@ -110,8 +110,8 @@ generalName :: (Informer m) => Int -> FilePath -> Text -> m GeneralName
 generalName line path text = do
   tokens <- tokenize line path text
   checkpoint
-  laidOut <- layout path tokens
-  let parsed = Parsec.runParser nameParser Vocabulary.global path laidOut
+  bracketed <- bracket path tokens
+  let parsed = Parsec.runParser nameParser Vocabulary.global path bracketed
   case parsed of
     Left parseError -> do
       report $ Report.parseError parseError

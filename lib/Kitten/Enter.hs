@@ -19,6 +19,7 @@ module Kitten.Enter
 import Control.Monad ((>=>))
 import Data.Foldable (foldlM)
 import Data.Text (Text)
+import Kitten.Bracket (bracket)
 import Kitten.Declaration (Declaration)
 import Kitten.Definition (Definition)
 import Kitten.Dictionary (Dictionary)
@@ -26,7 +27,6 @@ import Kitten.Fragment (Fragment)
 import Kitten.Infer (mangleInstance, typecheck)
 import Kitten.Informer (checkpoint, report)
 import Kitten.Instantiated (Instantiated(Instantiated))
-import Kitten.Layout (layout)
 import Kitten.Metadata (Metadata)
 import Kitten.Monad (K)
 import Kitten.Name
@@ -336,13 +336,13 @@ fragmentFromSource mainPermissions mainName line path source = do
 -- parser can find the ends of blocks without checking the indentation of
 -- tokens.
 
-  laidOut <- layout path tokenized
+  bracketed <- bracket path tokenized
 
 -- We then parse the token stream as a series of top-level program elements.
 -- Datatype definitions are desugared into regular definitions, so that name
 -- resolution can find their names.
 
-  parsed <- Parse.fragment line path mainPermissions mainName laidOut
+  parsed <- Parse.fragment line path mainPermissions mainName bracketed
   checkpoint
 
   return parsed

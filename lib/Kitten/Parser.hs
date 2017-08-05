@@ -11,7 +11,7 @@ Portability : GHC
 {-# LANGUAGE DataKinds #-}
 
 module Kitten.Parser
-  ( Layouter
+  ( Bracketer
   , Parser
   , getTokenOrigin
   , parserMatch
@@ -32,7 +32,7 @@ import qualified Kitten.Located as Located
 import qualified Kitten.Origin as Origin
 import qualified Text.Parsec as Parsec
 
-type Layouter a = GeneralParser 'Layout a
+type Bracketer a = GeneralParser 'Layout a
 type Parser a = GeneralParser 'Nonlayout a
 type GeneralParser l a = ParsecT [Located (Token l)] Qualifier Identity a
 

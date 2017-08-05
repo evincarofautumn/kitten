@@ -1,5 +1,5 @@
 {-|
-Module      : Kitten.Layout
+Module      : Kitten.Bracket
 Description : Whitespace-sensitive syntax desugaring
 Copyright   : (c) Jon Purdy, 2016
 License     : MIT
@@ -10,8 +10,8 @@ Portability : GHC
 
 {-# LANGUAGE DataKinds #-}
 
-module Kitten.Layout
-  ( layout
+module Kitten.Bracket
+  ( bracket
   ) where
 
 import Control.Applicative
@@ -19,7 +19,7 @@ import Kitten.Indent (Indent(..))
 import Kitten.Informer (Informer(..))
 import Kitten.Layoutness (Layoutness(..))
 import Kitten.Located (Located(..))
-import Kitten.Parser (Layouter, parserMatch, tokenSatisfy)
+import Kitten.Parser (Bracketer, parserMatch, tokenSatisfy)
 import Kitten.Token (Token(..))
 import Text.Parsec ((<?>))
 import qualified Kitten.Located as Located
@@ -37,42 +37,42 @@ import qualified Text.Parsec as Parsec
 -- (and bracket-delimited groups of tokens) whose source column is greater than
 -- or equal to that of the first token.
 
-layout
+bracket
   :: (Informer m)
   => FilePath
   -> [Located (Token 'Layout)]
   -> m [Located (Token 'Nonlayout)]
-layout path tokens
+bracket path tokens
   = case Parsec.runParser insertBraces Vocabulary.global path tokens of
     Left parseError -> do
       report $ Report.parseError parseError
       halt
     Right result -> return result
 
-insertBraces :: Layouter [Located (Token 'Nonlayout)]
+insertBraces :: Bracketer [Located (Token 'Nonlayout)]
 insertBraces = (concat <$> many unit) <* Parsec.eof
   where
 
-    unit :: Layouter [Located (Token 'Nonlayout)]
+    unit :: Bracketer [Located (Token 'Nonlayout)]
     unit = unitWhere (const True)
 
     unitWhere
       :: (Located (Token 'Layout) -> Bool)
-      -> Layouter [Located (Token 'Nonlayout)]
+      -> Bracketer [Located (Token 'Nonlayout)]
     unitWhere predicate
       = Parsec.try (Parsec.lookAhead (tokenSatisfy predicate)) *> Parsec.choice
-        [ bracket BlockBegin BlockEnd
-        , bracket GroupBegin GroupEnd
-        , bracket VectorBegin VectorEnd
+        [ between BlockBegin BlockEnd
+        , between GroupBegin GroupEnd
+        , between VectorBegin VectorEnd
         , layoutBlock
         , (:[]) <$> (fromLayout =<< tokenSatisfy nonbracket)
         ] <?> "layout item"
 
-    bracket
+    between
       :: Token 'Layout
       -> Token 'Layout
-      -> Layouter [Located (Token 'Nonlayout)]
-    bracket open close = do
+      -> Bracketer [Located (Token 'Nonlayout)]
+    between open close = do
       begin <- fromLayout =<< parserMatch open
       inner <- concat <$> many unit
       end <- fromLayout =<< parserMatch close
@@ -96,7 +96,7 @@ insertBraces = (concat <$> many unit) <* Parsec.eof
       , Colon
       ]
 
-    layoutBlock :: Layouter [Located (Token 'Nonlayout)]
+    layoutBlock :: Bracketer [Located (Token 'Nonlayout)]
     layoutBlock = do
       colon <- parserMatch Colon
       let
@@ -118,7 +118,7 @@ insertBraces = (concat <$> many unit) <* Parsec.eof
 
     fromLayout
       :: Located (Token 'Layout)
-      -> Layouter (Located (Token 'Nonlayout))
+      -> Bracketer (Located (Token 'Nonlayout))
     fromLayout located = case Token.fromLayout (Located.item located) of
       Just nonlayout -> pure located { Located.item = nonlayout }
       Nothing -> Parsec.unexpected "colon not beginning valid layout block"

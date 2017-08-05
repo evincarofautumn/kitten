@@ -63,6 +63,7 @@ library
     Kitten.Amd64
     Kitten.Base
     Kitten.Bits
+    Kitten.Bracket
     Kitten.CollectInstantiations
     Kitten.DataConstructor
     Kitten.Declaration
@@ -89,7 +90,6 @@ library
     Kitten.Instantiated
     Kitten.Interpret
     Kitten.Kind
-    Kitten.Layout
     Kitten.Layoutness
     Kitten.Linearize
     Kitten.Located
@@ -159,6 +159,7 @@ test-suite test
     Kitten.Amd64
     Kitten.Base
     Kitten.Bits
+    Kitten.Bracket
     Kitten.CollectInstantiations
     Kitten.DataConstructor
     Kitten.Declaration
@@ -185,7 +186,6 @@ test-suite test
     Kitten.Instantiated
     Kitten.Interpret
     Kitten.Kind
-    Kitten.Layout
     Kitten.Layoutness
     Kitten.Linearize
     Kitten.Located
