@@ -31,6 +31,7 @@ import Data.Maybe (mapMaybe)
 import Kitten.Entry (Entry)
 import Kitten.Informer (Informer(..))
 import Kitten.Instantiated (Instantiated(Instantiated))
+import Kitten.Literal (IntegerLiteral(IntegerLiteral))
 import Kitten.Name
 import Kitten.Operator (Operator(Operator))
 import Kitten.Signature (Signature)
@@ -98,7 +99,7 @@ operatorMetadata dictionary = HashMap.fromList <$> mapM getMetadata
         -> yield associativity defaultPrecedence
 
         -- Just precedence.
-        | [Term.Push _ (Term.Integer prec _bits) _]
+        | [Term.Push _ (Term.Integer (IntegerLiteral prec _base _bits)) _]
           <- Term.decompose term
         , validPrecedence prec
         -> yield defaultAssociativity
@@ -106,7 +107,7 @@ operatorMetadata dictionary = HashMap.fromList <$> mapM getMetadata
 
         -- Associativity and precedence.
         | [ Term.Word _ _ (UnqualifiedName (Unqualified assoc)) _ _
-          , Term.Push _ (Term.Integer prec _bits) _
+          , Term.Push _ (Term.Integer (IntegerLiteral prec _base _bits)) _
           ] <- Term.decompose term
         , Just associativity <- associativityFromName assoc
         , validPrecedence prec

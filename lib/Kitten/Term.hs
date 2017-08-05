@@ -9,7 +9,10 @@ Portability : GHC
 -}
 
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Kitten.Term
   ( Case(..)
@@ -34,8 +37,8 @@ module Kitten.Term
 import Data.List (intersperse, partition)
 import Data.Text (Text)
 import Data.Vector (Vector)
-import Kitten.Bits
 import Kitten.Entry.Parameter (Parameter(..))
+import Kitten.Literal (IntegerLiteral, FloatLiteral)
 import Kitten.Name
 import Kitten.Operator (Fixity)
 import Kitten.Origin (Origin)
@@ -138,10 +141,10 @@ data Value a
   | Closed !ClosureIndex
   -- | A closure value.
   | Closure !Qualified [Value a]
-  -- | A floating-point literal; see "Kitten.Bits".
-  | Float !Double !FloatBits
-  -- | An integer literal; see "Kitten.Bits".
-  | Integer !Integer !IntegerBits
+  -- | A floating-point literal.
+  | Float !FloatLiteral
+  -- | An integer literal.
+  | Integer !IntegerLiteral
   -- | A local variable.
   | Local !LocalIndex
   -- | A reference to a name.
@@ -262,8 +265,8 @@ stripValue v = case v of
   Character a -> Character a
   Closed a -> Closed a
   Closure a b -> Closure a (map stripValue b)
-  Float a b -> Float a b
-  Integer a b -> Integer a b
+  Float a -> Float a
+  Integer a -> Integer a
   Local a -> Local a
   Name a -> Name a
   Quotation a -> Quotation (stripMetadata a)
@@ -321,8 +324,8 @@ instance Pretty (Value a) where
     Character c -> Pretty.quotes $ Pretty.char c
     Closed (ClosureIndex index) -> "closure." Pretty.<> Pretty.int index
     Closure{} -> "<closure>"
-    Float f bits -> Pretty.hcat [Pretty.double f, pPrint bits]
-    Integer i bits -> Pretty.hcat [Pretty.integer i, pPrint bits]
+    Float f -> pPrint f
+    Integer i -> pPrint i
     Local (LocalIndex index) -> "local." Pretty.<> Pretty.int index
     Name n -> Pretty.hcat ["\\", pPrint n]
     Quotation body -> Pretty.braces $ pPrint body

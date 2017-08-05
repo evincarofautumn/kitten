@@ -27,6 +27,7 @@ import Kitten.Bits
 import Kitten.Indent (Indent(..))
 import Kitten.Informer (Informer(..))
 import Kitten.Layoutness (Layoutness(..))
+import Kitten.Literal (IntegerLiteral(IntegerLiteral), FloatLiteral(FloatLiteral))
 import Kitten.Located (Located(..))
 import Kitten.Name (Unqualified(..))
 import Kitten.Token (Token(..))
@@ -178,7 +179,7 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
             (fst . head . readHex) Hexadecimal "hexadecimal"
           ]
         bits <- integerBits
-        return $ Integer (applySign sign value) hint bits
+        return $ Integer $ IntegerLiteral (applySign sign value) hint bits
       , do
         integer <- Parsec.many1 Parsec.digit
         mFraction <- Parsec.optionMaybe
@@ -189,7 +190,7 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
         case (mFraction, mPower) of
           (Nothing, Nothing) -> do
             bits <- integerBits
-            return $ Integer
+            return $ Integer $ IntegerLiteral
               (applySign sign (read integer))
               Decimal
               bits
@@ -198,7 +199,7 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
               [ Float32 <$ Parsec.string "32"
               , Float64 <$ Parsec.string "64"
               ]
-            return $ Float
+            return $ Float $ FloatLiteral
               (applySign sign (read (integer ++ fromMaybe "" mFraction)))
               (maybe 0 length mFraction)
               (maybe 0 (\ (s, p) -> applySign s $ read p) mPower)

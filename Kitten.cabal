@@ -92,6 +92,7 @@ library
     Kitten.Kind
     Kitten.Layoutness
     Kitten.Linearize
+    Kitten.Literal
     Kitten.Located
     Kitten.Mangle
     Kitten.Metadata
@@ -188,6 +189,7 @@ test-suite test
     Kitten.Kind
     Kitten.Layoutness
     Kitten.Linearize
+    Kitten.Literal
     Kitten.Located
     Kitten.Mangle
     Kitten.Metadata

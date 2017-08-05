@@ -31,6 +31,7 @@ import qualified Data.Text as Text
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
+import qualified Kitten.Literal as Literal
 import qualified Kitten.Mangle as Mangle
 import qualified Kitten.Term as Term
 import qualified Kitten.Vocabulary as Vocabulary
@@ -692,14 +693,14 @@ value origin v = case v of
     comment ["closure.", Text.pack $ show index]
   Term.Closure{} -> error
     "closure appeared during code generation"
-  Term.Float f _bits -> do
-    comment ["push float ", Text.pack $ show f]
+  Term.Float f -> do
+    comment ["push float ", Text.pack $ show (Literal.floatValue f :: Double)]
     -- TODO: Use FPU stack.
-    indented $ pushSmall $ floor f
-  Term.Integer i _bits -> do
-    comment ["push int ", Text.pack $ show i]
+    indented $ pushSmall $ floor (Literal.floatValue f :: Double)
+  Term.Integer i -> do
+    comment ["push int ", Text.pack $ show $ Literal.integerValue i]
     -- TODO: Handle different bit sizes.
-    indented $ pushSmall $ fromIntegral i
+    indented $ pushSmall $ fromIntegral $ Literal.integerValue i
   Term.Local (LocalIndex index) -> do
     localSizes <- CodeGen $ gets genLocalSizes
     let size = localSizes !! index

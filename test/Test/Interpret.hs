@@ -1,3 +1,4 @@
+{-# LANGUAGE NegativeLiterals #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Test.Interpret
@@ -7,12 +8,10 @@ module Test.Interpret
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Kitten (fragmentFromSource)
-import Kitten.Bits
 import Kitten.Dictionary (Dictionary)
-import Kitten.Interpret (interpret)
+import Kitten.Interpret (Rep(..), interpret)
 import Kitten.Monad (runKitten)
 import Kitten.Name
-import Kitten.Term (Value(..))
 import System.IO (IOMode(..), hClose)
 import Test.Common
 import Test.HUnit (assertEqual, assertFailure)
@@ -25,7 +24,6 @@ import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Enter as Enter
 import qualified Kitten.IO as IO
 import qualified Kitten.Report as Report
-import qualified Kitten.Term as Term
 import qualified Text.PrettyPrint as Pretty
 
 spec :: Spec
@@ -45,11 +43,11 @@ spec = do
 
   describe "with trivial programs" $ do
     it "interprets literals" $ do
-     testInterpret "0" [Integer 0 Signed32]
-     testInterpret "0.0" [Float 0.0 Float64]
+     testInterpret "0" [Int32 0]
+     testInterpret "0.0" [Float64 0.0]
      testInterpret "1 2"
-       [ Integer 2 Signed32
-       , Integer 1 Signed32
+       [ Int32 2
+       , Int32 1
        ]
      testInterpret "\"meow\""
        [Array $ Vector.fromList
@@ -59,25 +57,25 @@ spec = do
 
   describe "with operators" $ do
     it "interprets Int32 operators" $ do
-      testInterpret "2 + 3" [Integer 5 Signed32]
-      testInterpret "2 - 3" [Integer (-1) Signed32]
-      testInterpret "2 * 3" [Integer 6 Signed32]
-      testInterpret "2 / 3" [Integer 0 Signed32]
-      testInterpret "2 % 3" [Integer 2 Signed32]
+      testInterpret "2 + 3" [Int32 5]
+      testInterpret "2 - 3" [Int32 -1]
+      testInterpret "2 * 3" [Int32 6]
+      testInterpret "2 / 3" [Int32 0]
+      testInterpret "2 % 3" [Int32 2]
     it "interprets chains of Int32 operators" $ do
-      testInterpret "2 + 3 + 4" [Integer 9 Signed32]
-      testInterpret "2 + 3 * 4" [Integer 14 Signed32]
-      testInterpret "2 * 3 + 4" [Integer 10 Signed32]
-      testInterpret "2 * 3 * 4" [Integer 24 Signed32]
+      testInterpret "2 + 3 + 4" [Int32 9]
+      testInterpret "2 + 3 * 4" [Int32 14]
+      testInterpret "2 * 3 + 4" [Int32 10]
+      testInterpret "2 * 3 * 4" [Int32 24]
     it "wraps Int32" $ do
-      testInterpret "2147483647 + 1" [Integer (-2147483648) Signed32]
-      testInterpret "-2147483648 - 1" [Integer 2147483647 Signed32]
+      testInterpret "2147483647 + 1" [Int32 -2147483648]
+      testInterpret "-2147483648 - 1" [Int32 2147483647]
     it "interprets Float64 operators" $ do
-      testInterpret "2.0 + 3.0" [Float 5 Float64]
-      testInterpret "2.0 - 3.0" [Float (-1) Float64]
-      testInterpret "2.0 * 3.0" [Float 6 Float64]
-      testInterpret "2.0 / 4.0" [Float 0.5 Float64]
-      testInterpret "2.0 % 3.0" [Float 2 Float64]
+      testInterpret "2.0 + 3.0" [Float64 5]
+      testInterpret "2.0 - 3.0" [Float64 -1]
+      testInterpret "2.0 * 3.0" [Float64 6]
+      testInterpret "2.0 / 4.0" [Float64 0.5]
+      testInterpret "2.0 % 3.0" [Float64 2]
     it "interprets Bool operators" $ do
       let
         false = Algebraic (ConstructorIndex 0) []
@@ -134,16 +132,16 @@ spec = do
 
   describe "with common math words" $ do
     it "computes absolute values" $ do
-      testInterpret "0 abs" [Integer 0 Signed32]
-      testInterpret "+0 abs" [Integer 0 Signed32]
-      testInterpret "-0 abs" [Integer 0 Signed32]
-      testInterpret "1 abs" [Integer 1 Signed32]
-      testInterpret "+1 abs" [Integer 1 Signed32]
-      testInterpret "1000 abs" [Integer 1000 Signed32]
-      testInterpret "+1000 abs" [Integer 1000 Signed32]
-      testInterpret "-1000 abs" [Integer 1000 Signed32]
-      testInterpret "2147483647 abs" [Integer 2147483647 Signed32]
-      testInterpret "-2147483648 abs" [Integer (-2147483648) Signed32]
+      testInterpret "0 abs" [Int32 0]
+      testInterpret "+0 abs" [Int32 0]
+      testInterpret "-0 abs" [Int32 0]
+      testInterpret "1 abs" [Int32 1]
+      testInterpret "+1 abs" [Int32 1]
+      testInterpret "1000 abs" [Int32 1000]
+      testInterpret "+1000 abs" [Int32 1000]
+      testInterpret "-1000 abs" [Int32 1000]
+      testInterpret "2147483647 abs" [Int32 2147483647]
+      testInterpret "-2147483648 abs" [Int32 -2147483648]
 
   describe "with functional combinators" $ do
     it "computes fixed points" $ do
@@ -155,7 +153,7 @@ spec = do
         \  else:\n\
         \    (n - 1) rec call * n\n\
         \} fix"
-        [Integer 120 Signed32]
+        [Int32 120]
 
 testInterpretFull
   :: Dictionary
@@ -163,7 +161,7 @@ testInterpretFull
   -> Maybe ByteString
   -> Maybe ByteString
   -> Text
-  -> [Value ()]
+  -> [Rep]
   -> IO ()
 testInterpretFull commonDictionary standardInput
   mExpectedStdout mExpectedStderr input expectedStack = do
@@ -181,8 +179,7 @@ testInterpretFull commonDictionary standardInput
     (,) knob <$> Knob.newFileHandle knob "stderr" WriteMode
   case result of
     Right dictionary -> do
-      actualStack <- map Term.stripValue
-        <$> interpret dictionary Nothing [] stdin stdout stderr []
+      actualStack <- interpret dictionary Nothing [] stdin stdout stderr []
       hClose stdin
       hClose stdout
       hClose stderr

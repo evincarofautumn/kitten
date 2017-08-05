@@ -14,33 +14,35 @@ Portability : GHC
 
 module Kitten.Interpret
   ( Failure
+  , Rep(..)
   , interpret
   ) where
 
+import Control.Exception (ArithException(..), catch)
 import Control.Exception (Exception, throwIO)
+import Data.Bits
 import Data.Fixed (mod')
 import Data.Foldable (toList)
 import Data.IORef (newIORef, modifyIORef', readIORef, writeIORef)
 import Data.Int
-import Data.Bits
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
+import Data.Text (Text)
 import Data.Typeable (Typeable)
 import Data.Vector ((!))
+import Data.Vector (Vector)
 import Data.Word
-import Kitten.Bits
 import Kitten.Definition (mainName)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Monad (runKitten)
 import Kitten.Name
 import Kitten.Stack (Stack((:::)))
-import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
+import Kitten.Term (Case(..), Else(..), Term(..), Value)
 import Kitten.Type (Type(..))
 import System.Exit (ExitCode(..), exitWith)
 import System.IO (Handle, hGetLine, hFlush, hPutChar, hPutStrLn)
-import System.IO.Error (isAlreadyInUseError, isDoesNotExistError,
-                        isPermissionError)
+import System.IO.Error (isAlreadyInUseError, isDoesNotExistError, isPermissionError)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import Text.Printf (hPrintf)
 import qualified Codec.Picture.Png as Png
@@ -50,9 +52,11 @@ import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LazyByteString
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
+import qualified Kitten.Bits as Bits
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
 import qualified Kitten.Instantiate as Instantiate
+import qualified Kitten.Literal as Literal
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Report as Report
 import qualified Kitten.Stack as Stack
@@ -60,7 +64,74 @@ import qualified Kitten.Term as Term
 import qualified Kitten.TypeEnv as TypeEnv
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.PrettyPrint as Pretty
-import Control.Exception (ArithException(..), catch)
+
+-- | Representation of a runtime value.
+
+data Rep
+  = Algebraic !ConstructorIndex [Rep]
+  | Array !(Vector Rep)
+  | Character !Char
+  | Closure !Qualified [Rep]
+  | Float32 !Float
+  | Float64 !Double
+  | Int8 !Int8
+  | Int16 !Int16
+  | Int32 !Int32
+  | Int64 !Int64
+  | UInt8 !Word8
+  | UInt16 !Word16
+  | UInt32 !Word32
+  | UInt64 !Word64
+  | Name !Qualified
+  | Text !Text
+  deriving (Eq, Show)
+
+valueRep :: (Show a) => Value a -> Rep
+valueRep value = case value of
+  Term.Algebraic index fields -> Algebraic index (valueRep <$> fields)
+  Term.Array values -> Array (valueRep <$> values)
+  Term.Character c -> Character c
+  Term.Closure name closure -> Closure name (valueRep <$> closure)
+  Term.Float literal -> case Literal.floatBits literal of
+    Bits.Float32 -> Float32 $ Literal.floatValue literal
+    Bits.Float64 -> Float64 $ Literal.floatValue literal
+  Term.Integer literal -> rep $ Literal.integerValue literal
+    where
+      rep = case Literal.integerBits literal of
+        Bits.Signed8 -> Int8 . fromInteger
+        Bits.Signed16 -> Int16 . fromInteger
+        Bits.Signed32 -> Int32 . fromInteger
+        Bits.Signed64 -> Int64 . fromInteger
+        Bits.Unsigned8 -> UInt8 . fromInteger
+        Bits.Unsigned16 -> UInt16 . fromInteger
+        Bits.Unsigned32 -> UInt32 . fromInteger
+        Bits.Unsigned64 -> UInt64 . fromInteger
+
+  Term.Name name -> Name name
+  Term.Text text -> Text text
+  _ -> error $ "cannot convert value to rep: " ++ show value
+
+instance Pretty Rep where
+  pPrint rep = case rep of
+    Algebraic (ConstructorIndex index) values -> Pretty.hsep
+      $ map pPrint values ++ [Pretty.hcat ["#", Pretty.int index]]
+    Array values -> Pretty.brackets $ Pretty.list
+      $ Vector.toList $ fmap pPrint values
+    Character c -> Pretty.quotes $ Pretty.char c
+    Closure name closure -> Pretty.hsep
+      $ map pPrint closure ++ [Pretty.hcat ["#", pPrint name]]
+    Float32 f -> pPrint f
+    Float64 f -> pPrint f
+    Int8 i -> Pretty.hcat [Pretty.int $ fromIntegral i, pPrint Bits.Signed8]
+    Int16 i -> Pretty.hcat [Pretty.int $ fromIntegral i, pPrint Bits.Signed16]
+    Int32 i -> Pretty.hcat [Pretty.int $ fromIntegral i, pPrint Bits.Signed32]
+    Int64 i -> Pretty.hcat [Pretty.int $ fromIntegral i, pPrint Bits.Signed64]
+    UInt8 i -> Pretty.hcat [Pretty.int $ fromIntegral i, pPrint Bits.Unsigned8]
+    UInt16 i -> Pretty.hcat [Pretty.int $ fromIntegral i, pPrint Bits.Unsigned16]
+    UInt32 i -> Pretty.hcat [Pretty.int $ fromIntegral i, pPrint Bits.Unsigned32]
+    UInt64 i -> Pretty.hcat [Pretty.int $ fromIntegral i, pPrint Bits.Unsigned64]
+    Name n -> Pretty.hcat ["\\", pPrint n]
+    Text t -> Pretty.doubleQuotes $ Pretty.text $ Text.unpack t
 
 -- | Interprets a program dictionary.
 
@@ -77,9 +148,9 @@ interpret
   -- ^ Standard output handle.
   -> Handle
   -- ^ Standard error handle.
-  -> [Value Type]
+  -> [Rep]
   -- ^ Initial stack state.
-  -> IO [Value Type]
+  -> IO [Rep]
   -- ^ Final stack state.
 interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
   -- TODO: Types.
@@ -188,15 +259,15 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
 
     push :: Value Type -> IO ()
     push value = case value of
-      Closed (ClosureIndex index) -> do
+      Term.Closed (ClosureIndex index) -> do
         (currentClosure : _) <- readIORef currentClosureRef
         modifyIORef' stackRef ((currentClosure !! index) :::)
-      Local (LocalIndex index) -> do
+      Term.Local (LocalIndex index) -> do
         locals <- readIORef localsRef
         modifyIORef' stackRef ((locals !! index) :::)
-      Text text -> modifyIORef' stackRef
+      Term.Text text -> modifyIORef' stackRef
         ((Array $ fmap Character $ Vector.fromList $ Text.unpack text) :::)
-      _ -> modifyIORef' stackRef (value :::)
+      _ -> modifyIORef' stackRef (valueRep value :::)
 
     intrinsic :: [Qualified] -> Unqualified -> IO ()
     intrinsic callStack name = case name of
@@ -213,9 +284,11 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
           : map (Pretty.nest 4 . pPrint) callStack
 
       "exit" -> do
-        Integer i _ ::: r <- readIORef stackRef
+        Int32 i ::: r <- readIORef stackRef
         writeIORef stackRef r
-        exitWith $ if i == 0 then ExitSuccess else ExitFailure (fromInteger i)
+        exitWith $ if i == 0
+          then ExitSuccess
+          else ExitFailure $ fromIntegral i
 
       "call" -> call callStack
 
@@ -481,14 +554,14 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
       "show_float32" -> showFloat (show :: Float -> String)
       "show_float64" -> showFloat (show :: Double -> String)
 
-      "read_int8" -> readInteger (readIO :: String -> IO Int8) Signed8
-      "read_int16" -> readInteger (readIO :: String -> IO Int16) Signed16
-      "read_int32" -> readInteger (readIO :: String -> IO Int32) Signed32
-      "read_int64" -> readInteger (readIO :: String -> IO Int64) Signed64
-      "read_uint8" -> readInteger (readIO :: String -> IO Word8) Unsigned8
-      "read_uint16" -> readInteger (readIO :: String -> IO Word16) Unsigned16
-      "read_uint32" -> readInteger (readIO :: String -> IO Word32) Unsigned32
-      "read_uint64" -> readInteger (readIO :: String -> IO Word64) Unsigned64
+      "read_int8" -> readInteger (readIO :: String -> IO Int8) Int8
+      "read_int16" -> readInteger (readIO :: String -> IO Int16) Int16
+      "read_int32" -> readInteger (readIO :: String -> IO Int32) Int32
+      "read_int64" -> readInteger (readIO :: String -> IO Int64) Int64
+      "read_uint8" -> readInteger (readIO :: String -> IO Word8) UInt8
+      "read_uint16" -> readInteger (readIO :: String -> IO Word16) UInt16
+      "read_uint32" -> readInteger (readIO :: String -> IO Word32) UInt32
+      "read_uint64" -> readInteger (readIO :: String -> IO Word64) UInt64
       "read_float32" -> readFloat (readIO :: String -> IO Float) Float32
       "read_float64" -> readFloat (readIO :: String -> IO Double) Float64
 
@@ -533,7 +606,7 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
         Array ys ::: Array xs ::: r <- readIORef stackRef
         writeIORef stackRef $ Array (xs <> ys) ::: r
       "get" -> do
-        Integer i _ ::: Array xs ::: r <- readIORef stackRef
+        Int32 i ::: Array xs ::: r <- readIORef stackRef
         if i < 0 || i >= fromIntegral (length xs)
           then do
             writeIORef stackRef r
@@ -543,7 +616,7 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
             -- FIXME: Use right args.
             word callStack (Qualified Vocabulary.global "some") []
       "set" -> do
-        Integer i _ ::: x ::: Array xs ::: r <- readIORef stackRef
+        Int32 i ::: x ::: Array xs ::: r <- readIORef stackRef
         if i < 0 || i >= fromIntegral (length xs)
           then do
             writeIORef stackRef r
@@ -624,7 +697,7 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
           $ Picture.generateImage (\ x y -> case ys ! y of
             Array xs -> case xs ! x of
               Algebraic _ channels -> case channels of
-                [Integer r _, Integer g _, Integer b _, Integer a _]
+                [UInt8 r, UInt8 g, UInt8 b, UInt8 a]
                   -> Picture.PixelRGBA8
                     (fromIntegral r)
                     (fromIntegral g)
@@ -640,193 +713,193 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
 
       unaryInt8 :: (Int8 -> Int8) -> IO ()
       unaryInt8 f = do
-        Integer x _ ::: r <- readIORef stackRef
+        Int8 x ::: r <- readIORef stackRef
         let !result = fromIntegral $ f $ fromIntegral x
-        writeIORef stackRef $ Integer result Signed8 ::: r
+        writeIORef stackRef $ Int8 result ::: r
 
       binaryInt8 :: (Int8 -> Int8 -> Int8) -> IO ()
       binaryInt8 f = do
-        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        Int8 y ::: Int8 x ::: r <- readIORef stackRef
         let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
-        writeIORef stackRef $ Integer result Signed8 ::: r
+        writeIORef stackRef $ Int8 result ::: r
 
       binaryInt8Int :: (Int8 -> Int -> Int8) -> IO ()
       binaryInt8Int f = do
-        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        Int32 y ::: Int8 x ::: r <- readIORef stackRef
         let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
-        writeIORef stackRef $ Integer result Signed8 ::: r
+        writeIORef stackRef $ Int8 result ::: r
 
       unaryInt16 :: (Int16 -> Int16) -> IO ()
       unaryInt16 f = do
-        Integer x _ ::: r <- readIORef stackRef
+        Int16 x ::: r <- readIORef stackRef
         let !result = fromIntegral $ f $ fromIntegral x
-        writeIORef stackRef $ Integer result Signed16 ::: r
+        writeIORef stackRef $ Int16 result ::: r
 
       binaryInt16 :: (Int16 -> Int16 -> Int16) -> IO ()
       binaryInt16 f = do
-        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        Int16 y ::: Int16 x ::: r <- readIORef stackRef
         let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
-        writeIORef stackRef $ Integer result Signed16 ::: r
+        writeIORef stackRef $ Int16 result ::: r
 
       binaryInt16Int :: (Int16 -> Int -> Int16) -> IO ()
       binaryInt16Int f = do
-        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        Int32 y ::: Int16 x ::: r <- readIORef stackRef
         let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
-        writeIORef stackRef $ Integer result Signed16 ::: r
+        writeIORef stackRef $ Int16 result ::: r
 
       unaryInt32 :: (Int32 -> Int32) -> IO ()
       unaryInt32 f = do
-        Integer x _ ::: r <- readIORef stackRef
+        Int32 x ::: r <- readIORef stackRef
         let !result = fromIntegral $ f $ fromIntegral x
-        writeIORef stackRef $ Integer result Signed32 ::: r
+        writeIORef stackRef $ Int32 result ::: r
 
       binaryInt32 :: (Int32 -> Int32 -> Int32) -> IO ()
       binaryInt32 f = do
-        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        Int32 y ::: Int32 x ::: r <- readIORef stackRef
         let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
-        writeIORef stackRef $ Integer result Signed32 ::: r
+        writeIORef stackRef $ Int32 result ::: r
 
       binaryInt32Int :: (Int32 -> Int -> Int32) -> IO ()
       binaryInt32Int f = do
-        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        Int32 y ::: Int32 x ::: r <- readIORef stackRef
         let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
-        writeIORef stackRef $ Integer result Signed32 ::: r
+        writeIORef stackRef $ Int32 result ::: r
 
       unaryInt64 :: (Int64 -> Int64) -> IO ()
       unaryInt64 f = do
-        Integer x _ ::: r <- readIORef stackRef
+        Int64 x ::: r <- readIORef stackRef
         let !result = fromIntegral $ f $ fromIntegral x
-        writeIORef stackRef $ Integer result Signed64 ::: r
+        writeIORef stackRef $ Int64 result ::: r
 
       binaryInt64 :: (Int64 -> Int64 -> Int64) -> IO ()
       binaryInt64 f = do
-        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        Int64 y ::: Int64 x ::: r <- readIORef stackRef
         let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
-        writeIORef stackRef $ Integer result Signed64 ::: r
+        writeIORef stackRef $ Int64 result ::: r
 
       binaryInt64Int :: (Int64 -> Int -> Int64) -> IO ()
       binaryInt64Int f = do
-        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        Int32 y ::: Int64 x ::: r <- readIORef stackRef
         let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
-        writeIORef stackRef $ Integer result Signed64 ::: r
+        writeIORef stackRef $ Int64 result ::: r
 
       unaryUInt8 :: (Word8 -> Word8) -> IO ()
       unaryUInt8 f = do
-        Integer x _ ::: r <- readIORef stackRef
+        UInt8 x ::: r <- readIORef stackRef
         let !result = fromIntegral $ f $ fromIntegral x
-        writeIORef stackRef $ Integer result Unsigned8 ::: r
+        writeIORef stackRef $ UInt8 result ::: r
 
       binaryUInt8 :: (Word8 -> Word8 -> Word8) -> IO ()
       binaryUInt8 f = do
-        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        UInt8 y ::: UInt8 x ::: r <- readIORef stackRef
         let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
-        writeIORef stackRef $ Integer result Unsigned8 ::: r
+        writeIORef stackRef $ UInt8 result ::: r
 
       binaryUInt8Int :: (Word8 -> Int -> Word8) -> IO ()
       binaryUInt8Int f = do
-        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        Int32 y ::: UInt8 x ::: r <- readIORef stackRef
         let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
-        writeIORef stackRef $ Integer result Unsigned8 ::: r
+        writeIORef stackRef $ UInt8 result ::: r
 
       unaryUInt16 :: (Word16 -> Word16) -> IO ()
       unaryUInt16 f = do
-        Integer x _ ::: r <- readIORef stackRef
+        UInt16 x ::: r <- readIORef stackRef
         let !result = fromIntegral $ f $ fromIntegral x
-        writeIORef stackRef $ Integer result Unsigned16 ::: r
+        writeIORef stackRef $ UInt16 result ::: r
 
       binaryUInt16 :: (Word16 -> Word16 -> Word16) -> IO ()
       binaryUInt16 f = do
-        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        UInt16 y ::: UInt16 x ::: r <- readIORef stackRef
         let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
-        writeIORef stackRef $ Integer result Unsigned16 ::: r
+        writeIORef stackRef $ UInt16 result ::: r
 
       binaryUInt16Int :: (Word16 -> Int -> Word16) -> IO ()
       binaryUInt16Int f = do
-        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        Int32 y ::: UInt16 x ::: r <- readIORef stackRef
         let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
-        writeIORef stackRef $ Integer result Unsigned16 ::: r
+        writeIORef stackRef $ UInt16 result ::: r
 
       unaryUInt32 :: (Word32 -> Word32) -> IO ()
       unaryUInt32 f = do
-        Integer x _ ::: r <- readIORef stackRef
+        UInt32 x ::: r <- readIORef stackRef
         let !result = fromIntegral $ f $ fromIntegral x
-        writeIORef stackRef $ Integer result Unsigned32 ::: r
+        writeIORef stackRef $ UInt32 result ::: r
 
       binaryUInt32 :: (Word32 -> Word32 -> Word32) -> IO ()
       binaryUInt32 f = do
-        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        UInt32 y ::: UInt32 x ::: r <- readIORef stackRef
         let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
-        writeIORef stackRef $ Integer result Unsigned32 ::: r
+        writeIORef stackRef $ UInt32 result ::: r
 
       binaryUInt32Int :: (Word32 -> Int -> Word32) -> IO ()
       binaryUInt32Int f = do
-        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        Int32 y ::: UInt32 x ::: r <- readIORef stackRef
         let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
-        writeIORef stackRef $ Integer result Unsigned32 ::: r
+        writeIORef stackRef $ UInt32 result ::: r
 
       unaryUInt64 :: (Word64 -> Word64) -> IO ()
       unaryUInt64 f = do
-        Integer x _ ::: r <- readIORef stackRef
+        UInt64 x ::: r <- readIORef stackRef
         let !result = fromIntegral $ f $ fromIntegral x
-        writeIORef stackRef $ Integer result Unsigned64 ::: r
+        writeIORef stackRef $ UInt64 result ::: r
 
       binaryUInt64 :: (Word64 -> Word64 -> Word64) -> IO ()
       binaryUInt64 f = do
-        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        UInt64 y ::: UInt64 x ::: r <- readIORef stackRef
         let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
-        writeIORef stackRef $ Integer result Unsigned64 ::: r
+        writeIORef stackRef $ UInt64 result ::: r
 
       binaryUInt64Int :: (Word64 -> Int -> Word64) -> IO ()
       binaryUInt64Int f = do
-        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        Int32 y ::: UInt64 x ::: r <- readIORef stackRef
         let !result = fromIntegral $ f (fromIntegral x) (fromIntegral y)
-        writeIORef stackRef $ Integer result Unsigned64 ::: r
+        writeIORef stackRef $ UInt64 result ::: r
 
       boolInt8 :: (Int8 -> Int8 -> Bool) -> IO ()
       boolInt8 f = do
-        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        Int8 y ::: Int8 x ::: r <- readIORef stackRef
         let !result = fromEnum $ f (fromIntegral x) (fromIntegral y)
         writeIORef stackRef $ Algebraic (ConstructorIndex result) [] ::: r
 
       boolInt16 :: (Int16 -> Int16 -> Bool) -> IO ()
       boolInt16 f = do
-        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        Int16 y ::: Int16 x ::: r <- readIORef stackRef
         let !result = fromEnum $ f (fromIntegral x) (fromIntegral y)
         writeIORef stackRef $ Algebraic (ConstructorIndex result) [] ::: r
 
       boolInt32 :: (Int32 -> Int32 -> Bool) -> IO ()
       boolInt32 f = do
-        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        Int32 y ::: Int32 x ::: r <- readIORef stackRef
         let !result = fromEnum $ f (fromIntegral x) (fromIntegral y)
         writeIORef stackRef $ Algebraic (ConstructorIndex result) [] ::: r
 
       boolInt64 :: (Int64 -> Int64 -> Bool) -> IO ()
       boolInt64 f = do
-        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        Int64 y ::: Int64 x ::: r <- readIORef stackRef
         let !result = fromEnum $ f (fromIntegral x) (fromIntegral y)
         writeIORef stackRef $ Algebraic (ConstructorIndex result) [] ::: r
 
       boolUInt8 :: (Word8 -> Word8 -> Bool) -> IO ()
       boolUInt8 f = do
-        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        UInt8 y ::: UInt8 x ::: r <- readIORef stackRef
         let !result = fromEnum $ f (fromIntegral x) (fromIntegral y)
         writeIORef stackRef $ Algebraic (ConstructorIndex result) [] ::: r
 
       boolUInt16 :: (Word16 -> Word16 -> Bool) -> IO ()
       boolUInt16 f = do
-        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        UInt16 y ::: UInt16 x ::: r <- readIORef stackRef
         let !result = fromEnum $ f (fromIntegral x) (fromIntegral y)
         writeIORef stackRef $ Algebraic (ConstructorIndex result) [] ::: r
 
       boolUInt32 :: (Word32 -> Word32 -> Bool) -> IO ()
       boolUInt32 f = do
-        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        UInt32 y ::: UInt32 x ::: r <- readIORef stackRef
         let !result = fromEnum $ f (fromIntegral x) (fromIntegral y)
         writeIORef stackRef $ Algebraic (ConstructorIndex result) [] ::: r
 
       boolUInt64 :: (Word64 -> Word64 -> Bool) -> IO ()
       boolUInt64 f = do
-        Integer y _ ::: Integer x _ ::: r <- readIORef stackRef
+        UInt64 y ::: UInt64 x ::: r <- readIORef stackRef
         let !result = fromEnum $ f (fromIntegral x) (fromIntegral y)
         writeIORef stackRef $ Algebraic (ConstructorIndex result) [] ::: r
 
@@ -838,70 +911,86 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
 
       unaryFloat32 :: (Float -> Float) -> IO ()
       unaryFloat32 f = do
-        Float x _ ::: r <- readIORef stackRef
+        Float32 x ::: r <- readIORef stackRef
         let !result = realToFrac $ f $ realToFrac x
-        writeIORef stackRef $ Float result Float32 ::: r
+        writeIORef stackRef $ Float32 result ::: r
 
       binaryFloat32 :: (Float -> Float -> Float) -> IO ()
       binaryFloat32 f = do
-        Float y _ ::: Float x _ ::: r <- readIORef stackRef
+        Float32 y ::: Float32 x ::: r <- readIORef stackRef
         let !result = realToFrac $ f (realToFrac x) (realToFrac y)
-        writeIORef stackRef $ Float result Float32 ::: r
+        writeIORef stackRef $ Float32 result ::: r
 
       boolFloat32 :: (Float -> Float -> Bool) -> IO ()
       boolFloat32 f = do
-        Float y _ ::: Float x _ ::: r <- readIORef stackRef
+        Float32 y ::: Float32 x ::: r <- readIORef stackRef
         let !result = fromEnum $ f (realToFrac x) (realToFrac y)
         writeIORef stackRef $ Algebraic (ConstructorIndex result) [] ::: r
 
       unaryFloat64 :: (Double -> Double) -> IO ()
       unaryFloat64 f = do
-        Float x _ ::: r <- readIORef stackRef
+        Float64 x ::: r <- readIORef stackRef
         let !result = realToFrac $ f $ realToFrac x
-        writeIORef stackRef $ Float result Float64 ::: r
+        writeIORef stackRef $ Float64 result ::: r
 
       binaryFloat64 :: (Double -> Double -> Double) -> IO ()
       binaryFloat64 f = do
-        Float y _ ::: Float x _ ::: r <- readIORef stackRef
+        Float64 y ::: Float64 x ::: r <- readIORef stackRef
         let !result = f x y
-        writeIORef stackRef $ Float result Float64 ::: r
+        writeIORef stackRef $ Float64 result ::: r
 
       boolFloat64 :: (Double -> Double -> Bool) -> IO ()
       boolFloat64 f = do
-        Float y _ ::: Float x _ ::: r <- readIORef stackRef
+        Float64 y ::: Float64 x ::: r <- readIORef stackRef
         let !result = fromEnum $ f x y
         writeIORef stackRef $ Algebraic (ConstructorIndex result) [] ::: r
 
       showInteger :: Num a => (a -> String) -> IO ()
       showInteger f = do
-        Integer x _ ::: r <- readIORef stackRef
-        writeIORef stackRef $ Array
-          (Vector.fromList $ map Character $ f (fromIntegral x)) ::: r
+        rep ::: r <- readIORef stackRef
+        let
+          x = case rep of
+            Int8 n -> toInteger n
+            Int16 n -> toInteger n
+            Int32 n -> toInteger n
+            Int64 n -> toInteger n
+            UInt8 n -> toInteger n
+            UInt16 n -> toInteger n
+            UInt32 n -> toInteger n
+            UInt64 n -> toInteger n
+            _ -> error "the typechecker has failed us (show integer)"
+        writeIORef stackRef
+          $ Array (Vector.fromList $ map Character $ f $ fromInteger x) ::: r
 
       showFloat :: Fractional a => (a -> String) -> IO ()
       showFloat f = do
-        Float x _ ::: r <- readIORef stackRef
-        writeIORef stackRef $ Array
-          (Vector.fromList $ map Character $ f $ realToFrac x) ::: r
+        rep ::: r <- readIORef stackRef
+        let
+          x = case rep of
+            Float32 n -> realToFrac n
+            Float64 n -> realToFrac n
+            _ -> error "the typechecker has failed us (show float)"
+        writeIORef stackRef
+          $ Array (Vector.fromList $ map Character $ f x) ::: r
 
-      readInteger :: Integral a => (String -> IO a) -> IntegerBits -> IO ()
-      readInteger f b = do
+      readInteger :: Integral a => (String -> IO a) -> (a -> Rep) -> IO ()
+      readInteger f rep = do
         Array cs ::: r <- readIORef stackRef
         do
           result <- f $ map (\ (Character c) -> c) $ Vector.toList cs
-          writeIORef stackRef $ Integer (fromIntegral result) b ::: r
+          writeIORef stackRef $ rep result ::: r
           -- FIXME: Use right args.
           word callStack (Qualified Vocabulary.global "some") []
           `catch` \ (_ :: IOError) -> do
             writeIORef stackRef r
             word callStack (Qualified Vocabulary.global "none") []
 
-      readFloat :: Real a => (String -> IO a) -> FloatBits -> IO ()
-      readFloat f b = do
+      readFloat :: Real a => (String -> IO a) -> (a -> Rep) -> IO ()
+      readFloat f rep = do
         Array cs ::: r <- readIORef stackRef
         do
           result <- f $ map (\ (Character c) -> c) $ Vector.toList cs
-          writeIORef stackRef $ Float (realToFrac result) b ::: r
+          writeIORef stackRef $ rep result ::: r
           -- FIXME: Use right args.
           word callStack (Qualified Vocabulary.global "some") []
           `catch` \ (_ :: IOError) -> do

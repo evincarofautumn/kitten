@@ -53,6 +53,7 @@ import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
 import qualified Kitten.Entry.Parent as Parent
 import qualified Kitten.Instantiate as Instantiate
+import qualified Kitten.Literal as Literal
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Report as Report
@@ -443,13 +444,13 @@ inferValue dictionary tenvFinal tenv0 origin value = case value of
   Closed (ClosureIndex index) -> return
     (Closed $ ClosureIndex index, TypeEnv.closure tenv0 !! index, tenv0)
   Closure{} -> error "closure should not appear before runtime"
-  Float x bits -> let
-    ctor = case bits of
+  Float x -> let
+    ctor = case Literal.floatBits x of
       Float32 -> "Float32"
       Float64 -> "Float64"
-    in return (Float x bits, TypeConstructor origin ctor, tenv0)
-  Integer x bits -> let
-    ctor = case bits of
+    in return (Float x, TypeConstructor origin ctor, tenv0)
+  Integer x -> let
+    ctor = case Literal.integerBits x of
       Signed8 -> "Int8"
       Signed16 -> "Int16"
       Signed32 -> "Int32"
@@ -458,7 +459,7 @@ inferValue dictionary tenvFinal tenv0 origin value = case value of
       Unsigned16 -> "UInt16"
       Unsigned32 -> "UInt32"
       Unsigned64 -> "UInt64"
-    in return (Integer x bits, TypeConstructor origin ctor, tenv0)
+    in return (Integer x, TypeConstructor origin ctor, tenv0)
   Local (LocalIndex index) -> return
     (Local $ LocalIndex index, TypeEnv.vs tenv0 !! index, tenv0)
   Quotation{} -> error "quotation should not appear during type inference"

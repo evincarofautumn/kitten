@@ -10,6 +10,7 @@ import Data.Text (Text)
 import Kitten.Base (Base(..))
 import Kitten.Bits
 import Kitten.Layoutness (Layoutness(..))
+import Kitten.Literal (FloatLiteral(FloatLiteral), IntegerLiteral(IntegerLiteral))
 import Kitten.Monad (runKitten)
 import Kitten.Name (Unqualified(..))
 import Kitten.Report (Report)
@@ -198,35 +199,41 @@ spec = do
   -- FIXME: Base hints are ignored in token comparisons.
   describe "with integer literals" $ do
     it "parses decimal integer literals" $ do
-      testTokenize "0" `shouldBe` Right [Integer 0 Decimal Signed32]
-      testTokenize "1" `shouldBe` Right [Integer 1 Decimal Signed32]
-      testTokenize "10" `shouldBe` Right [Integer 10 Decimal Signed32]
-      testTokenize "123456789" `shouldBe` Right [Integer 123456789 Decimal Signed32]
-      testTokenize "01" `shouldBe` Right [Integer 1 Decimal Signed32]
+      testTokenize "0" `shouldBe` Right [integerLiteral 0 Decimal Signed32]
+      testTokenize "1" `shouldBe` Right [integerLiteral 1 Decimal Signed32]
+      testTokenize "10" `shouldBe` Right [integerLiteral 10 Decimal Signed32]
+      testTokenize "123456789" `shouldBe` Right [integerLiteral 123456789 Decimal Signed32]
+      testTokenize "01" `shouldBe` Right [integerLiteral 1 Decimal Signed32]
     it "parses integer literals with sign characters" $ do
-      testTokenize "+1" `shouldBe` Right [Integer 1 Decimal Signed32]
-      testTokenize "-1" `shouldBe` Right [Integer (-1) Decimal Signed32]
-      testTokenize "\x2212\&1" `shouldBe` Right [Integer (-1) Decimal Signed32]
+      testTokenize "+1" `shouldBe` Right [integerLiteral 1 Decimal Signed32]
+      testTokenize "-1" `shouldBe` Right [integerLiteral (-1) Decimal Signed32]
+      testTokenize "\x2212\&1" `shouldBe` Right [integerLiteral (-1) Decimal Signed32]
     it "parses non-decimal integer literals" $ do
-      testTokenize "0xFF" `shouldBe` Right [Integer 0xFF Hexadecimal Signed32]
-      testTokenize "0o777" `shouldBe` Right [Integer 0o777 Octal Signed32]
-      testTokenize "0b1010" `shouldBe` Right [Integer 10 Binary Signed32]
+      testTokenize "0xFF" `shouldBe` Right [integerLiteral 0xFF Hexadecimal Signed32]
+      testTokenize "0o777" `shouldBe` Right [integerLiteral 0o777 Octal Signed32]
+      testTokenize "0b1010" `shouldBe` Right [integerLiteral 10 Binary Signed32]
 
   describe "with floating-point literals" $ do
     it "parses normal float literals" $ do
-      testTokenize "1.0" `shouldBe` Right [Float 10 1 0 Float64]
-      testTokenize "1." `shouldBe` Right [Float 1 0 0 Float64]
+      testTokenize "1.0" `shouldBe` Right [floatLiteral 10 1 0 Float64]
+      testTokenize "1." `shouldBe` Right [floatLiteral 1 0 0 Float64]
     it "parses float literals with sign characters" $ do
-      testTokenize "+1.0" `shouldBe` Right [Float 10 1 0 Float64]
-      testTokenize "-1.0" `shouldBe` Right [Float (-10) 1 0 Float64]
-      testTokenize "\x2212\&1.0" `shouldBe` Right [Float (-10) 1 0 Float64]
+      testTokenize "+1.0" `shouldBe` Right [floatLiteral 10 1 0 Float64]
+      testTokenize "-1.0" `shouldBe` Right [floatLiteral (-10) 1 0 Float64]
+      testTokenize "\x2212\&1.0" `shouldBe` Right [floatLiteral (-10) 1 0 Float64]
     it "parses float literals in scientific notation" $ do
-      testTokenize "1.0e1" `shouldBe` Right [Float 10 1 1 Float64]
-      testTokenize "1.e1" `shouldBe` Right [Float 1 0 1 Float64]
-      testTokenize "1e1" `shouldBe` Right [Float 1 0 1 Float64]
-      testTokenize "1e+1" `shouldBe` Right [Float 1 0 1 Float64]
-      testTokenize "1e-1" `shouldBe` Right [Float 1 0 (-1) Float64]
-      testTokenize "1e\x2212\&1" `shouldBe` Right [Float 1 0 (-1) Float64]
+      testTokenize "1.0e1" `shouldBe` Right [floatLiteral 10 1 1 Float64]
+      testTokenize "1.e1" `shouldBe` Right [floatLiteral 1 0 1 Float64]
+      testTokenize "1e1" `shouldBe` Right [floatLiteral 1 0 1 Float64]
+      testTokenize "1e+1" `shouldBe` Right [floatLiteral 1 0 1 Float64]
+      testTokenize "1e-1" `shouldBe` Right [floatLiteral 1 0 (-1) Float64]
+      testTokenize "1e\x2212\&1" `shouldBe` Right [floatLiteral 1 0 (-1) Float64]
+
+integerLiteral :: Integer -> Base -> IntegerBits -> Token l
+integerLiteral v base bits = Integer (IntegerLiteral v base bits)
+
+floatLiteral :: Integer -> Int -> Int -> FloatBits -> Token l
+floatLiteral v f e bits = Float (FloatLiteral v f e bits)
 
 testTokenize :: Text -> Either [Report] [Token 'Layout]
 testTokenize = fmap (map Located.item) . runIdentity . runKitten

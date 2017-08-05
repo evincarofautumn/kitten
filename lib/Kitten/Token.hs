@@ -15,20 +15,17 @@ Portability : GHC
 
 module Kitten.Token
   ( Token(..)
-  , float
   , fromLayout
   ) where
 
-import Data.Ratio ((%))
 import Data.Text (Text)
-import Kitten.Base (Base(..))
-import Kitten.Bits
 import Kitten.Layoutness (Layoutness(..))
+import Kitten.Literal (IntegerLiteral, FloatLiteral)
 import Kitten.Name (Unqualified)
-import Numeric
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import Unsafe.Coerce (unsafeCoerce)
 import qualified Data.Text as Text
+import qualified Kitten.Literal as Literal
 import qualified Text.PrettyPrint as Pretty
 
 data Token (l :: Layoutness) where
@@ -82,7 +79,7 @@ data Token (l :: Layoutness) where
   Else :: Token l
 
   -- | See note [Float Literals].
-  Float :: !Integer -> !Int -> !Int -> !FloatBits -> Token l
+  Float :: !FloatLiteral -> Token l
 
   -- | @(@
   GroupBegin :: Token l
@@ -100,7 +97,7 @@ data Token (l :: Layoutness) where
   Instance :: Token l
 
   -- | @1@, 0b1@, @0o1@, @0x1@, @1i64, @1u16@
-  Integer :: !Integer -> !Base -> !IntegerBits -> Token l
+  Integer :: !IntegerLiteral -> Token l
 
   -- | @intrinsic@
   Intrinsic :: Token l
@@ -175,16 +172,13 @@ instance Eq (Token l) where
   Elif                    == Elif                    = True
   Else                    == Else                    = True
   -- See note [Float Literals].
-  -- TODO: Incorporate bits in equality testing?
-  Float a b c _bitsA      == Float d e f _bitsB      = (a, c - b) == (d, f - e)
+  Float a                 == Float b                 = a == b
   GroupBegin              == GroupBegin              = True
   GroupEnd                == GroupEnd                = True
   If                      == If                      = True
   Ignore                  == Ignore                  = True
   Instance                == Instance                = True
-  -- Integer tokens are equal regardless of base.
-  -- TODO: Incorporate bits/wrapping in equality testing?
-  Integer a _baseA _bitsA == Integer b _baseB _bitsB = a == b
+  Integer a               == Integer b               = a == b
   Intrinsic               == Intrinsic               = True
   Jump                    == Jump                    = True
   Match                   == Match                   = True
@@ -222,25 +216,16 @@ instance Pretty (Token l) where
     Ellipsis -> "..."
     Elif -> "elif"
     Else -> "else"
-    Float a b c bits -> Pretty.hcat [Pretty.double $ float a b c, pPrint bits]
+    Float a -> Pretty.hcat
+      [ Pretty.double $ Literal.floatValue a
+      , pPrint $ Literal.floatBits a
+      ]
     GroupBegin -> "("
     GroupEnd -> ")"
     If -> "if"
     Ignore -> "_"
     Instance -> "instance"
-    Integer value hint bits
-      -> Pretty.text $ if value < 0 then '-' : shown else shown
-      where
-      shown = concat
-        [prefix, showIntAtBase base (digits !!) (abs value) "", suffix]
-      (base, prefix, digits) = case hint of
-        Binary -> (2, "0b", "01")
-        Octal -> (8, "0o", ['0'..'7'])
-        Decimal -> (10, "", ['0'..'9'])
-        Hexadecimal -> (16, "0x", ['0'..'9'] ++ ['A'..'F'])
-      suffix = case bits of
-        Signed32 -> ""
-        _ -> Pretty.render $ pPrint bits
+    Integer literal -> pPrint literal
     Intrinsic -> "intrinsic"
     Jump -> "jump"
     Match -> "match"
@@ -300,23 +285,3 @@ instance Show (Token l) where
 -- rather than to some syntactic analogue such as 'foo.bar[int]'. The modest
 -- increase in complexity of implementation is justified by fostering a better
 -- experience for people.
-
--- Note [Float Literals]:
---
--- Floating-point literals are represented as a pair of an arbitrary-precision
--- integer significand and exponent, so that:
---
---     Float a b c
---
--- Denotes the floating point number (a × 10^(c - b)). This representation was
--- chosen to avoid loss of precision until the token is converted into a machine
--- floating-point format. The exponent is split into two parts to indicate which
--- part of the literal that exponent came from: the fractional part, or the
--- exponent in scientific notation.
-
-float :: Fractional a => Integer -> Int -> Int -> a
-float a b c = let
-  e = c - b
-  -- The intermediate rational step is necessary to preserve precision.
-  shift = if e < 0 then 1 % 10 ^ negate e else 10 ^ e
-  in fromRational $ (fromIntegral a :: Rational) * shift
