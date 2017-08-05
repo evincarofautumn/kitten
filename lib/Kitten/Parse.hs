@@ -8,6 +8,7 @@ Stability   : experimental
 Portability : GHC
 -}
 
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Parse
@@ -29,6 +30,8 @@ import Kitten.Entry.Parameter (Parameter(Parameter))
 import Kitten.Fragment (Fragment(Fragment))
 import Kitten.Informer (Informer(..))
 import Kitten.Kind (Kind(..))
+import Kitten.Layout (layout)
+import Kitten.Layoutness (Layoutness(..))
 import Kitten.Located (Located)
 import Kitten.Metadata (Metadata(Metadata))
 import Kitten.Monad (K)
@@ -54,7 +57,6 @@ import qualified Kitten.Entry.Category as Category
 import qualified Kitten.Entry.Merge as Merge
 import qualified Kitten.Entry.Parent as Parent
 import qualified Kitten.Fragment as Fragment
-import qualified Kitten.Layoutness as Layoutness
 import qualified Kitten.Located as Located
 import qualified Kitten.Metadata as Metadata
 import qualified Kitten.Operator as Operator
@@ -78,7 +80,7 @@ fragment
   -- ^ List of permissions granted to @main@.
   -> Maybe Qualified
   -- ^ Override name of @main@.
-  -> [Located Token]
+  -> [Located (Token 'Nonlayout)]
   -- ^ Input tokens.
   -> K (Fragment ())
   -- ^ Parsed program fragment.
@@ -108,7 +110,8 @@ generalName :: (Informer m) => Int -> FilePath -> Text -> m GeneralName
 generalName line path text = do
   tokens <- tokenize line path text
   checkpoint
-  let parsed = Parsec.runParser nameParser Vocabulary.global path tokens
+  laidOut <- layout path tokens
+  let parsed = Parsec.runParser nameParser Vocabulary.global path laidOut
   case parsed of
     Left parseError -> do
       report $ Report.parseError parseError
@@ -205,7 +208,7 @@ vocabularyParser = (<?> "vocabulary definition") $ do
 
 blockedParser :: Parser a -> Parser a
 blockedParser = Parsec.between
-  (parserMatch (Token.BlockBegin Layoutness.Nonlayout))
+  (parserMatch Token.BlockBegin)
   (parserMatch Token.BlockEnd)
 
 groupedParser :: Parser a -> Parser a
@@ -276,10 +279,10 @@ operatorNameParser = (<?> "operator name") $ do
     _ -> Nothing
   return $ Unqualified $ Text.concat $ angles ++ [rest]
 
-parseOne :: (Located Token -> Maybe a) -> Parser a
+parseOne :: (Located (Token 'Nonlayout) -> Maybe a) -> Parser a
 parseOne = Parsec.tokenPrim show advance
   where
-  advance :: SourcePos -> t -> [Located Token] -> SourcePos
+  advance :: SourcePos -> t -> [Located (Token 'Nonlayout)] -> SourcePos
   advance _ _ (token : _) = Origin.begin $ Located.origin token
   advance sourcePos _ _ = sourcePos
 
@@ -468,7 +471,10 @@ intrinsicParser :: Parser Declaration
 intrinsicParser = (<?> "intrinsic declaration")
   $ declarationParser Token.Intrinsic Declaration.Intrinsic
 
-declarationParser :: Token -> Declaration.Category -> Parser Declaration
+declarationParser
+  :: Token 'Nonlayout
+  -> Declaration.Category
+  -> Parser Declaration
 declarationParser keyword category = do
   origin <- getTokenOrigin <* parserMatch keyword
   suffix <- unqualifiedNameParser <?> "declaration name"
@@ -513,7 +519,7 @@ qualifiedNameParser = (<?> "optionally qualified name") $ do
     _ -> error "name parser should only return qualified or unqualified name"
   pure (name, fixity)
 
-definitionParser :: Token -> Category -> Parser (Definition ())
+definitionParser :: Token 'Nonlayout -> Category -> Parser (Definition ())
 definitionParser keyword category = do
   origin <- getTokenOrigin <* parserMatch keyword
   (name, fixity) <- qualifiedNameParser <?> "definition name"
@@ -578,7 +584,7 @@ termParser = (<?> "expression") $ do
     ]
   where
 
-  toLiteral :: Located Token -> Maybe (Value (), Origin)
+  toLiteral :: Located (Token 'Nonlayout) -> Maybe (Value (), Origin)
   toLiteral token = case Located.item token of
     Token.Character x -> Just (Character x, origin)
     Token.Float a b c bits -> Just (Float (Token.float a b c) bits, origin)
@@ -736,7 +742,7 @@ termParser = (<?> "expression") $ do
       , False <$ parserMatchOperator "-"
       ] <*> (UnqualifiedName <$> wordNameParser)
 
-parserMatchOperator :: Text -> Parser (Located Token)
+parserMatchOperator :: Text -> Parser (Located (Token 'Nonlayout))
 parserMatchOperator = parserMatch . Token.Operator . Unqualified
 
 lambdaNamesParser :: Parser [(Maybe Unqualified, Origin)]

@@ -8,6 +8,8 @@ Stability   : experimental
 Portability : GHC
 -}
 
+{-# LANGUAGE DataKinds #-}
+
 module Kitten.Layout
   ( layout
   ) where
@@ -15,14 +17,15 @@ module Kitten.Layout
 import Control.Applicative
 import Kitten.Indent (Indent(..))
 import Kitten.Informer (Informer(..))
+import Kitten.Layoutness (Layoutness(..))
 import Kitten.Located (Located(..))
-import Kitten.Parser (Parser, parserMatch, tokenSatisfy)
+import Kitten.Parser (Layouter, parserMatch, tokenSatisfy)
 import Kitten.Token (Token(..))
 import Text.Parsec ((<?>))
-import qualified Kitten.Layoutness as Layoutness
 import qualified Kitten.Located as Located
 import qualified Kitten.Origin as Origin
 import qualified Kitten.Report as Report
+import qualified Kitten.Token as Token
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.Parsec as Parsec
 
@@ -34,7 +37,11 @@ import qualified Text.Parsec as Parsec
 -- (and bracket-delimited groups of tokens) whose source column is greater than
 -- or equal to that of the first token.
 
-layout :: (Informer m) => FilePath -> [Located Token] -> m [Located Token]
+layout
+  :: (Informer m)
+  => FilePath
+  -> [Located (Token 'Layout)]
+  -> m [Located (Token 'Nonlayout)]
 layout path tokens
   = case Parsec.runParser insertBraces Vocabulary.global path tokens of
     Left parseError -> do
@@ -42,64 +49,76 @@ layout path tokens
       halt
     Right result -> return result
 
-insertBraces :: Parser [Located Token]
+insertBraces :: Layouter [Located (Token 'Nonlayout)]
 insertBraces = (concat <$> many unit) <* Parsec.eof
   where
 
-  unit :: Parser [Located Token]
-  unit = unitWhere (const True)
+    unit :: Layouter [Located (Token 'Nonlayout)]
+    unit = unitWhere (const True)
 
-  unitWhere :: (Located Token -> Bool) -> Parser [Located Token]
-  unitWhere predicate
-    = Parsec.try (Parsec.lookAhead (tokenSatisfy predicate)) *> Parsec.choice
-      [ bracket (BlockBegin Layoutness.Nonlayout) BlockEnd
-      , bracket GroupBegin GroupEnd
-      , bracket VectorBegin VectorEnd
-      , layoutBlock
-      , (:[]) <$> tokenSatisfy nonbracket
-      ] <?> "layout item"
+    unitWhere
+      :: (Located (Token 'Layout) -> Bool)
+      -> Layouter [Located (Token 'Nonlayout)]
+    unitWhere predicate
+      = Parsec.try (Parsec.lookAhead (tokenSatisfy predicate)) *> Parsec.choice
+        [ bracket BlockBegin BlockEnd
+        , bracket GroupBegin GroupEnd
+        , bracket VectorBegin VectorEnd
+        , layoutBlock
+        , (:[]) <$> (fromLayout =<< tokenSatisfy nonbracket)
+        ] <?> "layout item"
 
-  bracket :: Token -> Token -> Parser [Located Token]
-  bracket open close = do
-    begin <- parserMatch open
-    inner <- concat <$> many unit
-    end <- parserMatch close
-    return (begin : inner ++ [end])
+    bracket
+      :: Token 'Layout
+      -> Token 'Layout
+      -> Layouter [Located (Token 'Nonlayout)]
+    bracket open close = do
+      begin <- fromLayout =<< parserMatch open
+      inner <- concat <$> many unit
+      end <- fromLayout =<< parserMatch close
+      return (begin : inner ++ [end])
 
-  nonbracket :: Located Token -> Bool
-  nonbracket = not . (`elem` brackets) . Located.item
+    nonbracket :: Located (Token 'Layout) -> Bool
+    nonbracket = not . (`elem` brackets) . Located.item
 
-  brackets :: [Token]
-  brackets = blockBrackets ++
-    [ GroupBegin
-    , GroupEnd
-    , VectorBegin
-    , VectorEnd
-    ]
+    brackets :: [Token 'Layout]
+    brackets = blockBrackets ++
+      [ GroupBegin
+      , GroupEnd
+      , VectorBegin
+      , VectorEnd
+      ]
 
-  blockBrackets :: [Token]
-  blockBrackets =
-    [ BlockBegin Layoutness.Nonlayout
-    , BlockEnd
-    , Layout
-    ]
+    blockBrackets :: [Token 'Layout]
+    blockBrackets =
+      [ BlockBegin
+      , BlockEnd
+      , Colon
+      ]
 
-  layoutBlock :: Parser [Located Token]
-  layoutBlock = do
-    colon <- parserMatch Layout
-    let
-      colonOrigin = Located.origin colon
-      Indent colonIndent = Located.indent colon
-      validFirst = (> colonIndent)
-        . Parsec.sourceColumn . Origin.begin . Located.origin
-    firstToken <- Parsec.lookAhead (tokenSatisfy validFirst)
-      <?> "a token with a source column greater than \
-          \the start of the layout block"
-    let
-      firstOrigin = Origin.begin (Located.origin firstToken)
-      inside = (>= Parsec.sourceColumn firstOrigin)
-        . Parsec.sourceColumn . Origin.begin . Located.origin
+    layoutBlock :: Layouter [Located (Token 'Nonlayout)]
+    layoutBlock = do
+      colon <- parserMatch Colon
+      let
+        colonOrigin = Located.origin colon
+        Indent colonIndent = Located.indent colon
+        validFirst = (> colonIndent)
+          . Parsec.sourceColumn . Origin.begin . Located.origin
+      firstToken <- Parsec.lookAhead (tokenSatisfy validFirst)
+        <?> "a token with a source column greater than \
+            \the start of the layout block"
+      let
+        firstOrigin = Origin.begin (Located.origin firstToken)
+        inside = (>= Parsec.sourceColumn firstOrigin)
+          . Parsec.sourceColumn . Origin.begin . Located.origin
 
-    body <- concat <$> many (unitWhere inside)
-    return $ At colonOrigin (Indent colonIndent) (BlockBegin Layoutness.Layout)
-      : body ++ [At colonOrigin (Indent colonIndent) BlockEnd]
+      body <- concat <$> many (unitWhere inside)
+      return $ At colonOrigin (Indent colonIndent) BlockBegin
+        : body ++ [At colonOrigin (Indent colonIndent) BlockEnd]
+
+    fromLayout
+      :: Located (Token 'Layout)
+      -> Layouter (Located (Token 'Nonlayout))
+    fromLayout located = case Token.fromLayout (Located.item located) of
+      Just nonlayout -> pure located { Located.item = nonlayout }
+      Nothing -> Parsec.unexpected "colon not beginning valid layout block"

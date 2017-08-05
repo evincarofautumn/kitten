@@ -26,6 +26,7 @@ import Kitten.Fragment (Fragment)
 import Kitten.Infer (mangleInstance, typecheck)
 import Kitten.Informer (checkpoint, report)
 import Kitten.Instantiated (Instantiated(Instantiated))
+import Kitten.Layout (layout)
 import Kitten.Metadata (Metadata)
 import Kitten.Monad (K)
 import Kitten.Name
@@ -326,18 +327,22 @@ fragmentFromSource
   -- ^ Parsed program fragment.
 fragmentFromSource mainPermissions mainName line path source = do
 
--- Sources are lexed into a stream of tokens. The layout rule is applied to
--- desugar indentation-based syntax, so that the parser can find the ends of
--- blocks without checking the indentation of tokens.
+-- Sources are lexed into a stream of tokens.
 
   tokenized <- tokenize line path source
   checkpoint
+
+-- The layout rule is applied to desugar indentation-based syntax, so that the
+-- parser can find the ends of blocks without checking the indentation of
+-- tokens.
+
+  laidOut <- layout path tokenized
 
 -- We then parse the token stream as a series of top-level program elements.
 -- Datatype definitions are desugared into regular definitions, so that name
 -- resolution can find their names.
 
-  parsed <- Parse.fragment line path mainPermissions mainName tokenized
+  parsed <- Parse.fragment line path mainPermissions mainName laidOut
   checkpoint
 
   return parsed

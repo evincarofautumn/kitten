@@ -8,77 +8,166 @@ Stability   : experimental
 Portability : GHC
 -}
 
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Token
   ( Token(..)
   , float
+  , fromLayout
   ) where
 
 import Data.Ratio ((%))
 import Data.Text (Text)
 import Kitten.Base (Base(..))
 import Kitten.Bits
-import Kitten.Layoutness (Layoutness)
+import Kitten.Layoutness (Layoutness(..))
 import Kitten.Name (Unqualified)
 import Numeric
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
+import Unsafe.Coerce (unsafeCoerce)
 import qualified Data.Text as Text
 import qualified Text.PrettyPrint as Pretty
 
-data Token
-  = About                                -- ^ @about@
-  | AngleBegin                           -- ^ @<@ See note [Angle Brackets].
-  | AngleEnd                             -- ^ @>@ See note [Angle Brackets].
-  | Arrow                                -- ^ @->@
-  | As                                   -- ^ @as@
-  | BlockBegin !Layoutness               -- ^ @{@, @:@
-  | BlockEnd                             -- ^ @}@
-  | Case                                 -- ^ @case@
-  | Character !Char                      -- ^ @'x'@
-  | Comma                                -- ^ @,@
-  | Define                               -- ^ @define@
-  | Do                                   -- ^ @do@
-  | Ellipsis                             -- ^ @...@
-  | Elif                                 -- ^ @elif@
-  | Else                                 -- ^ @else@
-  | Float !Integer !Int !Int !FloatBits  -- ^ See note [Float Literals].
-  | GroupBegin                           -- ^ @(@
-  | GroupEnd                             -- ^ @)@
-  | If                                   -- ^ @if@
-  | Ignore                               -- ^ @_@
-  | Instance                             -- ^ @instance@
-  | Integer !Integer !Base !IntegerBits  -- ^ @1@, 0b1@, @0o1@, @0x1@, @1i64, @1u16@
-  | Intrinsic                            -- ^ @intrinsic@
-  | Jump                                 -- ^ @jump@
-  | Layout                               -- ^ @:@
-  | Match                                -- ^ @match@
-  | Operator !Unqualified                -- ^ @+@
-  | Permission                           -- ^ @permission@
-  | Reference                            -- ^ @\@
-  | Return                               -- ^ @return@
-  | Synonym                              -- ^ @synonym@
-  | Text !Text                           -- ^ @"..."@
-  | Trait                                -- ^ @trait@
-  | Type                                 -- ^ @type@
-  | VectorBegin                          -- ^ @[@
-  | VectorEnd                            -- ^ @]@
-  | Vocab                                -- ^ @vocab@
-  | VocabLookup                          -- ^ @::@
-  | With                                 -- ^ @with@
-  | Word !Unqualified                    -- ^ @word@
+data Token (l :: Layoutness) where
 
-instance Eq Token where
+  -- | @about@
+  About :: Token l
+
+  -- | @<@ See note [Angle Brackets].
+  AngleBegin :: Token l
+
+  -- | @>@ See note [Angle Brackets].
+  AngleEnd :: Token l
+
+  -- | @->@
+  Arrow :: Token l
+
+  -- | @as@
+  As :: Token l
+
+  -- | @{@, @:@
+  BlockBegin :: Token l
+
+  -- | @}@
+  BlockEnd :: Token l
+
+  -- | @case@
+  Case :: Token l
+
+  -- | @'x'@
+  Character :: !Char -> Token l
+
+  -- | @:@
+  Colon :: Token 'Layout
+
+  -- | @,@
+  Comma :: Token l
+
+  -- | @define@
+  Define :: Token l
+
+  -- | @do@
+  Do :: Token l
+
+  -- | @...@
+  Ellipsis :: Token l
+
+  -- | @elif@
+  Elif :: Token l
+
+  -- | @else@
+  Else :: Token l
+
+  -- | See note [Float Literals].
+  Float :: !Integer -> !Int -> !Int -> !FloatBits -> Token l
+
+  -- | @(@
+  GroupBegin :: Token l
+
+  -- | @)@
+  GroupEnd :: Token l
+
+  -- | @if@
+  If :: Token l
+
+  -- | @_@
+  Ignore :: Token l
+
+  -- | @instance@
+  Instance :: Token l
+
+  -- | @1@, 0b1@, @0o1@, @0x1@, @1i64, @1u16@
+  Integer :: !Integer -> !Base -> !IntegerBits -> Token l
+
+  -- | @intrinsic@
+  Intrinsic :: Token l
+
+  -- | @jump@
+  Jump :: Token l
+
+  -- | @match@
+  Match :: Token l
+
+  -- | @+@
+  Operator :: !Unqualified -> Token l
+
+  -- | @permission@
+  Permission :: Token l
+
+  -- | @\@
+  Reference :: Token l
+
+  -- | @return@
+  Return :: Token l
+
+  -- | @synonym@
+  Synonym :: Token l
+
+  -- | @"..."@
+  Text :: !Text -> Token l
+
+  -- | @trait@
+  Trait :: Token l
+
+  -- | @type@
+  Type :: Token l
+
+  -- | @[@
+  VectorBegin :: Token l
+
+  -- | @]@
+  VectorEnd :: Token l
+
+  -- | @vocab@
+  Vocab :: Token l
+
+  -- | @::@
+  VocabLookup :: Token l
+
+  -- | @with@
+  With :: Token l
+
+  -- | @word@
+  Word :: !Unqualified -> Token l
+
+fromLayout :: Token l -> Maybe (Token 'Nonlayout)
+fromLayout Colon = Nothing
+fromLayout x = Just (unsafeCoerce x)
+
+instance Eq (Token l) where
   About                   == About                   = True
   AngleBegin              == AngleBegin              = True
   AngleEnd                == AngleEnd                = True
   Arrow                   == Arrow                   = True
   As                      == As                      = True
-  -- Block begin tokens are equal regardless of layoutness.
-  BlockBegin _layoutnessA == BlockBegin _layoutnessB = True
+  BlockBegin              == BlockBegin              = True
   BlockEnd                == BlockEnd                = True
   Case                    == Case                    = True
   Character a             == Character b             = a == b
+  Colon                   == Colon                   = True
   Comma                   == Comma                   = True
   Define                  == Define                  = True
   Do                      == Do                      = True
@@ -98,7 +187,6 @@ instance Eq Token where
   Integer a _baseA _bitsA == Integer b _baseB _bitsB = a == b
   Intrinsic               == Intrinsic               = True
   Jump                    == Jump                    = True
-  Layout                  == Layout                  = True
   Match                   == Match                   = True
   Operator a              == Operator b              = a == b
   Permission              == Permission              = True
@@ -116,7 +204,7 @@ instance Eq Token where
   Word a                  == Word b                  = a == b
   _                       == _                       = False
 
-instance Pretty Token where
+instance Pretty (Token l) where
   pPrint token = case token of
     About -> "about"
     AngleBegin -> "<"
@@ -127,6 +215,7 @@ instance Pretty Token where
     BlockEnd -> "}"
     Case -> "case"
     Character c -> Pretty.quotes $ Pretty.char c
+    Colon -> ":"
     Comma -> ","
     Define -> "define"
     Do -> "do"
@@ -154,7 +243,6 @@ instance Pretty Token where
         _ -> Pretty.render $ pPrint bits
     Intrinsic -> "intrinsic"
     Jump -> "jump"
-    Layout -> ":"
     Match -> "match"
     Operator name -> pPrint name
     Permission -> "permission"
@@ -172,7 +260,7 @@ instance Pretty Token where
     Word name -> pPrint name
 
 -- Minor hack because Parsec requires 'Show'.
-instance Show Token where
+instance Show (Token l) where
   show = Pretty.render . pPrint
 
 -- Note [Angle Brackets]:

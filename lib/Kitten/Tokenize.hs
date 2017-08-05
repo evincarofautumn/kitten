@@ -8,6 +8,7 @@ Stability   : experimental
 Portability : GHC
 -}
 
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Tokenize
@@ -25,14 +26,13 @@ import Kitten.Base (Base(..))
 import Kitten.Bits
 import Kitten.Indent (Indent(..))
 import Kitten.Informer (Informer(..))
-import Kitten.Layout (layout)
+import Kitten.Layoutness (Layoutness(..))
 import Kitten.Located (Located(..))
 import Kitten.Name (Unqualified(..))
 import Kitten.Token (Token(..))
 import Numeric
 import Text.Parsec ((<?>), Column, ParsecT)
 import qualified Data.Text as Text
-import qualified Kitten.Layoutness as Layoutness
 import qualified Kitten.Origin as Origin
 import qualified Kitten.Report as Report
 import qualified Text.Parsec as Parsec
@@ -50,20 +50,20 @@ tokenize
   -- ^ Source file path.
   -> Text
   -- ^ Source text.
-  -> m [Located Token]
+  -> m [Located (Token 'Layout)]
   -- ^ Lexed tokens.
 tokenize line path text = case Parsec.runParser
   (setPos *> fileTokenizer) 1 path text of
   Left parseError -> do
     report $ Report.parseError parseError
     halt
-  Right result -> layout path result
+  Right result -> pure result
   where
   setPos = Parsec.setPosition $ Parsec.newPos path line 1
 
 type Tokenizer a = ParsecT Text Column Identity a
 
-fileTokenizer :: Tokenizer [Located Token]
+fileTokenizer :: Tokenizer [Located (Token 'Layout)]
 fileTokenizer = silenceTokenizer *> tokensTokenizer <* Parsec.eof
 
 silenceTokenizer :: Tokenizer ()
@@ -94,10 +94,10 @@ silenceTokenizer = Parsec.skipMany (comment <|> whitespace)
   skipManyTill :: ParsecT s u m a -> ParsecT s u m b -> ParsecT s u m ()
   a `skipManyTill` b = void (Parsec.try b) <|> a *> (a `skipManyTill` b)
 
-tokensTokenizer :: Tokenizer [Located Token]
+tokensTokenizer :: Tokenizer [Located (Token 'Layout)]
 tokensTokenizer = tokenTokenizer `Parsec.sepEndBy` silenceTokenizer
 
-rangedTokenizer :: Tokenizer Token -> Tokenizer (Located Token)
+rangedTokenizer :: Tokenizer (Token 'Layout) -> Tokenizer (Located (Token 'Layout))
 rangedTokenizer parser = do
   column <- Parsec.getState
   begin <- Parsec.getPosition
@@ -105,9 +105,9 @@ rangedTokenizer parser = do
   end <- Parsec.getPosition
   return $ At (Origin.range begin end) (Indent column) result
 
-tokenTokenizer :: Tokenizer (Located Token)
+tokenTokenizer :: Tokenizer (Located (Token 'Layout))
 tokenTokenizer = rangedTokenizer $ Parsec.choice
-  [ BlockBegin Layoutness.Nonlayout <$ Parsec.char '{'
+  [ BlockBegin <$ Parsec.char '{'
   , BlockEnd <$ Parsec.char '}'
   , do
     let singleQuote = Parsec.char '\''
@@ -130,7 +130,7 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
   , Parsec.try $ Ignore <$ Parsec.char '_' <* Parsec.notFollowedBy letter
   , Parsec.try $ VocabLookup
     <$ Parsec.choice (map Parsec.string ["::", "\x2237"])
-  , Layout <$ Parsec.char ':'
+  , Colon <$ Parsec.char ':'
   , VectorBegin <$ Parsec.char '['
   , VectorEnd <$ Parsec.char ']'
   , Reference <$ Parsec.char '\\'
@@ -247,7 +247,7 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
   ]
   where
 
-  bracketOperator :: Char -> Tokenizer Token
+  bracketOperator :: Char -> Tokenizer (Token 'Layout)
   bracketOperator char = Operator (Unqualified (Text.singleton char))
     <$ Parsec.try (Parsec.char char <* Parsec.notFollowedBy symbol)
 

@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Test.Tokenize
@@ -8,6 +9,7 @@ import Data.Functor.Identity (runIdentity)
 import Data.Text (Text)
 import Kitten.Base (Base(..))
 import Kitten.Bits
+import Kitten.Layoutness (Layoutness(..))
 import Kitten.Monad (runKitten)
 import Kitten.Name (Unqualified(..))
 import Kitten.Report (Report)
@@ -226,6 +228,6 @@ spec = do
       testTokenize "1e-1" `shouldBe` Right [Float 1 0 (-1) Float64]
       testTokenize "1e\x2212\&1" `shouldBe` Right [Float 1 0 (-1) Float64]
 
-testTokenize :: Text -> Either [Report] [Token]
+testTokenize :: Text -> Either [Report] [Token 'Layout]
 testTokenize = fmap (map Located.item) . runIdentity . runKitten
   . tokenize 1 ""
