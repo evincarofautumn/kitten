@@ -118,12 +118,9 @@ desugar dictionary definition = do
 
     desugarValue :: Value () -> K (Value ())
     desugarValue value = case value of
-      Algebraic{} -> error "adt should not appear before runtime"
-      Array{} -> error "array should not appear before runtime"
       Capture names body -> Capture names <$> desugarTerms' body
       Character{} -> return value
       Closed{} -> error "closed name should not appear before infix desugaring"
-      Closure{} -> error "closure should not appear before runtime"
       Float{} -> return value
       Integer{} -> return value
       Local{} -> error "local name should not appear before infix desugaring"

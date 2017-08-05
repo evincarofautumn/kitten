@@ -88,10 +88,7 @@ data Rep
 
 valueRep :: (Show a) => Value a -> Rep
 valueRep value = case value of
-  Term.Algebraic index fields -> Algebraic index (valueRep <$> fields)
-  Term.Array values -> Array (valueRep <$> values)
   Term.Character c -> Character c
-  Term.Closure name closure -> Closure name (valueRep <$> closure)
   Term.Float literal -> case Literal.floatBits literal of
     Bits.Float32 -> Float32 $ Literal.floatValue literal
     Bits.Float64 -> Float64 $ Literal.floatValue literal

@@ -431,8 +431,6 @@ inferValue
   -> Value a
   -> K (Value Type, Type, TypeEnv)
 inferValue dictionary tenvFinal tenv0 origin value = case value of
-  Algebraic{} -> error "adt should not appear before runtime"
-  Array{} -> error "array should not appear before runtime"
   Capture names term -> do
     let types = map (TypeEnv.getClosed tenv0) names
     let oldClosure = TypeEnv.closure tenv0
@@ -443,7 +441,6 @@ inferValue dictionary tenvFinal tenv0 origin value = case value of
   Character x -> return (Character x, TypeConstructor origin "Char", tenv0)
   Closed (ClosureIndex index) -> return
     (Closed $ ClosureIndex index, TypeEnv.closure tenv0 !! index, tenv0)
-  Closure{} -> error "closure should not appear before runtime"
   Float x -> let
     ctor = case Literal.floatBits x of
       Float32 -> "Float32"

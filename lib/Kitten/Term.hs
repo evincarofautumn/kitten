@@ -36,7 +36,6 @@ module Kitten.Term
 
 import Data.List (intersperse, partition)
 import Data.Text (Text)
-import Data.Vector (Vector)
 import Kitten.Entry.Parameter (Parameter(..))
 import Kitten.Literal (IntegerLiteral, FloatLiteral)
 import Kitten.Name
@@ -46,7 +45,6 @@ import Kitten.Signature (Signature)
 import Kitten.Type (Type, TypeId)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.Text as Text
-import qualified Data.Vector as Vector
 import qualified Kitten.Kind as Kind
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Signature as Signature
@@ -129,18 +127,12 @@ data Permit = Permit
 -- values in the interpreter.
 
 data Value a
-  -- | An ADT instance.
-  = Algebraic !ConstructorIndex [Value a]
-  -- | An array of values.
-  | Array !(Vector (Value a))
   -- | A quotation with explicit variable capture; see "Kitten.Scope".
-  | Capture [Closed] !(Term a)
+  = Capture [Closed] !(Term a)
   -- | A character literal.
   | Character !Char
   -- | A captured variable.
   | Closed !ClosureIndex
-  -- | A closure value.
-  | Closure !Qualified [Value a]
   -- | A floating-point literal.
   | Float !FloatLiteral
   -- | An integer literal.
@@ -259,12 +251,9 @@ stripMetadata term = case term of
 
 stripValue :: Value a -> Value ()
 stripValue v = case v of
-  Algebraic a b -> Algebraic a (map stripValue b)
-  Array a -> Array (fmap stripValue a)
   Capture a b -> Capture a (stripMetadata b)
   Character a -> Character a
   Closed a -> Closed a
-  Closure a b -> Closure a (map stripValue b)
   Float a -> Float a
   Integer a -> Integer a
   Local a -> Local a
@@ -313,9 +302,6 @@ instance Pretty Permit where
 
 instance Pretty (Value a) where
   pPrint value = case value of
-    Algebraic{} -> "<adt>"
-    Array values -> Pretty.brackets $ Pretty.list
-      $ Vector.toList $ fmap pPrint values
     Capture names term -> Pretty.hcat
       [ Pretty.char '$'
       , Pretty.parens $ Pretty.list $ map pPrint names
@@ -323,7 +309,6 @@ instance Pretty (Value a) where
       ]
     Character c -> Pretty.quotes $ Pretty.char c
     Closed (ClosureIndex index) -> "closure." Pretty.<> Pretty.int index
-    Closure{} -> "<closure>"
     Float f -> pPrint f
     Integer i -> pPrint i
     Local (LocalIndex index) -> "local." Pretty.<> Pretty.int index

@@ -680,10 +680,6 @@ term t = case t of
 
 value :: Origin -> Term.Value Type -> CodeGen ()
 value origin v = case v of
-  Term.Algebraic{} -> error
-    "algebraic data type appeared during code generation"
-  Term.Array{} -> error
-    "array appeared during code generation"
   Term.Capture{} -> error
     "capture appeared during code generation"
   Term.Character c -> do
@@ -691,8 +687,6 @@ value origin v = case v of
     indented $ pushSmall $ fromIntegral $ fromEnum c
   Term.Closed (ClosureIndex index) -> do
     comment ["closure.", Text.pack $ show index]
-  Term.Closure{} -> error
-    "closure appeared during code generation"
   Term.Float f -> do
     comment ["push float ", Text.pack $ show (Literal.floatValue f :: Double)]
     -- TODO: Use FPU stack.
