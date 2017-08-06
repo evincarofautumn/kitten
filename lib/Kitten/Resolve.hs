@@ -8,6 +8,7 @@ Stability   : experimental
 Portability : GHC
 -}
 
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Resolve
@@ -27,9 +28,11 @@ import Kitten.Entry.Parameter (Parameter(Parameter))
 import Kitten.Informer (Informer(..))
 import Kitten.Monad (K)
 import Kitten.Name
+import Kitten.Operator (Fixity)
 import Kitten.Origin (Origin)
+import Kitten.Phase (Phase(..))
 import Kitten.Signature (Signature)
-import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
+import Kitten.Term (Sweet(..))
 import qualified Data.Set as Set
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Dictionary as Dictionary
@@ -46,7 +49,10 @@ type Resolved a = StateT [Unqualified] K a
 run :: Resolved a -> K a
 run = flip evalStateT []
 
-definition :: Dictionary -> Definition () -> Resolved (Definition ())
+definition
+  :: Dictionary
+  -> Definition 'Parsed
+  -> Resolved (Definition 'Resolved)
 definition dictionary def = do
   -- FIXME: reportDuplicate dictionary def
   let vocabulary = qualifierName $ Definition.name def
@@ -57,24 +63,75 @@ definition dictionary def = do
     , Definition.signature = sig
     }
 
-term :: Dictionary -> Qualifier -> Term () -> Resolved (Term ())
+term
+  :: Dictionary
+  -> Qualifier
+  -> Sweet 'Parsed
+  -> Resolved (Sweet 'Resolved)
 term dictionary vocabulary = recur
   where
 
-  recur :: Term () -> Resolved (Term ())
+  recur :: Sweet 'Parsed -> Resolved (Sweet 'Resolved)
   recur unresolved = case unresolved of
-    Coercion (Term.AnyCoercion sig) a b
-      -> Coercion
-      <$> (Term.AnyCoercion <$> signature dictionary vocabulary sig)
-      <*> pure a
-      <*> pure b
-    Coercion{} -> return unresolved
-    Compose _ a b -> Compose () <$> recur a <*> recur b
-    Generic{} -> error
-      "generic expression should not appear before name resolution"
-    Group a -> Group <$> recur a
-    Lambda _ name _ t origin -> withLocal name
-      $ Lambda () name () <$> recur t <*> pure origin
+    SArray _ origin items -> SArray () origin <$> mapM recur items
+    SAs _ origin types -> SAs () origin
+      <$> mapM (signature dictionary vocabulary) types
+    SCharacter _ origin text -> pure $ SCharacter () origin text
+    SCompose _ a b -> SCompose () <$> recur a <*> recur b
+    SDo _ origin f x -> SDo () origin <$> recur f <*> recur x
+    SEscape _ origin body -> SEscape () origin <$> recur body
+    SFloat _ origin literal -> pure $ SFloat () origin literal
+    SGeneric{} -> error "generic term should not appear before name resolution"
+    SGroup _ origin body -> SGroup () origin <$> recur body
+    SIdentity _ origin -> pure $ SIdentity () origin
+    SIf _ origin mCondition true elifs mElse -> SIf () origin
+      <$> traverse recur mCondition
+      <*> recur true
+      <*> traverse (\ (elifOrigin, condition, body)
+        -> (,,) elifOrigin <$> recur condition <*> recur body) elifs
+      <*> traverse recur mElse
+    -- SInfix{}
+    SInteger _ origin literal -> pure $ SInteger () origin literal
+    SJump _ origin -> pure $ SJump () origin
+    SLambda _ origin vars body -> withLocals vars
+      $ SLambda () origin vars <$> recur body
+    SList _ origin items -> SList () origin <$> mapM recur items
+    -- SLocal _ origin name -> pure $ SLocal () origin name
+    SLoop _ origin -> pure $ SLoop () origin
+    SMatch _ origin mScrutinee cases mElse -> SMatch () origin
+      <$> traverse recur mScrutinee
+      <*> traverse (\ (caseOrigin, name, body) -> (,,) origin
+        <$> definitionName dictionary vocabulary name caseOrigin
+        <*> recur body)
+        cases
+      <*> traverse recur mElse
+    SNestableCharacter _ origin text -> pure $ SNestableCharacter () origin text
+    SNestableText _ origin text -> pure $ SNestableText () origin text
+    SParagraph _ origin text -> pure $ SParagraph () origin text
+    STag _ origin size index -> pure $ STag () origin size index
+    SText _ origin text -> pure $ SText () origin text
+    SQuotation _ origin body -> SQuotation () origin <$> recur body
+    SReturn _ origin -> pure $ SReturn () origin
+    SSection _ origin name operand -> SSection () origin name  -- TODO: name
+      <$> case operand of
+        Left x -> Left <$> recur x
+        Right x -> Right <$> recur x
+    STodo _ origin -> pure $ STodo () origin
+    SUnboxedQuotation _ origin body
+      -> SUnboxedQuotation () origin <$> recur body
+    SWith _ origin permits -> SWith () origin <$> mapM permit permits
+      where
+        permit (Term.Permit permitted name) = Term.Permit permitted
+          <$> typeName dictionary vocabulary name origin
+    SWord _ origin fixity name typeArgs
+      -> word dictionary vocabulary origin fixity typeArgs name
+{-
+      -> SWord () origin fixity
+        <$> definitionName dictionary vocabulary name origin
+        <*> mapM (signature dictionary vocabulary) typeArgs
+-}
+
+{-
     Match hint _ cases else_ origin -> Match hint ()
       <$> mapM resolveCase cases <*> resolveElse else_
       <*> pure origin
@@ -97,19 +154,7 @@ term dictionary vocabulary = recur
     Word _ fixity name params origin -> Word () fixity
       <$> definitionName dictionary vocabulary name origin
       <*> pure params <*> pure origin
-
-value :: Dictionary -> Qualifier -> Value () -> Resolved (Value ())
-value dictionary vocabulary v = case v of
-  Capture{} -> error "closure should not appear before name resolution"
-  Character{} -> return v
-  Closed{} -> error "closed name should not appear before name resolution"
-  Float{} -> return v
-  Integer{} -> return v
-  Local{} -> error "local name should not appear before name resolution"
-  -- FIXME: Maybe should be a GeneralName and require resolution.
-  Name{} -> return v
-  Quotation t -> Quotation <$> term dictionary vocabulary t
-  Text{} -> return v
+-}
 
 signature :: Dictionary -> Qualifier -> Signature -> Resolved Signature
 signature dictionary vocabulary = go
@@ -134,6 +179,26 @@ signature dictionary vocabulary = go
       <*> zipWithM (typeName dictionary vocabulary) es (repeat origin)
       <*> pure origin
     Signature.Type{} -> pure sig
+
+word
+  :: Dictionary
+  -> Qualifier
+  -> Origin
+  -> Fixity
+  -> [Signature]
+  -> GeneralName
+  -> Resolved (Sweet 'Resolved)
+word dictionary vocabulary origin fixity typeArgs name = do
+  name' <- generalName Report.WordName resolveLocal isDefined
+    vocabulary name origin
+  pure $ case name' of
+    -- FIXME: Should we report if a local name is given type arguments?
+    UnqualifiedName unqualified -> SLocal () origin unqualified
+    _ -> SWord () origin fixity name' typeArgs
+  where
+  isDefined = flip Set.member defined
+  defined = Set.fromList $ Dictionary.wordNames dictionary
+  resolveLocal unqualified _index = return $ UnqualifiedName unqualified
 
 definitionName, typeName
   :: Dictionary -> Qualifier -> GeneralName -> Origin -> Resolved GeneralName
@@ -191,6 +256,13 @@ generalName category resolveLocal isDefined vocabulary name origin
 
     LocalName{} -> error "local name should not appear before name resolution"
 
+withLocals :: [(Origin, Maybe Unqualified, ())] -> Resolved a -> Resolved a
+withLocals ((_, Just name, _) : locals) action
+  = withLocal name $ withLocals locals action
+-- FIXME: Is this correct?
+withLocals ((_, Nothing, _) : locals) action = withLocals locals action
+withLocals [] action = action
+
 withLocal :: Unqualified -> Resolved a -> Resolved a
 withLocal name action = do
   modify (name :)
@@ -198,7 +270,7 @@ withLocal name action = do
   modify tail
   return result
 
-reportDuplicate :: Dictionary -> Definition () -> K ()
+reportDuplicate :: Dictionary -> Definition p -> K ()
 reportDuplicate dictionary def = return ()
 {-
   where

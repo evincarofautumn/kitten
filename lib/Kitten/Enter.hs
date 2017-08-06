@@ -8,6 +8,7 @@ Stability   : experimental
 Portability : GHC
 -}
 
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Enter
@@ -30,8 +31,9 @@ import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Metadata (Metadata)
 import Kitten.Monad (K)
 import Kitten.Name
+import Kitten.Phase (Phase(..))
 import Kitten.Scope (scope)
-import Kitten.Term (Term)
+import Kitten.Term (Sweet, Term)
 import Kitten.Tokenize (tokenize)
 import Kitten.TypeDefinition (TypeDefinition)
 import qualified Data.HashMap.Strict as HashMap
@@ -57,7 +59,7 @@ import qualified Text.PrettyPrint as Pretty
 
 -- | Enters a program fragment into a dictionary.
 
-fragment :: Fragment () -> Dictionary -> K Dictionary
+fragment :: Fragment 'Typed -> Dictionary -> K Dictionary
 fragment f
   -- TODO: Link constructors to parent type.
   = foldlMx declareType (Fragment.types f)
@@ -136,7 +138,7 @@ declareType dictionary type_ = let
       ]
 
 declareWord
-  :: Dictionary -> Definition () -> K Dictionary
+  :: Dictionary -> Definition 'Typed -> K Dictionary
 declareWord dictionary definition = let
   name = Definition.name definition
   signature = Definition.signature definition
@@ -196,7 +198,7 @@ addMetadata dictionary0 metadata
   origin = Metadata.origin metadata
   qualifier = qualifierFromName qualified
 
-  addField :: Dictionary -> (Unqualified, Term ()) -> K Dictionary
+  addField :: Dictionary -> (Unqualified, Sweet 'Parsed) -> K Dictionary
   addField dictionary (unqualified, term) = do
     let name = Qualified qualifier unqualified
     case Dictionary.lookup (Instantiated name []) dictionary of
@@ -224,7 +226,7 @@ resolveSignature dictionary name = do
 -- desugaring of operators has to take place here
 defineWord
   :: Dictionary
-  -> Definition ()
+  -> Definition 'Typed
   -> K Dictionary
 defineWord dictionary definition = do
   let name = Definition.name definition
@@ -323,7 +325,7 @@ fragmentFromSource
   -- ^ Source file path for error reporting.
   -> Text
   -- ^ Source itself.
-  -> K (Fragment ())
+  -> K (Fragment 'Parsed)
   -- ^ Parsed program fragment.
 fragmentFromSource mainPermissions mainName line path source = do
 
@@ -347,7 +349,7 @@ fragmentFromSource mainPermissions mainName line path source = do
 
   return parsed
 
-resolveAndDesugar :: Dictionary -> Definition () -> K (Definition ())
+resolveAndDesugar :: Dictionary -> Definition 'Parsed -> K (Definition 'Scoped)
 resolveAndDesugar dictionary definition = do
 
 -- Name resolution rewrites unqualified names into fully qualified names, so

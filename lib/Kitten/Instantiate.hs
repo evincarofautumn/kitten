@@ -8,6 +8,7 @@ Stability   : experimental
 Portability : GHC
 -}
 
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Instantiate
@@ -22,7 +23,8 @@ import Kitten.Kind (Kind)
 import Kitten.Monad (K)
 import Kitten.Name (Unqualified)
 import Kitten.Origin (Origin)
-import Kitten.Term (Term(..))
+import Kitten.Phase (Phase(..))
+import Kitten.Term (Sweet(..))
 import Kitten.Type (Type(..), TypeId, Var(..))
 import Kitten.TypeEnv (TypeEnv, freshTypeId)
 import qualified Kitten.Pretty as Pretty
@@ -63,10 +65,10 @@ prenex tenv0 t = return (t, [], tenv0)
 
 -- | Instantiates a generic expression with the given type arguments.
 
-term :: TypeEnv -> Term Type -> [Type] -> K (Term Type)
+term :: TypeEnv -> Sweet 'Typed -> [Type] -> K (Sweet 'Typed)
 term tenv t args = foldlM go t args
   where
-  go (Generic _name x expr _origin) arg = Substitute.term tenv x arg expr
+  go (SGeneric _ _origin _name x expr) arg = Substitute.term tenv x arg expr
   go _ _ = do
     report $ Report.TypeArgumentCountMismatch t $ map (Zonk.type_ tenv) args
     halt

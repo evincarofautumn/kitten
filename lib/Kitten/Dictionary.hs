@@ -34,6 +34,7 @@ import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Literal (IntegerLiteral(IntegerLiteral))
 import Kitten.Name
 import Kitten.Operator (Operator(Operator))
+import Kitten.Origin (getOrigin)
 import Kitten.Signature (Signature)
 import Prelude hiding (lookup)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
@@ -93,30 +94,29 @@ operatorMetadata dictionary = HashMap.fromList <$> mapM getMetadata
       Just (Entry.Metadata _ term)
 
         -- Just associativity.
-        | [Term.Word _ _ (UnqualifiedName (Unqualified assoc)) _ _]
-          <- Term.decompose term
+        | [Term.SWord _ _ _ (UnqualifiedName (Unqualified assoc)) _]
+          <- Term.decomposed term
         , Just associativity <- associativityFromName assoc
         -> yield associativity defaultPrecedence
 
         -- Just precedence.
-        | [Term.Push _ (Term.Integer (IntegerLiteral prec _base _bits)) _]
-          <- Term.decompose term
+        | [Term.SInteger _ _ (IntegerLiteral prec _base _bits)]
+          <- Term.decomposed term
         , validPrecedence prec
         -> yield defaultAssociativity
           $ Operator.Precedence $ fromInteger prec
 
         -- Associativity and precedence.
-        | [ Term.Word _ _ (UnqualifiedName (Unqualified assoc)) _ _
-          , Term.Push _ (Term.Integer (IntegerLiteral prec _base _bits)) _
-          ] <- Term.decompose term
+        | [ Term.SWord _ _ _ (UnqualifiedName (Unqualified assoc)) _
+          , Term.SInteger _ _ (IntegerLiteral prec _base _bits)
+          ] <- Term.decomposed term
         , Just associativity <- associativityFromName assoc
         , validPrecedence prec
         -> yield associativity
           $ Operator.Precedence $ fromInteger prec
 
         | otherwise -> do
-          report $ Report.InvalidOperatorMetadata
-            (Term.origin term) name term
+          report $ Report.InvalidOperatorMetadata (getOrigin term) name term
           yield defaultAssociativity defaultPrecedence
 
       _ -> yield defaultAssociativity defaultPrecedence

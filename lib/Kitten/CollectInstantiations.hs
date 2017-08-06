@@ -79,7 +79,10 @@ collectInstantiations dictionary0 = do
 -- enqueueing them for instantiation. We perform the actual instantiation while
 -- processing the queue, so as to avoid redundant instantiations.
 
-  go :: InstantiationQueue -> Term Type -> K (Term Type, InstantiationQueue)
+  go
+    :: InstantiationQueue
+    -> Sweet 'Typed
+    -> K (Sweet 'Typed, InstantiationQueue)
   go q0 term = case term of
     Coercion{} -> proceed
     Compose type_ a b -> do

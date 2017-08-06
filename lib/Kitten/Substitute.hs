@@ -8,13 +8,17 @@ Stability   : experimental
 Portability : GHC
 -}
 
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
+
 module Kitten.Substitute
   ( term
   , type_
   ) where
 
 import Kitten.Monad (K)
-import Kitten.Term (Case(..), Else(..), Term(..))
+import Kitten.Phase (Phase(..))
+import Kitten.Term (Sweet(..))
 import Kitten.Type (Type(..), TypeId, Var(..))
 import Kitten.TypeEnv (TypeEnv, freshTypeId)
 import qualified Data.Set as Set
@@ -39,40 +43,150 @@ type_ tenv0 x a = recur
     m :@ n -> (:@) <$> recur m <*> recur n
     _ -> return t
 
-term :: TypeEnv -> TypeId -> Type -> Term Type -> K (Term Type)
+term :: TypeEnv -> TypeId -> Type -> Sweet 'Typed -> K (Sweet 'Typed)
 term tenv x a = recur
   where
   recur t = case t of
-    Coercion hint tref origin -> Coercion hint <$> go tref <*> pure origin
-    Compose tref t1 t2 -> Compose <$> go tref <*> recur t1 <*> recur t2
-    Generic name x' body origin -> do
+
+    SArray tref origin items -> do
+      tref' <- go tref
+      SArray tref' origin <$> mapM recur items
+
+    SAs tref origin types -> do
+      tref' <- go tref
+      pure $ SAs tref' origin types
+
+    SCharacter tref origin text -> do
+      tref' <- go tref
+      pure $ SCharacter tref' origin text
+
+    SCompose tref t1 t2 -> do
+      tref' <- go tref
+      SCompose tref' <$> recur t1 <*> recur t2
+
+    SDo tref origin t1 t2 -> do
+      tref' <- go tref
+      SDo tref' origin <$> recur t1 <*> recur t2
+
+    SEscape tref origin body -> do
+      tref' <- go tref
+      SEscape tref' origin <$> recur body
+
+    SFloat tref origin literal -> do
+      tref' <- go tref
+      pure $ SFloat tref' origin literal
+
+    SGeneric tref origin name x' body -> do
       -- FIXME: Generics could eventually quantify over non-value kinds.
       let k = Kind.Value
+      tref' <- go tref
       z <- freshTypeId tenv
       body' <- term tenv x' (TypeVar origin $ Var name z k) body
-      Generic name z <$> recur body' <*> pure origin
-    Group body -> recur body
-    Lambda tref name varType body origin -> Lambda <$> go tref
-      <*> pure name <*> go varType <*> recur body <*> pure origin
-    Match hint tref cases else_ origin -> Match hint <$> go tref
-      <*> mapM goCase cases <*> goElse else_ <*> pure origin
-      where
+      SGeneric tref' origin name z <$> recur body'
 
-      goCase :: Case Type -> K (Case Type)
-      goCase (Case name body caseOrigin)
-        = Case name <$> recur body <*> pure caseOrigin
+    SGroup tref origin body -> do
+      tref' <- go tref
+      SGroup tref' origin <$> recur body
 
-      goElse :: Else Type -> K (Else Type)
-      goElse (Else body elseOrigin) = Else <$> recur body <*> pure elseOrigin
+    SIdentity tref origin -> do
+      tref' <- go tref
+      pure $ SIdentity tref' origin
 
-    New tref index size origin -> New
-      <$> go tref <*> pure index <*> pure size <*> pure origin
-    NewClosure tref size origin -> NewClosure <$> go tref
-      <*> pure size <*> pure origin
-    NewVector tref size elemType origin -> NewVector <$> go tref
-      <*> pure size <*> go elemType <*> pure origin
-    Push tref value origin -> Push <$> go tref <*> pure value <*> pure origin
-    Word tref fixity name args origin -> Word <$> go tref
-      <*> pure fixity <*> pure name <*> mapM go args <*> pure origin
+    SIf tref origin mCondition true elifs mElse -> do
+      tref' <- go tref
+      mCondition' <- traverse recur mCondition
+      true' <- recur true
+      elifs' <- traverse (\ (elifOrigin, condition, body)
+        -> (,,) elifOrigin <$> recur condition <*> recur body) elifs
+      mElse' <- traverse recur mElse
+      pure $ SIf tref' origin mCondition' true' elifs' mElse'
+
+    SInfix tref origin left op right -> do
+      tref' <- go tref
+      SInfix tref' origin <$> recur left <*> pure op <*> recur right
+
+    SInteger tref origin literal -> do
+      tref' <- go tref
+      pure $ SInteger tref' origin literal
+
+    SJump tref origin -> do
+      tref' <- go tref
+      pure $ SJump tref' origin
+
+    SLambda tref origin vars body -> do
+      tref' <- go tref
+      vars' <- traverse (\ (varOrigin, mName, varType)
+        -> (,,) varOrigin mName <$> go varType) vars
+      SLambda tref' origin vars' <$> recur body
+
+    SList tref origin items -> do
+      tref' <- go tref
+      SList tref' origin <$> mapM recur items
+
+    SLocal tref origin name -> do
+      tref' <- go tref
+      pure $ SLocal tref' origin name
+
+    SLoop tref origin -> do
+      tref' <- go tref
+      pure $ SLoop tref' origin
+
+    SMatch tref origin mScrutinee cases mElse -> do
+      tref' <- go tref
+      mScrutinee' <- traverse recur mScrutinee
+      cases' <- traverse (\ (caseOrigin, name, body)
+        -> (,,) caseOrigin name <$> recur body) cases
+      mElse' <- traverse recur mElse
+      pure $ SMatch tref' origin mScrutinee' cases' mElse'
+
+    SNestableCharacter tref origin text -> do
+      tref' <- go tref
+      pure $ SNestableCharacter tref' origin text
+
+    SNestableText tref origin text -> do
+      tref' <- go tref
+      pure $ SNestableText tref' origin text
+
+    SParagraph tref origin text -> do
+      tref' <- go tref
+      pure $ SParagraph tref' origin text
+
+    STag tref origin size index -> do
+      tref' <- go tref
+      pure $ STag tref' origin size index
+
+    SText tref origin text -> do
+      tref' <- go tref
+      pure $ SText tref' origin text
+
+    SQuotation tref origin body -> do
+      tref' <- go tref
+      SQuotation tref' origin <$> recur body
+
+    SReturn tref origin -> do
+      tref' <- go tref
+      pure $ SReturn tref' origin
+
+    SSection tref origin name operand -> do
+      tref' <- go tref
+      SSection tref' origin name <$> case operand of
+        Left o -> Left <$> recur o
+        Right o -> Right <$> recur o
+
+    STodo tref origin -> do
+      tref' <- go tref
+      pure $ STodo tref' origin
+
+    SUnboxedQuotation tref origin body -> do
+      tref' <- go tref
+      SUnboxedQuotation tref' origin <$> recur body
+
+    SWith tref origin permits -> do
+      tref' <- go tref
+      pure $ SWith tref' origin permits
+
+    SWord tref origin fixity name typeArgs -> do
+      tref' <- go tref
+      pure $ SWord tref' origin fixity name typeArgs
 
   go = type_ tenv x a

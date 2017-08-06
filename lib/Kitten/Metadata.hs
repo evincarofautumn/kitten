@@ -8,6 +8,7 @@ Stability   : experimental
 Portability : GHC
 -}
 
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Metadata
@@ -17,7 +18,8 @@ module Kitten.Metadata
 import Data.HashMap.Strict (HashMap)
 import Kitten.Name (GeneralName, Unqualified)
 import Kitten.Origin (Origin)
-import Kitten.Term (Term)
+import Kitten.Phase (Phase(..))
+import Kitten.Term (Sweet)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Text.PrettyPrint as Pretty
@@ -25,7 +27,7 @@ import qualified Text.PrettyPrint as Pretty
 -- | Untyped metadata from @about@ blocks.
 
 data Metadata = Metadata
-  { fields :: !(HashMap Unqualified (Term ()))
+  { fields :: !(HashMap Unqualified (Sweet 'Parsed))
   , name :: !GeneralName
   , origin :: !Origin
   } deriving (Show)

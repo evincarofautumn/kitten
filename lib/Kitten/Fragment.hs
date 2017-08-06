@@ -8,6 +8,9 @@ Stability   : experimental
 Portability : GHC
 -}
 
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE UndecidableInstances #-}
+
 module Kitten.Fragment
   ( Fragment(..)
   ) where
@@ -16,19 +19,22 @@ import Kitten.Declaration (Declaration)
 import Kitten.Definition (Definition)
 import Kitten.Metadata (Metadata)
 import Kitten.Synonym (Synonym)
+import Kitten.Term (Annotation)
 import Kitten.TypeDefinition (TypeDefinition)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Kitten.Pretty as Pretty
 
 -- | A program fragment, consisting of a bag of top-level program elements.
 
-data Fragment a = Fragment
+data Fragment p = Fragment
   { declarations :: [Declaration]
-  , definitions :: [Definition a]
+  , definitions :: [Definition p]
   , metadata :: [Metadata]
   , synonyms :: [Synonym]
   , types :: [TypeDefinition]
-  } deriving (Show)
+  }
+
+deriving instance (Show (Annotation p)) => Show (Fragment p)
 
 instance Monoid (Fragment a) where
   mempty = Fragment

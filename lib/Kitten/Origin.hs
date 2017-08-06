@@ -11,7 +11,8 @@ Portability : GHC
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Origin
-  ( Origin(..)
+  ( HasOrigin(..)
+  , Origin(..)
   , begin
   , end
   , point
@@ -84,3 +85,6 @@ instance Pretty Origin where
     bl = endLine origin
     ac = beginColumn origin
     bc = endColumn origin
+
+class HasOrigin a where
+  getOrigin :: a -> Origin

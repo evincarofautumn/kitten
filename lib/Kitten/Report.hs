@@ -8,6 +8,7 @@ Stability   : experimental
 Portability : GHC
 -}
 
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kitten.Report
@@ -21,9 +22,10 @@ import Control.Monad.Trans.State (evalState, state)
 import Data.Function (on)
 import Data.List (intersperse, nub)
 import Kitten.Name (GeneralName, Qualified)
-import Kitten.Origin (Origin)
+import Kitten.Origin (Origin, getOrigin)
+import Kitten.Phase (Phase(..))
 import Kitten.Signature (Signature)
-import Kitten.Term (Term)
+import Kitten.Term (Sweet)
 import Kitten.Type (Constructor, Type)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Kitten.Origin as Origin
@@ -48,7 +50,7 @@ data Report
   | CannotResolveType !Origin !GeneralName
   | FailedInstanceCheck !Type !Type
   | MissingPermissionLabel !Type !Type !Origin !Constructor
-  | TypeArgumentCountMismatch !(Term Type) [Type]
+  | TypeArgumentCountMismatch !(Sweet 'Typed) [Type]
   | CannotResolveName !Origin !NameCategory !GeneralName
   | MultipleDefinitions !Origin !Qualified [Origin]
   | WordRedefinition !Origin !Qualified !Origin
@@ -58,7 +60,7 @@ data Report
   | Chain [Report]
   | OccursCheckFailure !Type !Type
   | StackDepthMismatch !Origin
-  | InvalidOperatorMetadata !Origin !Qualified !(Term ())
+  | InvalidOperatorMetadata !Origin !Qualified !(Sweet 'Parsed)
   | ParseError !Origin [Pretty.Doc] Pretty.Doc
   | Context [(Origin, Pretty.Doc)] Report
   deriving (Eq, Show)
@@ -102,8 +104,8 @@ human report = case report of
     ]
 
   TypeArgumentCountMismatch term args -> Pretty.hsep
-    [ showOriginPrefix $ Term.origin term
-    , "I expected", Pretty.int $ Term.quantifierCount term
+    [ showOriginPrefix $ getOrigin term
+    , "I expected", Pretty.int $ Term.quantifierCount' term
     , "type arguments to", Pretty.quote term
     , "but", Pretty.int (length args), "were provided:"
     , Pretty.oxford "and" $ map Pretty.quote args

@@ -8,7 +8,11 @@ Stability   : experimental
 Portability : GHC
 -}
 
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Kitten.Definition
   ( Definition(..)
@@ -25,21 +29,21 @@ import Kitten.Entry.Parent (Parent)
 import Kitten.Kind (Kind(..))
 import Kitten.Name (GeneralName(..), Qualified(..))
 import Kitten.Operator (Fixity)
-import Kitten.Origin (Origin)
+import Kitten.Origin (HasOrigin(..), Origin)
+import Kitten.Phase (Phase)
 import Kitten.Signature (Signature)
-import Kitten.Term (Term)
+import Kitten.Term (Annotation, Sweet)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Kitten.Entry.Category as Category
 import qualified Kitten.Entry.Merge as Merge
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Signature as Signature
-import qualified Kitten.Term as Term
 import qualified Kitten.Token as Token
 import qualified Kitten.Vocabulary as Vocabulary
 
-data Definition a = Definition
-  { body :: !(Term a)
+data Definition (p :: Phase) = Definition
+  { body :: !(Sweet p)
   , category :: !Category
   , fixity :: !Fixity
   , inferSignature :: !Bool
@@ -48,9 +52,14 @@ data Definition a = Definition
   , origin :: !Origin
   , parent :: !(Maybe Parent)
   , signature :: !Signature
-  } deriving (Show)
+  }
 
-instance Pretty (Definition a) where
+deriving instance (Show (Annotation p)) => Show (Definition p)
+
+instance HasOrigin (Definition p) where
+  getOrigin = origin
+
+instance Pretty (Definition p) where
   pPrint definition = Pretty.asDefinition
     (pPrint $ name definition)
     (pPrint $ signature definition)
@@ -65,9 +74,9 @@ main
   -- ^ List of permissions implicitly granted.
   -> Maybe Qualified
   -- ^ Override default name.
-  -> Term a
+  -> Sweet p
   -- ^ Body.
-  -> Definition a
+  -> Definition p
 main permissions mName term = Definition
   { body = term
   , category = Category.Word
@@ -84,7 +93,7 @@ main permissions mName term = Definition
       (Signature.Variable "R" o) []
       permissions o) o
   }
-  where o = Term.origin term
+  where o = getOrigin term
 
 -- | Default name of main definition.
 
@@ -93,5 +102,5 @@ mainName = Qualified Vocabulary.global "main"
 
 -- | Whether a given definition refers to (the default-named) @main@.
 
-isMain :: Definition a -> Bool
+isMain :: Definition p -> Bool
 isMain = (== Qualified Vocabulary.global "main") . name

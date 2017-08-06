@@ -8,6 +8,7 @@ Stability   : experimental
 Portability : GHC
 -}
 
+{-# LANGUAGE DataKinds #-}
 
 module Kitten.Desugar.Quotations
   ( desugar
@@ -21,7 +22,9 @@ import Kitten.Infer (inferType0)
 import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Monad (K)
 import Kitten.Name (Closed(..), Qualified(..), Qualifier, Unqualified(..))
-import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
+import Kitten.Origin (getOrigin)
+import Kitten.Phase (Phase(..))
+import Kitten.Term (Case(..), Else(..), Sweet(..), Term(..), Value(..))
 import Kitten.Type (Type(..), Var(..))
 import Kitten.TypeEnv (TypeEnv)
 import qualified Data.Map as Map
@@ -43,8 +46,8 @@ newtype LambdaIndex = LambdaIndex Int
 desugar
   :: Dictionary
   -> Qualifier
-  -> Term Type
-  -> K (Term Type, Dictionary)
+  -> Sweet 'Typed
+  -> K (Sweet 'Typed, Dictionary)
 desugar dictionary qualifier term0 = do
   ((term', _), (_, dictionary')) <- flip runStateT (LambdaIndex 0, dictionary)
     $ go TypeEnv.empty term0
@@ -53,9 +56,173 @@ desugar dictionary qualifier term0 = do
 
   go
     :: TypeEnv
-    -> Term Type
-    -> StateT (LambdaIndex, Dictionary) K (Term Type, TypeEnv)
+    -> Sweet 'Typed
+    -> StateT (LambdaIndex, Dictionary) K (Sweet 'Typed, TypeEnv)
   go tenv0 term = case term of
+
+    SArray type_ origin items
+      -> SArray type_ origin <$> mapM go items
+
+    SAs{} -> done
+    SCharacter{} -> done
+
+    SCompose type_ a b -> do
+      (a', tenv1) <- go tenv0 a
+      (b', tenv2) <- go tenv1 b
+      pure (SCompose type_ a' b', tenv2)
+
+    SDo type_ origin f x -> do
+      (f', tenv1) <- go tenv0 f
+      (x', tenv2) <- go tenv1 x
+      pure (SDo type_ origin f' x', tenv2)
+
+    SEscape type_ origin x -> error "TODO: lift escape"
+
+{-*******************************************************************************
+I got to around here when I realised that 'Scope' and 'Quotations' need to be
+merged into a single closure-conversion/lambda-lifting pass, so it doesn't make
+sense to keep going here.
+*******************************************************************************-}
+
+{-
+    SFloat
+    (Annotation p)
+    !Origin
+    !FloatLiteral
+
+    {- (HasTypes p ~ 'True) => -} SGeneric  -- Local generic type variables
+    (Annotation p)
+    !Origin
+    !Unqualified                            -- Type name
+    !TypeId                                 -- Type ID (could be removed?)
+    !(Sweet p)                              -- Body
+
+    SGroup
+    (Annotation p)
+    !Origin
+    !(Sweet p)
+
+    SIdentity
+    (Annotation p)
+    !Origin
+
+    SIf
+    (Annotation p)
+    !Origin
+    !(Maybe (Sweet p))    -- Condition
+    !(Sweet p)            -- True branch
+    [(Origin, Sweet p, Sweet p)]  -- elif branches
+    !(Maybe (Sweet p))    -- else branch
+
+    (HasInfix p ~ 'True) => SInfix  -- Desugared infix operator (only present after infix desugaring)
+    (Annotation p)
+    !Origin
+    !(Sweet p)                      -- Left operand
+    !GeneralName                    -- Operator
+    !(Sweet p)                      -- Right operand
+
+    SInteger
+    (Annotation p)
+    !Origin
+    !IntegerLiteral
+
+    SJump
+    (Annotation p)
+    !Origin
+
+    SLambda                                      -- Local variable
+    (Annotation p)
+    !Origin
+    [(Origin, Maybe Unqualified, Annotation p)]  -- Names or ignores (TODO: allow signatures)
+    !(Sweet p)                                   -- Body
+
+    SList           -- Boxed list literal
+    (Annotation p)
+    !Origin
+    [Sweet p]       -- List elements
+
+    SLocal          -- Push local
+    (Annotation p)
+    !Origin
+    !Unqualified    -- Local name
+
+    SLoop
+    (Annotation p)
+    !Origin
+
+    SMatch
+    (Annotation p)
+    !Origin
+    !(Maybe (Sweet p))                -- Scrutinee
+    [(Origin, GeneralName, Sweet p)]  -- case branches
+    !(Maybe (Sweet p))                -- else branch
+
+    SNestableCharacter  -- Nestable character literal (round quotes)
+    (Annotation p)
+    !Origin
+    !Text               -- Escaped character (e.g., " " vs. ""
+
+    SNestableText   -- Nestable text literal (round quotes)
+    (Annotation p)
+    !Origin
+    !Text           -- Escaped text
+
+    SParagraph      -- Paragraph literal
+    (Annotation p)
+    !Origin
+    !Text           -- Escaped text ("\n" for line breaks, "\\n" for escapes)
+
+    STag               -- Tag fields to make new ADT instance
+    (Annotation p)
+    !Origin
+    !Int               -- Number of fields
+    !ConstructorIndex  -- Constructor tag
+
+    SText           -- Text literal (straight quotes)
+    (Annotation p)
+    !Origin
+    !Text           -- Escaped text
+
+    SQuotation      -- Boxed quotation
+    (Annotation p)
+    !Origin
+    !(Sweet p)
+
+    SReturn
+    (Annotation p)
+    !Origin
+
+    SSection                       -- Operator section
+    (Annotation p)
+    !Origin
+    !GeneralName                   -- Operator
+    !(Either (Sweet p) (Sweet p))  -- Operand
+
+    STodo           -- ... expression
+    (Annotation p)
+    !Origin
+
+    SUnboxedQuotation
+    (Annotation p)
+    !Origin
+    !(Sweet p)
+
+    SWith           -- Permission coercion
+    (Annotation p)
+    !Origin
+    [Permit]        -- Permissions to add or remove
+
+    SWord
+    (Annotation p)
+    !Origin
+    !Fixity         -- Whether used infix or postfix at call site
+    !GeneralName
+    [Signature]     -- Type arguments
+
+-}
+
+{-
+
     Coercion{} -> done
     Compose type_ a b -> do
       (a', tenv1) <- go tenv0 a
@@ -106,7 +273,7 @@ desugar dictionary qualifier term0 = do
         entry = Entry.Word
           Category.Word
           Merge.Deny
-          (Term.origin a')
+          (getOrigin a')
           Nothing
           (Just (Signature.Type type_))
           (Just a')
@@ -127,5 +294,8 @@ desugar dictionary qualifier term0 = do
 
     Push{} -> done
     Word{} -> done
+
+-}
+
     where
-    done = return (term, tenv0)
+      done = return (term, tenv0)

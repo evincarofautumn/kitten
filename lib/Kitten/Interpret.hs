@@ -38,7 +38,7 @@ import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Monad (runKitten)
 import Kitten.Name
 import Kitten.Stack (Stack((:::)))
-import Kitten.Term (Case(..), Else(..), Term(..), Value)
+import Kitten.Term (Case(..), Else(..), Sweet(..), Term(..), Value)
 import Kitten.Type (Type(..))
 import System.Exit (ExitCode(..), exitWith)
 import System.IO (Handle, hGetLine, hFlush, hPutChar, hPutStrLn)
@@ -189,7 +189,7 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
             , Pretty.quote mangled
             ]
 
-    term :: [Qualified] -> Term Type -> IO ()
+    term :: [Qualified] -> Sweet 'Typed -> IO ()
     term callStack t = case t of
       Coercion{} -> return ()
       Compose _ a b -> term callStack a >> term callStack b

@@ -39,7 +39,7 @@ import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Kind (Kind(..))
 import Kitten.Monad (K)
 import Kitten.Name (ClosureIndex(..), GeneralName(..), LocalIndex(..), Qualified(..), Unqualified(..))
-import Kitten.Origin (Origin)
+import Kitten.Origin (Origin, getOrigin)
 import Kitten.Regeneralize (regeneralize)
 import Kitten.Signature (Signature)
 import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
@@ -162,7 +162,7 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
 -- between types, e.g., to grant or revoke permissions.
 
     Coercion hint@Term.IdentityCoercion _ origin
-      -> while (Term.origin term0) context $ do
+      -> while (getOrigin term0) context $ do
       [a, p] <- fresh origin
         [ ("S", Stack)
         , ("P", Permission)
@@ -171,7 +171,7 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
       let type' = Zonk.type_ tenvFinal type_
       return (Coercion hint type' origin, type_, tenv0)
     Coercion hint@(Term.AnyCoercion sig) _ origin
-      -> while (Term.origin term0) context $ do
+      -> while (getOrigin term0) context $ do
       type_ <- typeFromSignature tenv0 sig
       let type' = Zonk.type_ tenvFinal type_
       return (Coercion hint type' origin, type_, tenv0)
@@ -187,7 +187,7 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
       tenv5 <- Unify.type_ tenv4 b c
       tenv6 <- Unify.type_ tenv5 e1 e2
       -- FIXME: Use range origin over whole composition?
-      let origin = Term.origin term1
+      let origin = getOrigin term1
       let type_ = Type.fun origin a d e1
       let type' = Zonk.type_ tenvFinal type_
       return (Compose type' term1' term2', type_, tenv6)
@@ -228,7 +228,7 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
 -- 'match' without an else branch raises 'abort', causing the 'match' to require
 -- the +Fail permission.
 
-    Match hint _ cases else_ origin -> while (Term.origin term0) context $ do
+    Match hint _ cases else_ origin -> while (getOrigin term0) context $ do
       let
         constructors = case cases of
           -- Curiously, because an empty match works on any type, no
@@ -297,7 +297,7 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
 -- type-safe, since only the compiler can generate 'new' expressions.
 
     New _ constructor size origin
-      -> while (Term.origin term0) context $ do
+      -> while (getOrigin term0) context $ do
       [a, b, e] <- fresh origin
         [ ("R", Stack)
         , ("S", Stack)
@@ -315,7 +315,7 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
 --
 
     NewClosure _ size origin
-      -> while (Term.origin term0) context $ do
+      -> while (getOrigin term0) context $ do
       as <- fresh origin
         $ zip
           [ Unqualified ("Capture" <> Text.pack (show i))
@@ -344,7 +344,7 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
 --
 
     NewVector _ size _ origin
-      -> while (Term.origin term0) context $ do
+      -> while (getOrigin term0) context $ do
       [a, b, e] <- fresh origin
         [ ("R", Stack)
         , ("Item", Value)
@@ -362,7 +362,7 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
 -- Pushing a value results in a stack with that value on top.
 
     Push _ value origin
-      -> while (Term.origin term0) context $ do
+      -> while (getOrigin term0) context $ do
       [a, e] <- fresh origin
         [ ("S", Stack)
         , ("P", Permission)
@@ -374,7 +374,7 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
 
     -- FIXME: Should generic parameters be restricted to none?
     Word _ _fixity name _ origin
-      -> while (Term.origin term0) context
+      -> while (getOrigin term0) context
       $ inferCall dictionary tenvFinal tenv0 name origin
 
   where

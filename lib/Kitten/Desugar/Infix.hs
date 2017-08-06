@@ -8,7 +8,10 @@ Stability   : experimental
 Portability : GHC
 -}
 
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Kitten.Desugar.Infix
   ( desugar
@@ -22,8 +25,9 @@ import Kitten.Informer (Informer(..))
 import Kitten.Monad (K)
 import Kitten.Name (GeneralName(..))
 import Kitten.Operator (Operator)
-import Kitten.Origin (Origin)
-import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
+import Kitten.Origin (Origin, getOrigin)
+import Kitten.Phase (Phase(..))
+import Kitten.Term (Sweet(..), composed, decomposed)
 import Text.Parsec ((<?>), ParsecT, SourcePos)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Kitten.Definition as Definition
@@ -31,20 +35,20 @@ import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Origin as Origin
 import qualified Kitten.Report as Report
-import qualified Kitten.Term as Term
 import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Expr as Expr
 
-type Rewriter a = ParsecT [Term ()] () Identity a
+type Rewriter a = ParsecT [Sweet 'Postfix] () Identity a
 
 -- | Desugars infix operators into postfix calls in the body of a 'Definition',
 -- according to the definitions and operator metadata in the 'Dictionary'.
 
-desugar :: Dictionary -> Definition () -> K (Definition ())
+desugar :: Dictionary -> Definition 'Resolved -> K (Definition 'Postfix)
 desugar dictionary definition = do
   operatorMetadata <- Dictionary.operatorMetadata dictionary
   let
-    operatorTable :: [[Expr.Operator [Term ()] () Identity (Term ())]]
+    operatorTable
+      :: [[Expr.Operator [Sweet 'Postfix] () Identity (Sweet 'Postfix)]]
     operatorTable = map (map toOperator) rawOperatorTable
 
     rawOperatorTable :: [[Operator]]
@@ -53,18 +57,18 @@ desugar dictionary definition = do
         $ HashMap.filter ((== p) . Operator.precedence) operatorMetadata)
       $ reverse [minBound .. maxBound]
 
-    expression :: Rewriter (Term ())
+    expression :: Rewriter (Sweet 'Postfix)
     expression = Expr.buildExpressionParser operatorTable operand
       where
       operand = (<?> "operand") $ do
         origin <- getTermOrigin
         results <- Parsec.many1 $ termSatisfy $ \ term -> case term of
-          Word _ Operator.Infix _ _ _ -> False
-          Lambda{} -> False
+          SWord _ _ Operator.Infix _ _ -> False
+          SLambda{} -> False
           _ -> True
-        return $ Term.compose () origin results
+        return $ composed origin results
 
-    desugarTerms :: [Term ()] -> K (Term ())
+    desugarTerms :: [Sweet 'Resolved] -> K (Sweet 'Postfix)
     desugarTerms terms = do
       terms' <- mapM desugarTerm terms
       let
@@ -73,71 +77,111 @@ desugar dictionary definition = do
           desugaredTerms <- many $ expression <|> lambda
           let
             origin = case desugaredTerms of
-              term : _ -> Term.origin term
+              term : _ -> getOrigin term
               _ -> Definition.origin definition
-          return $ Term.compose () origin desugaredTerms
+          return $ composed origin desugaredTerms
       case Parsec.runParser expression' () "" terms' of
         Left parseError -> do
           report $ Report.parseError parseError
           let
             origin = case terms of
-              term : _ -> Term.origin term
+              term : _ -> getOrigin term
               _ -> Definition.origin definition
-          return $ Term.compose () origin terms
+          return $ composed origin terms'
         Right result -> return result
 
-    desugarTerm :: Term () -> K (Term ())
+    desugarTerm :: Sweet 'Resolved -> K (Sweet 'Postfix)
     desugarTerm term = case term of
-      Coercion{} -> return term
-      Compose _ a b -> desugarTerms (Term.decompose a ++ Term.decompose b)
-      Generic{} -> error
-        "generic expression should not appear before infix desugaring"
-      Group a -> desugarTerms' a
-      Lambda _ name _ body origin -> Lambda () name ()
-        <$> desugarTerms' body <*> pure origin
-      Match hint _ cases else_ origin -> Match hint ()
-        <$> mapM desugarCase cases <*> desugarElse else_ <*> pure origin
-        where
+      SArray _ origin items -> SArray () origin <$> mapM desugarTerms' items
+      SAs _ origin types -> pure $ SAs () origin types
+      SCharacter _ origin text -> pure $ SCharacter () origin text
+      SCompose _ a b -> desugarTerms $ decomposed a ++ decomposed b
+      SDo _ origin a b -> SDo () origin <$> desugarTerms' a <*> desugarTerms' b
+      SEscape _ origin body -> SEscape () origin <$> desugarTerms' body
+      SFloat _ origin literal -> pure $ SFloat () origin literal
+      SGeneric{} -> error "generic term shouldn't appear before infix desugaring"
+      -- FIXME: SGroup shouldn't need to exist after infix desugaring, but with
+      -- the way things are currently organized, it needs to be present *during*
+      -- the desugaring, so we have a case for it here.
+      SGroup _ origin body -> SGroup () origin <$> desugarTerms' body
+      SIdentity _ origin -> pure $ SIdentity () origin
+      SIf _ origin mCondition true elifs mElse -> SIf () origin
+        <$> traverse desugarTerms' mCondition
+        <*> desugarTerms' true
+        <*> traverse
+          (\ (elifOrigin, condition, body) -> (,,) elifOrigin
+            <$> desugarTerms' condition
+            <*> desugarTerms' body) elifs
+        <*> traverse desugarTerms' mElse
 
-        desugarCase :: Case () -> K (Case ())
-        desugarCase (Case name body caseOrigin)
-          = Case name <$> desugarTerms' body <*> pure caseOrigin
+      -- GHC warns about this missing case, but it is an error to include it. :(
+      -- SInfix{}
 
-        desugarElse :: Else () -> K (Else ())
-        desugarElse (Else body elseOrigin)
-          = Else <$> desugarTerms' body <*> pure elseOrigin
+      SInteger _ origin literal -> pure $ SInteger () origin literal
 
-      New{} -> return term
-      NewClosure{} -> return term
-      NewVector{} -> return term
-      Push _ value origin -> Push () <$> desugarValue value <*> pure origin
-      Word{} -> return term
+      SJump _ origin -> pure $ SJump () origin
 
-    desugarTerms' :: Term () -> K (Term ())
-    desugarTerms' = desugarTerms . Term.decompose
+      SLambda _ origin names body
+        -> SLambda () origin names <$> desugarTerms' body
 
-    desugarValue :: Value () -> K (Value ())
-    desugarValue value = case value of
-      Capture names body -> Capture names <$> desugarTerms' body
-      Character{} -> return value
-      Closed{} -> error "closed name should not appear before infix desugaring"
-      Float{} -> return value
-      Integer{} -> return value
-      Local{} -> error "local name should not appear before infix desugaring"
-      Name{} -> return value
-      Quotation body -> Quotation <$> desugarTerms' body
-      Text{} -> return value
+      SList _ origin items -> SList () origin <$> mapM desugarTerms' items
+
+      SLocal _ origin name -> pure $ SLocal () origin name
+
+      SLoop _ origin -> pure $ SLoop () origin
+
+      SMatch _ origin mScrutinee cases mElse -> SMatch () origin
+        <$> traverse desugarTerms' mScrutinee
+        <*> traverse
+          (\ (caseOrigin, name, body)
+             -> (,,) caseOrigin name <$> desugarTerms' body)
+          cases
+        <*> traverse desugarTerms' mElse
+
+      SNestableCharacter _ origin text -> pure $ SNestableCharacter () origin text
+
+      SNestableText _ origin text -> pure $ SNestableText () origin text
+
+      SParagraph _ origin text -> pure $ SParagraph () origin text
+
+      STag _ origin size index -> pure $ STag () origin size index
+
+      SText _ origin text -> pure $ SText () origin text
+
+      SQuotation _ origin body -> SQuotation () origin <$> desugarTerms' body
+
+      SReturn _ origin -> pure $ SReturn () origin
+
+      SSection _ origin name operand -> SSection () origin name
+        <$> case operand of
+          Left x -> Left <$> desugarTerms' x
+          Right x -> Right <$> desugarTerms' x
+
+      STodo _ origin -> pure $ STodo () origin
+
+      SUnboxedQuotation _ origin body
+        -> SUnboxedQuotation () origin <$> desugarTerms' body
+
+      SWith _ origin permits -> pure $ SWith () origin permits
+
+      SWord _ origin fixity name args
+        -> pure $ SWord () origin fixity name args
+
+    desugarTerms' :: Sweet 'Resolved -> K (Sweet 'Postfix)
+    desugarTerms' = desugarTerms . decomposed
 
   desugared <- desugarTerms' $ Definition.body definition
   return definition { Definition.body = desugared }
   where
 
-  lambda :: Rewriter (Term ())
+  lambda :: Rewriter (Sweet 'Postfix)
   lambda = termSatisfy $ \ term -> case term of
-    Lambda{} -> True
+    SLambda{} -> True
     _ -> False
 
-  toOperator :: Operator -> Expr.Operator [Term ()] () Identity (Term ())
+  toOperator
+    :: Operator
+    -> Expr.Operator [Sweet 'Postfix] () Identity (Sweet 'Postfix)
   toOperator operator = Expr.Infix
     (binaryOperator (QualifiedName (Operator.name operator)))
     $ case Operator.associativity operator of
@@ -145,26 +189,32 @@ desugar dictionary definition = do
       Operator.Leftward -> Expr.AssocRight
       Operator.Rightward -> Expr.AssocLeft
 
-  binaryOperator :: GeneralName -> Rewriter (Term () -> Term () -> Term ())
+  binaryOperator
+    :: GeneralName
+    -> Rewriter (Sweet 'Postfix -> Sweet 'Postfix -> Sweet 'Postfix)
   binaryOperator name = mapTerm $ \ term -> case term of
-    Word _ Operator.Infix name' _ origin
+    SWord _ origin Operator.Infix name' _
       | name == name' -> Just $ binary name origin
     _ -> Nothing
 
-  binary :: GeneralName -> Origin -> Term () -> Term () -> Term ()
-  binary name origin x y = Term.compose () origin
-    [x, y, Word () Operator.Postfix name [] origin]
+  binary
+    :: GeneralName
+    -> Origin
+    -> Sweet 'Postfix
+    -> Sweet 'Postfix
+    -> Sweet 'Postfix
+  binary name origin x y = SInfix () origin x name y
 
-  mapTerm :: (Term () -> Maybe a) -> Rewriter a
+  mapTerm :: (Sweet 'Postfix -> Maybe a) -> Rewriter a
   mapTerm = Parsec.tokenPrim show advanceTerm
 
-  termSatisfy :: (Term () -> Bool) -> Rewriter (Term ())
+  termSatisfy :: (Sweet 'Postfix -> Bool) -> Rewriter (Sweet 'Postfix)
   termSatisfy predicate = Parsec.tokenPrim show advanceTerm
     (\ token -> if predicate token then Just token else Nothing)
 
-  advanceTerm :: SourcePos -> t -> [Term a] -> SourcePos
-  advanceTerm _ _ (term : _) = Origin.begin $ Term.origin term
+  advanceTerm :: SourcePos -> t -> [Sweet p] -> SourcePos
+  advanceTerm _ _ (term : _) = Origin.begin $ getOrigin term
   advanceTerm sourcePos _ _ = sourcePos
 
-  getTermOrigin = Term.origin
+  getTermOrigin = getOrigin
     <$> Parsec.lookAhead (termSatisfy (const True))

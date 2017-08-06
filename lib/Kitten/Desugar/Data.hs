@@ -8,6 +8,8 @@ Stability   : experimental
 Portability : GHC
 -}
 
+{-# LANGUAGE DataKinds #-}
+
 module Kitten.Desugar.Data
   ( desugar
   ) where
@@ -18,7 +20,9 @@ import Kitten.Definition (Definition(Definition))
 import Kitten.Entry.Parameter (Parameter(Parameter))
 import Kitten.Fragment (Fragment)
 import Kitten.Name (ConstructorIndex(..), GeneralName(..), Qualified(..))
-import Kitten.Term (Term(..))
+import Kitten.Origin (getOrigin)
+import Kitten.Phase (Phase(..))
+import Kitten.Term (Sweet(..))
 import Kitten.TypeDefinition (TypeDefinition)
 import qualified Kitten.DataConstructor as DataConstructor
 import qualified Kitten.Definition as Definition
@@ -41,22 +45,21 @@ import qualified Kitten.TypeDefinition as TypeDefinition
 -- > define none<T> (-> Optional<T>) { ... }
 -- > define some<T> (T -> Optional<T>) { ... }
 
-desugar :: Fragment () -> Fragment ()
+desugar :: Fragment 'Parsed -> Fragment 'Parsed
 desugar fragment = fragment
   { Fragment.definitions = Fragment.definitions fragment
     ++ concatMap desugarTypeDefinition (Fragment.types fragment) }
 
-desugarTypeDefinition :: TypeDefinition -> [Definition ()]
+desugarTypeDefinition :: TypeDefinition -> [Definition 'Parsed]
 desugarTypeDefinition definition
   = zipWith (desugarConstructor definition) [0..]
   $ TypeDefinition.constructors definition
 
-desugarConstructor :: TypeDefinition -> Int -> DataConstructor -> Definition ()
+desugarConstructor :: TypeDefinition -> Int -> DataConstructor -> Definition 'Parsed
 desugarConstructor definition index constructor = Definition
-  { Definition.body = New ()
-    (ConstructorIndex index)
+  { Definition.body = STag () (getOrigin constructor)
     (length $ DataConstructor.fields constructor)
-    $ DataConstructor.origin constructor
+    (ConstructorIndex index)
   , Definition.category = Category.Constructor
   , Definition.fixity = Operator.Postfix
   , Definition.inferSignature = False

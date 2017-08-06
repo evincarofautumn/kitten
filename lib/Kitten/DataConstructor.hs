@@ -15,7 +15,7 @@ module Kitten.DataConstructor
   ) where
 
 import Kitten.Name (Unqualified)
-import Kitten.Origin (Origin)
+import Kitten.Origin (HasOrigin(..), Origin)
 import Kitten.Signature (Signature)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Text.PrettyPrint as Pretty
@@ -27,6 +27,9 @@ data DataConstructor = DataConstructor
   , name :: !Unqualified
   , origin :: !Origin
   } deriving (Show)
+
+instance HasOrigin DataConstructor where
+  getOrigin = origin
 
 -- FIXME: Support fields.
 instance Pretty DataConstructor where
