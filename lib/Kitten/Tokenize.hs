@@ -110,6 +110,7 @@ tokenTokenizer :: Tokenizer (Located (Token 'Layout))
 tokenTokenizer = rangedTokenizer $ Parsec.choice
   [ BlockBegin <$ Parsec.char '{'
   , BlockEnd <$ Parsec.char '}'
+  -- TODO: Differentiate types of character literal
   , do
     let singleQuote = Parsec.char '\''
     mc <- Parsec.between singleQuote singleQuote $ character '\''
@@ -135,6 +136,7 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
   , VectorBegin <$ Parsec.char '['
   , VectorEnd <$ Parsec.char ']'
   , Reference <$ Parsec.char '\\'
+  -- TODO: Differentiate types of text literal
   , Text <$> paragraph
   , Text <$> Parsec.between
       (Parsec.char '"')

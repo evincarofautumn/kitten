@@ -76,13 +76,12 @@ term tenv x a = recur
       tref' <- go tref
       pure $ SFloat tref' origin literal
 
-    SGeneric tref origin name x' body -> do
+    SGeneric origin name x' body -> do
       -- FIXME: Generics could eventually quantify over non-value kinds.
       let k = Kind.Value
-      tref' <- go tref
       z <- freshTypeId tenv
       body' <- term tenv x' (TypeVar origin $ Var name z k) body
-      SGeneric tref' origin name z <$> recur body'
+      SGeneric origin name z <$> recur body'
 
     SGroup tref origin body -> do
       tref' <- go tref
@@ -167,11 +166,9 @@ term tenv x a = recur
       tref' <- go tref
       pure $ SReturn tref' origin
 
-    SSection tref origin name operand -> do
+    SSection tref origin name swap operand -> do
       tref' <- go tref
-      SSection tref' origin name <$> case operand of
-        Left o -> Left <$> recur o
-        Right o -> Right <$> recur o
+      SSection tref' origin name swap <$> recur operand
 
     STodo tref origin -> do
       tref' <- go tref

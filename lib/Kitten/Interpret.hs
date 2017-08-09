@@ -9,6 +9,7 @@ Portability : GHC
 -}
 
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -37,8 +38,9 @@ import Kitten.Dictionary (Dictionary)
 import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Monad (runKitten)
 import Kitten.Name
+import Kitten.Phase (Phase(..))
 import Kitten.Stack (Stack((:::)))
-import Kitten.Term (Case(..), Else(..), Sweet(..), Term(..), Value)
+import Kitten.Term (Sweet(..), Value)
 import Kitten.Type (Type(..))
 import System.Exit (ExitCode(..), exitWith)
 import System.IO (Handle, hGetLine, hFlush, hPutChar, hPutStrLn)
@@ -190,60 +192,7 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
             ]
 
     term :: [Qualified] -> Sweet 'Typed -> IO ()
-    term callStack t = case t of
-      Coercion{} -> return ()
-      Compose _ a b -> term callStack a >> term callStack b
-      -- TODO: Verify that this is correct.
-      Generic _name _ t' _ -> term callStack t'
-      Group t' -> term callStack t'
-      Lambda _ _name _ body _ -> do
-        a ::: r <- readIORef stackRef
-        ls <- readIORef localsRef
-        writeIORef stackRef r
-        writeIORef localsRef (a : ls)
-        term callStack body
-        modifyIORef' localsRef tail
-      Match _ _ cases else_ _ -> do
-        -- We delay matching on the value here because it may not be an ADT at
-        -- all. For example, "1 match else { 2 }" is perfectly valid,
-        -- because we are matching on all (0) of Int32's constructors.
-        x ::: r <- readIORef stackRef
-        writeIORef stackRef r
-        let
-          go (Case (QualifiedName name) caseBody _ : _)
-            -- FIXME: Embed this information during name resolution, rather than
-            -- looking it up.
-            | Just (Entry.Word _ _ _ _ _ (Just ctorBody))
-              <- Dictionary.lookup (Instantiated name []) dictionary
-            , [New _ (ConstructorIndex index') _ _] <- Term.decompose ctorBody
-            , Algebraic (ConstructorIndex index) fields <- x
-            , index == index'
-            = do
-              writeIORef stackRef $ Stack.pushes fields r
-              term callStack caseBody
-          go (_ : rest) = go rest
-          go [] = case else_ of
-            Else body _ -> term callStack body
-        go cases
-      New _ index size _ -> do
-        r <- readIORef stackRef
-        let (fields, r') = Stack.pops size r
-        writeIORef stackRef $ Algebraic index fields ::: r'
-      NewClosure _ size _ -> do
-        r <- readIORef stackRef
-        let (Name name : closure, r') = Stack.pops (size + 1) r
-        writeIORef stackRef (Closure name (reverse closure) ::: r')
-      NewVector _ size _ _ -> do
-        r <- readIORef stackRef
-        let (values, r') = Stack.pops size r
-        writeIORef stackRef
-          $ Array (Vector.reverse $ Vector.fromList values) ::: r'
-      Push _ value _ -> push value
-      Word _ _ (QualifiedName name) args _
-        -> word callStack name args
-      -- FIXME: Use proper reporting. (Internal error?)
-      Word _ _ name _ _ -> error $ Pretty.render $ Pretty.hsep
-        ["unresolved word name", pPrint name]
+    term callStack t = error "TODO: interpret term"
 
     call :: [Qualified] -> IO ()
     call callStack = do

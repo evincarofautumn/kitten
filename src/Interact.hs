@@ -188,7 +188,7 @@ run = do
               -- empty stack is the same as verifying the last entry against the
               -- current stack state, as long as the state was modified
               -- correctly by the interpreter.
-              _ <- Unify.type_ tenv stackScheme (Term.type_ mainBody)
+              _ <- Unify.type_ tenv stackScheme $ Term.annotation mainBody
               checkpoint
               return (dictionary'', mainBody)
             case mResults of
@@ -201,9 +201,9 @@ run = do
                   writeIORef lineNumberRef lineNumber'
                 -- HACK: Get the last entry from the main body so we have the
                 -- right generic args.
-                let lastEntry = last $ Term.decompose mainBody
+                let lastEntry = last $ Term.decomposed mainBody
                 case lastEntry of
-                  (Term.Word _ _ _ args _) -> liftIO $ catch
+                  Term.SWord _ _ _ _ args -> liftIO $ catch
                     (do
                       stack <- interpret dictionary'
                         (Just entryName) args

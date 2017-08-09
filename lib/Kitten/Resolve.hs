@@ -33,6 +33,7 @@ import Kitten.Origin (Origin)
 import Kitten.Phase (Phase(..))
 import Kitten.Signature (Signature)
 import Kitten.Term (Sweet(..))
+import Kitten.Type (Type)
 import qualified Data.Set as Set
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Dictionary as Dictionary
@@ -112,10 +113,10 @@ term dictionary vocabulary = recur
     SText _ origin text -> pure $ SText () origin text
     SQuotation _ origin body -> SQuotation () origin <$> recur body
     SReturn _ origin -> pure $ SReturn () origin
-    SSection _ origin name operand -> SSection () origin name  -- TODO: name
-      <$> case operand of
-        Left x -> Left <$> recur x
-        Right x -> Right <$> recur x
+    SSection _ origin name swap operand -> do
+      name' <- definitionName dictionary vocabulary name origin
+      operand' <- recur operand
+      pure $ SSection () origin name' swap operand'
     STodo _ origin -> pure $ STodo () origin
     SUnboxedQuotation _ origin body
       -> SUnboxedQuotation () origin <$> recur body
@@ -185,7 +186,7 @@ word
   -> Qualifier
   -> Origin
   -> Fixity
-  -> [Signature]
+  -> [Type]
   -> GeneralName
   -> Resolved (Sweet 'Resolved)
 word dictionary vocabulary origin fixity typeArgs name = do

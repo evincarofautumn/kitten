@@ -155,7 +155,7 @@ testWord contextSource viewpoint name expected = do
       origin = Origin.point "<test>" 0 0
       fragment = mempty
         { Fragment.definitions = (:[]) Definition
-          { Definition.body = Term.Word () Operator.Postfix name [] origin
+          { Definition.body = Term.SWord () origin Operator.Postfix name []
           , Definition.category = Category.Word
           , Definition.fixity = Operator.Postfix
           , Definition.inferSignature = False
@@ -175,7 +175,7 @@ testWord contextSource viewpoint name expected = do
   case Dictionary.toList <$> dictionary of
     Right definitions -> case find matching definitions of
       Just (_, Entry.Word _ _ _ _ _ (Just term))
-        | [Term.Word _ _ name' _ _] <- Term.decompose term -> let
+        | [Term.SWord _ _ _ name' _] <- Term.decomposed term -> let
         message = Pretty.render $ Pretty.hsep
           [ pPrint name
           , "resolves to"

@@ -68,7 +68,7 @@ prenex tenv0 t = return (t, [], tenv0)
 term :: TypeEnv -> Sweet 'Typed -> [Type] -> K (Sweet 'Typed)
 term tenv t args = foldlM go t args
   where
-  go (SGeneric _ _origin _name x expr) arg = Substitute.term tenv x arg expr
+  go (SGeneric _origin _name x expr) arg = Substitute.term tenv x arg expr
   go _ _ = do
     report $ Report.TypeArgumentCountMismatch t $ map (Zonk.type_ tenv) args
     halt

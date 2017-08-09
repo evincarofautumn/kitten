@@ -589,21 +589,21 @@ termParser = (<?> "expression") $ do
   where
 
     literalParser :: Parser (Sweet 'Parsed)
-    literalParser = error "TODO: literalParser"
-
-{-
-    toLiteral :: Located (Token 'Nonlayout) -> Maybe (Value (), Origin)
-    toLiteral token = case Located.item token of
-      Token.Character x -> Just (Character x, origin)
-      Token.Float x -> Just (Float x, origin)
-      Token.Integer x -> Just (Integer x, origin)
-      Token.Text x -> Just (Text x, origin)
-      _ -> Nothing
+    literalParser = parseOne toLiteral
       where
 
-      origin :: Origin
-      origin = Located.origin token
--}
+        toLiteral :: Located (Token 'Nonlayout) -> Maybe (Sweet 'Parsed)
+        toLiteral token = case Located.item token of
+          -- TODO: Differentiate types of character and text literals
+          Token.Character x -> Just $ SCharacter () origin $ Text.singleton x
+          Token.Float x -> Just $ SFloat () origin x
+          Token.Integer x -> Just $ SInteger () origin x
+          Token.Text x -> Just $ SText () origin x
+          _ -> Nothing
+          where
+
+          origin :: Origin
+          origin = Located.origin token
 
     sectionParser :: Parser (Sweet 'Parsed)
     sectionParser = (<?> "operator section") $ groupedParser $ Parsec.choice

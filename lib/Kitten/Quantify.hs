@@ -8,11 +8,14 @@ Stability   : experimental
 Portability : GHC
 -}
 
+{-# LANGUAGE DataKinds #-}
+
 module Kitten.Quantify
   ( term
   ) where
 
-import Kitten.Term (Term(..))
+import Kitten.Phase (Phase(..))
+import Kitten.Term (Sweet(..))
 import Kitten.Type (Type(..), Var(..))
 import qualified Kitten.Kind as Kind
 
@@ -23,7 +26,8 @@ import qualified Kitten.Kind as Kind
 -- >
 -- > Λβ:*. dup
 
-term :: Type -> Term a -> Term a
-term (Forall origin (Var name x Kind.Value) t) e = Generic name x (term t e) origin
+term :: Type -> Sweet 'Typed -> Sweet 'Typed
+term (Forall origin (Var name x Kind.Value) t) e
+  = SGeneric origin name x (term t e)
 term (Forall _ _ t) e = term t e
 term _ e = e

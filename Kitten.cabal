@@ -50,6 +50,7 @@ library
     hashable,
     parsec,
     pretty,
+    recursion-schemes,
     text,
     transformers,
     unordered-containers,
@@ -63,13 +64,12 @@ library
     Kitten.Base
     Kitten.Bits
     Kitten.Bracket
-    Kitten.CollectInstantiations
+    Kitten.Closure
     Kitten.DataConstructor
     Kitten.Declaration
     Kitten.Definition
     Kitten.Desugar.Data
     Kitten.Desugar.Infix
-    Kitten.Desugar.Quotations
     Kitten.Dictionary
     Kitten.Element
     Kitten.Enter
@@ -78,6 +78,7 @@ library
     Kitten.Entry.Merge
     Kitten.Entry.Parameter
     Kitten.Entry.Parent
+    Kitten.Flatten
     Kitten.Fragment
     Kitten.Free
     Kitten.IO
@@ -110,7 +111,6 @@ library
     Kitten.Regeneralize
     Kitten.Report
     Kitten.Resolve
-    Kitten.Scope
     Kitten.Signature
     Kitten.Stack
     Kitten.Substitute
@@ -145,6 +145,7 @@ test-suite test
     knob,
     parsec,
     pretty,
+    recursion-schemes,
     text,
     transformers,
     unordered-containers,
@@ -160,13 +161,12 @@ test-suite test
     Kitten.Base
     Kitten.Bits
     Kitten.Bracket
-    Kitten.CollectInstantiations
+    Kitten.Closure
     Kitten.DataConstructor
     Kitten.Declaration
     Kitten.Definition
     Kitten.Desugar.Data
     Kitten.Desugar.Infix
-    Kitten.Desugar.Quotations
     Kitten.Dictionary
     Kitten.Element
     Kitten.Enter
@@ -175,6 +175,7 @@ test-suite test
     Kitten.Entry.Merge
     Kitten.Entry.Parameter
     Kitten.Entry.Parent
+    Kitten.Flatten
     Kitten.Fragment
     Kitten.Free
     Kitten.IO
@@ -207,7 +208,6 @@ test-suite test
     Kitten.Regeneralize
     Kitten.Report
     Kitten.Resolve
-    Kitten.Scope
     Kitten.Signature
     Kitten.Stack
     Kitten.Substitute

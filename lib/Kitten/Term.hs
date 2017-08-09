@@ -10,9 +10,11 @@ Portability : GHC
 
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -28,6 +30,7 @@ module Kitten.Term
   , Sweet(..)
   , Term(..)
   , Value(..)
+  , annotation
   , asCoercion
   , compose
   , composed
@@ -43,6 +46,7 @@ module Kitten.Term
   , type_
   ) where
 
+import Data.Functor.Foldable (Base, Corecursive(..), Recursive(..))
 import Data.List (intersperse, partition)
 import Data.Text (Text)
 import Kitten.Entry.Parameter (Parameter(..))
@@ -114,7 +118,6 @@ data Sweet (p :: Phase)
     !FloatLiteral
 
   | {- (HasTypes p ~ 'True) => -} SGeneric  -- Local generic type variables
-    (Annotation p)
     !Origin
     !Unqualified                            -- Type name
     !TypeId                                 -- Type ID (could be removed?)
@@ -215,11 +218,12 @@ data Sweet (p :: Phase)
     (Annotation p)
     !Origin
 
-  | SSection                       -- Operator section
+  | SSection        -- Operator section
     (Annotation p)
     !Origin
-    !GeneralName                   -- Operator
-    !(Either (Sweet p) (Sweet p))  -- Operand
+    !GeneralName    -- Operator
+    !Bool           -- Swapped (left operand missing instead of right)
+    !(Sweet p)      -- Operand
 
   | STodo           -- ... expression
     (Annotation p)
@@ -240,7 +244,7 @@ data Sweet (p :: Phase)
     !Origin
     !Fixity         -- Whether used infix or postfix at call site
     !GeneralName
-    [Signature]     -- Type arguments
+    [Type]          -- Type arguments (TODO: use Signature?)
 
 deriving instance (Eq (Annotation p)) => Eq (Sweet p)
 deriving instance (Show (Annotation p)) => Show (Sweet p)
@@ -258,7 +262,7 @@ instance HasOrigin (Sweet p) where
     SDo _ o _ _ -> o
     SEscape _ o _ -> o
     SFloat _ o _ -> o
-    SGeneric _ o _ _ _ -> o
+    SGeneric o _ _ _ -> o
     SGroup _ o _ -> o
     SIdentity _ o -> o
     SIf _ o _ _ _ _ -> o
@@ -277,7 +281,7 @@ instance HasOrigin (Sweet p) where
     SText _ o _ -> o
     SQuotation _ o _ -> o
     SReturn _ o -> o
-    SSection _ o _ _ -> o
+    SSection _ o _ _ _ -> o
     STodo _ o -> o
     SUnboxedQuotation _ o _ -> o
     SWith _ o _ -> o
@@ -306,7 +310,7 @@ instance Pretty (Sweet p) where
     SFloat _ _ literal -> pPrint literal
 
     -- TODO: Should we pretty-print the generic quantifiers?
-    SGeneric _ _ _ _ x -> pPrint x
+    SGeneric _ _ _ x -> pPrint x
 
     SGroup _ _ x -> Pretty.parens $ pPrint x
 
@@ -395,10 +399,10 @@ instance Pretty (Sweet p) where
 
     SReturn{} -> "return"
 
-    SSection _ _ name operand -> Pretty.parens
-      $ case operand of
-        Left x -> Pretty.hsep [pPrint x, pPrint name]
-        Right x -> Pretty.sep [pPrint name, pPrint x]
+    SSection _ _ name swap operand -> Pretty.parens
+      $ if swap
+        then Pretty.hsep [pPrint name, pPrint operand]
+        else Pretty.hsep [pPrint operand, pPrint name]
 
     STodo{} -> "..."
 
@@ -415,6 +419,151 @@ instance Pretty (Sweet p) where
 
     -- TODO: Incorporate fixity and type arguments.
     SWord _ _ _fixity name _typeArgs -> pPrint name
+
+annotation :: Sweet p -> Annotation p
+annotation term = case term of
+  SArray a _ _ -> a
+  SAs a _ _ -> a
+  SCharacter a _ _ -> a
+  SCompose a _ _ -> a
+  SDo a _ _ _ -> a
+  SEscape a _ _ -> a
+  SFloat a _ _ -> a
+  SGeneric _ _ _ body -> annotation body  -- TODO: Verify this.
+  SGroup a _ _ -> a
+  SIdentity a _ -> a
+  SIf a _ _ _ _ _ -> a
+  SInfix a _ _ _ _ -> a
+  SInteger a _ _ -> a
+  SJump a _ -> a
+  SLambda a _ _ _ -> a
+  SList a _ _ -> a
+  SLocal a _ _ -> a
+  SLoop a _ -> a
+  SMatch a _ _ _ _ -> a
+  SNestableCharacter a _ _ -> a
+  SNestableText a _ _ -> a
+  SParagraph a _ _ -> a
+  STag a _ _ _ -> a
+  SText a _ _ -> a
+  SQuotation a _ _ -> a
+  SReturn a _ -> a
+  SSection a _ _ _ _ -> a
+  STodo a _ -> a
+  SUnboxedQuotation a _ _ -> a
+  SWith a _ _ -> a
+  SWord a _ _ _ _ -> a
+
+-- Functor representation of sweet terms.
+
+data SweetF (p :: Phase) a
+  = SFArray (Annotation p) !Origin [a]
+  | SFAs (Annotation p) !Origin [Signature]
+  | SFCharacter (Annotation p) !Origin !Text
+  | SFCompose (Annotation p) !a !a
+  | SFDo (Annotation p) !Origin !a !a
+  | SFEscape (Annotation p) !Origin !a
+  | SFFloat (Annotation p) !Origin !FloatLiteral
+  | {- (HasTypes p ~ 'True) => -} SFGeneric !Origin !Unqualified !TypeId !a
+  | SFGroup (Annotation p) !Origin !a
+  | SFIdentity (Annotation p) !Origin
+  | SFIf (Annotation p) !Origin !(Maybe a) !a [(Origin, a, a)] !(Maybe a)
+  | (HasInfix p ~ 'True) => SFInfix (Annotation p) !Origin !a !GeneralName !a
+  | SFInteger (Annotation p) !Origin !IntegerLiteral
+  | SFJump (Annotation p) !Origin
+  | SFLambda (Annotation p) !Origin [(Origin, Maybe Unqualified, Annotation p)] !a
+  | SFList (Annotation p) !Origin [a]
+  | SFLocal (Annotation p) !Origin !Unqualified
+  | SFLoop (Annotation p) !Origin
+  | SFMatch (Annotation p) !Origin !(Maybe a) [(Origin, GeneralName, a)] !(Maybe a)
+  | SFNestableCharacter (Annotation p) !Origin !Text
+  | SFNestableText (Annotation p) !Origin !Text
+  | SFParagraph (Annotation p) !Origin !Text
+  | SFTag (Annotation p) !Origin !Int !ConstructorIndex
+  | SFText (Annotation p) !Origin !Text
+  | SFQuotation (Annotation p) !Origin !a
+  | SFReturn (Annotation p) !Origin
+  | SFSection (Annotation p) !Origin !GeneralName !Bool a
+  | SFTodo (Annotation p) !Origin
+  | SFUnboxedQuotation (Annotation p) !Origin !a
+  | SFWith (Annotation p) !Origin [Permit]
+  | SFWord (Annotation p) !Origin !Fixity !GeneralName [Type]
+
+deriving instance Functor (SweetF p)
+deriving instance (Eq a, Eq (Annotation p)) => Eq (SweetF p a)
+deriving instance (Show a, Show (Annotation p)) => Show (SweetF p a)
+
+type instance Base (Sweet p) = SweetF p
+
+instance Recursive (Sweet p) where
+  project = \ case
+    SArray a b c -> SFArray a b c
+    SAs a b c -> SFAs a b c
+    SCharacter a b c -> SFCharacter a b c
+    SCompose a b c -> SFCompose a b c
+    SDo a b c d -> SFDo a b c d
+    SEscape a b c -> SFEscape a b c
+    SFloat a b c -> SFFloat a b c
+    SGeneric a b c d -> SFGeneric a b c d
+    SGroup a b c -> SFGroup a b c
+    SIdentity a b -> SFIdentity a b
+    SIf a b c d e f -> SFIf a b c d e f
+    SInfix a b c d e -> SFInfix a b c d e
+    SInteger a b c -> SFInteger a b c
+    SJump a b -> SFJump a b
+    SLambda a b c d -> SFLambda a b c d
+    SList a b c -> SFList a b c
+    SLocal a b c -> SFLocal a b c
+    SLoop a b -> SFLoop a b
+    SMatch a b c d e -> SFMatch a b c d e
+    SNestableCharacter a b c -> SFNestableCharacter a b c
+    SNestableText a b c -> SFNestableText a b c
+    SParagraph a b c -> SFParagraph a b c
+    STag a b c d -> SFTag a b c d
+    SText a b c -> SFText a b c
+    SQuotation a b c -> SFQuotation a b c
+    SReturn a b -> SFReturn a b
+    SSection a b c d e -> SFSection a b c d e
+    STodo a b -> SFTodo a b
+    SUnboxedQuotation a b c -> SFUnboxedQuotation a b c
+    SWith a b c -> SFWith a b c
+    SWord a b c d e -> SFWord a b c d e
+
+{-
+instance Corecursive (SweetF p a) where
+  embed = \ case
+    SFArray a b c -> SArray a b c
+    SFAs a b c -> SAs a b c
+    SFCharacter a b c -> SCharacter a b c
+    SFCompose a b c -> SCompose a b c
+    SFDo a b c d -> SDo a b c d
+    SFEscape a b c -> SEscape a b c
+    SFFloat a b c -> SFloat a b c
+    SFGeneric a b c d -> SGeneric a b c d
+    SFGroup a b c -> SGroup a b c
+    SFIdentity a b -> SIdentity a b
+    SFIf a b c d e f -> SIf a b c d e f
+    SFInfix a b c d e -> SInfix a b c d e
+    SFInteger a b c -> SInteger a b c
+    SFJump a b -> SJump a b
+    SFLambda a b c d -> SLambda a b c d
+    SFList a b c -> SList a b c
+    SFLocal a b c -> SLocal a b c
+    SFLoop a b -> SLoop a b
+    SFMatch a b c d e -> SMatch a b c d e
+    SFNestableCharacter a b c -> SNestableCharacter a b c
+    SFNestableText a b c -> SNestableText a b c
+    SFParagraph a b c -> SParagraph a b c
+    SFTag a b c d -> STag a b c d
+    SFText a b c -> SText a b c
+    SFQuotation a b c -> SQuotation a b c
+    SFReturn a b -> SReturn
+    SFSection a b c d e -> SSection a b c d e
+    SFTodo a b -> STodo a b
+    SFUnboxedQuotation a b c -> SUnboxedQuotation a b c
+    SFWith a b c -> SWith a b c
+    SFWord a b c d e -> SWord a b c d e
+-}
 
 -- | This is the core language. It permits pushing values to the stack, invoking
 -- definitions, and moving values between the stack and local variables.
@@ -558,7 +707,7 @@ decompose term = [term]
 
 decomposed :: Sweet p -> [Sweet p]
 -- FIXME: This shouldn't be necessary.
-decomposed (SGeneric _ _origin _name _id body) = decomposed body
+decomposed (SGeneric _origin _name _id body) = decomposed body
 decomposed (SCompose _ a b) = decomposed a ++ decomposed b
 decomposed SIdentity{} = []
 decomposed term = [term]
@@ -586,7 +735,7 @@ quantifierCount = countFrom 0
 quantifierCount' :: Sweet 'Typed -> Int
 quantifierCount' = countFrom 0
   where
-  countFrom !count (SGeneric _ _ _ _ body) = countFrom (count + 1) body
+  countFrom !count (SGeneric _ _ _ body) = countFrom (count + 1) body
   countFrom count _ = count
 
 -- Deduces the explicit type of a term.

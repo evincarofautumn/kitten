@@ -9,6 +9,7 @@ Portability : GHC
 -}
 
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RecursiveDo #-}
 
 module Kitten.Infer
@@ -40,9 +41,10 @@ import Kitten.Kind (Kind(..))
 import Kitten.Monad (K)
 import Kitten.Name (ClosureIndex(..), GeneralName(..), LocalIndex(..), Qualified(..), Unqualified(..))
 import Kitten.Origin (Origin, getOrigin)
+import Kitten.Phase (Phase(..))
 import Kitten.Regeneralize (regeneralize)
 import Kitten.Signature (Signature)
-import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
+import Kitten.Term (Sweet(..))
 import Kitten.Type (Constructor(..), Type(..), Var(..))
 import Kitten.TypeEnv (TypeEnv, freshTypeId)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
@@ -77,9 +79,9 @@ typecheck
   -- ^ Current dictionary, for context.
   -> Maybe Signature
   -- ^ Optional signature to check inferred type against.
-  -> Term a
+  -> Sweet 'Scoped
   -- ^ Term to infer.
-  -> K (Term Type, Type)
+  -> K (Sweet 'Typed, Type)
   -- ^ Type-annotated term and its inferred type.
 typecheck dictionary mDeclaredSignature term = do
   let tenv0 = TypeEnv.empty
@@ -120,9 +122,9 @@ inferType0
   -- ^ Current typing environment.
   -> Maybe Type
   -- ^ Optional type to check inferred type against.
-  -> Term a
+  -> Sweet 'Scoped
   -- ^ Term to infer.
-  -> K (Term Type, Type)
+  -> K (Sweet 'Typed, Type)
   -- ^ Type-annotated term and its inferred type.
 inferType0 dictionary tenv mDeclared term = do
     rec
@@ -146,9 +148,12 @@ inferType
   :: Dictionary
   -> TypeEnv
   -> TypeEnv
-  -> Term a
-  -> K (Term Type, Type, TypeEnv)
-inferType dictionary tenvFinal tenv0 term0 = case term0 of
+  -> Sweet 'Scoped
+  -> K (Sweet 'Typed, Type, TypeEnv)
+inferType dictionary tenvFinal tenv0 term0 = error "TODO: inferType"
+
+{-
+ case term0 of
 
 -- A coercion is a typed no-op.
 --
@@ -376,21 +381,23 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
     Word _ _fixity name _ origin
       -> while (getOrigin term0) context
       $ inferCall dictionary tenvFinal tenv0 name origin
+-}
 
   where
-  inferType' = inferType dictionary tenvFinal
-  fresh origin = foldrM
-    (\(name, k) ts -> (: ts) <$> TypeEnv.freshTv tenv0 name origin k)
-    []
+    inferType' = inferType dictionary tenvFinal
+    fresh origin = foldrM
+      (\(name, k) ts -> (: ts) <$> TypeEnv.freshTv tenv0 name origin k)
+      []
 
-  context :: Pretty.Doc
-  context = Pretty.hsep ["inferring the type of", Pretty.quote term0]
+    context :: Pretty.Doc
+    context = Pretty.hsep ["inferring the type of", Pretty.quote term0]
 
 -- A case in a 'match' expression is simply the inverse of a constructor:
 -- whereas a constructor takes some fields from the stack and produces
 -- an instance of a data type, a 'case' deconstructs an instance of a data type
 -- and produces the fields on the stack for the body of the case to consume.
 
+{-
 inferCase
   :: Dictionary
   -> TypeEnv
@@ -513,6 +520,8 @@ inferCall _dictionary _tenvFinal _tenv0 name origin
   -- FIXME: Use proper reporting. (Internal error?)
   = error $ Pretty.render $ Pretty.hsep
     ["cannot infer type of non-qualified name", Pretty.quote name]
+
+-}
 
 -- | Desugars a parsed signature into an actual type. We resolve whether names
 -- refer to quantified type variables or data definitions, and make stack

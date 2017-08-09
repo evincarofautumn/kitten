@@ -21,9 +21,11 @@ import Control.Monad ((>=>))
 import Data.Foldable (foldlM)
 import Data.Text (Text)
 import Kitten.Bracket (bracket)
+import Kitten.Closure (convertClosures)
 import Kitten.Declaration (Declaration)
 import Kitten.Definition (Definition)
 import Kitten.Dictionary (Dictionary)
+import Kitten.Flatten (flatten)
 import Kitten.Fragment (Fragment)
 import Kitten.Infer (mangleInstance, typecheck)
 import Kitten.Informer (checkpoint, report)
@@ -32,7 +34,6 @@ import Kitten.Metadata (Metadata)
 import Kitten.Monad (K)
 import Kitten.Name
 import Kitten.Phase (Phase(..))
-import Kitten.Scope (scope)
 import Kitten.Term (Sweet, Term)
 import Kitten.Tokenize (tokenize)
 import Kitten.TypeDefinition (TypeDefinition)
@@ -40,7 +41,6 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Kitten.Declaration as Declaration
 import qualified Kitten.Definition as Definition
 import qualified Kitten.Desugar.Infix as Infix
-import qualified Kitten.Desugar.Quotations as Quotations
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
 import qualified Kitten.Entry.Category as Category
@@ -59,7 +59,7 @@ import qualified Text.PrettyPrint as Pretty
 
 -- | Enters a program fragment into a dictionary.
 
-fragment :: Fragment 'Typed -> Dictionary -> K Dictionary
+fragment :: Fragment 'Parsed -> Dictionary -> K Dictionary
 fragment f
   -- TODO: Link constructors to parent type.
   = foldlMx declareType (Fragment.types f)
@@ -138,7 +138,7 @@ declareType dictionary type_ = let
       ]
 
 declareWord
-  :: Dictionary -> Definition 'Typed -> K Dictionary
+  :: Dictionary -> Definition 'Parsed -> K Dictionary
 declareWord dictionary definition = let
   name = Definition.name definition
   signature = Definition.signature definition
@@ -226,7 +226,7 @@ resolveSignature dictionary name = do
 -- desugaring of operators has to take place here
 defineWord
   :: Dictionary
-  -> Definition 'Typed
+  -> Definition 'Parsed
   -> K Dictionary
 defineWord dictionary definition = do
   let name = Definition.name definition
@@ -248,7 +248,7 @@ defineWord dictionary definition = do
       mangledName <- mangleInstance dictionary name
         resolvedSignature traitSignature
       -- Should this use the mangled name?
-      (flattenedBody, dictionary') <- Quotations.desugar
+      (flattenedBody, dictionary') <- flatten
         dictionary
         (qualifierFromName name)
         $ Quantify.term type_ typecheckedBody
@@ -264,7 +264,7 @@ defineWord dictionary definition = do
     -- Previously declared with same signature, but not defined.
     Just (Entry.Word category merge origin' parent signature' Nothing)
       | maybe True (resolvedSignature ==) signature' -> do
-      (flattenedBody, dictionary') <- Quotations.desugar
+      (flattenedBody, dictionary') <- flatten
         dictionary (qualifierFromName name)
         $ Quantify.term type_ typecheckedBody
       let
@@ -275,22 +275,25 @@ defineWord dictionary definition = do
             else resolvedSignature)
           $ Just flattenedBody
       return $ Dictionary.insert (Instantiated name []) entry dictionary'
+
     -- Already defined as concatenable.
     Just (Entry.Word category merge@Merge.Compose
       origin' parent mSignature body)
       | Definition.inferSignature definition
         || Just resolvedSignature == mSignature -> do
+      error "TODO: concatenable dictionary entries"
+{-
       composedBody <- case body of
         Just existing -> do
-          let strippedBody = Term.stripMetadata existing
-          return $ Term.Compose () strippedBody $ Definition.body resolved
+          let strippedBody = Term.stripMetadata' existing
+          return $ SCompose () strippedBody $ Definition.body resolved
         Nothing -> return $ Definition.body resolved
       (composed, composedType) <- typecheck dictionary
         (if Definition.inferSignature definition
           then Nothing
           else Just resolvedSignature)
         composedBody
-      (flattenedBody, dictionary') <- Quotations.desugar
+      (flattenedBody, dictionary') <- flatten
         dictionary (qualifierFromName name)
         $ Quantify.term composedType composed
       let
@@ -300,6 +303,8 @@ defineWord dictionary definition = do
             else mSignature)
           $ Just flattenedBody
       return $ Dictionary.insert (Instantiated name []) entry dictionary'
+-}
+
     -- Already defined, not concatenable.
     Just (Entry.Word _ Merge.Deny originalOrigin _ (Just _sig) _) -> do
       report $ Report.WordRedefinition (Definition.origin definition)
@@ -370,4 +375,4 @@ resolveAndDesugar dictionary definition = do
 -- quotations can be rewritten into closures that explicitly capture the
 -- variables they use from the enclosing scope.
 
-  return postfix { Definition.body = scope $ Definition.body postfix }
+  return postfix { Definition.body = convertClosures $ Definition.body postfix }

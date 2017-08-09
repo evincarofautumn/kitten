@@ -8,12 +8,16 @@ Stability   : experimental
 Portability : GHC
 -}
 
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeFamilies #-}
+
 module Kitten.Zonk
   ( type_
   , term
   ) where
 
-import Kitten.Term (Case(..), Else(..), Term(..), Value(..))
+import Kitten.Phase (Phase(..))
+import Kitten.Term (Sweet(..))
 import Kitten.Type (Type(..), Var(..))
 import Kitten.TypeEnv (TypeEnv)
 import qualified Data.Map as Map
@@ -46,49 +50,80 @@ type_ tenv0 = recur
 -- done more efficiently by sharing type references and updating them impurely,
 -- but this implementation is easier to get right and understand.
 
-term :: TypeEnv -> Term Type -> Term Type
+term :: TypeEnv -> Sweet 'Typed -> Sweet 'Typed
 term tenv0 = go
   where
-  zonk = type_ tenv0
-  go t = case t of
-    Coercion hint tref origin
-      -> Coercion hint (zonk tref) origin
-    Compose tref a b
-      -> Compose (zonk tref) (go a) (go b)
-    Generic name i a origin
-      -> Generic name i (go a) origin
-    Group a
-      -> go a
-    Lambda tref name varType body origin
-      -> Lambda (zonk tref) name (zonk varType) (go body) origin
-    Match hint tref cases else_ origin
-      -> Match hint (zonk tref) (map goCase cases) (goElse else_) origin
-      where
-      goCase (Case name body caseOrigin)
-        = Case name (go body) caseOrigin
-      goElse (Else body elseOrigin)
-        = Else (go body) elseOrigin
-    New tref index size origin
-      -> New (zonk tref) index size origin
-    NewClosure tref index origin
-      -> NewClosure (zonk tref) index origin
-    NewVector tref size elemType origin
-      -> NewVector (zonk tref) size (zonk elemType) origin
-    Push tref value' origin
-      -> Push (zonk tref) (value tenv0 value') origin
-    Word tref fixity name params origin
-      -> Word (zonk tref) fixity name params origin
-
-value :: TypeEnv -> Value Type -> Value Type
-value tenv0 = go
-  where
-  go v = case v of
-    Capture names body -> Capture names $ term tenv0 body
-    Character{} -> v
-    Closed{} -> v
-    Float{} -> v
-    Integer{} -> v
-    Local{} -> v
-    Name{} -> v
-    Quotation body -> Quotation $ term tenv0 body
-    Text{} -> v
+    zonk = type_ tenv0
+    go t = case t of
+      SArray tref origin items
+        -> SArray (zonk tref) origin (go <$> items)
+      SAs tref origin types
+        -> SAs (zonk tref) origin types
+      SCharacter tref origin text
+        -> SCharacter (zonk tref) origin text
+      SCompose tref a b
+        -> SCompose (zonk tref) (go a) (go b)
+      SDo tref origin f x
+        -> SDo (zonk tref) origin (go f) (go x)
+      SEscape tref origin body
+        -> SEscape (zonk tref) origin body
+      SFloat tref origin literal
+        -> SFloat (zonk tref) origin literal
+      -- FIXME: Should this affect zonking?
+      SGeneric origin name x body
+        -> SGeneric origin name x (go body)
+      SGroup tref origin body
+        -> SGroup (zonk tref) origin (go body)
+      SIdentity tref origin
+        -> SIdentity (zonk tref) origin
+      SIf tref origin mCondition true elifs mElse
+        -> SIf (zonk tref) origin (go <$> mCondition) (go true)
+          (map (\ (elifOrigin, condition, body)
+            -> (elifOrigin, go condition, go body)) elifs)
+          (go <$> mElse)
+      SInfix tref origin left op right
+        -> SInfix (zonk tref) origin (go left) op (go right)
+      SInteger tref origin literal
+        -> SInteger (zonk tref) origin literal
+      SJump tref origin
+        -> SJump (zonk tref) origin
+      SLambda tref origin vars body
+        -> SLambda (zonk tref) origin
+          (map (\ (varOrigin, mName, varType)
+            -> (varOrigin, mName, zonk varType)) vars)
+          (go body)
+      SList tref origin items
+        -> SList (zonk tref) origin (go <$> items)
+      SLocal tref origin name
+        -> SLocal (zonk tref) origin name
+      SLoop tref origin
+        -> SLoop (zonk tref) origin
+      SMatch tref origin mScrutinee cases mElse
+        -> SMatch (zonk tref) origin (go <$> mScrutinee)
+          (map (\ (caseOrigin, name, body)
+            -> (caseOrigin, name, go body)) cases)
+          (go <$> mElse)
+      SNestableCharacter tref origin text
+        -> SNestableCharacter (zonk tref) origin text
+      SNestableText tref origin text
+        -> SNestableText (zonk tref) origin text
+      SParagraph tref origin text
+        -> SParagraph (zonk tref) origin text
+      STag tref origin size index
+        -> STag (zonk tref) origin size index
+      SText tref origin text
+        -> SText (zonk tref) origin text
+      SQuotation tref origin body
+        -> SQuotation (zonk tref) origin (go body)
+      SReturn tref origin
+        -> SReturn (zonk tref) origin
+      SSection tref origin name swap operand
+        -> SSection (zonk tref) origin name swap (go operand)
+      STodo tref origin
+        -> STodo (zonk tref) origin
+      SUnboxedQuotation tref origin body
+        -> SUnboxedQuotation (zonk tref) origin body
+      SWith tref origin permits
+        -> SWith (zonk tref) origin permits
+      SWord tref origin fixity name typeArgs
+        -> SWord (zonk tref) origin fixity name typeArgs

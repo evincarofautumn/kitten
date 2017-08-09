@@ -280,7 +280,7 @@ testTypecheck sign input expected = do
     Right definitions -> case find matching definitions of
       Just (_, Entry.Word _ _ _ _ _ (Just term)) -> do
         let
-          actual = Term.type_ term
+          actual = Term.annotation term
         check <- runKitten $ do
           instanceCheck "inferred" actual "declared" expected
           checkpoint

@@ -152,10 +152,8 @@ desugar dictionary definition = do
 
       SReturn _ origin -> pure $ SReturn () origin
 
-      SSection _ origin name operand -> SSection () origin name
-        <$> case operand of
-          Left x -> Left <$> desugarTerms' x
-          Right x -> Right <$> desugarTerms' x
+      SSection _ origin name swap operand
+        -> SSection () origin name swap <$> desugarTerms' operand
 
       STodo _ origin -> pure $ STodo () origin
 

@@ -19,7 +19,6 @@ module Kitten
 
 import Control.Monad
 import Control.Monad.IO.Class
-import Kitten.CollectInstantiations (collectInstantiations)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Monad (K, runKitten)
 import Kitten.Name
@@ -53,4 +52,3 @@ compile mainPermissions mainName paths = do
     paths sources
   -- dictionary <-
   Enter.fragment parsed Dictionary.empty
-  -- collectInstantiations dictionary
