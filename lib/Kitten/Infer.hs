@@ -50,6 +50,7 @@ import Kitten.Term (Sweet(..))
 import Kitten.Type (Constructor(..), Type(..), Var(..))
 import Kitten.TypeEnv (TypeEnv, freshTypeId)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Kitten.DataConstructor as DataConstructor
@@ -274,11 +275,89 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
 
   SInfix _ origin left op right -> error "TODO: infer infix"
 
-  SInteger _ origin literal -> error "TODO: infer integer"
+  SInteger _ origin literal -> do
+    [stackType, permission] <- fresh origin
+      [ ("S", Stack)
+      , ("P", Permission)
+      ]
+    let
+      ctor = TypeConstructor origin $ case Literal.integerBits literal of
+        Signed8 -> "Int8"
+        Signed16 -> "Int16"
+        Signed32 -> "Int32"
+        Signed64 -> "Int64"
+        Unsigned8 -> "UInt8"
+        Unsigned16 -> "UInt16"
+        Unsigned32 -> "UInt32"
+        Unsigned64 -> "UInt64"
+      type_ = Type.fun origin stackType
+        (Type.prod origin stackType ctor) permission
+      type' = Zonk.type_ tenvFinal type_
+    pure (SInteger type' origin literal, type_, tenv0)
 
   SJump _ origin -> error "TODO: infer jump"
 
-  SLambda _ origin vars body -> while origin context $ error "TODO: infer lambda"
+-- A local variable binding in Kitten is in fact a lambda term in the ordinary
+-- lambda-calculus sense. We infer the type of its body in the environment
+-- extended with a fresh local bound to a fresh type variable, and produce a
+-- type of the form 'R..., A -> S... +P'.
+
+  SLambda _ origin vars body -> while origin context $ do
+
+    -- Make a map from local variables to their types. We also track the types
+    -- of ignored values, because we need to know their sizes in order to
+    -- generate the appropriate 'drop' calls.
+    varTypes <- fmap (reverse . snd) $ foldlM
+      (\ (ignoreCount, types) (origin, mName, _) -> case mName of
+        Just name@(Unqualified unqualified) -> do
+          let typeName = Unqualified $ "Local" <> capitalize unqualified
+          type_ <- TypeEnv.freshTv tenv0 typeName origin Value
+          pure (ignoreCount, (name, type_) : types)
+        Nothing -> do
+          let name = Unqualified $ "_." <> Text.pack (show ignoreCount)
+          let typeName = Unqualified $ "Ignore" <> Text.pack (show ignoreCount)
+          type_ <- TypeEnv.freshTv tenv0 typeName origin Value
+          pure (ignoreCount + 1, (name, type_) : types))
+      (0 :: Int, mempty) vars
+
+    -- Infer the body in the current environment extended with those locals.
+    let
+      oldLocals = TypeEnv.vs tenv0
+      localEnv = tenv0
+        { TypeEnv.vs = TypeEnv.vs tenv0 <> HashMap.fromList varTypes }
+    (body', t1, tenv1) <- inferType' localEnv body
+    let tenv2 = tenv1 { TypeEnv.vs = oldLocals }
+    (b, c, p, tenv3) <- Unify.function tenv2 t1
+
+    -- Annotate the variables and ignores with their types.
+    let
+      type_ = Type.fun origin
+        (foldl' (Type.prod origin) b (map snd varTypes))
+        c p
+      type' = Zonk.type_ tenvFinal type_
+      vars' = reverse $ snd $ foldl'
+        (\ (ignoreCount, acc) (origin, mName, _) -> case mName of
+          Just name -> case lookup name varTypes of
+            Just varType ->
+              ( ignoreCount
+              , (origin, mName, Zonk.type_ tenvFinal varType) : acc
+              )
+            Nothing -> error "unknown local variable"
+          Nothing -> let
+            name = Unqualified $ "_." <> Text.pack (show ignoreCount)
+            in case lookup name varTypes of
+              Just ignoreType ->
+                ( ignoreCount + 1
+                , (origin, mName, Zonk.type_ tenvFinal ignoreType) : acc
+                )
+              Nothing -> error "unknown ignored local")
+        (0 :: Int, []) vars
+
+    return
+      ( SLambda type' origin vars' body'
+      , type_
+      , tenv3
+      )
 
   SList _ origin items -> while origin context $ do
     (items', itemType, tenv1)
@@ -296,7 +375,21 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
       type' = Zonk.type_ tenvFinal type_
     pure (SList type' origin items', type_, tenv1)
 
-  SLocal _ origin name -> error "TODO: infer name"
+  SLocal _ origin name -> do
+    [stackType, permission] <- fresh origin
+      [ ("S", Stack)
+      , ("P", Permission)
+      ]
+    let
+      varType = case HashMap.lookup name $ TypeEnv.vs tenv0 of
+        Just type_ -> type_
+        Nothing -> error "unknown local variable appeared during inference"
+    let
+      type_ = Type.fun origin stackType
+        (Type.prod origin stackType varType)
+        permission
+      type' = Zonk.type_ tenvFinal type_
+    pure (SLocal type' origin name, type_, tenv0)
 
   SLoop _ origin -> error "TODO: infer loop"
 

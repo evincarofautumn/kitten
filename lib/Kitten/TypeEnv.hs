@@ -15,10 +15,10 @@ module Kitten.TypeEnv
   , empty
   , freshTv
   , freshTypeId
-  , getClosed
   ) where
 
 import Control.Monad.IO.Class (liftIO)
+import Data.HashMap.Strict (HashMap)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Map (Map)
 import Kitten.Kind (Kind)
@@ -36,25 +36,22 @@ import qualified Text.PrettyPrint as Pretty
 --
 --  • What is the type of this type variable?
 --  • What is the type of this local variable?
---  • What are the types of the current closure?
 --  • What is the signature of this definition?
 --
 -- It also provides access to the state of globally unique ID generation.
 
 data TypeEnv = TypeEnv
   { tvs :: !(Map TypeId Type)
-  , vs :: [Type]
-  , closure :: [Type]
+  , vs :: !(HashMap Unqualified Type)
   , sigs :: !(Map Qualified Type)
   , currentType :: !(IORef TypeId)
   }
 
 empty :: TypeEnv
 empty = TypeEnv
-  { tvs = Map.empty
-  , vs = []
-  , closure = []
-  , sigs = Map.empty
+  { tvs = mempty
+  , vs = mempty
+  , sigs = mempty
   , currentType = currentTypeId
   }
 
@@ -76,8 +73,3 @@ instance Pretty TypeEnv where
   pPrint tenv = Pretty.vcat
     $ map (\ (v, t) -> Pretty.hsep [pPrint v, "~", pPrint t])
     $ Map.toList $ tvs tenv
-
-getClosed :: TypeEnv -> Closed -> Type
-getClosed tenv name = case name of
-  ClosedLocal (LocalIndex index) -> vs tenv !! index
-  ClosedClosure (ClosureIndex index) -> closure tenv !! index

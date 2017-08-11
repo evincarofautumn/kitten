@@ -28,6 +28,7 @@ module Kitten.Term
   , MatchHint(..)
   , Permit(..)
   , Sweet(..)
+  , SweetF(..)
   , Term(..)
   , Value(..)
   , annotation
@@ -36,11 +37,12 @@ module Kitten.Term
   , composed
   , decompose
   , decomposed
-  , fromInfix
   , identityCoercion
   , permissionCoercion
+  , postfixFromResolved
   , quantifierCount
   , quantifierCount'
+  , scopedFromPostfix
   , stripMetadata
   , stripValue
   , type_
@@ -249,9 +251,11 @@ data Sweet (p :: Phase)
 deriving instance (Eq (Annotation p)) => Eq (Sweet p)
 deriving instance (Show (Annotation p)) => Show (Sweet p)
 
-fromInfix :: Sweet p -> Maybe (Sweet 'Postfix)
-fromInfix SInfix{} = Nothing
-fromInfix x = Just (unsafeCoerce x)
+postfixFromResolved :: Sweet 'Resolved -> Sweet 'Postfix
+postfixFromResolved x = unsafeCoerce x
+
+scopedFromPostfix :: Sweet 'Postfix -> Sweet 'Scoped
+scopedFromPostfix x = unsafeCoerce x
 
 instance HasOrigin (Sweet p) where
   getOrigin term = case term of
@@ -529,8 +533,7 @@ instance Recursive (Sweet p) where
     SWith a b c -> SFWith a b c
     SWord a b c d e -> SFWord a b c d e
 
-{-
-instance Corecursive (SweetF p a) where
+instance Corecursive (Sweet p) where
   embed = \ case
     SFArray a b c -> SArray a b c
     SFAs a b c -> SAs a b c
@@ -557,13 +560,12 @@ instance Corecursive (SweetF p a) where
     SFTag a b c d -> STag a b c d
     SFText a b c -> SText a b c
     SFQuotation a b c -> SQuotation a b c
-    SFReturn a b -> SReturn
+    SFReturn a b -> SReturn a b
     SFSection a b c d e -> SSection a b c d e
     SFTodo a b -> STodo a b
     SFUnboxedQuotation a b c -> SUnboxedQuotation a b c
     SFWith a b c -> SWith a b c
     SFWord a b c d e -> SWord a b c d e
--}
 
 -- | This is the core language. It permits pushing values to the stack, invoking
 -- definitions, and moving values between the stack and local variables.
