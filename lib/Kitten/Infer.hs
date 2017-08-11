@@ -10,6 +10,7 @@ Portability : GHC
 
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE RecursiveDo #-}
 
 module Kitten.Infer
@@ -26,6 +27,7 @@ import Control.Monad (filterM)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State (StateT, get, gets, modify, put, runStateT)
 import Data.Foldable (foldlM, foldrM)
+import Data.Function (on)
 import Data.List (find, foldl', partition)
 import Data.Map (Map)
 import Data.Monoid ((<>))
@@ -57,6 +59,7 @@ import qualified Kitten.Entry.Parent as Parent
 import qualified Kitten.Instantiate as Instantiate
 import qualified Kitten.Literal as Literal
 import qualified Kitten.Operator as Operator
+import qualified Kitten.Origin as Origin
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Report as Report
 import qualified Kitten.Resolve as Resolve
@@ -150,7 +153,442 @@ inferType
   -> TypeEnv
   -> Sweet 'Scoped
   -> K (Sweet 'Typed, Type, TypeEnv)
-inferType dictionary tenvFinal tenv0 term0 = error "TODO: inferType"
+inferType dictionary tenvFinal tenv0 term0 = case term0 of
+
+  -- Unboxed array literals @[|a, b, c, ...|]@ have type @Array<T, N>@ where @T@
+  -- is the type of the elements and @N@ is the length. See 'inferList'.
+
+  SArray _ origin items -> while origin context $ do
+    (items', itemType, tenv1)
+      <- inferList dictionary tenvFinal tenv0 origin items
+    [stackType, permission] <- fresh origin
+      [ ("S", Stack)
+      , ("P", Permission)
+      ]
+    let
+      -- S... -> S..., Array<Item, N> +P
+      type_ = Type.fun origin stackType
+        (Type.prod origin stackType
+          (TypeConstructor origin "Array"
+            :@ itemType
+            :@ TypeValue origin (length items)))
+        permission
+      type' = Zonk.type_ tenvFinal type_
+    pure (SArray type' origin items', type_, tenv1)
+
+  -- @as (T1, T2, ...)@ expressions are the identity function specialized to a
+  -- particular stack type @<S..., +P> (S..., T1, T2, ... -> S..., T1, T2 +P)@.
+  --
+  -- This is used for documentation and to disambiguate trait instances in
+  -- expressions such as @read as (Int32) show@. Without the @as@, the type to
+  -- read would be ambiguous because it's not constrained by @show@.
+
+  SAs _ origin signatures -> do
+    types <- mapM (typeFromSignature tenv0) signatures
+    [stackType, permission] <- fresh origin
+      [ ("S", Stack)
+      , ("P", Permission)
+      ]
+    let
+      stack = foldl' (Type.prod origin) stackType types
+      type_ = Type.fun origin stack stack permission
+      type' = Zonk.type_ tenvFinal type_
+    pure (SAs type' origin signatures, type_, tenv0)
+
+  -- A character literal has type @S... -> S..., Char +P@.
+
+  SCharacter _ origin text -> inferChar tenv0 SCharacter origin text
+
+  -- The type of the composition of two expressions is the composition of the
+  -- types of those expressions, that is, @A... -> B... +P1@ unifies with
+  -- @C... -> D... +P2@ as @A -> D... +P1@ if @B...@ unifies with @C...@
+  -- (equality) and @+P1@ unifies with @+P2@ (union).
+
+  SCompose _ term1 term2 -> do
+    (term1', type1, tenv1) <- inferType' tenv0 term1
+    (term2', type2, tenv2) <- inferType' tenv1 term2
+    (a, b, p1, tenv3) <- Unify.function tenv2 type1
+    (c, d, p2, tenv4) <- Unify.function tenv3 type2
+    tenv5 <- Unify.type_ tenv4 b c
+    tenv6 <- Unify.type_ tenv5 p1 p2
+    let
+      origin = (Origin.merge `on` getOrigin) term1 term2
+      type_ = Type.fun origin a d p1
+      type' = Zonk.type_ tenvFinal type_
+    pure (SCompose type' term1' term2', type_, tenv6)
+
+  -- A @do@ expression is syntactic sugar for the common case where a function
+  -- is called with a block or list as its topmost argument; @do (f) { x y z }@
+  -- and @do (f) [x, y, z]@ are sugar for @{ x y z } f@ and @[x, y, z] f@,
+  -- respectively. So we just infer it as a normal composition.
+
+  SDo _ origin function argument -> while origin context $ do
+    (SCompose type' argument' function', type_, tenv1)
+      <- inferType' tenv0 $ SCompose () argument function
+    pure (SDo type' origin function' argument', type_, tenv1)
+
+  -- An "escape" expression @\x@ is syntactic sugar for a quotation with a
+  -- single element, so we just infer it as a quotation.
+
+  SEscape _ origin term -> do
+    (SQuotation type' _origin term', type_, tenv1)
+      <- inferType' tenv0 $ SQuotation () origin term
+    pure (SQuotation type' origin term', type_, tenv1)
+
+  -- A floating-point literal has type @S... -> S..., FloatN +P@ where @N@ is
+  -- the number of bits.
+
+  SFloat _ origin literal -> do
+    let
+      type_ = TypeConstructor origin $ case Literal.floatBits literal of
+        Float32 -> "Float32"
+        Float64 -> "Float64"
+      type' = Zonk.type_ tenvFinal type_
+    pure (SFloat type' origin literal, type_, tenv0)
+
+  SGeneric{} -> error "generic terms should not appear during type inference"
+
+  -- A group expression @(x)@ only exists to override operator precedence and
+  -- improve readability. We just infer the type of the body.
+
+  SGroup _ origin body -> do
+    (body', type_, tenv1) <- inferType' tenv0 body
+    let type' = Zonk.type_ tenvFinal type_
+    pure (SGroup type' origin body', type_, tenv1)
+
+  -- The empty program represents the identity function.
+
+  SIdentity _ origin -> do
+    [stack, permission] <- fresh origin
+      [ ("S", Stack)
+      , ("P", Permission)
+      ]
+    let type_ = Type.fun origin stack stack permission
+    let type' = Zonk.type_ tenvFinal type_
+    return (SIdentity type' origin, type_, tenv0)
+
+  -- The type of an @if@ expression is the unified type of all the branches.
+
+  SIf _ origin mCondition true elifs mElse -> while origin context
+    $ inferIf dictionary tenvFinal tenv0 origin mCondition true elifs mElse
+
+  SInfix _ origin left op right -> error "TODO: infer infix"
+
+  SInteger _ origin literal -> error "TODO: infer integer"
+
+  SJump _ origin -> error "TODO: infer jump"
+
+  SLambda _ origin vars body -> while origin context $ error "TODO: infer lambda"
+
+  SList _ origin items -> while origin context $ do
+    (items', itemType, tenv1)
+      <- inferList dictionary tenvFinal tenv0 origin items
+    [stackType, permission] <- fresh origin
+      [ ("S", Stack)
+      , ("P", Permission)
+      ]
+    let
+      -- S... -> S..., List<Item> +P
+      type_ = Type.fun origin stackType
+        (Type.prod origin stackType
+          (TypeConstructor origin "List" :@ itemType))
+        permission
+      type' = Zonk.type_ tenvFinal type_
+    pure (SList type' origin items', type_, tenv1)
+
+  SLocal _ origin name -> error "TODO: infer name"
+
+  SLoop _ origin -> error "TODO: infer loop"
+
+  SMatch _ origin mScrutinee cases mElse -> while origin context
+    $ error "TODO: infer match"
+
+  SNestableCharacter _ origin text -> inferChar tenv0 SNestableCharacter origin text
+
+  SNestableText _ origin text -> inferText tenv0 SNestableText origin text
+
+  SParagraph _ origin text -> inferText tenv0 SParagraph origin text
+
+  STag _ origin size index -> error "TODO: infer tag"
+
+  SText _ origin text -> inferText tenv0 SText origin text
+
+  SQuotation _ origin body -> while origin context
+    $ error "TODO: infer quotation"
+
+  SReturn _ origin -> error "TODO: infer return"
+
+  SSection _ origin name swap operand -> error "TODO: infer section"
+
+  STodo _ origin -> error "TODO: infer todo"
+
+  SUnboxedQuotation _ origin body -> while origin context
+    $ error "TODO: infer unboxed quotation"
+
+  SWith _ origin permits -> error "TODO: infer with"
+
+  SWord _ origin fixity name typeArgs -> error "TODO: infer word"
+
+  where
+    inferType' = inferType dictionary tenvFinal
+    fresh origin = foldrM
+      (\(name, k) ts -> (: ts) <$> TypeEnv.freshTv tenv0 name origin k)
+      []
+
+    context :: Pretty.Doc
+    context = Pretty.hsep ["inferring the type of", Pretty.quote term0]
+
+-- | Infers the type of a list or array literal from the types of its elements.
+-- This ensures that each element is a term that takes no inputs and produces
+-- one output, and that all the items in the list have the same type. It also
+-- accounts for permissions, to enable effects when constructing a list, e.g.,
+-- @[get_line, get_line]@.
+
+inferList
+  :: Dictionary
+  -> TypeEnv
+  -> TypeEnv
+  -> Origin
+  -> [Sweet 'Scoped]
+  -> K ([Sweet 'Typed], Type, TypeEnv)
+inferList dictionary tenvFinal tenv0 origin items = do
+
+  -- We infer the type of each item individually from left to right.
+  (itemsAndTypes, tenv1) <- foldlM inferItem ([], tenv0) items
+
+  -- Next, we unpack the (reversed) accumulator into the annotated items and
+  -- their individual types and permissions.
+  let
+    (items', itemTypes, itemPermissions) = let
+      (typedItems, typesAndPermissions) = unzip $ reverse itemsAndTypes
+      (types, permissions) = unzip typesAndPermissions
+      in (typedItems, types, permissions)
+
+  -- Finally, we unify the types and permissions of all the items, and return
+  -- the annotated items, their single unified type, and the updated type
+  -- environment.
+
+  itemType <- TypeEnv.freshTv tenv1 "Item" origin Value
+  tenv2 <- unifyAll tenv1 itemType itemTypes
+
+  itemPermission <- TypeEnv.freshTv tenv0 "P" origin Permission
+  tenv3 <- unifyAll tenv2 itemPermission itemPermissions
+
+  pure (items', itemType, tenv3)
+
+  where
+
+    unifyAll tenv x xs = foldlM (\ tenv' -> Unify.type_ tenv' x) tenv xs
+
+    inferItem (acc, tenv) item = do
+      (item', itemTermType, tenv') <- inferType dictionary tenvFinal tenv item
+
+      -- We ensure each item takes no inputs and produces a single output by
+      -- checking it against this signature:
+      --
+      --   <S..., Item, +P> (S... -> S..., Item +P).
+      --
+      -- We can't just unify it with (S... -> S..., T +P) for fresh type variables
+      -- S..., T, and +P, because that would allow an item like @(+ 1) 2@, which
+      -- wouldn't change the type of the stack below the item it adds, but would
+      -- change the value.
+      --
+      singleOutput <- typeFromSignature tenv'
+        $ Signature.Quantified
+          [ Parameter origin "S" Stack
+          , Parameter origin "Item" Value
+          ]
+          (Signature.StackFunction
+            (Signature.Variable (UnqualifiedName "S") origin)
+            []
+            (Signature.Variable (UnqualifiedName "S") origin)
+            [Signature.Variable (UnqualifiedName "Item") origin]
+            [UnqualifiedName "P"]
+            origin) origin
+      instanceCheck "item" itemTermType "single-output" singleOutput
+
+      -- Like all terms, the item term type is a function type. Now that we've
+      -- checked it against the signature, we can extract the actual item type.
+
+      (itemStackIn, itemStackOut, itemPermission, tenv'')
+        <- Unify.function tenv' itemTermType
+      itemType <- TypeEnv.freshTv tenv' "Item" origin Value
+      tenv'' <- Unify.type_ tenv itemStackOut
+        $ Type.prod origin itemStackIn itemType
+
+      -- We accumulate the annotated item term, its type, and its permissions.
+      pure ((item', (itemType, itemPermission)) : acc, tenv')
+
+-- Infers the type of a character literal. This accepts the constructor and
+-- fields separately, rather than a partially applied constructor, because it
+-- needs the origin and could eventually depend on the contents of the literal
+-- to determine its type.
+
+inferChar
+  :: TypeEnv
+  -> (Type -> Origin -> Text -> Sweet 'Typed)
+  -> Origin
+  -> Text
+  -> K (Sweet 'Typed, Type, TypeEnv)
+inferChar tenv0 constructor origin text = do
+  stackType <- TypeEnv.freshTv tenv0 "S" origin Stack
+  permission <- TypeEnv.freshTv tenv0 "P" origin Permission
+  let
+    type_ = Type.fun origin stackType
+      (Type.prod origin stackType (TypeConstructor origin "Char"))
+      permission
+    type' = Zonk.type_ tenv0 type_
+  pure (constructor type' origin text, type_, tenv0)
+
+inferText
+  :: TypeEnv
+  -> (Type -> Origin -> Text -> Sweet 'Typed)
+  -> Origin
+  -> Text
+  -> K (Sweet 'Typed, Type, TypeEnv)
+inferText tenv0 constructor origin text = do
+  stackType <- TypeEnv.freshTv tenv0 "S" origin Stack
+  permission <- TypeEnv.freshTv tenv0 "P" origin Permission
+  let
+    type_ = Type.fun origin stackType
+      (Type.prod origin stackType
+        (TypeConstructor origin "List" :@ TypeConstructor origin "Char"))
+      permission
+    type' = Zonk.type_ tenv0 type_
+  pure (constructor type' origin text, type_, tenv0)
+
+data SimplifiedIf (p :: Phase)
+  = Condition (Term.Annotation p) !(Sweet p) !(SimplifiedIf p)
+  | IfElse (Term.Annotation p) !(Sweet p) !(SimplifiedIf p)
+  | JustElse !(Sweet p)
+
+-- When inferring the type of an @if@ expression, we need to account for the
+-- following things:
+--
+--  • If the condition is specified, it must have type @Bool@.
+--
+--  • If the condition is not specified, the @if@ expression takes an additional
+--    @Bool@ input atop the stack.
+--
+--  • The permissions of the @if@ condition, the true branch body, @elif@
+--    conditions and bodies, and the @else@ body, must all unify.
+--
+--  • The conditions of @elif@ branches may take elements from the stack.
+--
+
+inferIf
+  :: Dictionary
+  -> TypeEnv
+  -> TypeEnv
+  -> Origin
+  -> Maybe (Sweet 'Scoped)
+  -> Sweet 'Scoped
+  -> [(Origin, Sweet 'Scoped, Sweet 'Scoped)]
+  -> Maybe (Sweet 'Scoped)
+  -> K (Sweet 'Typed, Type, TypeEnv)
+inferIf dictionary tenvFinal tenv0 origin mCondition true elifs mElse = do
+
+  -- To infer the type of a complex if-elif-else expression, first we simplify
+  -- it into a chain of nested if-else expressions, where the conditions are all
+  -- drawn from the stack and the else branches are all specified. For example,
+  -- this expression:
+  --
+  --     if (a) { b } elif (c) { d } else { e }
+  --
+  -- Becomes this:
+  --
+  --     a if { b } else { c if { d } else { e } }
+  --
+  let
+    elseTerm = case mElse of
+      Just else_ -> else_
+      Nothing -> SIdentity () origin
+
+    elifChain = foldr (\ (elifOrigin, condition, body) acc
+      -> Condition () condition (IfElse () body acc))
+      (JustElse elseTerm)
+      elifs
+
+    simplified = case mCondition of
+      Just condition -> Condition () condition elifChain
+      Nothing -> elifChain
+
+  -- We infer the type of the simplified expression.
+  (simplified', type_, tenv1)
+    <- inferSimplifiedIf dictionary tenvFinal tenv0 simplified
+
+  -- Then we convert the simplified expression back into a term.
+  -- TODO: Return a term with the same structure as the original input.
+  let term' = termFromSimplifiedIf simplified'
+
+  pure (term', type_, tenv1)
+
+-- TODO
+termFromSimplifiedIf
+  :: SimplifiedIf p
+  -> Sweet p
+termFromSimplifiedIf simplified = case simplified of
+
+  Condition type_ condition (IfElse _ true false)
+    -> SIf type_ (getOrigin condition) (Just condition) true []
+      (Just (termFromSimplifiedIf false))
+
+  -- Probably shouldn't happen, but treat it like a composition.
+  Condition type_ condition other
+    -> SCompose type_ condition (termFromSimplifiedIf other)
+
+  IfElse type_ true false
+    -> SIf type_ (getOrigin true) Nothing true [] (Just (termFromSimplifiedIf false))
+
+  JustElse false
+    -> false
+
+inferSimplifiedIf
+  :: Dictionary
+  -> TypeEnv
+  -> TypeEnv
+  -> SimplifiedIf 'Scoped
+  -> K (SimplifiedIf 'Typed, Type, TypeEnv)
+inferSimplifiedIf dictionary tenvFinal tenv0 simplified = case simplified of
+
+  -- A condition is inferred in the same way as a composition, except that the
+  -- second term is a simplified if, not an ordinary term.
+  Condition _ condition rest -> do
+    (condition', conditionType, tenv1) <- inferType' tenv0 condition
+    (rest', restType, tenv2) <- inferSimplifiedIf' tenv1 rest
+    (a, b, p1, tenv3) <- Unify.function tenv2 conditionType
+    (c, d, p2, tenv4) <- Unify.function tenv3 restType
+    tenv5 <- Unify.type_ tenv4 b c
+    tenv6 <- Unify.type_ tenv5 p1 p2
+    let
+      origin = getOrigin condition
+      type_ = Type.fun origin a d p1
+      type' = Zonk.type_ tenvFinal type_
+    pure (Condition type' condition' rest', type_, tenv6)
+
+  -- To infer an if-else, we infer the types of both branches and unify them,
+  -- adding an extra @Bool@ input to the resulting type. If the else branch is
+  -- at the end of a chain, we infer it as a term; if it's from a nested elif,
+  -- we infer it as a simplified if.
+  IfElse _ true false -> do
+    (true', trueType, tenv1) <- inferType' tenv0 true
+    (false', falseType, tenv2) <- inferSimplifiedIf' tenv1 false
+    tenv3 <- Unify.type_ tenv2 trueType falseType
+    (a, b, p, tenv4) <- Unify.function tenv3 trueType
+    let
+      origin = getOrigin true
+      type_ = Type.fun origin
+        (Type.prod origin a (TypeConstructor origin "Bool")) b p
+      type' = Zonk.type_ tenvFinal type_
+    pure (IfElse type' true' false', type_, tenv4)
+
+  JustElse false -> do
+    (false', falseType, tenv1) <- inferType' tenv0 false
+    pure (JustElse false', falseType, tenv1)
+
+  where
+    inferType' = inferType dictionary tenvFinal
+    inferSimplifiedIf' = inferSimplifiedIf dictionary tenvFinal
 
 {-
  case term0 of
@@ -382,15 +820,6 @@ inferType dictionary tenvFinal tenv0 term0 = error "TODO: inferType"
       -> while (getOrigin term0) context
       $ inferCall dictionary tenvFinal tenv0 name origin
 -}
-
-  where
-    inferType' = inferType dictionary tenvFinal
-    fresh origin = foldrM
-      (\(name, k) ts -> (: ts) <$> TypeEnv.freshTv tenv0 name origin k)
-      []
-
-    context :: Pretty.Doc
-    context = Pretty.hsep ["inferring the type of", Pretty.quote term0]
 
 -- A case in a 'match' expression is simply the inverse of a constructor:
 -- whereas a constructor takes some fields from the stack and produces

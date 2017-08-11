@@ -4,10 +4,11 @@ module Test.Origin
   ( spec
   ) where
 
+import Data.Function (on)
 import Data.Functor.Identity (runIdentity)
 import Data.List (foldl')
 import Kitten.Monad (runKitten)
-import Kitten.Origin (Origin(Origin))
+import Kitten.Origin (Origin)
 import Kitten.Tokenize (tokenize)
 import Test.Hspec (Expectation, Spec, it, shouldBe)
 import Text.Parsec.Pos (Column, Line)
@@ -122,13 +123,8 @@ parseOrigins = concatMap (uncurry goLine) . zip [1..]
     }
 
   toOrigin :: Line -> Span -> Origin
-  toOrigin line (Span begin end) = Origin
-    { Origin.name = "test"
-    , Origin.beginLine = line
-    , Origin.beginColumn = begin
-    , Origin.endLine = line
-    , Origin.endColumn = end
-    }
+  toOrigin line (Span begin end)
+    = (Origin.merge `on` Origin.point "test" line) begin end
 
   go :: Env -> Char -> Env
   go env@Env { envPoint = point, envSpans = spans } char = case char of

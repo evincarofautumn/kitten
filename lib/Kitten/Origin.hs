@@ -12,15 +12,18 @@ Portability : GHC
 
 module Kitten.Origin
   ( HasOrigin(..)
-  , Origin(..)
+  , Origin
   , begin
   , end
+  , merge
   , point
   , pos
   , range
   ) where
 
+import Data.Function (on)
 import Data.Text (Text)
+import Prelude hiding (span)
 import Text.Parsec.Pos
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.Text as Text
@@ -64,15 +67,8 @@ pos :: SourcePos -> Origin
 pos = point <$> sourceName <*> sourceLine <*> sourceColumn
 
 -- | Makes a range between two 'SourcePos' points.
-
 range :: SourcePos -> SourcePos -> Origin
-range a b = Origin
-  { name = Text.pack $ sourceName a
-  , beginLine = sourceLine a
-  , beginColumn = sourceColumn a
-  , endLine = sourceLine b
-  , endColumn = sourceColumn b
-  }
+range = merge `on` pos
 
 instance Pretty Origin where
   pPrint origin = Pretty.hcat $
@@ -88,3 +84,32 @@ instance Pretty Origin where
 
 class HasOrigin a where
   getOrigin :: a -> Origin
+
+-- | Merges two origins into an origin that includes both. This is essentially a
+-- tight bounding box (line). Merging two points produces a range between those
+-- points; merging two spans creates a range from the beginning of whichever
+-- starts first to the end of whichever ends last.
+--
+-- When merging origins with different names, I don't believe there's anything
+-- sensible to do, nor should it happen in practice, but to avoid throwing an
+-- exception, this returns the first argument.
+
+merge :: Origin -> Origin -> Origin
+merge a b
+  | name a /= name b = a
+  | otherwise = Origin
+    { name = name a
+    , beginLine = minBeginLine
+    , beginColumn = minBeginColumn
+    , endLine = maxEndLine
+    , endColumn = maxEndColumn
+    }
+  where
+    (minBeginLine, minBeginColumn)
+      | beginLine a < beginLine b = (beginLine a, beginColumn a)
+      | beginLine b < beginLine a = (beginLine b, beginColumn b)
+      | otherwise = (beginLine a, (min `on` beginColumn) a b)
+    (maxEndLine, maxEndColumn)
+      | endLine a < endLine b = (endLine b, endColumn b)
+      | endLine b < endLine a = (endLine a, endColumn a)
+      | otherwise = (endLine b, (max `on` endColumn) a b)
