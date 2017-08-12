@@ -83,7 +83,7 @@ freeVars = cata $ \ case
     , foldMap (\ (_, condition, body) -> condition <> body) elifs
     , fromMaybe mempty mElse
     ]
-  SFInfix _ _ left _ right -> left <> right
+  SFInfix _ _ left _ right _ -> left <> right
   SFInteger{} -> mempty
   SFJump{} -> mempty
   SFLambda _ _ vars body -> HashSet.difference body
@@ -103,7 +103,7 @@ freeVars = cata $ \ case
   SFText{} -> mempty
   SFQuotation _ _ body -> body
   SFReturn{} -> mempty
-  SFSection _ _ _ _ operand -> operand
+  SFSection _ _ _ _ operand _ -> operand
   SFTodo{} -> mempty
   SFUnboxedQuotation _ _ body -> body
   SFWith{} -> mempty

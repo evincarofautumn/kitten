@@ -610,15 +610,14 @@ termParser = (<?> "expression") $ do
       [ do
         origin <- getTokenOrigin
         function <- operatorNameParser
-        let
-          call = SWord () origin Operator.Postfix
-            (UnqualifiedName function) []
         Parsec.choice
           [ do
             operandOrigin <- getTokenOrigin
             operand <- Parsec.many1 termParser
-            return $ composed operandOrigin $ operand ++ [call]
-          , return call
+            pure $ SSection () origin (UnqualifiedName function) False
+              (composed operandOrigin operand) []
+          , pure $ SWord () origin Operator.Postfix
+            (UnqualifiedName function) []
           ]
       , do
         operandOrigin <- getTokenOrigin
@@ -626,11 +625,8 @@ termParser = (<?> "expression") $ do
           $ Parsec.notFollowedBy operatorNameParser *> termParser
         origin <- getTokenOrigin
         function <- operatorNameParser
-        return $ composed operandOrigin $ operand ++
-          [ SWord () origin Operator.Postfix
-            (QualifiedName (Qualified Vocabulary.intrinsic "swap")) []
-          , SWord () origin Operator.Postfix (UnqualifiedName function) []
-          ]
+        return $ SSection () origin (UnqualifiedName function) True
+          (composed operandOrigin operand) []
       ]
 
     vectorParser :: Parser (Sweet 'Parsed)

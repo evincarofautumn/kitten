@@ -113,10 +113,10 @@ term dictionary vocabulary = recur
     SText _ origin text -> pure $ SText () origin text
     SQuotation _ origin body -> SQuotation () origin <$> recur body
     SReturn _ origin -> pure $ SReturn () origin
-    SSection _ origin name swap operand -> do
+    SSection _ origin name swap operand typeArgs -> do
       name' <- definitionName dictionary vocabulary name origin
       operand' <- recur operand
-      pure $ SSection () origin name' swap operand'
+      pure $ SSection () origin name' swap operand' typeArgs
     STodo _ origin -> pure $ STodo () origin
     SUnboxedQuotation _ origin body
       -> SUnboxedQuotation () origin <$> recur body

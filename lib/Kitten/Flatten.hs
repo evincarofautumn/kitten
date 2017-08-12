@@ -133,10 +133,10 @@ flatten dictionary qualifier term0 = do
         , tenv4
         )
 
-    SInfix type_ origin left operator right -> do
+    SInfix type_ origin left operator right typeArgs -> do
       (left', tenv1) <- go tenv0 left
       (right', tenv2) <- go tenv1 right
-      pure (SInfix type_ origin left' operator right', tenv2)
+      pure (SInfix type_ origin left' operator right' typeArgs, tenv2)
 
     SInteger type_ origin literal -> pure
       (SInteger type_ origin literal, tenv0)

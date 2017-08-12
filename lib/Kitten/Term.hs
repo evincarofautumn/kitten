@@ -148,6 +148,7 @@ data Sweet (p :: Phase)
     !(Sweet p)                      -- Left operand
     !GeneralName                    -- Operator
     !(Sweet p)                      -- Right operand
+    [Type]                          -- Type arguments (TODO: use Signature?)
 
   | SInteger
     (Annotation p)
@@ -226,6 +227,7 @@ data Sweet (p :: Phase)
     !GeneralName    -- Operator
     !Bool           -- Swapped (left operand missing instead of right)
     !(Sweet p)      -- Operand
+    [Type]          -- Type arguments (TODO: use Signature?)
 
   | STodo           -- ... expression
     (Annotation p)
@@ -270,7 +272,7 @@ instance HasOrigin (Sweet p) where
     SGroup _ o _ -> o
     SIdentity _ o -> o
     SIf _ o _ _ _ _ -> o
-    SInfix _ o _ _ _ -> o
+    SInfix _ o _ _ _ _ -> o
     SInteger _ o _ -> o
     SJump _ o -> o
     SLambda _ o _ _ -> o
@@ -285,7 +287,7 @@ instance HasOrigin (Sweet p) where
     SText _ o _ -> o
     SQuotation _ o _ -> o
     SReturn _ o -> o
-    SSection _ o _ _ _ -> o
+    SSection _ o _ _ _ _ -> o
     STodo _ o -> o
     SUnboxedQuotation _ o _ -> o
     SWith _ o _ -> o
@@ -301,6 +303,8 @@ instance Pretty (Sweet p) where
 
     SCharacter _ _ c -> Pretty.quotes $ Pretty.text $ Text.unpack c
 
+    SCompose _ a SIdentity{} -> pPrint a
+    SCompose _ SIdentity{} b -> pPrint b
     SCompose _ a b -> Pretty.sep $ map pPrint [a, b]
 
     SDo _ _ f x -> Pretty.vcat
@@ -340,8 +344,8 @@ instance Pretty (Sweet p) where
           , Pretty.nest 4 $ pPrint body
           ]
 
-    SInfix _ _ a op b -> Pretty.parens
-      $ Pretty.sep [pPrint a, pPrint op, pPrint b]
+    SInfix _ _ a op b _ -> Pretty.parens
+      $ Pretty.hsep [pPrint a, pPrint op, pPrint b]
 
     SInteger _ _ literal -> pPrint literal
 
@@ -399,11 +403,11 @@ instance Pretty (Sweet p) where
     SText _ _ t -> Pretty.doubleQuotes $ Pretty.text $ Text.unpack t
 
     -- See note [Block Pretty-printing].
-    SQuotation _ _ x -> Pretty.hsep ["{", pPrint x, "}"]
+    SQuotation _ _ x -> Pretty.vcat ["{", Pretty.nest 4 $ pPrint x, "}"]
 
     SReturn{} -> "return"
 
-    SSection _ _ name swap operand -> Pretty.parens
+    SSection _ _ name swap operand _ -> Pretty.parens
       $ if swap
         then Pretty.hsep [pPrint name, pPrint operand]
         else Pretty.hsep [pPrint operand, pPrint name]
@@ -437,7 +441,7 @@ annotation term = case term of
   SGroup a _ _ -> a
   SIdentity a _ -> a
   SIf a _ _ _ _ _ -> a
-  SInfix a _ _ _ _ -> a
+  SInfix a _ _ _ _ _ -> a
   SInteger a _ _ -> a
   SJump a _ -> a
   SLambda a _ _ _ -> a
@@ -452,7 +456,7 @@ annotation term = case term of
   SText a _ _ -> a
   SQuotation a _ _ -> a
   SReturn a _ -> a
-  SSection a _ _ _ _ -> a
+  SSection a _ _ _ _ _ -> a
   STodo a _ -> a
   SUnboxedQuotation a _ _ -> a
   SWith a _ _ -> a
@@ -472,7 +476,7 @@ data SweetF (p :: Phase) a
   | SFGroup (Annotation p) !Origin !a
   | SFIdentity (Annotation p) !Origin
   | SFIf (Annotation p) !Origin !(Maybe a) !a [(Origin, a, a)] !(Maybe a)
-  | (HasInfix p ~ 'True) => SFInfix (Annotation p) !Origin !a !GeneralName !a
+  | (HasInfix p ~ 'True) => SFInfix (Annotation p) !Origin !a !GeneralName !a [Type]
   | SFInteger (Annotation p) !Origin !IntegerLiteral
   | SFJump (Annotation p) !Origin
   | SFLambda (Annotation p) !Origin [(Origin, Maybe Unqualified, Annotation p)] !a
@@ -487,7 +491,7 @@ data SweetF (p :: Phase) a
   | SFText (Annotation p) !Origin !Text
   | SFQuotation (Annotation p) !Origin !a
   | SFReturn (Annotation p) !Origin
-  | SFSection (Annotation p) !Origin !GeneralName !Bool a
+  | SFSection (Annotation p) !Origin !GeneralName !Bool a [Type]
   | SFTodo (Annotation p) !Origin
   | SFUnboxedQuotation (Annotation p) !Origin !a
   | SFWith (Annotation p) !Origin [Permit]
@@ -512,7 +516,7 @@ instance Recursive (Sweet p) where
     SGroup a b c -> SFGroup a b c
     SIdentity a b -> SFIdentity a b
     SIf a b c d e f -> SFIf a b c d e f
-    SInfix a b c d e -> SFInfix a b c d e
+    SInfix a b c d e f -> SFInfix a b c d e f
     SInteger a b c -> SFInteger a b c
     SJump a b -> SFJump a b
     SLambda a b c d -> SFLambda a b c d
@@ -527,7 +531,7 @@ instance Recursive (Sweet p) where
     SText a b c -> SFText a b c
     SQuotation a b c -> SFQuotation a b c
     SReturn a b -> SFReturn a b
-    SSection a b c d e -> SFSection a b c d e
+    SSection a b c d e f -> SFSection a b c d e f
     STodo a b -> SFTodo a b
     SUnboxedQuotation a b c -> SFUnboxedQuotation a b c
     SWith a b c -> SFWith a b c
@@ -546,7 +550,7 @@ instance Corecursive (Sweet p) where
     SFGroup a b c -> SGroup a b c
     SFIdentity a b -> SIdentity a b
     SFIf a b c d e f -> SIf a b c d e f
-    SFInfix a b c d e -> SInfix a b c d e
+    SFInfix a b c d e f -> SInfix a b c d e f
     SFInteger a b c -> SInteger a b c
     SFJump a b -> SJump a b
     SFLambda a b c d -> SLambda a b c d
@@ -561,7 +565,7 @@ instance Corecursive (Sweet p) where
     SFText a b c -> SText a b c
     SFQuotation a b c -> SQuotation a b c
     SFReturn a b -> SReturn a b
-    SFSection a b c d e -> SSection a b c d e
+    SFSection a b c d e f -> SSection a b c d e f
     SFTodo a b -> STodo a b
     SFUnboxedQuotation a b c -> SUnboxedQuotation a b c
     SFWith a b c -> SWith a b c

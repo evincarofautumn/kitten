@@ -23,12 +23,12 @@ module Kitten.Infer
   , typecheck
   ) where
 
-import Control.Monad (filterM)
+import Control.Monad (filterM, forM)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State (StateT, get, gets, modify, put, runStateT)
 import Data.Foldable (foldlM, foldrM)
 import Data.Function (on)
-import Data.List (find, foldl', partition)
+import Data.List (find, foldl')
 import Data.Map (Map)
 import Data.Monoid ((<>))
 import Data.Text (Text)
@@ -41,7 +41,7 @@ import Kitten.InstanceCheck (instanceCheck)
 import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Kind (Kind(..))
 import Kitten.Monad (K)
-import Kitten.Name (ClosureIndex(..), GeneralName(..), LocalIndex(..), Qualified(..), Unqualified(..))
+import Kitten.Name (GeneralName(..), Qualified(..), Unqualified(..))
 import Kitten.Origin (Origin, getOrigin)
 import Kitten.Phase (Phase(..))
 import Kitten.Regeneralize (regeneralize)
@@ -56,7 +56,6 @@ import qualified Data.Text as Text
 import qualified Kitten.DataConstructor as DataConstructor
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
-import qualified Kitten.Entry.Parent as Parent
 import qualified Kitten.Instantiate as Instantiate
 import qualified Kitten.Literal as Literal
 import qualified Kitten.Operator as Operator
@@ -273,7 +272,21 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
   SIf _ origin mCondition true elifs mElse -> while origin context
     $ inferIf dictionary tenvFinal tenv0 origin mCondition true elifs mElse
 
-  SInfix _ origin left op right -> error "TODO: infer infix"
+  -- An infix operator call is inferred as a composition of the left and right
+  -- operands followed by the operator, filling in the operator's type
+  -- arguments. For example, @1 + 2@ is inferred as @1 2 (+)::<Int32>@.
+
+  SInfix _ origin left op right _typeArgs -> do
+    ( SCompose type' left'
+      (SCompose _ right'
+        (SWord _ _ _ _ typeArgs'))
+      , type_
+      , tenv1
+      ) <- inferType' tenv0 $ SCompose () left $ SCompose () right
+        $ SWord () origin Operator.Infix op []
+    -- type' is already zonked in the final type environment and refers to the
+    -- type of the whole composition.
+    pure (SInfix type' origin left' op right' typeArgs', type_, tenv1)
 
   SInteger _ origin literal -> do
     [stackType, permission] <- fresh origin
@@ -295,6 +308,8 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
       type' = Zonk.type_ tenvFinal type_
     pure (SInteger type' origin literal, type_, tenv0)
 
+  -- A @jump@ expression is the same as a @call@, but a [Left Zero].
+
   SJump _ origin -> error "TODO: infer jump"
 
 -- A local variable binding in Kitten is in fact a lambda term in the ordinary
@@ -308,15 +323,15 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
     -- of ignored values, because we need to know their sizes in order to
     -- generate the appropriate 'drop' calls.
     varTypes <- fmap (reverse . snd) $ foldlM
-      (\ (ignoreCount, types) (origin, mName, _) -> case mName of
+      (\ (ignoreCount, types) (varOrigin, mName, _) -> case mName of
         Just name@(Unqualified unqualified) -> do
           let typeName = Unqualified $ "Local" <> capitalize unqualified
-          type_ <- TypeEnv.freshTv tenv0 typeName origin Value
+          type_ <- TypeEnv.freshTv tenv0 typeName varOrigin Value
           pure (ignoreCount, (name, type_) : types)
         Nothing -> do
           let name = Unqualified $ "_." <> Text.pack (show ignoreCount)
           let typeName = Unqualified $ "Ignore" <> Text.pack (show ignoreCount)
-          type_ <- TypeEnv.freshTv tenv0 typeName origin Value
+          type_ <- TypeEnv.freshTv tenv0 typeName varOrigin Value
           pure (ignoreCount + 1, (name, type_) : types))
       (0 :: Int, mempty) vars
 
@@ -336,11 +351,11 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
         c p
       type' = Zonk.type_ tenvFinal type_
       vars' = reverse $ snd $ foldl'
-        (\ (ignoreCount, acc) (origin, mName, _) -> case mName of
+        (\ (ignoreCount, acc) (varOrigin, mName, _) -> case mName of
           Just name -> case lookup name varTypes of
             Just varType ->
               ( ignoreCount
-              , (origin, mName, Zonk.type_ tenvFinal varType) : acc
+              , (varOrigin, mName, Zonk.type_ tenvFinal varType) : acc
               )
             Nothing -> error "unknown local variable"
           Nothing -> let
@@ -348,7 +363,7 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
             in case lookup name varTypes of
               Just ignoreType ->
                 ( ignoreCount + 1
-                , (origin, mName, Zonk.type_ tenvFinal ignoreType) : acc
+                , (varOrigin, mName, Zonk.type_ tenvFinal ignoreType) : acc
                 )
               Nothing -> error "unknown ignored local")
         (0 :: Int, []) vars
@@ -391,6 +406,9 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
       type' = Zonk.type_ tenvFinal type_
     pure (SLocal type' origin name, type_, tenv0)
 
+  -- A @loop@ expression is the same as a call to the current definition, but a
+  -- [Left Zero].
+
   SLoop _ origin -> error "TODO: infer loop"
 
   SMatch _ origin mScrutinee cases mElse -> while origin context
@@ -402,25 +420,93 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
 
   SParagraph _ origin text -> inferText tenv0 SParagraph origin text
 
-  STag _ origin size index -> error "TODO: infer tag"
+  -- A tag expression simply tags some fields on the stack with a particular
+  -- constructor index (if the type has more than one constructor), so the most
+  -- straightforward way to type it is as an unsafe cast from a certain number
+  -- of fields to a single value. For now, we can rely on the type signature of
+  -- the desugared data constructor definition to make this type-safe, since
+  -- only the compiler can generate these expressions.
+
+  STag _ origin size constructor -> do
+    [stackType, tagged, permission] <- fresh origin
+      [ ("S", Stack)
+      , ("Tagged", Stack)
+      , ("P", Permission)
+      ]
+    fields <- forM [1 .. size] $ \ index -> do
+      let name = Unqualified $ "Field" <> Text.pack (show index)
+      TypeEnv.freshTv tenv0 name origin Value
+    let
+      type_ = Type.fun origin
+        (foldl' (Type.prod origin) stackType fields)
+        (Type.prod origin stackType tagged)
+        permission
+      type' = Zonk.type_ tenvFinal type_
+    return (STag type' origin size constructor, type_, tenv0)
 
   SText _ origin text -> inferText tenv0 SText origin text
 
-  SQuotation _ origin body -> while origin context
-    $ error "TODO: infer quotation"
+  -- If @X@ is an expression of type @S... -> T... +P1@, then @{ X }@ has the
+  -- type @R... -> R... -> (S... -> T... +P1) +P2@, that is, it pushes @X@ to
+  -- the stack rather than evaluating it.
+
+  SQuotation _ origin body -> while origin context $ do
+    (body', bodyType, tenv1) <- inferType' tenv0 body
+    [stackType, permission] <- fresh origin
+      [ ("S", Stack)
+      , ("P", Permission)
+      ]
+    let
+      type_ = Type.fun origin stackType
+        (Type.prod origin stackType bodyType) permission
+      type' = Zonk.type_ tenvFinal type_
+    pure (SQuotation type' origin body', type_, tenv1)
+
+  -- A @return@ expression is the same as the identity, but a [Left Zero].
 
   SReturn _ origin -> error "TODO: infer return"
 
-  SSection _ origin name swap operand -> error "TODO: infer section"
+  -- A section is inferred as a composition of an operator and an operand, with
+  -- an optional swap between them, filling in the operator's type
+  -- arguments. For example, @(3 -)@ is inferred as @3 (-)::<Int32>@ and @(- 3)@
+  -- as @3 swap (-)::<Int32>@.
+
+  SSection _ origin name swap operand _typeArgs -> while origin context $ do
+    let
+      word, swapCall, composition :: Sweet 'Scoped
+      word = SWord () origin Operator.Infix name []
+      swapCall = SWord () origin Operator.Postfix
+        (QualifiedName (Qualified Vocabulary.intrinsic "swap")) []
+      composition = SCompose () operand
+        $ SCompose () (if swap then SIdentity () origin else swapCall) word
+    ( SCompose type' operand'
+      (SCompose _ _ (SWord _ _ _ _ typeArgs'))
+      , type_
+      , tenv1
+      ) <- inferType' tenv0 composition
+    pure (SSection type' origin name swap operand' typeArgs', type_, tenv1)
+
+  -- A todo expression @...@ is a placeholder for unfinished code. It's typed as
+  -- @R... -> S... +P@, and at runtime it aborts like @fail@, but it's special
+  -- in two ways: it always generates a compiler warning, and it doesn't require
+  -- the @+Fail@ permission, so you can use it anywhere.
 
   STodo _ origin -> error "TODO: infer todo"
 
   SUnboxedQuotation _ origin body -> while origin context
     $ error "TODO: infer unboxed quotation"
 
+  -- A @with@ expression is typed as a @call@ that additionally modifies the
+  -- permissions of the invoked closure.
+
   SWith _ origin permits -> error "TODO: infer with"
 
-  SWord _ origin fixity name typeArgs -> error "TODO: infer word"
+  -- A call to a word is inferred by looking up its signature in the dictionary
+  -- and filling in its value-kinded type arguments.
+
+  SWord _ origin fixity name typeArgs
+    -- TODO: Allow user-specified type arguments.
+    -> inferCall dictionary tenvFinal tenv0 name origin
 
   where
     inferType' = inferType dictionary tenvFinal
@@ -430,6 +516,19 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
 
     context :: Pretty.Doc
     context = Pretty.hsep ["inferring the type of", Pretty.quote term0]
+
+-- Note [Left Zero]:
+--
+-- The special operators @return@, @jump@, and @loop@ are /left zeros/ for
+-- composition. That means that for any term @X@, @return X@ "cancels out" @X@
+-- and becomes just @return@; likewise for @jump@ and @loop@. They need this
+-- property because they don't return, but they can't be fully polymorphic in
+-- their result type like other non-returning functions such as @abort@, because
+-- they /do/ have restrictions on their types.
+--
+-- A composition of terms is a zero if /any/ of them is a zero. An @if@ or
+-- @match@ expression is a zero if /all/ of its branches are zeros.
+
 
 -- | Infers the type of a list or array literal from the types of its elements.
 -- This ensures that each element is a term that takes no inputs and produces
@@ -506,11 +605,11 @@ inferList dictionary tenvFinal tenv0 origin items = do
       (itemStackIn, itemStackOut, itemPermission, tenv'')
         <- Unify.function tenv' itemTermType
       itemType <- TypeEnv.freshTv tenv' "Item" origin Value
-      tenv'' <- Unify.type_ tenv itemStackOut
+      tenv''' <- Unify.type_ tenv'' itemStackOut
         $ Type.prod origin itemStackIn itemType
 
       -- We accumulate the annotated item term, its type, and its permissions.
-      pure ((item', (itemType, itemPermission)) : acc, tenv')
+      pure ((item', (itemType, itemPermission)) : acc, tenv''')
 
 -- Infers the type of a character literal. This accepts the constructor and
 -- fields separately, rather than a partially applied constructor, because it
@@ -682,6 +781,35 @@ inferSimplifiedIf dictionary tenvFinal tenv0 simplified = case simplified of
   where
     inferType' = inferType dictionary tenvFinal
     inferSimplifiedIf' = inferSimplifiedIf dictionary tenvFinal
+
+inferCall
+  :: Dictionary
+  -> TypeEnv
+  -> TypeEnv
+  -> GeneralName
+  -> Origin
+  -> K (Sweet 'Typed, Type, TypeEnv)
+inferCall dictionary tenvFinal tenv0 name@(QualifiedName qualified) origin
+  = case Map.lookup qualified $ TypeEnv.sigs tenv0 of
+    Just t@Forall{} -> do
+      (instantiatedType, typeArgs, tenv1) <- Instantiate.prenex tenv0 t
+      let type_ = Type.setOrigin origin instantiatedType
+      typeArgs' <- map (Zonk.type_ tenvFinal) <$> valueKinded dictionary typeArgs
+      let type' = Zonk.type_ tenvFinal type_
+      return
+        ( SWord type' origin Operator.Postfix name typeArgs'
+        , type_
+        , tenv1
+        )
+    Just{} -> error "what is a non-quantified type doing as a type signature?"
+    Nothing -> do
+      report $ Report.MissingTypeSignature origin qualified
+      halt
+
+inferCall _dictionary _tenvFinal _tenv0 name origin
+  -- FIXME: Use proper reporting. (Internal error?)
+  = error $ Pretty.render $ Pretty.hsep
+    ["cannot infer type of non-qualified name", Pretty.quote name]
 
 {-
  case term0 of
@@ -1003,45 +1131,6 @@ inferValue dictionary tenvFinal tenv0 origin value = case value of
     , TypeConstructor origin "List" :@ TypeConstructor origin "Char"
     , tenv0
     )
-
-inferCall
-  :: Dictionary
-  -> TypeEnv
-  -> TypeEnv
-  -> GeneralName
-  -> Origin
-  -> K (Term Type, Type, TypeEnv)
-inferCall dictionary tenvFinal tenv0 (QualifiedName name) origin
-  = case Map.lookup name $ TypeEnv.sigs tenv0 of
-    Just t@Forall{} -> do
-      (type_, params, tenv1) <- Instantiate.prenex tenv0 t
-      let
-        type' = Type.setOrigin origin type_
-      params' <- valueKinded dictionary params
-      let
-        type'' = Zonk.type_ tenvFinal type'
-        params'' = map (Zonk.type_ tenvFinal) params'
-      let
-        mangled = QualifiedName name
-        -- case params'' of
-        --   [] -> name
-        --   _ -> Qualified Vocabulary.global
-        --     $ Unqualified $ Mangle.name name params''
-      return
-        ( Word type'' Operator.Postfix mangled
-          params'' origin
-        , type'
-        , tenv1
-        )
-    Just{} -> error "what is a non-quantified type doing as a type signature?"
-    Nothing -> do
-      report $ Report.MissingTypeSignature origin name
-      halt
-
-inferCall _dictionary _tenvFinal _tenv0 name origin
-  -- FIXME: Use proper reporting. (Internal error?)
-  = error $ Pretty.render $ Pretty.hsep
-    ["cannot infer type of non-qualified name", Pretty.quote name]
 
 -}
 

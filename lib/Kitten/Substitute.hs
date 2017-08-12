@@ -100,9 +100,11 @@ term tenv x a = recur
       mElse' <- traverse recur mElse
       pure $ SIf tref' origin mCondition' true' elifs' mElse'
 
-    SInfix tref origin left op right -> do
+    SInfix tref origin left op right typeArgs -> do
       tref' <- go tref
+      -- TODO: Substitute type arguments?
       SInfix tref' origin <$> recur left <*> pure op <*> recur right
+        <*> pure typeArgs
 
     SInteger tref origin literal -> do
       tref' <- go tref
@@ -166,9 +168,10 @@ term tenv x a = recur
       tref' <- go tref
       pure $ SReturn tref' origin
 
-    SSection tref origin name swap operand -> do
+    SSection tref origin name swap operand typeArgs -> do
       tref' <- go tref
-      SSection tref' origin name swap <$> recur operand
+      -- TODO: Substitute type arguments?
+      SSection tref' origin name swap <$> recur operand <*> pure typeArgs
 
     STodo tref origin -> do
       tref' <- go tref
@@ -184,6 +187,7 @@ term tenv x a = recur
 
     SWord tref origin fixity name typeArgs -> do
       tref' <- go tref
+      -- TODO: Substitute type arguments?
       pure $ SWord tref' origin fixity name typeArgs
 
   go = type_ tenv x a

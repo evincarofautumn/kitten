@@ -81,8 +81,9 @@ term tenv0 = go
           (map (\ (elifOrigin, condition, body)
             -> (elifOrigin, go condition, go body)) elifs)
           (go <$> mElse)
-      SInfix tref origin left op right
-        -> SInfix (zonk tref) origin (go left) op (go right)
+      SInfix tref origin left op right typeArgs
+        -- TODO: Zonk type arguments?
+        -> SInfix (zonk tref) origin (go left) op (go right) typeArgs
       SInteger tref origin literal
         -> SInteger (zonk tref) origin literal
       SJump tref origin
@@ -117,8 +118,9 @@ term tenv0 = go
         -> SQuotation (zonk tref) origin (go body)
       SReturn tref origin
         -> SReturn (zonk tref) origin
-      SSection tref origin name swap operand
-        -> SSection (zonk tref) origin name swap (go operand)
+      SSection tref origin name swap operand typeArgs
+        -- TODO: Zonk type arguments?
+        -> SSection (zonk tref) origin name swap (go operand) typeArgs
       STodo tref origin
         -> STodo (zonk tref) origin
       SUnboxedQuotation tref origin body
@@ -126,4 +128,5 @@ term tenv0 = go
       SWith tref origin permits
         -> SWith (zonk tref) origin permits
       SWord tref origin fixity name typeArgs
+        -- TODO: Zonk type arguments?
         -> SWord (zonk tref) origin fixity name typeArgs

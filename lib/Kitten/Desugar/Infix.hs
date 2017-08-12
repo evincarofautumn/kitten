@@ -152,8 +152,9 @@ desugar dictionary definition = do
 
       SReturn _ origin -> pure $ SReturn () origin
 
-      SSection _ origin name swap operand
+      SSection _ origin name swap operand typeArgs
         -> SSection () origin name swap <$> desugarTerms' operand
+          <*> pure typeArgs
 
       STodo _ origin -> pure $ STodo () origin
 
@@ -201,7 +202,7 @@ desugar dictionary definition = do
     -> Sweet 'Postfix
     -> Sweet 'Postfix
     -> Sweet 'Postfix
-  binary name origin x y = SInfix () origin x name y
+  binary name origin x y = SInfix () origin x name y []
 
   mapTerm :: (Sweet 'Postfix -> Maybe a) -> Rewriter a
   mapTerm = Parsec.tokenPrim show advanceTerm
