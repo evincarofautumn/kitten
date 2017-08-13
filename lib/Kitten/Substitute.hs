@@ -148,6 +148,12 @@ term tenv x a = recur
       tref' <- go tref
       pure $ SNestableText tref' origin text
 
+    SPack tref origin boxed vars hiddenType -> do
+      tref' <- go tref
+      vars' <- mapM (\ (varType, name) -> (,) <$> go varType <*> pure name) vars
+      hiddenType' <- go hiddenType
+      pure $ SPack tref' origin boxed vars' hiddenType'
+
     SParagraph tref origin text -> do
       tref' <- go tref
       pure $ SParagraph tref' origin text

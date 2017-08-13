@@ -108,6 +108,7 @@ term dictionary vocabulary = recur
       <*> traverse recur mElse
     SNestableCharacter _ origin text -> pure $ SNestableCharacter () origin text
     SNestableText _ origin text -> pure $ SNestableText () origin text
+    SPack _ origin boxed vars _ -> pure $ SPack () origin boxed vars ()
     SParagraph _ origin text -> pure $ SParagraph () origin text
     STag _ origin size index -> pure $ STag () origin size index
     SText _ origin text -> pure $ SText () origin text

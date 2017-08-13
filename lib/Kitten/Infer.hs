@@ -28,13 +28,14 @@ import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State (StateT, get, gets, modify, put, runStateT)
 import Data.Foldable (foldlM, foldrM)
 import Data.Function (on)
-import Data.List (find, foldl')
+import Data.List (find, foldl', partition)
 import Data.Map (Map)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import Kitten.Bits
 import Kitten.DataConstructor (DataConstructor)
 import Kitten.Dictionary (Dictionary)
+import Kitten.Entry.Parameter (Parameter(..))
 import Kitten.Entry.Parameter (Parameter(Parameter))
 import Kitten.Informer (Informer(..))
 import Kitten.InstanceCheck (instanceCheck)
@@ -46,7 +47,8 @@ import Kitten.Origin (Origin, getOrigin)
 import Kitten.Phase (Phase(..))
 import Kitten.Regeneralize (regeneralize)
 import Kitten.Signature (Signature)
-import Kitten.Term (Sweet(..))
+import Kitten.Term (Permit, Sweet(..))
+import Kitten.Text (capitalize)
 import Kitten.Type (Constructor(..), Type(..), Var(..))
 import Kitten.TypeEnv (TypeEnv, freshTypeId)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
@@ -57,6 +59,7 @@ import qualified Kitten.DataConstructor as DataConstructor
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
 import qualified Kitten.Instantiate as Instantiate
+import qualified Kitten.Kind as Kind
 import qualified Kitten.Literal as Literal
 import qualified Kitten.Operator as Operator
 import qualified Kitten.Origin as Origin
@@ -132,7 +135,10 @@ inferType0
 inferType0 dictionary tenv mDeclared term = do
     rec
       (term', t, tenvFinal) <- inferType dictionary tenvFinal' tenv term
-      tenvFinal' <- maybe (return tenvFinal) (Unify.type_ tenvFinal t) mDeclared
+      tenvFinal' <- maybe (return tenvFinal)
+        (while (getOrigin term) "unifying inferred and declared types"
+          . Unify.type_ tenvFinal t)
+        mDeclared
     let zonked = Zonk.type_ tenvFinal' t
     let regeneralized = regeneralize tenvFinal' zonked
     case mDeclared of
@@ -183,7 +189,7 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
   -- expressions such as @read as (Int32) show@. Without the @as@, the type to
   -- read would be ambiguous because it's not constrained by @show@.
 
-  SAs _ origin signatures -> do
+  SAs _ origin signatures -> while origin context $ do
     types <- mapM (typeFromSignature tenv0) signatures
     [stackType, permission] <- fresh origin
       [ ("S", Stack)
@@ -209,8 +215,19 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
     (term2', type2, tenv2) <- inferType' tenv1 term2
     (a, b, p1, tenv3) <- Unify.function tenv2 type1
     (c, d, p2, tenv4) <- Unify.function tenv3 type2
-    tenv5 <- Unify.type_ tenv4 b c
-    tenv6 <- Unify.type_ tenv5 p1 p2
+    tenv5 <- while ((Origin.merge `on` getOrigin) term1 term2)
+      (Pretty.hsep
+        [ "ensuring output of"
+        , Pretty.quotes $ pPrint term1
+        , Pretty.parens $ pPrint b
+        , "matches input of"
+        , Pretty.quotes $ pPrint term2
+        , Pretty.parens $ pPrint c
+        ])
+      $ Unify.type_ tenv4 b c
+    tenv6 <- while (getOrigin p1)
+      "unifying permissions in composition"
+      $ Unify.type_ tenv5 p1 p2
     let
       origin = (Origin.merge `on` getOrigin) term1 term2
       type_ = Type.fun origin a d p1
@@ -230,10 +247,10 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
   -- An "escape" expression @\x@ is syntactic sugar for a quotation with a
   -- single element, so we just infer it as a quotation.
 
-  SEscape _ origin term -> do
+  SEscape _ origin term -> while origin context $ do
     (SQuotation type' _origin term', type_, tenv1)
       <- inferType' tenv0 $ SQuotation () origin term
-    pure (SQuotation type' origin term', type_, tenv1)
+    pure (SEscape type' origin term', type_, tenv1)
 
   -- A floating-point literal has type @S... -> S..., FloatN +P@ where @N@ is
   -- the number of bits.
@@ -276,7 +293,7 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
   -- operands followed by the operator, filling in the operator's type
   -- arguments. For example, @1 + 2@ is inferred as @1 2 (+)::<Int32>@.
 
-  SInfix _ origin left op right _typeArgs -> do
+  SInfix _ origin left op right _typeArgs -> while origin context $ do
     ( SCompose type' left'
       (SCompose _ right'
         (SWord _ _ _ _ typeArgs'))
@@ -390,7 +407,7 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
       type' = Zonk.type_ tenvFinal type_
     pure (SList type' origin items', type_, tenv1)
 
-  SLocal _ origin name -> do
+  SLocal _ origin name -> while origin context $ do
     [stackType, permission] <- fresh origin
       [ ("S", Stack)
       , ("P", Permission)
@@ -417,6 +434,38 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
   SNestableCharacter _ origin text -> inferChar tenv0 SNestableCharacter origin text
 
   SNestableText _ origin text -> inferText tenv0 SNestableText origin text
+
+  -- A closure-packing expression takes a series of fields and a function
+  -- pointer and returns an existential pair of the closure (possibly boxed) and
+  -- the function pointer, with the types of the closure fields hidden.
+  --
+  -- > R..., Closure, (S..., Closure -> T... +P1) -> R..., (S... -> T... +P1) +P2
+
+  SPack _ origin boxed vars _ -> while origin context $ do
+    vars' <- mapM
+      (\ (_, name) -> (,) <$> TypeEnv.freshTv tenv0 name origin Value <*> pure name)
+      vars
+    [stackType, functionInput, permission, functionType] <- fresh origin
+      [ ("R", Stack)
+      , ("S", Stack)
+      , ("P", Permission)
+      , ("Function", Value)
+      ]
+    (functionInputWithClosure, functionOutput, functionPermissions, tenv1)
+      <- Unify.function tenv0 functionType
+    let withClosure t = foldl' (Type.prod origin) t (map fst vars')
+    tenv2 <- Unify.type_ tenv1 functionInputWithClosure
+      $ withClosure functionInput
+    let
+      functionType' = Type.fun origin
+        functionInput functionOutput functionPermissions
+      type_ = Type.fun origin
+        (Type.prod origin (withClosure stackType) functionType)
+        -- TODO: Substitute types and return existentially quantified type.
+        (Type.prod origin stackType functionType')
+        permission
+      type' = Zonk.type_ tenvFinal type_
+    pure (SPack type' origin boxed vars' functionType, type_, tenv2)
 
   SParagraph _ origin text -> inferText tenv0 SParagraph origin text
 
@@ -499,14 +548,14 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
   -- A @with@ expression is typed as a @call@ that additionally modifies the
   -- permissions of the invoked closure.
 
-  SWith _ origin permits -> error "TODO: infer with"
+  SWith _ origin permits -> inferWith dictionary tenvFinal tenv0 origin permits
 
   -- A call to a word is inferred by looking up its signature in the dictionary
   -- and filling in its value-kinded type arguments.
 
-  SWord _ origin fixity name typeArgs
+  SWord _ origin fixity name typeArgs -> while origin context
     -- TODO: Allow user-specified type arguments.
-    -> inferCall dictionary tenvFinal tenv0 name origin
+    $ inferCall dictionary tenvFinal tenv0 name origin
 
   where
     inferType' = inferType dictionary tenvFinal
@@ -589,6 +638,7 @@ inferList dictionary tenvFinal tenv0 origin items = do
         $ Signature.Quantified
           [ Parameter origin "S" Stack
           , Parameter origin "Item" Value
+          , Parameter origin "P" Permission
           ]
           (Signature.StackFunction
             (Signature.Variable (UnqualifiedName "S") origin)
@@ -701,9 +751,9 @@ inferIf dictionary tenvFinal tenv0 origin mCondition true elifs mElse = do
       (JustElse elseTerm)
       elifs
 
-    simplified = case mCondition of
-      Just condition -> Condition () condition elifChain
-      Nothing -> elifChain
+    simplified = ($ IfElse () true elifChain) $ case mCondition of
+      Just condition -> Condition () condition
+      Nothing -> id
 
   -- We infer the type of the simplified expression.
   (simplified', type_, tenv1)
@@ -810,6 +860,48 @@ inferCall _dictionary _tenvFinal _tenv0 name origin
   -- FIXME: Use proper reporting. (Internal error?)
   = error $ Pretty.render $ Pretty.hsep
     ["cannot infer type of non-qualified name", Pretty.quote name]
+
+-- | To infer a @with@ expression, we generate a coercion from a function type
+-- with the permissions being /granted/ to one with the permissions being
+-- /revoked/, and type the whole expression as a call to the coerced closure:
+--
+-- > R..., (R... -> S... +Grant1 ... +GrantN) -> S... +Revoke1 ... +RevokeN
+--
+-- The idea is that if you're /granting/ a particular permission such as @+IO@,
+-- then you're converting a closure that /requires/ @+IO@ to one that /doesn't/
+-- by removing @+IO@ from its type, allowing it to be called in a context where
+-- @+IO@ is normally /disallowed/. And in the reverse, if you're /revoking/ a
+-- permission such as @+Fail@, then you're converting a closure that /doesn't/
+-- require @+Fail@ to one that /does/, allowing it to be used in a context where
+-- @+Fail@ is normally /required/.
+
+inferWith
+  :: Dictionary
+  -> TypeEnv
+  -> TypeEnv
+  -> Origin
+  -> [Permit]
+  -> K (Sweet 'Typed, Type, TypeEnv)
+inferWith dictionary tenvFinal tenv0 origin permits = do
+  type_ <- typeFromSignature tenv0 signature
+  let type' = Zonk.type_ tenvFinal type_
+  pure (SWith type' origin permits, type_, tenv0)
+  where
+  signature = Signature.Quantified
+    [ Parameter origin "R" Kind.Stack
+    , Parameter origin "S" Kind.Stack
+    ]
+    (Signature.StackFunction
+      (Signature.Variable "R" origin)
+      [ Signature.StackFunction
+        (Signature.Variable "R" origin) []
+        (Signature.Variable "S" origin) []
+        (map Term.permitName grants) origin
+      ]
+      (Signature.Variable "S" origin) []
+      (map Term.permitName revokes)
+      origin) origin
+  (grants, revokes) = partition Term.permitted permits
 
 {-
  case term0 of
@@ -1387,9 +1479,3 @@ dataType origin params ctors dictionary = let
   -- FIXME: Use correct vocabulary.
   in typeFromSignature TypeEnv.empty
     =<< Resolve.run (Resolve.signature dictionary Vocabulary.global sig)
-
-capitalize :: Text -> Text
-capitalize x
-  | Text.null x = x
-  | otherwise
-  = Text.toUpper (Text.singleton (Text.head x)) <> Text.tail x

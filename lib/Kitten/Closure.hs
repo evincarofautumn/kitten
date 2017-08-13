@@ -15,27 +15,18 @@ module Kitten.Closure
   ( convertClosures
   ) where
 
-import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.Reader (ReaderT, asks, local, runReaderT)
-import Control.Monad.Trans.State (State, get, put, runState)
-import Data.Coerce (coerce)
 import Data.Functor.Foldable
 import Data.HashSet (HashSet)
-import Data.List (elemIndex, sort)
+import Data.List (sort)
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
-import Debug.Trace
-import Kitten.Name (Closed(..), ClosureIndex(..), GeneralName(..), LocalIndex(..), Unqualified(..))
+import Kitten.Name (Unqualified(..))
 import Kitten.Origin (Origin)
 import Kitten.Phase (Phase(..))
 import Kitten.Term (Sweet(..), SweetF(..))
-import Kitten.Term (Sweet)
-import Text.PrettyPrint.HughesPJClass (Pretty(..))
+import Kitten.Text (capitalize)
 import qualified Data.HashSet as HashSet
-import qualified Data.Text as Text
-import qualified Kitten.Operator as Operator
 import qualified Kitten.Term as Term
-import qualified Text.PrettyPrint as Pretty
 
 convertClosures :: Sweet 'Postfix -> Sweet 'Scoped
 convertClosures = (Term.scopedFromPostfix .) $ cata $ \ case
@@ -52,17 +43,29 @@ convertClosures = (Term.scopedFromPostfix .) $ cata $ \ case
     vars = sort $ HashSet.toList $ freeVars body
     in Term.composed origin
       $ map (SLocal () origin) vars ++
-      [ close vars origin
-        $ SLambda () origin
-          (map (\ var -> (origin, Just var, ())) vars) body
-      ]
+      [close True vars origin body]
+  -- TODO: unboxed quotations
   term -> embed term
   where
-    close :: [Unqualified] -> Origin -> Sweet 'Postfix -> Sweet 'Postfix
-    close [] _origin body = body
-    close vars origin body = SCompose ()
-      (SQuotation () origin body)
-      (SIdentity () origin) -- FIXME: should be NewClosure () origin (length vars)
+    close :: Bool -> [Unqualified] -> Origin -> Sweet 'Postfix -> Sweet 'Postfix
+    close boxed vars@(_ : _) origin body = SCompose ()
+      (SQuotation () origin
+        (SLambda () origin
+          (map (\ var -> (origin, Just var, ())) vars)
+          body))
+      -- We haven't done type inference yet, so we don't know the type of the
+      -- closure, but all we need at this point is the number of fields;
+      -- inference will fill in their types.
+      --
+      -- x y z { ... } pack (_, _, _) as [X, Y, Z] (_)
+      (SPack () origin boxed
+        (map (\ (Unqualified var)
+          -> ((), Unqualified $ capitalize var)) vars)
+        ())
+
+    -- FIXME: For consistency, this might generate an existential that
+    -- quantifies over no types.
+    close _boxed [] _origin body = body
 
 freeVars :: Sweet p -> HashSet Unqualified
 freeVars = cata $ \ case
@@ -73,7 +76,7 @@ freeVars = cata $ \ case
   SFDo _ _ f x -> f <> x
   SFEscape _ _ body -> body
   SFFloat{} -> mempty
-  SFGeneric _ _ _ body -> error
+  SFGeneric _ _ _ _body -> error
     "generic expressions should not appear before type inference"
   SFGroup _ _ body -> body
   SFIdentity{} -> mempty
@@ -98,6 +101,7 @@ freeVars = cata $ \ case
     ]
   SFNestableCharacter{} -> mempty
   SFNestableText{} -> mempty
+  SFPack{} -> mempty
   SFParagraph{} -> mempty
   SFTag{} -> mempty
   SFText{} -> mempty

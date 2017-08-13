@@ -105,6 +105,6 @@ instance (Monad m) => Informer (KT m) where
   halt = KT $ \ _context reports -> return $ Left reports
   report r = KT $ \ context reports -> return . Right . (,) () $ case context of
     [] -> r : reports
-    _ -> Context context r : reports
+    _ -> Context (reverse context) r : reports
   while origin message action = KT $ \ context reports
     -> unKT action ((origin, message) : context) reports

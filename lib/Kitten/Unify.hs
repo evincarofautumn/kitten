@@ -19,21 +19,23 @@ import Kitten.Informer (Informer(..))
 import Kitten.Kind (Kind(..))
 import Kitten.Monad (K)
 import Kitten.Occurrences (occurs)
-import Kitten.Origin (Origin)
+import Kitten.Origin (Origin, getOrigin)
 import Kitten.Type (Type(..), TypeId, Var(..))
 import Kitten.TypeEnv (TypeEnv, freshTv)
+import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.Map as Map
 import qualified Kitten.Instantiate as Instantiate
 import qualified Kitten.Report as Report
 import qualified Kitten.Type as Type
 import qualified Kitten.TypeEnv as TypeEnv
 import qualified Kitten.Zonk as Zonk
+import qualified Text.PrettyPrint as Pretty
 
 -- | There are two kinds of unification going on here: basic logical unification
 -- for value types, and row unification for permission types.
 
 type_ :: TypeEnv -> Type -> Type -> K TypeEnv
-type_ tenv0 t1 t2 = case (t1', t2') of
+type_ tenv0 t1 t2 = withContext $ case (t1', t2') of
   _ | t1' == t2' -> return tenv0
   (TypeVar origin x, t) -> unifyTv tenv0 origin x t
   (_, TypeVar{}) -> commute
@@ -75,11 +77,16 @@ type_ tenv0 t1 t2 = case (t1', t2') of
 -- an infinite loop.
 
   where
-  t1' = Zonk.type_ tenv0 t1
-  t2' = Zonk.type_ tenv0 t2
-  commute = type_ tenv0 t2 t1
-  permissionTail (TypeConstructor _ "Join" :@ _ :@ a) = permissionTail a
-  permissionTail t = t
+    t1' = Zonk.type_ tenv0 t1
+    t2' = Zonk.type_ tenv0 t2
+    commute = type_ tenv0 t2 t1
+    permissionTail (TypeConstructor _ "Join" :@ _ :@ a) = permissionTail a
+    permissionTail t = t
+    withContext
+      = while (getOrigin t1)
+        (Pretty.hsep ["trying to match type", pPrint t1])
+      . while (getOrigin t2)
+        (Pretty.hsep ["with type", pPrint t2])
 
 -- Unification of a type variable with a type simply looks up the current value
 -- of the variable and unifies it with the type; if the variable does not exist,

@@ -116,6 +116,7 @@ library
     Kitten.Substitute
     Kitten.Synonym
     Kitten.Term
+    Kitten.Text
     Kitten.Token
     Kitten.Tokenize
     Kitten.Type
@@ -213,6 +214,7 @@ test-suite test
     Kitten.Substitute
     Kitten.Synonym
     Kitten.Term
+    Kitten.Text
     Kitten.Token
     Kitten.Tokenize
     Kitten.Type

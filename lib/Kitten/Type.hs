@@ -26,6 +26,7 @@ module Kitten.Type
   , origin
   ) where
 
+import Data.Function (on)
 import Data.HashMap.Strict (HashMap)
 import Data.Hashable (Hashable(..))
 import Data.List (findIndex)
@@ -34,10 +35,11 @@ import Data.Monoid ((<>))
 import GHC.Exts (IsString(..))
 import Kitten.Kind (Kind(..))
 import Kitten.Name (Qualified(..), Unqualified(..))
-import Kitten.Origin (Origin)
+import Kitten.Origin (HasOrigin(..), Origin)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
+import qualified Kitten.Origin as Origin
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.PrettyPrint as Pretty
@@ -59,6 +61,15 @@ data Type
  deriving (Show)
 
 infixl 1 :@
+
+instance HasOrigin Type where
+  getOrigin type_ = case type_ of
+    a :@ b -> (Origin.merge `on` getOrigin) a b
+    TypeConstructor o _ -> o
+    TypeVar o _ -> o
+    TypeConstant o _ -> o
+    Forall o _ _ -> o
+    TypeValue o _ -> o
 
 newtype Constructor = Constructor Qualified
   deriving (Eq, Hashable, Show)

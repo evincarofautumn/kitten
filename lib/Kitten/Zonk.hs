@@ -108,6 +108,10 @@ term tenv0 = go
         -> SNestableCharacter (zonk tref) origin text
       SNestableText tref origin text
         -> SNestableText (zonk tref) origin text
+      SPack tref origin boxed vars hiddenType
+        -> SPack (zonk tref) origin boxed
+          (map (\ (varType, name) -> (zonk varType, name)) vars)
+          (zonk hiddenType)
       SParagraph tref origin text
         -> SParagraph (zonk tref) origin text
       STag tref origin size index

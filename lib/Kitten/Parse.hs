@@ -549,16 +549,7 @@ signatureParser = quantifiedParser signature <|> signature <?> "type signature"
   where signature = groupedParser functionTypeParser
 
 blockParser :: Parser (Sweet 'Parsed)
-blockParser = (blockedParser blockContentsParser <|> reference)
-  <?> "block or reference"
-  where
-  reference = parserMatch_ Token.Reference *> Parsec.choice
-    [ do
-      origin <- getTokenOrigin
-      SWord () origin Operator.Postfix
-        <$> (fst <$> nameParser) <*> pure []
-    , termParser
-    ]
+blockParser = (blockedParser blockContentsParser) <?> "block"
 
 blockContentsParser :: Parser (Sweet 'Parsed)
 blockContentsParser = do
@@ -697,8 +688,18 @@ termParser = (<?> "expression") $ do
         ]
 
     blockValue :: Parser (Sweet 'Parsed)
-    blockValue = (<?> "quotation")
-      $ SQuotation () <$> getTokenOrigin <*> blockParser
+    blockValue = Parsec.choice
+      [ (<?> "quotation") $ SQuotation () <$> getTokenOrigin <*> blockParser
+      , (<?> "escape") $ do
+        origin <- getTokenOrigin
+        fmap (SEscape () origin) $ parserMatch_ Token.Reference *> Parsec.choice
+          [ do
+            nameOrigin <- getTokenOrigin
+            SWord () nameOrigin Operator.Postfix
+              <$> (fst <$> nameParser) <*> pure []
+          , termParser
+          ]
+      ]
 
     asParser :: Parser (Sweet 'Parsed)
     asParser = (<?> "'as' expression") $ do

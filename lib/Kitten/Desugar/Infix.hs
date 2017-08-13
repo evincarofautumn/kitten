@@ -142,6 +142,8 @@ desugar dictionary definition = do
 
       SNestableText _ origin text -> pure $ SNestableText () origin text
 
+      SPack _ origin boxed vars _ -> pure $ SPack () origin boxed vars ()
+
       SParagraph _ origin text -> pure $ SParagraph () origin text
 
       STag _ origin size index -> pure $ STag () origin size index

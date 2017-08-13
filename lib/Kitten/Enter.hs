@@ -34,7 +34,7 @@ import Kitten.Metadata (Metadata)
 import Kitten.Monad (K)
 import Kitten.Name
 import Kitten.Phase (Phase(..))
-import Kitten.Term (Sweet, Term)
+import Kitten.Term (Sweet)
 import Kitten.Tokenize (tokenize)
 import Kitten.TypeDefinition (TypeDefinition)
 import qualified Data.HashMap.Strict as HashMap
@@ -53,7 +53,6 @@ import qualified Kitten.Quantify as Quantify
 import qualified Kitten.Report as Report
 import qualified Kitten.Resolve as Resolve
 import qualified Kitten.Signature as Signature
-import qualified Kitten.Term as Term
 import qualified Kitten.TypeDefinition as TypeDefinition
 import qualified Text.PrettyPrint as Pretty
 

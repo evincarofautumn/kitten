@@ -16,22 +16,20 @@ module Kitten.Flatten
 
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State (StateT, gets, modify, runStateT)
-import Data.Foldable (foldlM, foldrM)
-import Kitten.Dictionary (Dictionary)
+import Data.Foldable (foldlM)
+import Data.Monoid ((<>))
 import Kitten.Dictionary (Dictionary)
 import Kitten.Infer (inferType0)
 import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Monad (K)
-import Kitten.Monad (K)
-import Kitten.Name (Closed(..), Qualified(..), Qualifier, Unqualified(..))
-import Kitten.Name (Qualifier)
+import Kitten.Name (Qualified(..), Unqualified(..))
+import Kitten.Name (GeneralName(..), Qualifier)
 import Kitten.Origin (getOrigin)
 import Kitten.Phase (Phase(..))
-import Kitten.Phase (Phase(..))
-import Kitten.Term (Case(..), Else(..), Sweet(..), Term(..), Value(..))
-import Kitten.Term (Sweet)
+import Kitten.Term (Sweet(..))
 import Kitten.Type (Type(..), Var(..))
 import Kitten.TypeEnv (TypeEnv)
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Kitten.Dictionary as Dictionary
@@ -39,6 +37,7 @@ import qualified Kitten.Entry as Entry
 import qualified Kitten.Entry.Category as Category
 import qualified Kitten.Entry.Merge as Merge
 import qualified Kitten.Free as Free
+import qualified Kitten.Operator as Operator
 import qualified Kitten.Signature as Signature
 import qualified Kitten.Term as Term
 import qualified Kitten.TypeEnv as TypeEnv
@@ -143,100 +142,108 @@ flatten dictionary qualifier term0 = do
 
     SJump type_ origin -> pure (SJump type_ origin, tenv0)
 
-    SLambda type_ origin vars body -> error "TODO: flatten lambda"
-{-
+    SLambda type_ origin vars body -> do
       let
         oldLocals = TypeEnv.vs tenv0
-        localEnv = tenv0 { TypeEnv.vs = varTypes ++ TypeEnv.vs tenv0 }
-      (a', tenv1) <- go localEnv a
+        varTypes = foldMap (\ (_, mName, varType)
+          -> maybe mempty (\ name -> HashMap.singleton name varType) mName) vars
+        localEnv = tenv0 { TypeEnv.vs = TypeEnv.vs tenv0 <> varTypes }
+      (body', tenv1) <- go localEnv body
       let tenv2 = tenv1 { TypeEnv.vs = oldLocals }
-      return (Lambda type_ name varType a' origin, tenv2)
--}
+      return (SLambda type_ origin vars body', tenv2)
 
-    _ -> error "TODO: finish flatten"
+    SList type_ origin items -> do
+      (reversedItems', tenv1) <- foldlM (\ (acc, tenv) item -> do
+        (item', tenv') <- go tenv item
+        pure (item' : acc, tenv')) ([], tenv0) items
+      let items' = reverse reversedItems'
+      pure (SList type_ origin items', tenv1)
 
-{-
-    SList           -- Boxed list literal
-    (Annotation p)
-    !Origin
-    [Sweet p]       -- List elements
+    SLocal type_ origin name -> pure (SLocal type_ origin name, tenv0)
 
-    SLocal          -- Push local
-    (Annotation p)
-    !Origin
-    !Unqualified    -- Local name
+    SLoop type_ origin -> pure (SLoop type_ origin, tenv0)
 
-    SLoop
-    (Annotation p)
-    !Origin
+    SMatch type_ origin mScrutinee cases mElse -> do
+      (mScrutinee', tenv1) <- case mScrutinee of
+        Just scrutinee -> do
+          (scrutinee', tenv') <- go tenv0 scrutinee
+          pure (Just scrutinee', tenv')
+        Nothing -> pure (Nothing, tenv0)
+      (reversedCases', tenv2) <- foldlM (\ (acc, tenv) (caseOrigin, name, body) -> do
+        (body', tenv') <- go tenv body
+        pure ((caseOrigin, name, body') : acc, tenv')) ([], tenv1) cases
+      let cases' = reversedCases'
+      (mElse', tenv3) <- case mElse of
+        Just else_ -> do
+          (else', tenv') <- go tenv2 else_
+          pure (Just else', tenv')
+        Nothing -> pure (Nothing, tenv2)
+      pure (SMatch type_ origin mScrutinee' cases' mElse', tenv3)
 
-    SMatch
-    (Annotation p)
-    !Origin
-    !(Maybe (Sweet p))                -- Scrutinee
-    [(Origin, GeneralName, Sweet p)]  -- case branches
-    !(Maybe (Sweet p))                -- else branch
+    SNestableCharacter type_ origin text
+      -> pure (SNestableCharacter type_ origin text, tenv0)
 
-    SNestableCharacter  -- Nestable character literal (round quotes)
-    (Annotation p)
-    !Origin
-    !Text               -- Escaped character (e.g., " " vs. "")
+    SNestableText type_ origin text
+      -> pure (SNestableText type_ origin text, tenv0)
 
-    SNestableText   -- Nestable text literal (round quotes)
-    (Annotation p)
-    !Origin
-    !Text           -- Escaped text
+    SPack type_ origin boxed vars hiddenType
+      -> pure (SPack type_ origin boxed vars hiddenType, tenv0)
 
-    SParagraph      -- Paragraph literal
-    (Annotation p)
-    !Origin
-    !Text           -- Escaped text ("\n" for line breaks, "\\n" for escapes)
+    SParagraph type_ origin text
+      -> pure (SParagraph type_ origin text, tenv0)
 
-    STag               -- Tag fields to make new ADT instance
-    (Annotation p)
-    !Origin
-    !Int               -- Number of fields
-    !ConstructorIndex  -- Constructor tag
+    STag type_ origin size index
+      -> pure (STag type_ origin size index, tenv0)
 
-    SText           -- Text literal (straight quotes)
-    (Annotation p)
-    !Origin
-    !Text           -- Escaped text
+    SText type_ origin text
+      -> pure (SText type_ origin text, tenv0)
 
-    SQuotation      -- Boxed quotation
-    (Annotation p)
-    !Origin
-    !(Sweet p)
+    SQuotation _type origin body -> do
+      (body', tenv1) <- go tenv0 body
+      LambdaIndex index <- gets fst
+      let
+        name = Qualified qualifier
+          $ Unqualified $ Text.pack $ "lambda." ++ show index
+      modify $ \ (_, d) -> (LambdaIndex $ succ index, d)
+      let
+        deducedType = Term.annotation body
+        type_ = foldr addForall deducedType
+          $ Map.toList $ Free.tvks tenv1 deducedType
+        addForall (i, (n, k)) = Forall origin (Var n i k)
+      modify $ \ (l, d) -> let
+        entry = Entry.Word
+          Category.Word
+          Merge.Deny
+          (getOrigin body')
+          Nothing
+          (Just (Signature.Type type_))
+          (Just body')
+        in (l, Dictionary.insert (Instantiated name []) entry d)
+      dict <- gets snd
+      let
+        tenv2 = tenv1
+          { TypeEnv.sigs = Map.insert name type_ $ TypeEnv.sigs tenv1 }
+      -- FIXME: Should this not discard the type environment?
+      (typechecked, _) <- lift $ inferType0 dict tenv2 Nothing
+        $ SEscape () origin
+        $ SWord () (getOrigin body) Operator.Postfix (QualifiedName name) []
+      return (typechecked, tenv2)
 
-    SReturn
-    (Annotation p)
-    !Origin
+    SReturn type_ origin -> pure (SReturn type_ origin, tenv0)
 
-    SSection                       -- Operator section
-    (Annotation p)
-    !Origin
-    !GeneralName                   -- Operator
-    !(Either (Sweet p) (Sweet p))  -- Operand
+    SSection type_ origin name swap operand typeArgs -> do
+      (operand', tenv1) <- go tenv0 operand
+      pure (SSection type_ origin name swap operand' typeArgs, tenv1)
 
-    STodo           -- ... expression
-    (Annotation p)
-    !Origin
+    STodo type_ origin -> pure (STodo type_ origin, tenv0)
 
-    SUnboxedQuotation
-    (Annotation p)
-    !Origin
-    !(Sweet p)
+    -- At this point, boxed and unboxed quotations are differentiated by the
+    -- closure packing expressions that use them, so we can reuse the boxed case
+    -- for the unboxed case.
+    SUnboxedQuotation type_ origin body
+      -> go tenv0 (SQuotation type_ origin body)
 
-    SWith           -- Permission coercion
-    (Annotation p)
-    !Origin
-    [Permit]        -- Permissions to add or remove
+    SWith type_ origin permits -> pure (SWith type_ origin permits, tenv0)
 
-    SWord
-    (Annotation p)
-    !Origin
-    !Fixity         -- Whether used infix or postfix at call site
-    !GeneralName
-    [Signature]     -- Type arguments
-
--}
+    SWord type_ origin fixity name typeArgs
+      -> pure (SWord type_ origin fixity name typeArgs, tenv0)

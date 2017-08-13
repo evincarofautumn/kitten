@@ -221,7 +221,7 @@ human report = case report of
 
   Context context message -> Pretty.vsep
     $ map
-      (\ (origin, doc) -> Pretty.hsep [showOriginPrefix origin, "while", doc])
+      (\ (origin, doc) -> Pretty.hsep [showOriginPrefix origin, doc])
       context
     ++ [human message]
 

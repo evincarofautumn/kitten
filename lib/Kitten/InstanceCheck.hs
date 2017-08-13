@@ -19,9 +19,10 @@ import Data.List (find)
 import Data.Set (Set)
 import Kitten.Informer (Informer(..))
 import Kitten.Monad (K, attempt)
-import Kitten.Origin (Origin)
+import Kitten.Origin (Origin, getOrigin)
 import Kitten.Type (Constructor(..), Type(..), TypeId, Var(..))
 import Kitten.TypeEnv (TypeEnv, freshTypeId)
+import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Kitten.Free as Free
@@ -40,7 +41,7 @@ import qualified Text.PrettyPrint as Pretty
 -- other way around!
 
 instanceCheck :: Pretty.Doc -> Type -> Pretty.Doc -> Type -> K ()
-instanceCheck aSort aScheme bSort bScheme = do
+instanceCheck aSort aScheme bSort bScheme = withContext $ do
   let tenv0 = TypeEnv.empty
   let aType = aScheme
   (ids, bType) <- skolemize tenv0 bScheme
@@ -54,6 +55,21 @@ instanceCheck aSort aScheme bSort bScheme = do
   return ()
   where
   failure = report $ Report.FailedInstanceCheck aScheme bScheme
+  withContext
+    = while (getOrigin aScheme)
+      (Pretty.hsep
+        [ "checking"
+        , aSort
+        , "type"
+        , Pretty.quotes (pPrint aScheme)
+        ])
+    . while (getOrigin bScheme)
+      (Pretty.hsep
+        [ "against"
+        , bSort
+        , "type"
+        , Pretty.quotes (pPrint bScheme)
+        ])
 
 -- | Skolemization replaces each quantified type variable with a type constant
 -- that unifies only with itself.

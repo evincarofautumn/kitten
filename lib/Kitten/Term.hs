@@ -38,7 +38,6 @@ module Kitten.Term
   , decompose
   , decomposed
   , identityCoercion
-  , permissionCoercion
   , postfixFromResolved
   , quantifierCount
   , quantifierCount'
@@ -49,9 +48,8 @@ module Kitten.Term
   ) where
 
 import Data.Functor.Foldable (Base, Corecursive(..), Recursive(..))
-import Data.List (intersperse, partition)
+import Data.List (intersperse)
 import Data.Text (Text)
-import Kitten.Entry.Parameter (Parameter(..))
 import Kitten.Literal (IntegerLiteral, FloatLiteral)
 import Kitten.Name
 import Kitten.Operator (Fixity)
@@ -62,7 +60,6 @@ import Kitten.Type (Type, TypeId)
 import Text.PrettyPrint.HughesPJClass (Pretty(..))
 import Unsafe.Coerce (unsafeCoerce)
 import qualified Data.Text as Text
-import qualified Kitten.Kind as Kind
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Signature as Signature
 import qualified Text.PrettyPrint as Pretty
@@ -196,6 +193,44 @@ data Sweet (p :: Phase)
     !Origin
     !Text           -- Escaped text
 
+  -- | Existential packing (for closures only).
+  --
+  -- For boxed closures, packing takes the fields and boxes them as a chain of
+  -- pairs, then returns a pair of the pointer to the boxed closure and the
+  -- pointer to the function.
+  --
+  -- Boxed closures have uniform kind @sizeof(Owned)+sizeof(=>)@, so functions
+  -- can freely take & return them, and they can be stored in data structures.
+  --
+  -- > -> count, message; { message count replicate concat }
+  --
+  -- > count message \lambda.0
+  -- >   pack (Int32, List<Char>)
+  -- >   as [C1, C2] (Pair<Owned<Pair<C1, C2>>, (C1, C2 => List<Char>)>)
+  --
+  -- For unboxed closures, packing takes the fields and function pointer and
+  -- converts them to a chain of pairs, leaving the closure fields and function
+  -- pointer all on the stack. That is, at runtime, this is a no-op.
+  --
+  -- Unboxed closures have variable kind @sizeof(C1)+sizeof(C2)+...+sizeof(=>)@,
+  -- so they do not have uniform size and therefore can't be stored in data
+  -- structures; additionally, the compiler needs to generate specializations of
+  -- functions with unboxed closures as inputs or outputs. However, they have
+  -- the distinct advantage of not requiring any dynamic allocation (@-Alloc@).
+  --
+  -- > -> count, message; {| message count replicate concat |}
+  --
+  -- > count message \lambda.0
+  -- >   pack (Int32, List<Char>)
+  -- >   as [C1, C2] (Pair<C1, Pair<C2, (C1, C2 => List<Char>)>>)
+  --
+  | SPack                          -- pack τ as ∃X.τ′ - make a pair of a type τ′ and value v such that v has type τ[X ↦ τ′].
+    (Annotation p)
+    !Origin
+    !Bool                          -- Boxed
+    [(Annotation p, Unqualified)]  -- Concrete type to pack and corresponding abstract type variable
+    (Annotation p)                 -- Type of packed function pointer
+
   | SParagraph      -- Paragraph literal
     (Annotation p)
     !Origin
@@ -282,6 +317,7 @@ instance HasOrigin (Sweet p) where
     SMatch _ o _ _ _ -> o
     SNestableCharacter _ o _ -> o
     SNestableText _ o _ -> o
+    SPack _ o _ _ _ -> o
     SParagraph _ o _ -> o
     STag _ o _ _ -> o
     SText _ o _ -> o
@@ -391,6 +427,28 @@ instance Pretty (Sweet p) where
     SNestableText _ _ t -> Pretty.hcat
       ["\x201C", Pretty.text $ Text.unpack t, "\x201D"]
 
+    SPack _ _ boxed vars _ -> let
+      (types, names) = unzip vars
+      in Pretty.hcat
+        [ "pack ("
+        , Pretty.list $ map (const "_") types
+        , ") as ["
+        , Pretty.list $ map pPrint names
+        , "] ("
+        , if boxed
+          then Pretty.hcat
+            [ "Pair<Owned<"
+            , foldr (\ name acc
+              -> Pretty.hcat ["Pair<", pPrint name, ", ", acc, ">"])
+              "Unit" names
+            , ">, _>"
+            ]
+          else foldr (\ name acc
+            -> Pretty.hcat ["Pair<", pPrint name, ", ", acc, ">"])
+            "_" names
+        , ")"
+        ]
+
     SParagraph _ _ t -> Pretty.vcat
       $ "\"\"\""
       : map (Pretty.text . Text.unpack) (Text.lines t)
@@ -451,6 +509,7 @@ annotation term = case term of
   SMatch a _ _ _ _ -> a
   SNestableCharacter a _ _ -> a
   SNestableText a _ _ -> a
+  SPack a _ _ _ _ -> a
   SParagraph a _ _ -> a
   STag a _ _ _ -> a
   SText a _ _ -> a
@@ -486,6 +545,7 @@ data SweetF (p :: Phase) a
   | SFMatch (Annotation p) !Origin !(Maybe a) [(Origin, GeneralName, a)] !(Maybe a)
   | SFNestableCharacter (Annotation p) !Origin !Text
   | SFNestableText (Annotation p) !Origin !Text
+  | SFPack (Annotation p) !Origin !Bool [(Annotation p, Unqualified)] (Annotation p)
   | SFParagraph (Annotation p) !Origin !Text
   | SFTag (Annotation p) !Origin !Int !ConstructorIndex
   | SFText (Annotation p) !Origin !Text
@@ -526,6 +586,7 @@ instance Recursive (Sweet p) where
     SMatch a b c d e -> SFMatch a b c d e
     SNestableCharacter a b c -> SFNestableCharacter a b c
     SNestableText a b c -> SFNestableText a b c
+    SPack a b c d e -> SFPack a b c d e
     SParagraph a b c -> SFParagraph a b c
     STag a b c d -> SFTag a b c d
     SText a b c -> SFText a b c
@@ -560,6 +621,7 @@ instance Corecursive (Sweet p) where
     SFMatch a b c d e -> SMatch a b c d e
     SFNestableCharacter a b c -> SNestableCharacter a b c
     SFNestableText a b c -> SNestableText a b c
+    SFPack a b c d e -> SPack a b c d e
     SFParagraph a b c -> SParagraph a b c
     SFTag a b c d -> STag a b c d
     SFText a b c -> SText a b c
@@ -682,27 +744,6 @@ asCoercion x o ts = Coercion (AnyCoercion signature) x o
 
 identityCoercion :: a -> Origin -> Term a
 identityCoercion = Coercion IdentityCoercion
-
-permissionCoercion :: [Permit] -> a -> Origin -> Term a
-permissionCoercion permits x o = Coercion (AnyCoercion signature) x o
-  where
-  signature = Signature.Quantified
-    [ Parameter o "R" Kind.Stack
-    , Parameter o "S" Kind.Stack
-    ]
-    (Signature.Function
-      [ Signature.StackFunction
-        (Signature.Variable "R" o) []
-        (Signature.Variable "S" o) []
-        (map permitName grants) o
-      ]
-      [ Signature.StackFunction
-        (Signature.Variable "R" o) []
-        (Signature.Variable "S" o) []
-        (map permitName revokes) o
-      ]
-      [] o) o
-  (grants, revokes) = partition permitted permits
 
 decompose :: Term a -> [Term a]
 -- TODO: Verify that this is correct.
