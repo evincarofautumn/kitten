@@ -58,6 +58,7 @@ import qualified Data.Text as Text
 import qualified Kitten.DataConstructor as DataConstructor
 import qualified Kitten.Dictionary as Dictionary
 import qualified Kitten.Entry as Entry
+import qualified Kitten.Entry.Parent as Parent
 import qualified Kitten.Instantiate as Instantiate
 import qualified Kitten.Kind as Kind
 import qualified Kitten.Literal as Literal
@@ -219,10 +220,10 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
       (Pretty.hsep
         [ "ensuring output of"
         , Pretty.quotes $ pPrint term1
-        , Pretty.parens $ pPrint b
+        , Pretty.parens $ pPrint type1
         , "matches input of"
         , Pretty.quotes $ pPrint term2
-        , Pretty.parens $ pPrint c
+        , Pretty.parens $ pPrint type2
         ])
       $ Unify.type_ tenv4 b c
     tenv6 <- while (getOrigin p1)
@@ -256,10 +257,16 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
   -- the number of bits.
 
   SFloat _ origin literal -> do
+    [stackType, permission] <- fresh origin
+      [ ("S", Stack)
+      , ("P", Permission)
+      ]
     let
-      type_ = TypeConstructor origin $ case Literal.floatBits literal of
+      ctor = TypeConstructor origin $ case Literal.floatBits literal of
         Float32 -> "Float32"
         Float64 -> "Float64"
+      type_ = Type.fun origin stackType
+        (Type.prod origin stackType ctor) permission
       type' = Zonk.type_ tenvFinal type_
     pure (SFloat type' origin literal, type_, tenv0)
 
@@ -428,8 +435,116 @@ inferType dictionary tenvFinal tenv0 term0 = case term0 of
 
   SLoop _ origin -> error "TODO: infer loop"
 
-  SMatch _ origin mScrutinee cases mElse -> while origin context
-    $ error "TODO: infer match"
+  SMatch _ origin mScrutinee cases mElse -> while origin context $ do
+
+-- A @match@ expression consumes an instance of a data type, testing its tag to
+-- determine which @case@ to apply, if any. If a matching @case@ is found, the
+-- fields of the value are unpacked onto the stack and the @case@ body is
+-- executed on those fields. A non-exhaustive @match@ without an @else@ branch
+-- raises a failure, causing the @match@ to require the @+Fail@ permission. If
+-- the match is exhaustive, this implicit @else@ is not included, so the @match@
+-- does not require @+Fail@.
+
+    let
+      constructors = case cases of
+        -- Curiously, because an empty match works on any type, no constructors
+        -- are actually permitted, only an @else@ branch.
+        [] -> []
+        (_, QualifiedName ctorName, _) : _
+          -> case Dictionary.lookup (Instantiated ctorName []) dictionary of
+            Just (Entry.Word _ _ _ (Just (Parent.Type typeName)) _ _)
+              -> case Dictionary.lookup (Instantiated typeName []) dictionary of
+                Just (Entry.Type _ _ ctors) -> ctors
+                -- TODO: Check whether this can happen if a non-constructor
+                -- word is erroneously used in a case; if this is possible, we
+                -- should generate a report rather than an error.
+                _ -> error "constructor not linked to type"
+            _ -> error "constructor not found after name resolution"
+        _ -> error "unqualified constructor after name resolution"
+
+    (reversedCases', reversedCaseTypes, unhandledConstructors, tenv1)
+      <- foldlM inferCase' ([], [], constructors, tenv0) cases
+    -- Checkpoint to halt after redundant cases are reported.
+    checkpoint
+
+    let
+      cases' = reverse reversedCases'
+      caseTypes = reverse reversedCaseTypes
+
+      (elseOrigin, elseBody) = case mElse of
+        Just body -> (getOrigin body, body)
+        Nothing -> (origin, SWord () origin Operator.Postfix
+          (QualifiedName (Qualified Vocabulary.global "abort"))
+          [])
+
+    (elseBody', elseType, tenv2) <- do
+      (body', bodyType, tenv') <- inferType' tenv1 elseBody
+
+      -- The type of a match is the union of the types of the cases, and since
+      -- the cases consume the scrutinee, the @else@ branch must have a dummy
+      -- (fully polymorphic) type for the scrutinee. This may be easier to see
+      -- when considering the type of an expression like:
+      --
+      --     match { else { ... } }
+      --
+      -- Which consumes a value of any type, always running the @else@ branch.
+      --
+      -- TODO: This should be considered a drop.
+      unusedScrutinee <- TypeEnv.freshTv tenv' "MatchUnused" origin Value
+      (a, b, p, tenv'') <- Unify.function tenv' bodyType
+      let
+        elseType = Type.fun elseOrigin
+          (Type.prod elseOrigin a unusedScrutinee) b p
+      return (body', elseType, tenv'')
+
+    (matchType, tenv3) <- case unhandledConstructors of
+
+      -- FIXME: Assumes caseTypes is non-empty.
+      [] -> do
+        let firstCase : remainingCases = caseTypes
+        tenv' <- foldrM
+          (\ type_ tenv -> Unify.type_ tenv firstCase type_)
+          tenv2 remainingCases
+        return (Type.setOrigin origin firstCase, tenv')
+
+      -- Only include @else@ branch if there are unhandled cases.
+      _ -> do
+        tenv' <- foldrM (\ type_ tenv -> Unify.type_ tenv elseType type_)
+          tenv2 caseTypes
+        return (Type.setOrigin origin elseType, tenv')
+
+    let matchType' = Zonk.type_ tenvFinal matchType
+
+    -- If there is a scrutinee, we compose it with the rest of the
+    -- match. Otherwise we're done, and just return the inferred match.
+    case mScrutinee of
+      Just scrutinee -> do
+        (scrutinee', scrutineeType, tenv') <- inferType' tenv3 scrutinee
+        (a, b, p1, tenv'') <- Unify.function tenv' scrutineeType
+        (c, d, p2, tenv''') <- Unify.function tenv'' matchType
+        tenv'''' <- Unify.type_ tenv''' b c
+        tenv''''' <- Unify.type_ tenv'''' p1 p2
+        let
+          composedType = Type.fun origin a d p1
+          composedType' = Zonk.type_ tenvFinal composedType
+        pure
+          ( SMatch composedType' origin
+            (Just scrutinee') cases' (Just elseBody')
+          , composedType
+          , tenv'''''
+          )
+
+      Nothing -> pure
+        ( SMatch matchType' origin Nothing cases' (Just elseBody')
+        , matchType
+        , tenv3
+        )
+
+    where
+      inferCase' (cases', types, remaining, tenv) case_ = do
+        (case', type_, remaining', tenv')
+          <- inferCase dictionary tenvFinal tenv remaining case_
+        return (case' : cases', type_ : types, remaining', tenv')
 
   SNestableCharacter _ origin text -> inferChar tenv0 SNestableCharacter origin text
 
@@ -903,6 +1018,97 @@ inferWith dictionary tenvFinal tenv0 origin permits = do
       origin) origin
   (grants, revokes) = partition Term.permitted permits
 
+-- A case in a 'match' expression is simply the inverse of a constructor:
+-- whereas a constructor takes some fields from the stack and produces
+-- an instance of a data type, a 'case' deconstructs an instance of a data type
+-- and produces the fields on the stack for the body of the case to consume.
+
+inferCase
+  :: Dictionary
+  -> TypeEnv
+  -> TypeEnv
+  -> [DataConstructor]
+  -> (Origin, GeneralName, Sweet 'Scoped)
+  -> K ((Origin, GeneralName, Sweet 'Typed), Type, [DataConstructor], TypeEnv)
+inferCase dictionary tenvFinal tenv0 dataConstructors
+  (origin, qualified@(QualifiedName name), body) = do
+  (body', bodyType, tenv1) <- inferType dictionary tenvFinal tenv0 body
+  (a1, b1, e1, tenv2) <- Unify.function tenv1 bodyType
+  case Map.lookup name $ TypeEnv.sigs tenv2 of
+    Just signature -> do
+      (a2, b2, e2, tenv3) <- Unify.function tenv2 signature
+      -- Note that we swap the consumption and production of the constructor
+      -- to get the type of the deconstructor. The body consumes the fields.
+      tenv4 <- Unify.type_ tenv3 a1 a2
+      tenv5 <- Unify.type_ tenv4 e1 e2
+      let type_ = Type.fun origin b2 b1 e1
+      -- FIXME: Should a case be annotated with a type?
+      -- let type' = Zonk.type_ tenvFinal type_
+      let matching ctor = DataConstructor.name ctor == unqualifiedName name
+      dataConstructors' <- case partition matching dataConstructors of
+        ([], remaining) -> do
+          report $ Report.RedundantCase origin
+          return remaining
+        (_covered, remaining) -> return remaining
+      return ((origin, qualified, body'), type_, dataConstructors', tenv5)
+    Nothing -> error
+      "case constructor missing signature after name resolution"
+inferCase _ _ _ _ _ = error "case of non-qualified name after name resolution"
+
+{-
+inferValue
+  :: Dictionary
+  -> TypeEnv
+  -> TypeEnv
+  -> Origin
+  -> Value a
+  -> K (Value Type, Type, TypeEnv)
+inferValue dictionary tenvFinal tenv0 origin value = case value of
+  Capture names term -> do
+    let types = map (TypeEnv.getClosed tenv0) names
+    let oldClosure = TypeEnv.closure tenv0
+    let localEnv = tenv0 { TypeEnv.closure = types }
+    (term', t1, tenv1) <- inferType dictionary tenvFinal localEnv term
+    let tenv2 = tenv1 { TypeEnv.closure = oldClosure }
+    return (Capture names term', t1, tenv2)
+  Character x -> return (Character x, TypeConstructor origin "Char", tenv0)
+  Closed (ClosureIndex index) -> return
+    (Closed $ ClosureIndex index, TypeEnv.closure tenv0 !! index, tenv0)
+  Float x -> let
+    ctor = case Literal.floatBits x of
+      Float32 -> "Float32"
+      Float64 -> "Float64"
+    in return (Float x, TypeConstructor origin ctor, tenv0)
+  Integer x -> let
+    ctor = case Literal.integerBits x of
+      Signed8 -> "Int8"
+      Signed16 -> "Int16"
+      Signed32 -> "Int32"
+      Signed64 -> "Int64"
+      Unsigned8 -> "UInt8"
+      Unsigned16 -> "UInt16"
+      Unsigned32 -> "UInt32"
+      Unsigned64 -> "UInt64"
+    in return (Integer x, TypeConstructor origin ctor, tenv0)
+  Local (LocalIndex index) -> return
+    (Local $ LocalIndex index, TypeEnv.vs tenv0 !! index, tenv0)
+  Quotation{} -> error "quotation should not appear during type inference"
+  Name name -> case Dictionary.lookup (Instantiated name []) dictionary of
+    Just (Entry.Word _ _ _ _ (Just signature) _) -> do
+      type_ <- typeFromSignature tenv0 signature
+      return (Name name, type_, tenv0)
+    _ -> error $ Pretty.render $ Pretty.hsep
+      [ "unbound word name"
+      , Pretty.quote name
+      , "found during type inference"
+      ]
+  Text x -> return
+    ( Text x
+    , TypeConstructor origin "List" :@ TypeConstructor origin "Char"
+    , tenv0
+    )
+-}
+
 {-
  case term0 of
 
@@ -975,77 +1181,6 @@ inferWith dictionary tenvFinal tenv0 origin permits = do
         , type_
         , tenv3
         )
-
--- A match expression consumes an instance of a data type, pushing its fields
--- onto the stack, and testing its tag to determine which case to apply, if
--- any. Note that 'if' is sugar for 'match' on Booleans. An 'if' without an
--- 'else' is sugar for a 'match' with a present-but-empty (i.e., identity,
--- modulo permissions) 'else' branch, and this works out neatly in the types. A
--- 'match' without an else branch raises 'abort', causing the 'match' to require
--- the +Fail permission.
-
-    Match hint _ cases else_ origin -> while (getOrigin term0) context $ do
-      let
-        constructors = case cases of
-          -- Curiously, because an empty match works on any type, no
-          -- constructors are actually permitted.
-          [] -> []
-          Case (QualifiedName ctorName) _ _ : _
-            -> case Dictionary.lookup (Instantiated ctorName []) dictionary of
-              Just (Entry.Word _ _ _ (Just (Parent.Type typeName)) _ _)
-                -> case Dictionary.lookup (Instantiated typeName []) dictionary of
-                  Just (Entry.Type _ _ ctors) -> ctors
-                  -- TODO: Check whether this can happen if a non-constructor
-                  -- word is erroneously used in a case; if this is possible, we
-                  -- should generate a report rather than an error.
-                  _ -> error "constructor not linked to type"
-              _ -> error "constructor not found after name resolution"
-          _ -> error "unqualified constructor after name resolution"
-      (cases', caseTypes, constructors', tenv1)
-        <- foldlM inferCase' ([], [], constructors, tenv0) cases
-      -- Checkpoint to halt after redundant cases are reported.
-      checkpoint
-      (else', elseType, tenv2) <- case else_ of
-        Else body elseOrigin -> do
-          (body', bodyType, tenv') <- inferType' tenv1 body
-          -- The type of a match is the union of the types of the cases, and
-          -- since the cases consume the scrutinee, the 'else' branch must have
-          -- a dummy (fully polymorphic) type for the scrutinee. This may be
-          -- easier to see when considering the type of an expression like:
-          --
-          --     match { else { ... } }
-          --
-          -- Which consumes a value of any type and always executes the 'else'
-          -- branch.
-          --
-          -- TODO: This should be considered a drop.
-          unusedScrutinee <- TypeEnv.freshTv tenv1 "MatchUnused" origin Value
-          (a, b, e, tenv'') <- Unify.function tenv' bodyType
-          let
-            elseType = Type.fun elseOrigin
-              (Type.prod elseOrigin a unusedScrutinee) b e
-          return (Else body' elseOrigin, elseType, tenv'')
-      (type_, tenv3) <- case constructors' of
-        -- FIXME: Assumes caseTypes is non-empty.
-        [] -> do
-          let firstCase : remainingCases = caseTypes
-          tenv' <- foldrM
-            (\ type_ tenv -> Unify.type_ tenv firstCase type_)
-            tenv2 remainingCases
-          return (Type.setOrigin origin firstCase, tenv')
-        -- Only include 'else' branch if there are unhandled cases.
-        _ -> do
-          tenv' <- foldrM (\ type_ tenv -> Unify.type_ tenv elseType type_)
-            tenv2 caseTypes
-          return (Type.setOrigin origin elseType, tenv')
-      let type' = Zonk.type_ tenvFinal type_
-      return (Match hint type' cases' else' origin, type_, tenv3)
-
-      where
-      inferCase' (cases', types, remaining, tenv) case_ = do
-        (case', type_, remaining', tenv')
-          <- inferCase dictionary tenvFinal tenv remaining case_
-        return (case' : cases', type_ : types, remaining', tenv')
 
 -- A 'new' expression simply tags some fields on the stack, so the most
 -- straightforward way to type it is as an unsafe cast. For now, we can rely on
@@ -1132,98 +1267,6 @@ inferWith dictionary tenvFinal tenv0 origin permits = do
     Word _ _fixity name _ origin
       -> while (getOrigin term0) context
       $ inferCall dictionary tenvFinal tenv0 name origin
--}
-
--- A case in a 'match' expression is simply the inverse of a constructor:
--- whereas a constructor takes some fields from the stack and produces
--- an instance of a data type, a 'case' deconstructs an instance of a data type
--- and produces the fields on the stack for the body of the case to consume.
-
-{-
-inferCase
-  :: Dictionary
-  -> TypeEnv
-  -> TypeEnv
-  -> [DataConstructor]
-  -> Case a
-  -> K (Case Type, Type, [DataConstructor], TypeEnv)
-inferCase dictionary tenvFinal tenv0 dataConstructors
-  (Case qualified@(QualifiedName name) body origin) = do
-  (body', bodyType, tenv1) <- inferType dictionary tenvFinal tenv0 body
-  (a1, b1, e1, tenv2) <- Unify.function tenv1 bodyType
-  case Map.lookup name $ TypeEnv.sigs tenv2 of
-    Just signature -> do
-      (a2, b2, e2, tenv3) <- Unify.function tenv2 signature
-      -- Note that we swap the consumption and production of the constructor
-      -- to get the type of the deconstructor. The body consumes the fields.
-      tenv4 <- Unify.type_ tenv3 a1 a2
-      tenv5 <- Unify.type_ tenv4 e1 e2
-      let type_ = Type.fun origin b2 b1 e1
-      -- FIXME: Should a case be annotated with a type?
-      -- let type' = Zonk.type_ tenvFinal type_
-      let matching ctor = DataConstructor.name ctor == unqualifiedName name
-      dataConstructors' <- case partition matching dataConstructors of
-        ([], remaining) -> do
-          report $ Report.RedundantCase origin
-          return remaining
-        (_covered, remaining) -> return remaining
-      return (Case qualified body' origin, type_, dataConstructors', tenv5)
-    Nothing -> error
-      "case constructor missing signature after name resolution"
-inferCase _ _ _ _ _ = error "case of non-qualified name after name resolution"
-
-inferValue
-  :: Dictionary
-  -> TypeEnv
-  -> TypeEnv
-  -> Origin
-  -> Value a
-  -> K (Value Type, Type, TypeEnv)
-inferValue dictionary tenvFinal tenv0 origin value = case value of
-  Capture names term -> do
-    let types = map (TypeEnv.getClosed tenv0) names
-    let oldClosure = TypeEnv.closure tenv0
-    let localEnv = tenv0 { TypeEnv.closure = types }
-    (term', t1, tenv1) <- inferType dictionary tenvFinal localEnv term
-    let tenv2 = tenv1 { TypeEnv.closure = oldClosure }
-    return (Capture names term', t1, tenv2)
-  Character x -> return (Character x, TypeConstructor origin "Char", tenv0)
-  Closed (ClosureIndex index) -> return
-    (Closed $ ClosureIndex index, TypeEnv.closure tenv0 !! index, tenv0)
-  Float x -> let
-    ctor = case Literal.floatBits x of
-      Float32 -> "Float32"
-      Float64 -> "Float64"
-    in return (Float x, TypeConstructor origin ctor, tenv0)
-  Integer x -> let
-    ctor = case Literal.integerBits x of
-      Signed8 -> "Int8"
-      Signed16 -> "Int16"
-      Signed32 -> "Int32"
-      Signed64 -> "Int64"
-      Unsigned8 -> "UInt8"
-      Unsigned16 -> "UInt16"
-      Unsigned32 -> "UInt32"
-      Unsigned64 -> "UInt64"
-    in return (Integer x, TypeConstructor origin ctor, tenv0)
-  Local (LocalIndex index) -> return
-    (Local $ LocalIndex index, TypeEnv.vs tenv0 !! index, tenv0)
-  Quotation{} -> error "quotation should not appear during type inference"
-  Name name -> case Dictionary.lookup (Instantiated name []) dictionary of
-    Just (Entry.Word _ _ _ _ (Just signature) _) -> do
-      type_ <- typeFromSignature tenv0 signature
-      return (Name name, type_, tenv0)
-    _ -> error $ Pretty.render $ Pretty.hsep
-      [ "unbound word name"
-      , Pretty.quote name
-      , "found during type inference"
-      ]
-  Text x -> return
-    ( Text x
-    , TypeConstructor origin "List" :@ TypeConstructor origin "Char"
-    , tenv0
-    )
-
 -}
 
 -- | Desugars a parsed signature into an actual type. We resolve whether names

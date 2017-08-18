@@ -1437,9 +1437,10 @@ define concat<T> (List<List<T>> -> List<T>):
   [] \cat fold_left
 
 define concat_optionals<T> (List<Optional<T>> -> List<T>):
-  []
-  { match case some { append } case none {} }
-  fold_left
+  [] \append_optional fold_left
+
+define append_optional<T> (List<T>, Optional<T> -> List<T>):
+  match case some { append } case none {}
 
 define maximum<T> (List<T> -> Optional<T>):
   \max fold_left_non_empty

@@ -65,7 +65,7 @@ convertClosures = (Term.scopedFromPostfix .) $ cata $ \ case
 
     -- FIXME: For consistency, this might generate an existential that
     -- quantifies over no types.
-    close _boxed [] _origin body = body
+    close _boxed [] origin body = SQuotation () origin body
 
 freeVars :: Sweet p -> HashSet Unqualified
 freeVars = cata $ \ case
