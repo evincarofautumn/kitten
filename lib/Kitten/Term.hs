@@ -37,6 +37,7 @@ module Kitten.Term
   , composed
   , decompose
   , decomposed
+  , discardTypes
   , identityCoercion
   , postfixFromResolved
   , quantifierCount
@@ -293,6 +294,9 @@ postfixFromResolved x = unsafeCoerce x
 
 scopedFromPostfix :: Sweet 'Postfix -> Sweet 'Scoped
 scopedFromPostfix x = unsafeCoerce x
+
+discardTypes :: Sweet 'Typed -> Sweet 'Scoped
+discardTypes x = unsafeCoerce x
 
 instance HasOrigin (Sweet p) where
   getOrigin term = case term of

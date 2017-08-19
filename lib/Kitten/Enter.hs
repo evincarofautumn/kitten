@@ -34,7 +34,7 @@ import Kitten.Metadata (Metadata)
 import Kitten.Monad (K)
 import Kitten.Name
 import Kitten.Phase (Phase(..))
-import Kitten.Term (Sweet)
+import Kitten.Term (Sweet(..))
 import Kitten.Tokenize (tokenize)
 import Kitten.TypeDefinition (TypeDefinition)
 import qualified Data.HashMap.Strict as HashMap
@@ -53,6 +53,7 @@ import qualified Kitten.Quantify as Quantify
 import qualified Kitten.Report as Report
 import qualified Kitten.Resolve as Resolve
 import qualified Kitten.Signature as Signature
+import qualified Kitten.Term as Term
 import qualified Kitten.TypeDefinition as TypeDefinition
 import qualified Text.PrettyPrint as Pretty
 
@@ -280,11 +281,9 @@ defineWord dictionary definition = do
       origin' parent mSignature body)
       | Definition.inferSignature definition
         || Just resolvedSignature == mSignature -> do
-      error "TODO: concatenable dictionary entries"
-{-
       composedBody <- case body of
         Just existing -> do
-          let strippedBody = Term.stripMetadata' existing
+          let strippedBody = Term.discardTypes existing
           return $ SCompose () strippedBody $ Definition.body resolved
         Nothing -> return $ Definition.body resolved
       (composed, composedType) <- typecheck dictionary
@@ -302,7 +301,6 @@ defineWord dictionary definition = do
             else mSignature)
           $ Just flattenedBody
       return $ Dictionary.insert (Instantiated name []) entry dictionary'
--}
 
     -- Already defined, not concatenable.
     Just (Entry.Word _ Merge.Deny originalOrigin _ (Just _sig) _) -> do
