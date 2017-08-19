@@ -10,6 +10,7 @@ Portability : GHC
 
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -192,7 +193,79 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
             ]
 
     term :: [Qualified] -> Sweet 'Typed -> IO ()
-    term callStack t = error "TODO: interpret term"
+    term callStack = \ case
+
+      SArray _ _ items -> error "TODO: interpret array"
+
+      SAs{} -> pure ()
+
+      SCharacter _ _ text -> error "TODO: interpret character"
+
+      SCompose _ a b -> do
+        term callStack a
+        term callStack b
+
+      SDo _ _ f x -> do
+        term callStack x
+        term callStack f
+
+      SEscape _ _ body -> error "TODO: interpret escape"
+
+      SFloat _ _ literal -> error "TODO: interpret float"
+
+      SGeneric{} -> pure ()
+
+      SGroup _ _ body -> term callStack body
+
+      SIdentity{} -> pure ()
+
+      SIf _ _ mCondition true elifs mElse -> error "TODO: interpret if"
+
+      SInfix _ _ left op right typeArgs -> error "TODO: interpret infix"
+
+      SInteger _ _ literal -> error "TODO: interpret integer"
+
+      SJump{} -> error "TODO: interpret jump"
+
+      SLambda _ _ vars body -> error "TODO: interpret lambda"
+
+      SList _ _ items -> error "TODO: interpret list"
+
+      SLocal _ _ name -> error "TODO: interpret local"
+
+      SLoop{} -> error "TODO: interpret loop"
+
+      SMatch _ _ mScrutinee cases mElse -> error "TODO: interpret match"
+
+      SNestableCharacter _ _ text -> error "TODO: interpret nestable character"
+
+      SNestableText _ _ text -> error "TODO: interpret nestable text"
+
+      SPack _ _ boxed vars type_ -> error "TODO: interpret pack"
+
+      SParagraph _ _ text -> error "TODO: interpret paragraph"
+
+      STag _ _ size index -> error "TODO: interpret tag"
+
+      SText _ _ text -> error "TODO: interpret text"
+
+      SQuotation _ _ body -> error "TODO: interpret quotation"
+
+      SReturn{} -> error "TODO: interpret return"
+
+      SSection _ _ name swap operand typeArgs -> error "TODO: interpret section"
+
+      STodo{} -> error "TODO: interpret todo"
+
+      SUnboxedQuotation _ _ body -> error "TODO: interpret unboxed quotation"
+
+      SWith{} -> pure ()
+
+      SWord _ _ fixity (QualifiedName name) typeArgs
+        -> word (name : callStack) name typeArgs
+
+      SWord _ _ fixity name typeArgs
+        -> error "word with unqualified name"
 
     call :: [Qualified] -> IO ()
     call callStack = do
