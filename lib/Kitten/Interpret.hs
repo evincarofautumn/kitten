@@ -22,9 +22,11 @@ module Kitten.Interpret
 
 import Control.Exception (ArithException(..), catch)
 import Control.Exception (Exception, throwIO)
+import Control.Monad (when)
 import Data.Bits
 import Data.Fixed (mod')
-import Data.Foldable (toList)
+import Data.Foldable (for_, toList)
+import Data.Function (fix)
 import Data.IORef (newIORef, modifyIORef', readIORef, writeIORef)
 import Data.Int
 import Data.Maybe (fromMaybe)
@@ -37,6 +39,7 @@ import Data.Word
 import Kitten.Definition (mainName)
 import Kitten.Dictionary (Dictionary)
 import Kitten.Instantiated (Instantiated(Instantiated))
+import Kitten.Literal (FloatLiteral, IntegerLiteral)
 import Kitten.Monad (runKitten)
 import Kitten.Name
 import Kitten.Phase (Phase(..))
@@ -53,6 +56,7 @@ import qualified Codec.Picture.Types as Picture
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LazyByteString
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Kitten.Bits as Bits
@@ -89,27 +93,23 @@ data Rep
   | Text !Text
   deriving (Eq, Show)
 
-valueRep :: (Show a) => Value a -> Rep
-valueRep value = case value of
-  Term.Character c -> Character c
-  Term.Float literal -> case Literal.floatBits literal of
-    Bits.Float32 -> Float32 $ Literal.floatValue literal
-    Bits.Float64 -> Float64 $ Literal.floatValue literal
-  Term.Integer literal -> rep $ Literal.integerValue literal
-    where
-      rep = case Literal.integerBits literal of
-        Bits.Signed8 -> Int8 . fromInteger
-        Bits.Signed16 -> Int16 . fromInteger
-        Bits.Signed32 -> Int32 . fromInteger
-        Bits.Signed64 -> Int64 . fromInteger
-        Bits.Unsigned8 -> UInt8 . fromInteger
-        Bits.Unsigned16 -> UInt16 . fromInteger
-        Bits.Unsigned32 -> UInt32 . fromInteger
-        Bits.Unsigned64 -> UInt64 . fromInteger
+floatRep :: FloatLiteral -> Rep
+floatRep literal = case Literal.floatBits literal of
+  Bits.Float32 -> Float32 $ Literal.floatValue literal
+  Bits.Float64 -> Float64 $ Literal.floatValue literal
 
-  Term.Name name -> Name name
-  Term.Text text -> Text text
-  _ -> error $ "cannot convert value to rep: " ++ show value
+integerRep :: IntegerLiteral -> Rep
+integerRep literal = rep $ Literal.integerValue literal
+  where
+    rep = case Literal.integerBits literal of
+      Bits.Signed8 -> Int8 . fromInteger
+      Bits.Signed16 -> Int16 . fromInteger
+      Bits.Signed32 -> Int32 . fromInteger
+      Bits.Signed64 -> Int64 . fromInteger
+      Bits.Unsigned8 -> UInt8 . fromInteger
+      Bits.Unsigned16 -> UInt16 . fromInteger
+      Bits.Unsigned32 -> UInt32 . fromInteger
+      Bits.Unsigned64 -> UInt64 . fromInteger
 
 instance Pretty Rep where
   pPrint rep = case rep of
@@ -155,8 +155,7 @@ interpret
 interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
   -- TODO: Types.
   stackRef <- newIORef $ Stack.fromList initialStack
-  localsRef <- newIORef []
-  currentClosureRef <- newIORef []
+  localsRef <- newIORef HashMap.empty
   let
 
     word :: [Qualified] -> Qualified -> [Type] -> IO ()
@@ -184,7 +183,8 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
             Qualified v unqualified
               | v == Vocabulary.intrinsic
               -> intrinsic (name : callStack) unqualified
-            _ -> error "no such intrinsic"
+            _ -> error $ Pretty.render $ Pretty.hsep
+              ["call to undefined intrinsic", Pretty.quote name]
           _ -> throwIO $ Failure $ Pretty.hcat
             [ "I can't find an instantiation of "
             , Pretty.quote name
@@ -209,9 +209,14 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
         term callStack x
         term callStack f
 
-      SEscape _ _ body -> error "TODO: interpret escape"
+      SEscape _ _ (SWord _ _ fixity (QualifiedName name) typeArgs) -> do
+        modifyIORef' stackRef (Closure name [] :::)
 
-      SFloat _ _ literal -> error "TODO: interpret float"
+      SEscape _ origin _ -> error $ Pretty.render $ Pretty.hcat
+        [pPrint origin, ": unlifted escape"]
+
+      SFloat _ _ literal -> do
+        modifyIORef' stackRef (floatRep literal :::)
 
       SGeneric{} -> pure ()
 
@@ -219,19 +224,81 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
 
       SIdentity{} -> pure ()
 
-      SIf _ _ mCondition true elifs mElse -> error "TODO: interpret if"
+      SIf _ origin mCondition true elifs mElse -> do
+        for_ mCondition $ term callStack
+        Algebraic ifConditionIndex _ ::: r' <- readIORef stackRef
+        writeIORef stackRef r'
+        case ifConditionIndex of
+          ConstructorIndex 1 -> term callStack true
+          ConstructorIndex 0 -> do
+            done <- flip fix elifs $ \ loop branches -> case branches of
+              (elifOrigin, condition, body) : rest -> do
+                term callStack condition
+                Algebraic elifConditionIndex _ ::: r'' <- readIORef stackRef
+                writeIORef stackRef r''
+                case elifConditionIndex of
+                  -- Condition is true: execute the body and stop looping.
+                  ConstructorIndex 1 -> do
+                    term callStack body
+                    pure True
+                  -- Condition is false: proceed to the next elif.
+                  ConstructorIndex 0 -> loop rest
+                  _ -> error $ Pretty.render $ Pretty.hcat
+                    [pPrint elifOrigin, ": elif condition returned non-Boolean"]
 
-      SInfix _ _ left op right typeArgs -> error "TODO: interpret infix"
+              -- We reached the end of the elifs without executing one.
+              [] -> pure False
 
-      SInteger _ _ literal -> error "TODO: interpret integer"
+            -- If we executed an elif branch, we're done; otherwise we execute
+            -- the else branch, if any.
+            if done then pure () else for_ mElse $ term callStack
+
+          _ -> error $ Pretty.render $ Pretty.hcat
+            [pPrint origin, ": if condition returned non-Boolean"]
+
+      SInfix _ _ left (QualifiedName op) right typeArgs -> do
+        term callStack left
+        term callStack right
+        word (op : callStack) op typeArgs
+
+      SInfix _ origin _ name _ _ -> error $ Pretty.render $ Pretty.hcat
+        [pPrint origin, ": infix operator with unresolved name"]
+
+      SInteger _ _ literal -> do
+        modifyIORef' stackRef (integerRep literal :::)
 
       SJump{} -> error "TODO: interpret jump"
 
-      SLambda _ _ vars body -> error "TODO: interpret lambda"
+      SLambda _ _ vars body -> do
+        r <- readIORef stackRef
+        let (values, r') = Stack.pops (length vars) r
+        writeIORef stackRef r'
+        oldLocals <- readIORef localsRef
+        modifyIORef' localsRef $ \ locals
+          -> foldr addLocal locals (zip (reverse vars) values)
+        term callStack body
+        writeIORef localsRef oldLocals
+        where
+          addLocal ((_, mLocalName, _), value) acc = case mLocalName of
+            Just name -> HashMap.insert name value acc
+            Nothing -> acc
 
       SList _ _ items -> error "TODO: interpret list"
 
-      SLocal _ _ name -> error "TODO: interpret local"
+      SLocal _ origin name -> do
+        locals <- readIORef localsRef
+        case HashMap.lookup name locals of
+          Just value -> modifyIORef' stackRef (value :::)
+          Nothing -> error $ Pretty.render $ Pretty.hcat
+            [ pPrint origin
+            , ": unresolved local variable "
+            , Pretty.quote name
+            , "; variables in scope: "
+            , Pretty.list
+              $ map (\ (name, value)
+                -> Pretty.hsep [pPrint name, "=", pPrint value])
+              $ HashMap.toList locals
+            ]
 
       SLoop{} -> error "TODO: interpret loop"
 
@@ -241,19 +308,43 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
 
       SNestableText _ _ text -> error "TODO: interpret nestable text"
 
-      SPack _ _ boxed vars type_ -> error "TODO: interpret pack"
+      SPack _ origin boxed vars type_
+        | boxed -> do
+          -- Pop the function pointer (which must have an empty closure) and the
+          -- fields, then push a closure.
+          Closure name [] ::: r <- readIORef stackRef
+          let (values, r') = Stack.pops (length vars) r
+          writeIORef stackRef (Closure name values ::: r')
+
+        | otherwise -> error $ Pretty.render $ Pretty.hcat
+          [pPrint origin, ": unboxed closures are not yet implemented"]
 
       SParagraph _ _ text -> error "TODO: interpret paragraph"
 
-      STag _ _ size index -> error "TODO: interpret tag"
+      STag _ _ size index -> do
+        r <- readIORef stackRef
+        let (fields, r') = Stack.pops size r
+        writeIORef stackRef $ Algebraic index fields ::: r'
 
-      SText _ _ text -> error "TODO: interpret text"
+      SText _ _ text -> do
+        modifyIORef' stackRef
+          ((Array $ fmap Character $ Vector.fromList $ Text.unpack text) :::)
 
-      SQuotation _ _ body -> error "TODO: interpret quotation"
+      SQuotation _ origin body -> error $ Pretty.render $ Pretty.hcat
+        [ pPrint origin
+        , ": unlifted quotation appeared during interpretation"
+        ]
 
       SReturn{} -> error "TODO: interpret return"
 
-      SSection _ _ name swap operand typeArgs -> error "TODO: interpret section"
+      SSection _ _ (QualifiedName name) swap operand typeArgs -> do
+        term callStack operand
+        a ::: b ::: r <- readIORef stackRef
+        when swap $ writeIORef stackRef $ b ::: a ::: r
+        word (name : callStack) name typeArgs
+
+      SSection _ origin name _ _ _ -> error $ Pretty.render $ Pretty.hcat
+        [pPrint origin, ": operator section with unresolved name ", Pretty.quote name]
 
       STodo{} -> error "TODO: interpret todo"
 
@@ -264,29 +355,16 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
       SWord _ _ fixity (QualifiedName name) typeArgs
         -> word (name : callStack) name typeArgs
 
-      SWord _ _ fixity name typeArgs
-        -> error "word with unqualified name"
+      SWord _ origin fixity name typeArgs
+        -> error $ Pretty.render $ Pretty.hcat
+        [pPrint origin, ": word with unresolved name ", Pretty.quote name]
 
     call :: [Qualified] -> IO ()
     call callStack = do
       Closure name closure ::: r <- readIORef stackRef
-      writeIORef stackRef r
-      modifyIORef' currentClosureRef (closure :)
+      writeIORef stackRef $ Stack.pushes closure r
       -- FIXME: Use right args.
       word (name : callStack) name []
-      modifyIORef' currentClosureRef tail
-
-    push :: Value Type -> IO ()
-    push value = case value of
-      Term.Closed (ClosureIndex index) -> do
-        (currentClosure : _) <- readIORef currentClosureRef
-        modifyIORef' stackRef ((currentClosure !! index) :::)
-      Term.Local (LocalIndex index) -> do
-        locals <- readIORef localsRef
-        modifyIORef' stackRef ((locals !! index) :::)
-      Term.Text text -> modifyIORef' stackRef
-        ((Array $ fmap Character $ Vector.fromList $ Text.unpack text) :::)
-      _ -> modifyIORef' stackRef (valueRep value :::)
 
     intrinsic :: [Qualified] -> Unqualified -> IO ()
     intrinsic callStack name = case name of
