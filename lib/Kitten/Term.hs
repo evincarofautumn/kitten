@@ -358,7 +358,8 @@ instance Pretty (Sweet p) where
     SFloat _ _ literal -> pPrint literal
 
     -- TODO: Should we pretty-print the generic quantifiers?
-    SGeneric _ _ _ x -> pPrint x
+    SGeneric _ name _ x -> Pretty.hcat
+      ["<", pPrint name, "> ", pPrint x]
 
     SGroup _ _ x -> Pretty.parens $ pPrint x
 
@@ -487,8 +488,13 @@ instance Pretty (Sweet p) where
           , pPrint $ permitName p
           ]
 
-    -- TODO: Incorporate fixity and type arguments.
-    SWord _ _ _fixity name _typeArgs -> pPrint name
+    -- TODO: Incorporate fixity.
+    SWord _ _ _fixity name typeArgs -> Pretty.hcat
+      [ pPrint name
+      , "::<"
+      , Pretty.list $ map pPrint typeArgs
+      , ">"
+      ]
 
 annotation :: Sweet p -> Annotation p
 annotation term = case term of

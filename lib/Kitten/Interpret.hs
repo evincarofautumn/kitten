@@ -44,7 +44,7 @@ import Kitten.Monad (runKitten)
 import Kitten.Name
 import Kitten.Phase (Phase(..))
 import Kitten.Stack (Stack((:::)))
-import Kitten.Term (Sweet(..), Value)
+import Kitten.Term (Sweet(..))
 import Kitten.Type (Type(..))
 import System.Exit (ExitCode(..), exitWith)
 import System.IO (Handle, hGetLine, hFlush, hPutChar, hPutStrLn)
@@ -67,7 +67,6 @@ import qualified Kitten.Literal as Literal
 import qualified Kitten.Pretty as Pretty
 import qualified Kitten.Report as Report
 import qualified Kitten.Stack as Stack
-import qualified Kitten.Term as Term
 import qualified Kitten.TypeEnv as TypeEnv
 import qualified Kitten.Vocabulary as Vocabulary
 import qualified Text.PrettyPrint as Pretty
@@ -78,7 +77,7 @@ data Rep
   = Algebraic !ConstructorIndex [Rep]
   | Array !(Vector Rep)
   | Character !Char
-  | Closure !Qualified [Rep]
+  | Closure !Instantiated [Rep]
   | Float32 !Float
   | Float64 !Double
   | Int8 !Int8
@@ -152,25 +151,26 @@ interpret
   -- ^ Initial stack state.
   -> IO [Rep]
   -- ^ Final stack state.
-interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
+interpret dictionary mName mainTypeArgs
+  stdin' stdout' _stderr' initialStack = do
   -- TODO: Types.
   stackRef <- newIORef $ Stack.fromList initialStack
   localsRef <- newIORef HashMap.empty
   let
 
-    word :: [Qualified] -> Qualified -> [Type] -> IO ()
+    word :: [Instantiated] -> Qualified -> [Type] -> IO ()
     word callStack name args = do
       let mangled = Instantiated name args
       case Dictionary.lookup mangled dictionary of
         -- An entry in the dictionary should already be instantiated, so we
         -- shouldn't need to instantiate it again here.
-        Just (Entry.Word _ _ _ _ _ (Just body)) -> term (name : callStack) body
+        Just (Entry.Word _ _ _ _ _ (Just body)) -> term (mangled : callStack) body
         _ -> case Dictionary.lookup (Instantiated name []) dictionary of
           -- A regular word.
           Just (Entry.Word _ _ _ _ _ (Just body)) -> do
             mBody' <- runKitten $ Instantiate.term TypeEnv.empty body args
             case mBody' of
-              Right body' -> term (name : callStack) body'
+              Right body' -> term (mangled : callStack) body'
               Left reports -> hPutStrLn stdout' $ Pretty.render $ Pretty.vcat
                 $ Pretty.hcat
                   [ "Could not instantiate generic word "
@@ -182,17 +182,20 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
           Just (Entry.Word _ _ _ _ _ Nothing) -> case name of
             Qualified v unqualified
               | v == Vocabulary.intrinsic
-              -> intrinsic (name : callStack) unqualified
+              -> intrinsic (mangled : callStack) unqualified
             _ -> error $ Pretty.render $ Pretty.hsep
               ["call to undefined intrinsic", Pretty.quote name]
-          _ -> throwIO $ Failure $ Pretty.hcat
-            [ "I can't find an instantiation of "
-            , Pretty.quote name
-            , ": "
-            , Pretty.quote mangled
-            ]
+          _ -> error $ Pretty.render $ Pretty.vcat
+            $ Pretty.hcat
+              [ "I can't find an instantiation of "
+              , Pretty.quote name
+              , ": "
+              , Pretty.quote mangled
+              ]
+            : "Call stack:"
+            : map (Pretty.nest 4 . pPrint) callStack
 
-    term :: [Qualified] -> Sweet 'Typed -> IO ()
+    term :: [Instantiated] -> Sweet 'Typed -> IO ()
     term callStack = \ case
 
       SArray _ _ items -> error "TODO: interpret array"
@@ -210,7 +213,7 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
         term callStack f
 
       SEscape _ _ (SWord _ _ fixity (QualifiedName name) typeArgs) -> do
-        modifyIORef' stackRef (Closure name [] :::)
+        modifyIORef' stackRef (Closure (Instantiated name typeArgs) [] :::)
 
       SEscape _ origin _ -> error $ Pretty.render $ Pretty.hcat
         [pPrint origin, ": unlifted escape"]
@@ -259,7 +262,7 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
       SInfix _ _ left (QualifiedName op) right typeArgs -> do
         term callStack left
         term callStack right
-        word (op : callStack) op typeArgs
+        word callStack op typeArgs
 
       SInfix _ origin _ name _ _ -> error $ Pretty.render $ Pretty.hcat
         [pPrint origin, ": infix operator with unresolved name"]
@@ -295,8 +298,8 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
             , Pretty.quote name
             , "; variables in scope: "
             , Pretty.list
-              $ map (\ (name, value)
-                -> Pretty.hsep [pPrint name, "=", pPrint value])
+              $ map (\ (localName, value)
+                -> Pretty.hsep [pPrint localName, "=", pPrint value])
               $ HashMap.toList locals
             ]
 
@@ -341,32 +344,41 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
         term callStack operand
         a ::: b ::: r <- readIORef stackRef
         when swap $ writeIORef stackRef $ b ::: a ::: r
-        word (name : callStack) name typeArgs
+        word callStack name typeArgs
 
       SSection _ origin name _ _ _ -> error $ Pretty.render $ Pretty.hcat
         [pPrint origin, ": operator section with unresolved name ", Pretty.quote name]
 
       STodo{} -> error "TODO: interpret todo"
 
-      SUnboxedQuotation _ _ body -> error "TODO: interpret unboxed quotation"
+      SUnboxedQuotation _ origin body -> error $ Pretty.render $ Pretty.hcat
+        [ pPrint origin
+        , ": unlifted unboxed quotation appeared during interpretation"
+        ]
 
       SWith{} -> pure ()
 
       SWord _ _ fixity (QualifiedName name) typeArgs
-        -> word (name : callStack) name typeArgs
+        -> word callStack name typeArgs
 
       SWord _ origin fixity name typeArgs
         -> error $ Pretty.render $ Pretty.hcat
-        [pPrint origin, ": word with unresolved name ", Pretty.quote name]
+        [ pPrint origin
+        , ": cannot interpret word with unresolved name "
+        , Pretty.quote name
+        , "::<"
+        , Pretty.list $ map pPrint typeArgs
+        , ">"
+        ]
 
-    call :: [Qualified] -> IO ()
+    call :: [Instantiated] -> IO ()
     call callStack = do
-      Closure name closure ::: r <- readIORef stackRef
+      Closure (Instantiated name typeArgs) closure ::: r
+        <- readIORef stackRef
       writeIORef stackRef $ Stack.pushes closure r
-      -- FIXME: Use right args.
-      word (name : callStack) name []
+      word callStack name typeArgs
 
-    intrinsic :: [Qualified] -> Unqualified -> IO ()
+    intrinsic :: [Instantiated] -> Unqualified -> IO ()
     intrinsic callStack name = case name of
       "abort" -> do
         Array cs ::: r <- readIORef stackRef
@@ -1125,7 +1137,7 @@ interpret dictionary mName mainArgs stdin' stdout' _stderr' initialStack = do
         : map (Pretty.nest 4 . pPrint) callStack
 
   let entryPointName = fromMaybe mainName mName
-  word [entryPointName] entryPointName mainArgs
+  word [] entryPointName mainTypeArgs
   toList <$> readIORef stackRef
 
 data Failure = Failure Pretty.Doc

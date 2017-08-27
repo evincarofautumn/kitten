@@ -34,6 +34,7 @@ import Kitten.Metadata (Metadata)
 import Kitten.Monad (K)
 import Kitten.Name
 import Kitten.Phase (Phase(..))
+import Kitten.Specialize (specialize)
 import Kitten.Term (Sweet(..))
 import Kitten.Tokenize (tokenize)
 import Kitten.TypeDefinition (TypeDefinition)
@@ -82,8 +83,12 @@ fragment f
       ++ map Declaration.name (Fragment.declarations f))
   -- Add their metadata (esp. for operator metadata).
   >=> foldlMx addMetadata (Fragment.metadata f)
-  -- And finally enter their definitions.
+  -- Enter their definitions.
   >=> foldlMx defineWord (Fragment.definitions f)
+  -- And finally specialize all the newly added definitions.
+  >=> specialize (Just (map
+    (flip Instantiated [] . Definition.name)
+    $ Fragment.definitions f))
   where
   foldlMx :: (Foldable f, Monad m) => (b -> a -> m b) -> f a -> b -> m b
   foldlMx = flip . foldlM

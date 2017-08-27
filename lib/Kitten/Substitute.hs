@@ -102,9 +102,8 @@ term tenv x a = recur
 
     SInfix tref origin left op right typeArgs -> do
       tref' <- go tref
-      -- TODO: Substitute type arguments?
       SInfix tref' origin <$> recur left <*> pure op <*> recur right
-        <*> pure typeArgs
+        <*> traverse go typeArgs
 
     SInteger tref origin literal -> do
       tref' <- go tref
@@ -176,8 +175,8 @@ term tenv x a = recur
 
     SSection tref origin name swap operand typeArgs -> do
       tref' <- go tref
-      -- TODO: Substitute type arguments?
-      SSection tref' origin name swap <$> recur operand <*> pure typeArgs
+      SSection tref' origin name swap <$> recur operand
+        <*> traverse go typeArgs
 
     STodo tref origin -> do
       tref' <- go tref
@@ -193,7 +192,6 @@ term tenv x a = recur
 
     SWord tref origin fixity name typeArgs -> do
       tref' <- go tref
-      -- TODO: Substitute type arguments?
-      pure $ SWord tref' origin fixity name typeArgs
+      SWord tref' origin fixity name <$> traverse go typeArgs
 
   go = type_ tenv x a
