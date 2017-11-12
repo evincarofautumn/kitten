@@ -16,7 +16,7 @@
 
  * Browse some [examples][examples].
 
-## Building [![Build Status](https://travis-ci.org/evincarofautumn/kitten.png?branch=master)](https://travis-ci.org/evincarofautumn/kitten)
+## Building [![Build Status](https://travis-ci.org/evincarofautumn/kitten.svg?branch=master)](https://travis-ci.org/evincarofautumn/kitten)
 
 To build the latest compiler, you need [Stack]:
 
