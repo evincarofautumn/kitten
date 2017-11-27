@@ -16,6 +16,10 @@
 
  * Browse some [examples][examples].
 
+ * Read my article introducing some interesting things about concatenative programming, [Why Concatenative Programming Matters][wcpm]
+
+ * Watch my lecture describing the theory, history, and implementation techniques of the paradigm, [Concatenative Programming: From Ivory to Metal][cpim].
+
 ## Building [![Build Status](https://travis-ci.org/evincarofautumn/kitten.svg?branch=master)](https://travis-ci.org/evincarofautumn/kitten)
 
 To build the latest compiler, you need [Stack]:
@@ -45,3 +49,5 @@ Kitten is distributed under the terms of the [MIT license][license]. Contributor
 [Stack]: https://docs.haskellstack.org/en/stable/README/
 [license]: https://github.com/evincarofautumn/kitten/blob/master/LICENSE.md
 [code of conduct]: https://github.com/evincarofautumn/kitten/blob/master/CODE_OF_CONDUCT.md
+[wcpm]: http://evincarofautumn.blogspot.com/2012/02/why-concatenative-programming-matters.html
+[cpim]: https://www.youtube.com/watch?v=_IgqJr8jG8M
