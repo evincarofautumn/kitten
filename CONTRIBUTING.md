@@ -44,6 +44,6 @@ Both the Haskell and Kitten code lean toward point-free style where reasonable.
 [common vocabulary]: https://github.com/evincarofautumn/kitten/blob/master/common.ktn
 [examples]: https://github.com/evincarofautumn/kitten/tree/master/examples
 [issues]: https://github.com/evincarofautumn/kitten/issues
-[kittenlang.org repo]: https://github.com/evincarofautumn/kitten/tree/master/examples
+[kittenlang.org repo]: https://github.com/evincarofautumn/kittenlang.org
 [kittenlang.org]: http://kittenlang.org
 [wiki]: https://github.com/evincarofautumn/kitten/wiki
