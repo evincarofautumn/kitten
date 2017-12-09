@@ -18,6 +18,8 @@ I need help to make Kitten a reality! If you’re interested in helping in any w
 
  * Skim a quick [intro][intro].
 
+ * Read the [ebook][ebook].
+
  * Browse some [examples][examples].
 
  * Read my article introducing some interesting things about concatenative programming, [Why Concatenative Programming Matters][wcpm]
@@ -55,5 +57,6 @@ Kitten is distributed under the terms of the [MIT license][license]. Contributor
 [code of conduct]: https://github.com/evincarofautumn/kitten/blob/master/CODE_OF_CONDUCT.md
 [wcpm]: http://evincarofautumn.blogspot.com/2012/02/why-concatenative-programming-matters.html
 [cpim]: https://www.youtube.com/watch?v=_IgqJr8jG8M
+[ebook]: https://www.gitbook.com/book/evincarofautumn/programming-with-kitten
 [initial release]: https://github.com/evincarofautumn/kitten/projects/1
 [contributing]: https://github.com/evincarofautumn/kitten/blob/master/CONTRIBUTING.md
