@@ -8,6 +8,10 @@
 
  * A native-code compiler producing static executables. (Incomplete.)
 
+## Contributing
+
+I need help to make Kitten a reality! If you’re interested in helping in any way, you’re more than welcome, even if you’re not experienced with Haskell or compiler development. You can look at the project for the [initial release] to see what I’m working on, and check out the [contribution guidelines][contributing] for suggestions on how you can help.
+
 ## Resources
 
  * Visit the [official site][site].
@@ -51,3 +55,5 @@ Kitten is distributed under the terms of the [MIT license][license]. Contributor
 [code of conduct]: https://github.com/evincarofautumn/kitten/blob/master/CODE_OF_CONDUCT.md
 [wcpm]: http://evincarofautumn.blogspot.com/2012/02/why-concatenative-programming-matters.html
 [cpim]: https://www.youtube.com/watch?v=_IgqJr8jG8M
+[initial release]: https://github.com/evincarofautumn/kitten/projects/1
+[contributing]: https://github.com/evincarofautumn/kitten/blob/master/CONTRIBUTING.md
