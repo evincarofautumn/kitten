@@ -1,12 +1,14 @@
 # The Kitten Programming Language
 
+[![Gitter chat](https://badges.gitter.im/gitterHQ/gitter.png)][gitter] [![Build Status](https://travis-ci.org/evincarofautumn/kitten.svg?branch=master)](https://travis-ci.org/evincarofautumn/kitten)
+
 **Kitten** is a statically typed, [stack-based functional programming language][concatenative] designed for simplicity, speed, and safety. This is an in-progress implementation of that language, including:
 
- * An interactive console for testing code.
+ * An interactive console for testing code
 
- * An interpreter.
+ * An interpreter
 
- * A native-code compiler producing static executables. (Incomplete.)
+ * A native-code compiler producing static executables (incomplete)
 
 ## Contributing
 
@@ -14,19 +16,19 @@ I need help to make Kitten a reality! If you’re interested in helping in any w
 
 ## Resources
 
- * Visit the [official site][site].
+ * Browse some [examples][examples] to get a feel for the language
 
- * Skim a quick [intro][intro].
+ * Join the [chat room][gitter] to ask questions
 
- * Read the [ebook][ebook].
+ * Skim a quick [intro][intro] on the [official site][site]
 
- * Browse some [examples][examples].
+ * Read the most recent updates to the [ebook][ebook]
 
  * Read my article introducing some interesting things about concatenative programming, [Why Concatenative Programming Matters][wcpm]
 
- * Watch my lecture describing the theory, history, and implementation techniques of the paradigm, [Concatenative Programming: From Ivory to Metal][cpim].
+ * Watch my lecture describing the theory, history, and implementation techniques of the paradigm, [Concatenative Programming: From Ivory to Metal][cpim]
 
-## Building [![Build Status](https://travis-ci.org/evincarofautumn/kitten.svg?branch=master)](https://travis-ci.org/evincarofautumn/kitten)
+## Building
 
 To build the latest compiler, you need [Stack]:
 
@@ -60,3 +62,4 @@ Kitten is distributed under the terms of the [MIT license][license]. Contributor
 [ebook]: https://www.gitbook.com/book/evincarofautumn/programming-with-kitten
 [initial release]: https://github.com/evincarofautumn/kitten/projects/1
 [contributing]: https://github.com/evincarofautumn/kitten/blob/master/CONTRIBUTING.md
+[gitter]: https://gitter.im/kittenlang/Lobby
