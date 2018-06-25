@@ -24,7 +24,7 @@ I need help to make Kitten a reality! If you’re interested in helping in any w
 
  * Read the most recent updates to the [ebook][ebook]
 
- * Read my article introducing some interesting things about concatenative programming, [Why Concatenative Programming Matters][wcpm]
+ * Read my article introducing some interesting things about concatenation programming, [Why Concatenative Programming Matters][wcpm]
 
  * Watch my lecture describing the theory, history, and implementation techniques of the paradigm, [Concatenative Programming: From Ivory to Metal][cpim]
 
