@@ -1280,6 +1280,11 @@ define prepend<T> (T, List<T> -> List<T>):
 define cat<T> (List<T>, List<T> -> List<T>):
   _::kitten::cat
 
+// FIXME: Requires generic instances; should be:
+// instance + <T> (List<T>, List<T> -> List<T>)
+instance + (List<Char>, List<Char> -> List<Char>):
+  cat
+
 define get<T> (List<T>, Int32 -> Optional<T>):
   _::kitten::get
 
