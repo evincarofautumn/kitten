@@ -21,6 +21,7 @@ import Kitten.Instantiated (Instantiated(Instantiated))
 import Kitten.Interpret (Failure, interpret)
 import Kitten.Kind (Kind(..))
 import Kitten.Name
+import Paths_Kitten
 import Report
 import System.Console.Haskeline hiding (catch)
 import System.Exit (exitFailure)
@@ -51,7 +52,7 @@ import qualified Text.PrettyPrint as Pretty
 
 run :: IO ()
 run = do
-  let commonPath = "common.ktn"
+  commonPath <- getDataFileName "common.ktn"
   commonSource <- IO.readFileUtf8 commonPath
   commonDictionary <- runKitten $ do
     fragment <- Kitten.fragmentFromSource

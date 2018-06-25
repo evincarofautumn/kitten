@@ -9,6 +9,8 @@ category: Language
 build-type: Simple
 cabal-version: >=1.10
 
+data-files: common.ktn
+
 executable kitten
   build-depends:
 
@@ -35,6 +37,7 @@ executable kitten
   other-modules:
     Arguments
     Interact
+    Paths_Kitten
     Report
 
 library

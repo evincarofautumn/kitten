@@ -7,6 +7,7 @@ import Control.Monad (void)
 import Kitten (compile, runKitten)
 import Kitten.Interpret (interpret)
 import Kitten.Name (GeneralName(..), Qualified(..))
+import Paths_Kitten
 import Report
 import System.Exit
 import System.IO
@@ -32,10 +33,8 @@ main = do
 runBatch :: Arguments -> IO ()
 runBatch arguments = do
   let paths = Arguments.inputPaths arguments
-  result <- runKitten
-    $ compile mainPermissions Nothing
-    -- FIXME: Use proper library path lookup.
-    ("common.ktn" : paths)
+  commonPath <- getDataFileName "common.ktn"
+  result <- runKitten $ compile mainPermissions Nothing (commonPath : paths)
   case result of
     Left reports -> do
       reportAll reports

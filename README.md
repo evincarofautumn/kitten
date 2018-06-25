@@ -28,9 +28,9 @@ I need help to make Kitten a reality! If you’re interested in helping in any w
 
  * Watch my lecture describing the theory, history, and implementation techniques of the paradigm, [Concatenative Programming: From Ivory to Metal][cpim]
 
-## Building
+## Building and Installing
 
-To build the latest compiler, you need [Stack]:
+If you’re building the compiler just to try it out or work on it, you can follow the preferred build method of using [Stack]:
 
 ```
 git clone https://github.com/evincarofautumn/kitten.git
@@ -40,11 +40,30 @@ stack build
 
 stack exec kitten
 stack exec kitten -- <flags>
-# OR
-stack install
-~/.local/bin/kitten
-~/.local/bin/kitten <flags>
 ```
+
+However, if you want to *install* Kitten in a standard location outside the build directory, due to a deficiency in Stack’s support for Cabal’s `data-files` feature, it is **not** recommended to use `stack install` to install a copy of the executable, because this will not install the *common vocabulary* `common.ktn` containing Kitten’s standard library.
+
+There are two workarounds. One is to forgo Stack, and build and install Kitten using Cabal directly:
+
+```
+cabal sandbox init
+cabal install --only-dependencies
+cabal install --prefix="$HOME/.local"
+```
+
+This will correctly install the common vocab so that Kitten can find it. The preferred install location for Kitten is `~/.local` on Unix-like systems (so the executable resides at `~/.local/bin/kitten`) or `%APPDATA%\local` on Windows (resp. `%APPDATA%\local\bin\kitten.exe`).
+
+The other option is to manually copy `common.ktn` to the install directory:
+
+```
+stack install
+cp common.ktn ~/.local/bin/
+```
+
+It’s also recommended to add the install directory (`~/.local/bin` or `%APPDATA\local\bin`) to your `PATH` so that you can invoke `kitten` directly without a path prefix.
+
+These are the only files installed by Kitten, so to uninstall it, you only need to delete the compiler and common vocab from the install directory.
 
 ## Miscellany
 
