@@ -1,34 +1,32 @@
-99 bottles_of_beer
+99 bottles_of_beer_on_the_wall
 
-define bottles_of_beer (Int32 -> +IO):
-  -> x;
-  x verse
-  if (x > 1):
-    (x - 1) bottles_of_beer
+define bottles_of_beer_on_the_wall (Int32 -> +IO):
+  -> n;
+  n th_verse
+  if (n > 1): (n - 1) bottles_of_beer_on_the_wall
 
-define verse (Int32 -> +IO):
-  -> x;
-  x on_the_wall
-  x of_beer "" say
-  take_one_down
-  (x - 1) on_the_wall
-  "" say
+define th_verse (Int32 -> +IO):
+  -> n;
+  n bottles_of_beer on_the_wall       say
+  n bottles_of_beer                   say
+  take_one_down_pass_it_around        say
+  (n - 1) bottles_of_beer on_the_wall say
+  newline
 
-define of_beer (Int32 -> +IO):
-  bottles " of beer" print
+define bottles_of_beer (Int32 -> List<Char>):
+  bottles " of beer" cat
 
-define on_the_wall (Int32 -> +IO):
-  of_beer " on the wall" say
+define on_the_wall (List<Char> -> List<Char>):
+  " on the wall" cat
 
-define take_one_down (-> +IO):
-  "take one down, pass it around" say
+define take_one_down_pass_it_around (-> List<Char>):
+  "take one down, pass it around"
 
-define bottles (Int32 -> +IO):
-  -> x;
-  if (x = 0):
+define bottles (Int32 -> List<Char>):
+  -> n;
+  if (n = 0):
     "no more bottles"
-  elif (x = 1):
+  elif (n = 1):
     "one bottle"
   else:
-    x show " bottles" cat
-  print
+    n show " bottles" cat
