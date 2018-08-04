@@ -124,10 +124,10 @@ define mark_board (Board, Int32, Int32, Player -> Optional<Board>):
     number board_index -> index;
     board_cells
     do (with (+Fail)):
-        match (dup index get from_some)
+        match (dup index get "invalid index" from_some)
         case vacant:
             (current_player occupied) index set
-            from_some board_of_cells some
+            "invalid index" from_some board_of_cells some
         case occupied:
             drop2 none
 
@@ -139,11 +139,11 @@ define parse_move (List<Char> -> Optional<Move>):
     -> chars;
     do (with (+Fail)):
         if (chars length = 2):
-            (chars 0 get from_some)
-            (chars 1 get from_some)
+            (chars 0 get "invalid move" from_some)
+            (chars 1 get "invalid move" from_some)
             read_x_y
         // HACK: Needs generic instances.
-        elif (chars length = 1 && { chars 0 get from_some = 'q' }):
+        elif (chars length = 1 && { chars 0 get "invalid move" from_some = 'q' }):
             forfeit some
         else:
             none
@@ -194,7 +194,8 @@ define show_row (Board, Int32 -> List<Char> +Fail):
     ] concat
 
 define show_cell (Board, Int32 -> List<Char> +Fail):
-    \board_cells dip board_index get from_some show
+    \board_cells dip board_index get
+    "invalid board index" from_some show
 
 instance show (Player -> List<Char>):
     match
