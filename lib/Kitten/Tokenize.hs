@@ -38,6 +38,7 @@ import qualified Kitten.Origin as Origin
 import qualified Kitten.Report as Report
 import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Pos as Parsec
+import qualified Text.Parsec.Char as Parsec
 import qualified Text.PrettyPrint as Pretty
 
 -- | Lexes a source fragment into a list of tokens, annotated with their source
@@ -73,7 +74,7 @@ silenceTokenizer = Parsec.skipMany (comment <|> whitespace)
   whitespace = Parsec.skipMany1 (newline <|> nonNewline) <?> "whitespace"
 
   newline = do
-    void (Parsec.char '\n' *> many nonNewline)
+    void (Parsec.endOfLine *> many nonNewline)
     pos <- Parsec.getPosition
     Parsec.putState (Parsec.sourceColumn pos)
 
@@ -319,7 +320,7 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
   paragraph :: Tokenizer Text
   paragraph = (<?> "paragraph") $ do
     _ <- Parsec.try $ Parsec.string "\"\"\""
-    _ <- Parsec.char '\n' <?> "newline before paragraph body"
+    _ <- Parsec.endOfLine <?> "newline before paragraph body"
     (prefix, body) <- untilLeft paragraphLine
     body' <- forM body $ \ line -> case Text.stripPrefix prefix line of
       Just line' -> return line'
@@ -340,8 +341,8 @@ tokenTokenizer = rangedTokenizer $ Parsec.choice
       <$> Parsec.many (Parsec.char ' ')
       <* Parsec.string "\"\"\""
     , (<?> "paragraph line") $ Right . Text.pack . catMaybes <$> Parsec.many
-      (Parsec.choice [Just <$> Parsec.noneOf "\\\n", escape])
-      <* Parsec.char '\n'
+      (Parsec.choice [Just <$> (Parsec.noneOf ['\n', '\r']), escape])
+      <* Parsec.endOfLine
     ]
 
 untilLeft :: (Monad m) => m (Either a b) -> m (a, [b])
