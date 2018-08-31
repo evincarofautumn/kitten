@@ -1,0 +1,22 @@
+define divisible(Int32, Int32 -> Bool):
+    do (with (+Fail)):
+        (%) 0 (=)
+
+define buzzes(Int32 -> List<Char>):
+    -> n;
+    n 5 divisible
+    n 3 divisible
+
+    if:
+        if: "FizzBuzz"
+        else: "Fizz"
+    else:
+        if: "Buzz"
+        else: n show
+
+define loop(Int32, Int32 -> +IO):
+    -> c, m;
+    c buzzes say
+    if (c < m): (c + 1) m loop
+
+1 100 loop
