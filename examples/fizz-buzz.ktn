@@ -1,0 +1,26 @@
+define buzzes(Int32 -> +IO +Fail):
+    -> n;
+    n 5 (%) 0 (=)
+    n 3 (%) 0 (=)
+
+    match
+    case true: 
+        match 
+        case true:
+            "FizzBuzz" say
+        case false:
+            "Fizz" say
+    case false:
+        match
+        case true:
+            "Buzz" say
+        case false:
+            n say
+    
+
+define loop(Int32, Int32 -> +IO +Fail):
+    -> c, m;
+    c buzzes
+    if (c < m): (c + 1) m loop
+
+1 100 loop 
