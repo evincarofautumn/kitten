@@ -1,26 +1,30 @@
-define buzzes(Int32 -> +IO +Fail):
+define divisible(Int32, Int32 -> Bool):
+    do (with (+Fail)):
+        (%) 0 (=)
+
+define buzzes(Int32 -> List<Char>):
     -> n;
-    n 5 (%) 0 (=)
-    n 3 (%) 0 (=)
+    n 5 divisible
+    n 3 divisible
 
     match
     case true: 
         match 
         case true:
-            "FizzBuzz" say
+            "FizzBuzz"
         case false:
-            "Fizz" say
+            "Fizz"
     case false:
         match
         case true:
-            "Buzz" say
+            "Buzz"
         case false:
-            n say
+            n show
     
 
-define loop(Int32, Int32 -> +IO +Fail):
+define loop(Int32, Int32 -> +IO):
     -> c, m;
-    c buzzes
+    c buzzes say
     if (c < m): (c + 1) m loop
 
 1 100 loop 
