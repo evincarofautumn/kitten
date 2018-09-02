@@ -7,19 +7,12 @@ define buzzes(Int32 -> List<Char>):
     n 5 divisible
     n 3 divisible
 
-    match
-    case true: 
-        match 
-        case true:
-            "FizzBuzz"
-        case false:
-            "Fizz"
-    case false:
-        match
-        case true:
-            "Buzz"
-        case false:
-            n show
+    if: 
+        if: "FizzBuzz"
+        else: "Fizz"
+    else:
+        if: "Buzz"
+        else: n show
     
 
 define loop(Int32, Int32 -> +IO):
