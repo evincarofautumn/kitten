@@ -26,7 +26,7 @@ As you go along, feel free to submit [issues] or pull requests. Here are some ex
 
  * **Accessibility** — If you encounter accessibility issues with the tooling or documentation, for example as a person with a visual impairment or limited mobility.
 
-Contributors should agree to abide by the guidelines for respectful collaboration set out in the [Code of Conduct].
+Contributors must agree to the [Contributor License Agreement] and to abide by the guidelines for respectful collaboration set out in the [Code of Conduct].
 
 ## Style Guidelines
 
@@ -39,6 +39,7 @@ The Kitten code also uses 2-space indents and an 80-column limit, with layout (`
 Both the Haskell and Kitten code lean toward point-free style where reasonable.
 
 [Code of Conduct]: https://github.com/evincarofautumn/kitten/blob/master/CODE_OF_CONDUCT.md
+[Contributor License Agreement]: https://www.clahub.com/agreements/evincarofautumn/kitten
 [README]: https://github.com/evincarofautumn/kitten/blob/master/README.md
 [Rosetta Code]: http://rosettacode.org/
 [common vocabulary]: https://github.com/evincarofautumn/kitten/blob/master/common.ktn
