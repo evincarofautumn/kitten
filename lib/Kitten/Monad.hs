@@ -16,6 +16,7 @@ module Kitten.Monad
   ) where
 
 import Control.Concurrent (newEmptyMVar, putMVar, takeMVar)
+import Control.Monad.Fail (MonadFail (..))
 import Control.Monad.Fix (MonadFix(..))
 import Control.Monad.IO.Class
 import Kitten.Informer (Informer(..))
@@ -81,6 +82,8 @@ instance (Monad m) => Monad (KT m) where
     case mx of
       Left reports' -> return $ Left reports'
       Right (x, reports') -> unKT (f x) context reports'
+
+instance Monad m => MonadFail (KT m) where
   fail = error "do not use 'fail'"
 
 instance (MonadIO m) => MonadFix (KT m) where

@@ -12,6 +12,7 @@ module Kitten.Fragment
   ( Fragment(..)
   ) where
 
+import Data.Semigroup (Semigroup (..))
 import Kitten.Declaration (Declaration)
 import Kitten.Definition (Definition)
 import Kitten.Metadata (Metadata)
@@ -38,7 +39,10 @@ instance Monoid (Fragment a) where
     , synonyms = []
     , types = []
     }
-  mappend a b = Fragment
+  mappend = (<>)
+
+instance Semigroup (Fragment a) where
+  (<>) a b = Fragment
     { declarations = declarations a ++ declarations b
     , definitions = definitions a ++ definitions b
     , metadata = metadata a ++ metadata b
