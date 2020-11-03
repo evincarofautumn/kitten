@@ -1,6 +1,7 @@
 resolver: lts-5.2
 packages:
 - '.'
-extra-deps: []
+extra-deps:
+- 'fail-4.9.0.0'
 flags: {}
 extra-package-dbs: []
