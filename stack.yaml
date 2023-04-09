@@ -1,4 +1,4 @@
-resolver: lts-5.2
+resolver: lts-19.17
 packages:
 - '.'
 extra-deps:
