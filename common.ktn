@@ -350,7 +350,146 @@ vocab kitten {
   intrinsic eq_float64 (Float64, Float64 -> Bool)
   intrinsic ne_float64 (Float64, Float64 -> Bool)
 
+  // Widening signed integer conversions.
+
+  intrinsic cast_int8_int16 (Int8 -> Int16)
+  intrinsic cast_int8_int32 (Int8 -> Int32)
+  intrinsic cast_int8_int64 (Int8 -> Int64)
+  intrinsic cast_int16_int32 (Int16 -> Int32)
+  intrinsic cast_int16_int64 (Int16 -> Int64)
+  intrinsic cast_int32_int64 (Int32 -> Int64)
+
+  // Widening unsigned integer conversions.
+
+  intrinsic cast_uint8_uint16 (UInt8 -> UInt16)
+  intrinsic cast_uint8_uint32 (UInt8 -> UInt32)
+  intrinsic cast_uint8_uint64 (UInt8 -> UInt64)
+  intrinsic cast_uint16_uint32 (UInt16 -> UInt32)
+  intrinsic cast_uint16_uint64 (UInt16 -> UInt64)
+  intrinsic cast_uint32_uint64 (UInt32 -> UInt64)
+
+  // Widening unsigned-to-signed integer conversions.
+
+  intrinsic cast_uint8_int16 (UInt8 -> Int16)
+  intrinsic cast_uint8_int32 (UInt8 -> Int32)
+  intrinsic cast_uint8_int64 (UInt8 -> Int64)
+  intrinsic cast_uint16_int32 (UInt16 -> Int32)
+  intrinsic cast_uint16_int64 (UInt16 -> Int64)
+  intrinsic cast_uint32_int64 (UInt32 -> Int64)
+
+  // Widening floating-point conversions.
+
+  intrinsic cast_float32_float64 (Float32 -> Float64)
+
+  // Safe narrowing signed integer conversions.
+
+  intrinsic cast_int64_int32 (Int64 -> Optional<Int32>)
+  intrinsic cast_int64_int16 (Int64 -> Optional<Int16>)
+  intrinsic cast_int64_int8 (Int64 -> Optional<Int8>)
+  intrinsic cast_int32_int16 (Int32 -> Optional<Int16>)
+  intrinsic cast_int32_int8 (Int32 -> Optional<Int8>)
+  intrinsic cast_int16_int8 (Int16 -> Optional<Int8>)
+
+  // Safe narrowing unsigned integer conversions.
+
+  intrinsic cast_uint64_uint32 (UInt64 -> Optional<UInt32>)
+  intrinsic cast_uint64_uint16 (UInt64 -> Optional<UInt16>)
+  intrinsic cast_uint64_uint8 (UInt64 -> Optional<UInt8>)
+  intrinsic cast_uint32_uint16 (UInt32 -> Optional<UInt16>)
+  intrinsic cast_uint32_uint8 (UInt32 -> Optional<UInt8>)
+  intrinsic cast_uint16_uint8 (UInt16 -> Optional<UInt8>)
+
+  // Safe narrowing floating-point conversions.
+
+  intrinsic cast_float64_float32 (Float64 -> Optional<Float32>)
+
+  // Safe size-preserving signedness conversions.
+
+  intrinsic cast_int64_uint64 (Int64 -> Optional<UInt64>)
+  intrinsic cast_int32_uint32 (Int32 -> Optional<UInt32>)
+  intrinsic cast_int16_uint16 (Int16 -> Optional<UInt16>)
+  intrinsic cast_int8_uint8 (Int8 -> Optional<UInt8>)
+
+  intrinsic cast_uint64_int64 (UInt64 -> Optional<Int64>)
+  intrinsic cast_uint32_int32 (UInt32 -> Optional<Int32>)
+  intrinsic cast_uint16_int16 (UInt16 -> Optional<Int16>)
+  intrinsic cast_uint8_int8 (UInt8 -> Optional<Int8>)
+
 }
+
+trait widen_cast<A, B> (A -> B)
+
+about widen_cast:
+  docs: """
+    Safe widening conversion between two types, where the entire range of the
+    source type is included by the range of the target type.
+    """
+
+instance widen_cast (Int8 -> Int16) { _::kitten::cast_int8_int16 }
+instance widen_cast (Int8 -> Int32) { _::kitten::cast_int8_int32 }
+instance widen_cast (Int8 -> Int64) { _::kitten::cast_int8_int64 }
+instance widen_cast (Int16 -> Int32) { _::kitten::cast_int16_int32 }
+instance widen_cast (Int16 -> Int64) { _::kitten::cast_int16_int64 }
+instance widen_cast (Int32 -> Int64) { _::kitten::cast_int32_int64 }
+
+instance widen_cast (UInt8 -> UInt16) { _::kitten::cast_uint8_uint16 }
+instance widen_cast (UInt8 -> UInt32) { _::kitten::cast_uint8_uint32 }
+instance widen_cast (UInt8 -> UInt64) { _::kitten::cast_uint8_uint64 }
+instance widen_cast (UInt16 -> UInt32) { _::kitten::cast_uint16_uint32 }
+instance widen_cast (UInt16 -> UInt64) { _::kitten::cast_uint16_uint64 }
+instance widen_cast (UInt32 -> UInt64) { _::kitten::cast_uint32_uint64 }
+
+instance widen_cast (UInt8 -> Int16) { _::kitten::cast_uint8_int16 }
+instance widen_cast (UInt8 -> Int32) { _::kitten::cast_uint8_int32 }
+instance widen_cast (UInt8 -> Int64) { _::kitten::cast_uint8_int64 }
+instance widen_cast (UInt16 -> Int32) { _::kitten::cast_uint16_int32 }
+instance widen_cast (UInt16 -> Int64) { _::kitten::cast_uint16_int64 }
+instance widen_cast (UInt32 -> Int64) { _::kitten::cast_uint32_int64 }
+
+instance widen_cast (Float32 -> Float64) { _::kitten::cast_float32_float64 }
+
+trait narrow_cast<A, B> (A -> Optional<B>)
+
+about narrow_cast:
+  docs: """
+    Safe narrowing conversion between two types, which returns `none` if the
+    source value is out of the range of the target type.
+    """
+
+instance narrow_cast (Int64 -> Optional<Int32>) { _::kitten::cast_int64_int32 }
+instance narrow_cast (Int64 -> Optional<Int16>) { _::kitten::cast_int64_int16 }
+instance narrow_cast (Int64 -> Optional<Int8>) { _::kitten::cast_int64_int8 }
+instance narrow_cast (Int32 -> Optional<Int16>) { _::kitten::cast_int32_int16 }
+instance narrow_cast (Int32 -> Optional<Int8>) { _::kitten::cast_int32_int8 }
+instance narrow_cast (Int16 -> Optional<Int8>) { _::kitten::cast_int16_int8 }
+
+instance narrow_cast (UInt64 -> Optional<UInt32>) { _::kitten::cast_uint64_uint32 }
+instance narrow_cast (UInt64 -> Optional<UInt16>) { _::kitten::cast_uint64_uint16 }
+instance narrow_cast (UInt64 -> Optional<UInt8>) { _::kitten::cast_uint64_uint8 }
+instance narrow_cast (UInt32 -> Optional<UInt16>) { _::kitten::cast_uint32_uint16 }
+instance narrow_cast (UInt32 -> Optional<UInt8>) { _::kitten::cast_uint32_uint8 }
+instance narrow_cast (UInt16 -> Optional<UInt8>) { _::kitten::cast_uint16_uint8 }
+
+instance narrow_cast (Float64 -> Optional<Float32>) { _::kitten::cast_float64_float32 }
+
+trait signed_cast<A, B> (A -> Optional<B>)
+
+about signed_cast:
+  docs: """
+    Safe size-preserving conversion between two types that differ only in
+    signedness, which returns `none` if the source value is out of the range of
+    the target type.
+    """
+
+instance signed_cast (Int64 -> Optional<UInt64>) { _::kitten::cast_int64_uint64 }
+instance signed_cast (Int32 -> Optional<UInt32>) { _::kitten::cast_int32_uint32 }
+instance signed_cast (Int16 -> Optional<UInt16>) { _::kitten::cast_int16_uint16 }
+instance signed_cast (Int8 -> Optional<UInt8>) { _::kitten::cast_int8_uint8 }
+
+instance signed_cast (UInt64 -> Optional<Int64>) { _::kitten::cast_uint64_int64 }
+instance signed_cast (UInt32 -> Optional<Int32>) { _::kitten::cast_uint32_int32 }
+instance signed_cast (UInt16 -> Optional<Int16>) { _::kitten::cast_uint16_int16 }
+instance signed_cast (UInt8 -> Optional<Int8>) { _::kitten::cast_uint8_int8 }
 
 trait neg<T> (T -> T)
 
