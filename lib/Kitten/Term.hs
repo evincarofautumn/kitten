@@ -165,19 +165,23 @@ permissionCoercion permits x o = Coercion (AnyCoercion signature) x o
   signature = Signature.Quantified
     [ Parameter o "R" Kind.Stack
     , Parameter o "S" Kind.Stack
+    -- FIXME: This could clash with user-defined names because 'with' is
+    -- desugared too early, so we use the workaround of an invalid name.
+    , Parameter o "$P1" Kind.Permission
+    , Parameter o "$P2" Kind.Permission
     ]
     (Signature.Function
       [ Signature.StackFunction
         (Signature.Variable "R" o) []
         (Signature.Variable "S" o) []
-        (map permitName grants) o
+        (UnqualifiedName "$P1" : map permitName grants) o
       ]
       [ Signature.StackFunction
         (Signature.Variable "R" o) []
         (Signature.Variable "S" o) []
-        (map permitName revokes) o
+        (UnqualifiedName "$P1" : map permitName revokes) o
       ]
-      [] o) o
+      [UnqualifiedName "$P2"] o) o
   (grants, revokes) = partition permitted permits
 
 decompose :: Term a -> [Term a]
@@ -263,7 +267,9 @@ stripValue v = case v of
 
 instance Pretty (Term a) where
   pPrint term = case term of
-    Coercion{} -> Pretty.empty
+    Coercion IdentityCoercion _ _ -> Pretty.empty
+    Coercion (AnyCoercion signature) _ _
+      -> Pretty.hcat ["/* coerce ", pPrint signature, " */"]
     Compose _ a b -> pPrint a Pretty.$+$ pPrint b
     Generic name i body _ -> Pretty.hsep
       [ Pretty.angles $ Pretty.hcat [pPrint name, "/*", pPrint i, "*/"]
